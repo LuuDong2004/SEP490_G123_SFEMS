@@ -1,0 +1,1026 @@
+{
+  "actions": {
+    "list": "Danh sách",
+    "create": "Thêm mới",
+    "edit": "Sửa",
+    "show": "Xem",
+    "clone": "Nhân bản"
+  },
+  "buttons": {
+    "create": "Thêm mới",
+    "save": "Lưu",
+    "logout": "Đăng xuất",
+    "delete": "Xoá",
+    "edit": "Sửa",
+    "cancel": "Huỷ",
+    "confirm": "Bạn chắc chắn?",
+    "filter": "Lọc",
+    "clear": "Xoá lọc",
+    "apply": "Áp dụng",
+    "refresh": "Tải lại",
+    "show": "Xem",
+    "undo": "Hoàn tác",
+    "showAll": "Hiện tất cả",
+    "columnsShown": "Cột đang hiển thị",
+    "advancedFilter": "Lọc nâng cao",
+    "clearAll": "Xoá tất cả",
+    "markAllRead": "Đánh dấu đã đọc tất cả",
+    "loggingOut": "Đang đăng xuất…",
+    "resetDefaults": "Về mặc định",
+    "back": "Quay lại",
+    "import": "Nhập dữ liệu",
+    "clone": "Nhân bản",
+    "notAccessTitle": "Bạn không có quyền thực hiện thao tác này",
+    "export": {
+      "label": "Xuất dữ liệu",
+      "page": "Trang này",
+      "all": "Toàn bộ",
+      "title": "Tải xuống CSV",
+      "pageHint": "Các dòng và cột đang hiển thị",
+      "allHint": "Mọi kết quả theo bộ lọc hiện tại"
+    },
+    "columns": "Cột hiển thị"
+  },
+  "warnWhenUnsavedChanges": "Bạn chưa lưu. Rời trang bây giờ sẽ mất những gì vừa sửa.",
+  "unsavedChangesTitle": "Bỏ các thay đổi chưa lưu?",
+  "unsavedChangesDiscard": "Bỏ thay đổi",
+  "unsavedChangesStay": "Ở lại trang này",
+  "pages": {
+    "login": {
+      "title": "Đăng nhập",
+      "signin": "Đăng nhập",
+      "divider": "hoặc",
+      "fields": {
+        "username": "Tên đăng nhập",
+        "usernameOrEmail": "Tên đăng nhập hoặc email",
+        "password": "Mật khẩu"
+      },
+      "subtitle": "Nhập thông tin đăng nhập để tiếp tục.",
+      "signingIn": "Đang đăng nhập…",
+      "administration": "Quản trị",
+      "noAccount": "Chưa có tài khoản hoặc không đăng nhập được? Hãy liên hệ quản trị viên.",
+      "errors": {
+        "validUsername": "Tên đăng nhập không hợp lệ",
+        "validPassword": "Mật khẩu không hợp lệ"
+      },
+      "buttons": {
+        "submit": "Đăng nhập",
+        "forgotPassword": "Quên mật khẩu?"
+      }
+    },
+    "error": {
+      "title": "Không tìm thấy trang.",
+      "description": "Trang bạn tìm không tồn tại.",
+      "info": "Có thể bạn chưa khai báo màn \"{{action}}\" cho mục \"{{resource}}\".",
+      "backHome": "Về trang chủ",
+      "404": "Rất tiếc, trang này không tồn tại.",
+      "403": "Bạn không có quyền xem trang này.",
+      "forbiddenTitle": "Bạn không có quyền truy cập trang này",
+      "forbiddenDescription": "Vai trò của bạn không có quyền xem trang này.",
+      "forbiddenDescriptionResource": "Vai trò của bạn không có quyền xem {{resource}}.",
+      "forbiddenAskAdmin": "Hãy liên hệ quản trị viên nếu bạn cần quyền này.",
+      "forbiddenBack": "Về trang tổng hợp"
+    }
+  },
+  "table": {
+    "actions": "Thao tác",
+    "noData": "Không có dữ liệu",
+    "pagination": {
+      "noRows": "Không có dòng nào",
+      "showing": "Hiển thị",
+      "rowsPerPage": "Số dòng mỗi trang",
+      "page": "Trang {{current}} / {{total}}",
+      "first": "Về trang đầu",
+      "previous": "Trang trước",
+      "next": "Trang sau",
+      "last": "Đến trang cuối"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm…",
+      "clear": "Xoá tìm kiếm"
+    },
+    "empty": {
+      "title": "Chưa có dữ liệu",
+      "description": "Bảng này hiện đang trống.",
+      "scopedTitle": "Chưa có dữ liệu",
+      "scopedDescription": "Bạn chỉ xem được dữ liệu của đơn vị mình, và đơn vị chưa có gì ở mục này.",
+      "filteredTitle": "Không có dòng nào khớp bộ lọc",
+      "filteredDescription": "Thử bỏ bớt hoặc đổi bộ lọc để xem thêm."
+    },
+    "resizeColumn": "Đổi kích thước cột {{column}}",
+    "sort": {
+      "by": "Sắp xếp theo {{column}}",
+      "ascending": "Sắp xếp theo {{column}} tăng dần",
+      "descending": "Sắp xếp theo {{column}} giảm dần"
+    },
+    "filter": {
+      "any": "Bất kỳ",
+      "clearField": "Xoá {{field}}",
+      "removeFilter": "Xoá bộ lọc {{field}}",
+      "searchLabel": "Tìm kiếm",
+      "text": {
+        "placeholder": "Lọc theo..."
+      },
+      "numeric": {
+        "placeholder": "Lọc theo..."
+      },
+      "combobox": {
+        "placeholder": "Chọn...",
+        "search": "Tìm...",
+        "noResults": "Không có kết quả."
+      },
+      "operator": {
+        "placeholder": "Chọn toán tử...",
+        "noResults": "Không có toán tử phù hợp.",
+        "eq": "Bằng",
+        "ne": "Khác",
+        "eqs": "Bằng (phân biệt hoa thường)",
+        "nes": "Khác (phân biệt hoa thường)",
+        "lt": "Nhỏ hơn",
+        "gt": "Lớn hơn",
+        "lte": "Nhỏ hơn hoặc bằng",
+        "gte": "Lớn hơn hoặc bằng",
+        "in": "Thuộc danh sách",
+        "nin": "Không thuộc danh sách",
+        "ina": "Thuộc danh sách (phân biệt hoa thường)",
+        "nina": "Không thuộc danh sách (phân biệt hoa thường)",
+        "contains": "Chứa",
+        "ncontains": "Không chứa",
+        "containss": "Chứa (phân biệt hoa thường)",
+        "ncontainss": "Không chứa (phân biệt hoa thường)",
+        "between": "Trong khoảng",
+        "nbetween": "Ngoài khoảng",
+        "null": "Bỏ trống",
+        "nnull": "Có giá trị",
+        "startswith": "Bắt đầu bằng",
+        "nstartswith": "Không bắt đầu bằng",
+        "startswiths": "Bắt đầu bằng (phân biệt hoa thường)",
+        "nstartswiths": "Không bắt đầu bằng (phân biệt hoa thường)",
+        "endswith": "Kết thúc bằng",
+        "nendswith": "Không kết thúc bằng",
+        "endswiths": "Kết thúc bằng (phân biệt hoa thường)",
+        "nendswiths": "Không kết thúc bằng (phân biệt hoa thường)"
+      }
+    }
+  },
+  "notifications": {
+    "success": "Thành công",
+    "error": "Lỗi (mã {{statusCode}})",
+    "undoable": "Còn {{seconds}} giây để hoàn tác",
+    "createSuccess": "Đã thêm {{resource}}",
+    "createError": "Thêm {{resource}} không thành công (mã {{statusCode}})",
+    "deleteSuccess": "Đã xoá {{resource}}",
+    "deleteError": "Xoá {{resource}} không thành công (mã {{statusCode}})",
+    "editSuccess": "Đã lưu {{resource}}",
+    "editError": "Lưu {{resource}} không thành công (mã {{statusCode}})",
+    "importProgress": "Đã nhập {{processed}}/{{total}}",
+    "notifications": "Thông báo",
+    "unread": "Thông báo, {{count}} chưa đọc",
+    "markAllRead": "Đánh dấu đã đọc tất cả",
+    "empty": "Không có thông báo nào.",
+    "seeAll": "Xem tất cả thông báo",
+    "justNow": "vừa xong",
+    "minutesAgo": "{{count}} phút trước",
+    "hoursAgo": "{{count}} giờ trước",
+    "daysAgo": "{{count}} ngày trước",
+    "titles": {
+      "list": "Thông báo"
+    }
+  },
+  "layout": {
+    "openMenu": "Mở menu",
+    "userMenu": "Menu người dùng",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "expandSidebar": "Mở rộng thanh bên",
+    "skipToContent": "Đến nội dung chính",
+    "searchAnything": "Tìm kiếm…",
+    "yourAccount": "Tài khoản của bạn",
+    "account": "Tài khoản"
+  },
+  "theme": {
+    "customize": "Tuỳ chỉnh giao diện",
+    "customizeTitle": "Tuỳ chỉnh",
+    "customizeDescription": "Chọn màu và kiểu giao diện. Chỉ áp dụng trên trình duyệt này.",
+    "brandColour": "Màu thương hiệu",
+    "appearance": "Chế độ hiển thị",
+    "sidebar": "Thanh bên",
+    "density": "Mật độ",
+    "cornerRadius": "Bo góc",
+    "light": "Sáng",
+    "dark": "Tối",
+    "system": "Hệ thống",
+    "darkRail": "Thanh bên tối",
+    "matchSurface": "Theo nền",
+    "label": "Giao diện: {{mode}}",
+    "switchTo": "Giao diện: {{mode}}. Chuyển sang {{next}}."
+  },
+  "form": {
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu"
+  },
+  "access": {
+    "needPermission": "Bạn cần quyền {{permission}}",
+    "outsideScope": "Mục này nằm ngoài phạm vi dữ liệu của bạn"
+  },
+  "dashboard": {
+    "dashboard": "Tổng hợp",
+    "titles": {
+      "list": "Tổng hợp"
+    }
+  },
+  "users": {
+    "users": "Người dùng",
+    "titles": {
+      "list": "Người dùng",
+      "create": "Thêm người dùng",
+      "edit": "Sửa người dùng",
+      "show": "Chi tiết người dùng"
+    }
+  },
+  "roles": {
+    "roles": "Vai trò",
+    "titles": {
+      "list": "Vai trò",
+      "create": "Thêm vai trò",
+      "edit": "Sửa vai trò",
+      "show": "Chi tiết vai trò"
+    }
+  },
+  "permissions": {
+    "permissions": "Quyền",
+    "titles": {
+      "list": "Quyền",
+      "show": "Chi tiết quyền"
+    }
+  },
+  "row_level_policies": {
+    "row_level_policies": "Phân quyền dòng dữ liệu",
+    "titles": {
+      "list": "Phân quyền dòng dữ liệu",
+      "create": "Thêm chính sách",
+      "edit": "Sửa chính sách",
+      "show": "Chi tiết chính sách"
+    }
+  },
+  "administration": {
+    "administration": "Quản trị hệ thống"
+  },
+  "catalog": {
+    "catalog": "Quản lý danh mục dùng chung"
+  },
+  "education_levels": {
+    "education_levels": "Cấp học",
+    "titles": {
+      "list": "Cấp học",
+      "create": "Thêm cấp học",
+      "edit": "Sửa cấp học",
+      "show": "Chi tiết cấp học"
+    }
+  },
+  "organization": {
+    "organization": "Trường học & cơ sở vật chất"
+  },
+  "departments_of_education": {
+    "departments_of_education": "Cơ quan quản lý",
+    "titles": {
+      "list": "Cơ quan quản lý",
+      "create": "Thêm cơ quan quản lý",
+      "edit": "Sửa cơ quan quản lý",
+      "show": "Chi tiết cơ quan quản lý"
+    }
+  },
+  "schools": {
+    "schools": "Trường học",
+    "titles": {
+      "list": "Trường học",
+      "create": "Thêm trường",
+      "edit": "Sửa trường",
+      "show": "Chi tiết trường"
+    }
+  },
+  "equipment_types": {
+    "equipment_types": "Loại thiết bị",
+    "titles": {
+      "list": "Loại thiết bị",
+      "create": "Thêm loại thiết bị",
+      "edit": "Sửa loại thiết bị",
+      "show": "Chi tiết loại thiết bị"
+    }
+  },
+  "units": {
+    "units": "Đơn vị tính",
+    "titles": {
+      "list": "Đơn vị tính",
+      "create": "Thêm đơn vị tính",
+      "edit": "Sửa đơn vị tính",
+      "show": "Chi tiết đơn vị tính"
+    }
+  },
+  "origin_sources": {
+    "origin_sources": "Nguồn hình thành",
+    "titles": {
+      "list": "Nguồn hình thành",
+      "create": "Thêm nguồn hình thành",
+      "edit": "Sửa nguồn hình thành",
+      "show": "Chi tiết nguồn hình thành"
+    }
+  },
+  "acquisition_methods": {
+    "acquisition_methods": "Hình thức mua sắm",
+    "titles": {
+      "list": "Hình thức mua sắm",
+      "create": "Thêm hình thức mua sắm",
+      "edit": "Sửa hình thức mua sắm",
+      "show": "Chi tiết hình thức mua sắm"
+    }
+  },
+  "semesters": {
+    "semesters": "Học kỳ",
+    "titles": {
+      "list": "Học kỳ",
+      "create": "Thêm học kỳ",
+      "edit": "Sửa học kỳ",
+      "show": "Chi tiết học kỳ"
+    }
+  },
+  "wards": {
+    "wards": "Phường/Xã",
+    "titles": {
+      "list": "Phường/Xã",
+      "create": "Thêm phường/xã",
+      "edit": "Sửa phường/xã",
+      "show": "Chi tiết phường/xã"
+    }
+  },
+  "grades": {
+    "grades": "Khối lớp",
+    "titles": {
+      "list": "Khối lớp",
+      "create": "Thêm khối lớp",
+      "edit": "Sửa khối lớp",
+      "show": "Chi tiết khối lớp"
+    }
+  },
+  "room_types": {
+    "room_types": "Loại phòng",
+    "titles": {
+      "list": "Loại phòng",
+      "create": "Thêm loại phòng",
+      "edit": "Sửa loại phòng",
+      "show": "Chi tiết loại phòng"
+    }
+  },
+  "school_years": {
+    "school_years": "Năm học",
+    "titles": {
+      "list": "Năm học",
+      "create": "Thêm năm học",
+      "edit": "Sửa năm học",
+      "show": "Chi tiết năm học"
+    }
+  },
+  "movement_reasons": {
+    "movement_reasons": "Lý do biến động",
+    "titles": {
+      "list": "Lý do biến động",
+      "create": "Thêm lý do biến động",
+      "edit": "Sửa lý do biến động",
+      "show": "Chi tiết lý do biến động"
+    }
+  },
+  "subjects": {
+    "subjects": "Môn học",
+    "titles": {
+      "list": "Môn học",
+      "create": "Thêm môn học",
+      "edit": "Sửa môn học",
+      "show": "Chi tiết môn học"
+    }
+  },
+  "subject_groups": {
+    "subject_groups": "Tổ chuyên môn",
+    "titles": {
+      "list": "Tổ chuyên môn",
+      "create": "Thêm tổ chuyên môn",
+      "edit": "Sửa tổ chuyên môn",
+      "show": "Chi tiết tổ chuyên môn"
+    }
+  },
+  "catalog_org": {
+    "catalog_org": "Tổ chức và cơ sở vật chất"
+  },
+  "catalog_academic": {
+    "catalog_academic": "Năm học và môn học"
+  },
+  "catalog_equip": {
+    "catalog_equip": "Tài sản và thiết bị"
+  },
+  "catalog_finance": {
+    "catalog_finance": "Tài chính"
+  },
+  "catalog_business": {
+    "catalog_business": "Danh mục nghiệp vụ"
+  },
+  "code_rules": {
+    "code_rules": "Mã tự động của danh mục chung",
+    "titles": {
+      "list": "Mã tự động của danh mục chung",
+      "create": "Thêm quy tắc sinh mã",
+      "edit": "Sửa quy tắc sinh mã",
+      "show": "Chi tiết quy tắc sinh mã"
+    }
+  },
+  "catalog_system": {
+    "catalog_system": "Hệ thống"
+  },
+  "asset_categories": {
+    "asset_categories": "Loại tài sản",
+    "titles": {
+      "list": "Loại tài sản"
+    }
+  },
+  "usage_purposes": {
+    "usage_purposes": "Mục đích sử dụng thiết bị",
+    "titles": {
+      "list": "Mục đích sử dụng thiết bị"
+    }
+  },
+  "funding_sources": {
+    "funding_sources": "Nguồn kinh phí",
+    "titles": {
+      "list": "Nguồn kinh phí"
+    }
+  },
+  "staff_positions": {
+    "staff_positions": "Chức vụ",
+    "titles": {
+      "list": "Chức vụ"
+    }
+  },
+  "equipment_standards": {
+    "equipment_standards": "Danh mục thiết bị tối thiểu",
+    "titles": {
+      "list": "Danh mục thiết bị dạy học tối thiểu",
+      "create": "Thêm bộ tiêu chuẩn",
+      "edit": "Sửa bộ tiêu chuẩn",
+      "show": "Chi tiết bộ tiêu chuẩn"
+    }
+  },
+  "equipment_norms": {
+    "equipment_norms": "Thiết bị trong danh mục tối thiểu",
+    "titles": {
+      "list": "Thiết bị trong danh mục tối thiểu",
+      "create": "Thêm thiết bị vào danh mục tối thiểu",
+      "edit": "Sửa thiết bị trong danh mục tối thiểu",
+      "show": "Thiết bị trong danh mục tối thiểu"
+    }
+  },
+  "equipment_catalogs": {
+    "equipment_catalogs": "Danh mục thiết bị",
+    "titles": {
+      "list": "Danh mục thiết bị",
+      "create": "Thêm thiết bị vào danh mục",
+      "edit": "Sửa thiết bị trong danh mục",
+      "show": "Chi tiết thiết bị trong danh mục"
+    }
+  },
+  "equipment_configs": {
+    "equipment_configs": "Bộ thông số kỹ thuật",
+    "titles": {
+      "list": "Bộ thông số kỹ thuật",
+      "create": "Thêm bộ thông số",
+      "edit": "Sửa bộ thông số",
+      "show": "Chi tiết bộ thông số"
+    }
+  },
+  "staff": {
+    "staff": "Cán bộ, giáo viên",
+    "titles": {
+      "list": "Cán bộ, giáo viên",
+      "create": "Thêm cán bộ",
+      "edit": "Sửa cán bộ",
+      "show": "Chi tiết cán bộ"
+    }
+  },
+  "campuses": {
+    "campuses": "Cơ sở",
+    "titles": {
+      "list": "Cơ sở",
+      "create": "Thêm cơ sở",
+      "edit": "Sửa cơ sở",
+      "show": "Chi tiết cơ sở"
+    }
+  },
+  "buildings": {
+    "buildings": "Khối nhà",
+    "titles": {
+      "list": "Khối nhà",
+      "create": "Thêm khối nhà",
+      "edit": "Sửa khối nhà",
+      "show": "Chi tiết khối nhà"
+    }
+  },
+  "school_classes": {
+    "school_classes": "Lớp học",
+    "titles": {
+      "list": "Lớp học",
+      "create": "Thêm lớp học",
+      "edit": "Sửa lớp học",
+      "show": "Chi tiết lớp học"
+    }
+  },
+  "facility_works": {
+    "facility_works": "Sửa chữa, cải tạo",
+    "titles": {
+      "list": "Sửa chữa, cải tạo công trình",
+      "create": "Ghi sửa chữa, cải tạo",
+      "edit": "Sửa thông tin sửa chữa, cải tạo",
+      "show": "Chi tiết sửa chữa, cải tạo"
+    }
+  },
+  "subject_teams": {
+    "subject_teams": "Tổ bộ môn",
+    "titles": {
+      "list": "Tổ bộ môn",
+      "create": "Thêm tổ bộ môn",
+      "edit": "Sửa tổ bộ môn",
+      "show": "Chi tiết tổ bộ môn"
+    }
+  },
+  "rooms": {
+    "rooms": "Phòng",
+    "titles": {
+      "list": "Phòng",
+      "create": "Thêm phòng",
+      "edit": "Sửa phòng",
+      "show": "Chi tiết phòng"
+    }
+  },
+  "equipment_mgmt": {
+    "equipment_mgmt": "Quản lý thiết bị"
+  },
+  "equipment": {
+    "equipment": "Thiết bị",
+    "titles": {
+      "list": "Thiết bị",
+      "create": "Khai thiết bị đang có",
+      "edit": "Sửa thiết bị",
+      "show": "Hồ sơ thiết bị"
+    }
+  },
+  "equipment_intakes": {
+    "equipment_intakes": "Phiếu ghi tăng",
+    "titles": {
+      "list": "Phiếu ghi tăng",
+      "create": "Lập phiếu ghi tăng",
+      "edit": "Sửa phiếu ghi tăng",
+      "show": "Chi tiết phiếu ghi tăng"
+    }
+  },
+  "school_explorer": {
+    "school_explorer": "Tổng quan trường học",
+    "titles": {
+      "list": "Tổng quan trường học"
+    }
+  },
+  "school_users": {
+    "school_users": "Tài khoản của trường",
+    "titles": {
+      "list": "Tài khoản của trường"
+    }
+  },
+  "approval_flows": {
+    "approval_flows": "Luồng phê duyệt",
+    "titles": {
+      "list": "Luồng phê duyệt"
+    }
+  },
+  "school_code_rules": {
+    "school_code_rules": "Mã tự tăng của trường",
+    "titles": {
+      "list": "Mã tự tăng của trường"
+    }
+  },
+  "activity_logs": {
+    "activity_logs": "Nhật ký hoạt động",
+    "titles": {
+      "list": "Nhật ký hoạt động"
+    }
+  },
+  "equipment_lookup": {
+    "equipment_lookup": "Tra cứu tài sản",
+    "titles": {
+      "list": "Tra cứu tài sản"
+    }
+  },
+  "equipment_labels": {
+    "equipment_labels": "In tem QR",
+    "titles": {
+      "list": "In tem QR"
+    }
+  },
+  "equipment_allocations": {
+    "equipment_allocations": "Cấp phát - điều chuyển nội bộ",
+    "titles": {
+      "list": "Phiếu cấp phát",
+      "create": "Lập phiếu cấp phát",
+      "edit": "Sửa phiếu cấp phát",
+      "show": "Chi tiết phiếu cấp phát"
+    }
+  },
+  "equipment_transfers": {
+    "equipment_transfers": "Điều chuyển giữa trường",
+    "titles": {
+      "list": "Phiếu điều chuyển",
+      "create": "Lập phiếu điều chuyển",
+      "edit": "Sửa phiếu điều chuyển",
+      "show": "Chi tiết phiếu điều chuyển"
+    }
+  },
+  "equipment_loans": {
+    "equipment_loans": "Mượn - trả",
+    "titles": {
+      "list": "Phiếu mượn - trả",
+      "create": "Lập phiếu mượn",
+      "edit": "Sửa phiếu mượn",
+      "show": "Chi tiết phiếu mượn"
+    }
+  },
+  "damage_reports": {
+    "damage_reports": "Báo hỏng - sửa chữa",
+    "titles": {
+      "list": "Phiếu báo hỏng - sửa chữa",
+      "create": "Lập phiếu báo hỏng",
+      "edit": "Sửa phiếu báo hỏng",
+      "show": "Chi tiết phiếu báo hỏng"
+    }
+  },
+  "maintenance_plans": {
+    "maintenance_plans": "Kế hoạch bảo trì",
+    "titles": {
+      "list": "Kế hoạch bảo trì",
+      "create": "Thêm kế hoạch bảo trì",
+      "edit": "Sửa kế hoạch bảo trì",
+      "show": "Chi tiết kế hoạch bảo trì"
+    }
+  },
+  "inventory_sessions": {
+    "inventory_sessions": "Kiểm kê",
+    "titles": {
+      "list": "Phiếu kiểm kê",
+      "create": "Lập phiếu kiểm kê",
+      "edit": "Sửa phiếu kiểm kê",
+      "show": "Biên bản kiểm kê"
+    }
+  },
+  "inventory_campaigns": {
+    "inventory_campaigns": "Đợt kiểm kê",
+    "titles": {
+      "list": "Đợt kiểm kê",
+      "create": "Phát động đợt kiểm kê",
+      "edit": "Sửa đợt kiểm kê",
+      "show": "Tiến độ đợt kiểm kê"
+    }
+  },
+  "disposals": {
+    "disposals": "Ghi giảm",
+    "titles": {
+      "list": "Đề nghị ghi giảm",
+      "create": "Lập đề nghị ghi giảm",
+      "edit": "Sửa đề nghị ghi giảm",
+      "show": "Chi tiết đề nghị ghi giảm"
+    }
+  },
+  "purchase_proposals": {
+    "purchase_proposals": "Đề xuất mua sắm",
+    "titles": {
+      "list": "Đề xuất mua sắm",
+      "create": "Lập đề xuất mua sắm",
+      "edit": "Sửa đề xuất mua sắm",
+      "show": "Đề xuất mua sắm"
+    }
+  },
+  "procurement_plans": {
+    "procurement_plans": "Kế hoạch mua sắm",
+    "titles": {
+      "list": "Kế hoạch mua sắm",
+      "create": "Lập kế hoạch mua sắm",
+      "edit": "Sửa kế hoạch mua sắm",
+      "show": "Kế hoạch mua sắm"
+    }
+  },
+  "equipment_minimum": {
+    "equipment_minimum": "Đối chiếu tối thiểu",
+    "titles": {
+      "list": "Đối chiếu danh mục thiết bị tối thiểu"
+    }
+  },
+  "equipment_adequacy": {
+    "equipment_adequacy": "Định mức & nhu cầu",
+    "titles": {
+      "list": "Mức đáp ứng định mức thiết bị"
+    }
+  },
+  "reports": {
+    "reports": "Báo cáo",
+    "titles": {
+      "list": "Báo cáo thống kê"
+    }
+  },
+  "data_imports": {
+    "data_imports": "Đổ dữ liệu đầu vào",
+    "titles": {
+      "list": "Đổ dữ liệu đầu vào",
+      "show": "Lô nhập dữ liệu"
+    }
+  },
+  "data_transfer": {
+    "data_transfer": "Nhập / xuất dữ liệu",
+    "titles": {
+      "list": "Nhập / xuất dữ liệu"
+    }
+  },
+  "api_clients": {
+    "api_clients": "Khoá API tích hợp",
+    "titles": {
+      "list": "Khoá API tích hợp"
+    }
+  },
+  "system_status": {
+    "system_status": "Tình trạng hệ thống",
+    "titles": {
+      "list": "Tình trạng hệ thống"
+    }
+  },
+  "repair_orders": {
+    "repair_orders": "Sửa chữa, bảo trì",
+    "titles": {
+      "list": "Phiếu sửa chữa, bảo trì",
+      "create": "Lập phiếu sửa chữa, bảo trì",
+      "edit": "Sửa phiếu sửa chữa, bảo trì",
+      "show": "Phiếu sửa chữa, bảo trì"
+    }
+  },
+  "warranty_claims": {
+    "warranty_claims": "Bảo hành",
+    "titles": {
+      "list": "Phiếu bảo hành",
+      "create": "Lập phiếu bảo hành",
+      "edit": "Sửa phiếu bảo hành",
+      "show": "Phiếu bảo hành"
+    }
+  },
+  "maintenance_orders": {
+    "maintenance_orders": "Bảo dưỡng",
+    "titles": {
+      "list": "Phiếu bảo dưỡng",
+      "create": "Lập phiếu bảo dưỡng",
+      "edit": "Sửa phiếu bảo dưỡng",
+      "show": "Phiếu bảo dưỡng"
+    }
+  },
+  "depreciation_orders": {
+    "depreciation_orders": "Hao mòn",
+    "titles": {
+      "list": "Bảng tính hao mòn",
+      "create": "Lập bảng tính hao mòn",
+      "edit": "Sửa bảng tính hao mòn",
+      "show": "Bảng tính hao mòn"
+    }
+  },
+  "consumption_records": {
+    "consumption_records": "Tiêu hao",
+    "titles": {
+      "list": "Phiếu tiêu hao",
+      "create": "Ghi tiêu hao",
+      "edit": "Sửa phiếu tiêu hao",
+      "show": "Phiếu tiêu hao"
+    }
+  },
+  "room_bookings": {
+    "room_bookings": "Mượn phòng",
+    "titles": {
+      "list": "Phiếu mượn phòng",
+      "create": "Lập phiếu mượn phòng",
+      "edit": "Sửa phiếu mượn phòng",
+      "show": "Chi tiết phiếu mượn phòng"
+    }
+  },
+  "operations": {
+    "operations": "Nghiệp vụ"
+  },
+  "ops_increase": {
+    "ops_increase": "Ghi tăng"
+  },
+  "ops_distribution": {
+    "ops_distribution": "Phân phối & sử dụng"
+  },
+  "ops_maintenance": {
+    "ops_maintenance": "Vận hành"
+  },
+  "ops_periodic": {
+    "ops_periodic": "Kiểm soát định kỳ"
+  },
+  "ops_decrease": {
+    "ops_decrease": "Ghi giảm & kết thúc"
+  },
+  "report_equipment_by_school": {
+    "report_equipment_by_school": "Tổng hợp tài sản",
+    "titles": {
+      "list": "Tổng hợp tài sản"
+    }
+  },
+  "report_equipment_by_catalog": {
+    "report_equipment_by_catalog": "Tài sản theo thiết bị",
+    "titles": {
+      "list": "Tổng hợp tài sản theo thiết bị"
+    }
+  },
+  "report_movements": {
+    "report_movements": "Tăng, giảm tài sản",
+    "titles": {
+      "list": "Tăng, giảm tài sản"
+    }
+  },
+  "report_vouchers": {
+    "report_vouchers": "Tình hình xử lý chứng từ",
+    "titles": {
+      "list": "Tình hình xử lý chứng từ"
+    }
+  },
+  "report_adequacy": {
+    "report_adequacy": "Đáp ứng danh mục tối thiểu",
+    "titles": {
+      "list": "Mức đáp ứng danh mục thiết bị tối thiểu"
+    }
+  },
+  "report_overdue_loans": {
+    "report_overdue_loans": "Mượn quá hạn",
+    "titles": {
+      "list": "Thiết bị mượn quá hạn"
+    }
+  },
+  "report_disposals": {
+    "report_disposals": "Tài sản ghi giảm",
+    "titles": {
+      "list": "Tài sản ghi giảm"
+    }
+  },
+  "report_purchase": {
+    "report_purchase": "Nhu cầu mua sắm",
+    "titles": {
+      "list": "Tổng hợp nhu cầu mua sắm"
+    }
+  },
+  "report_facilities": {
+    "report_facilities": "Cơ sở vật chất",
+    "titles": {
+      "list": "Tổng hợp cơ sở vật chất"
+    }
+  },
+  "report_broken_equipment": {
+    "report_broken_equipment": "Hư hỏng, mất, cần thay thế",
+    "titles": {
+      "list": "Thiết bị hư hỏng, mất, cần thay thế"
+    }
+  },
+  "report_inventory": {
+    "report_inventory": "Kết quả kiểm kê",
+    "titles": {
+      "list": "Kết quả kiểm kê"
+    }
+  },
+  "report_maintenance": {
+    "report_maintenance": "Bảo trì, sửa chữa",
+    "titles": {
+      "list": "Bảo trì, sửa chữa"
+    }
+  },
+  "report_equipment_by_status": {
+    "report_equipment_by_status": "Theo trạng thái sử dụng",
+    "titles": {
+      "list": "Thiết bị theo trạng thái sử dụng"
+    }
+  },
+  "report_equipment_by_condition": {
+    "report_equipment_by_condition": "Theo tình trạng kỹ thuật",
+    "titles": {
+      "list": "Thiết bị theo tình trạng kỹ thuật"
+    }
+  },
+  "report_equipment_list": {
+    "report_equipment_list": "Danh sách theo trạng thái",
+    "titles": {
+      "list": "Danh sách thiết bị theo trạng thái"
+    }
+  },
+  "report_asset_value": {
+    "report_asset_value": "Nguyên giá, giá trị còn lại",
+    "titles": {
+      "list": "Nguyên giá và giá trị còn lại"
+    }
+  },
+  "report_transfers": {
+    "report_transfers": "Lịch sử điều chuyển",
+    "titles": {
+      "list": "Lịch sử điều chuyển thiết bị"
+    }
+  },
+  "report_utilization": {
+    "report_utilization": "Hiệu quả khai thác",
+    "titles": {
+      "list": "Hiệu quả khai thác thiết bị"
+    }
+  },
+  "report_data_quality": {
+    "report_data_quality": "Chất lượng dữ liệu",
+    "titles": {
+      "list": "Chất lượng dữ liệu theo trường"
+    }
+  },
+  "report_equipment_ledger": {
+    "report_equipment_ledger": "Sổ sách thiết bị",
+    "titles": {
+      "list": "Sổ sách thiết bị"
+    }
+  },
+  "report_room_usage": {
+    "report_room_usage": "Sử dụng phòng",
+    "titles": {
+      "list": "Sử dụng phòng bộ môn, phòng chức năng"
+    }
+  },
+  "report_room_standard": {
+    "report_room_standard": "Chuẩn phòng bộ môn",
+    "titles": {
+      "list": "Đánh giá chuẩn phòng bộ môn"
+    }
+  },
+  "report_unused_equipment": {
+    "report_unused_equipment": "Không còn sử dụng",
+    "titles": {
+      "list": "Thiết bị không còn sử dụng"
+    }
+  },
+  "report_idle_equipment": {
+    "report_idle_equipment": "Nằm kho kéo dài",
+    "titles": {
+      "list": "Thiết bị nằm kho kéo dài"
+    }
+  },
+  "report_damage_trends": {
+    "report_damage_trends": "Xu hướng hư hỏng",
+    "titles": {
+      "list": "Xu hướng hư hỏng"
+    }
+  },
+  "report_loans": {
+    "report_loans": "Thống kê mượn trả",
+    "titles": {
+      "list": "Thống kê mượn trả"
+    }
+  },
+  "report_data_anomalies": {
+    "report_data_anomalies": "Dữ liệu bất thường",
+    "titles": {
+      "list": "Thiết bị có dữ liệu bất thường"
+    }
+  },
+  "report_last_update": {
+    "report_last_update": "Thời điểm cập nhật",
+    "titles": {
+      "list": "Thời điểm cập nhật dữ liệu của đơn vị"
+    }
+  },
+  "report_stale_schools": {
+    "report_stale_schools": "Đơn vị chưa cập nhật",
+    "titles": {
+      "list": "Đơn vị chưa cập nhật dữ liệu"
+    }
+  },
+  "data_changes": {
+    "data_changes": "Lịch sử thay đổi dữ liệu",
+    "titles": {
+      "list": "Lịch sử thay đổi dữ liệu"
+    }
+  },
+  "integrations": {
+    "integrations": "Kết nối hệ thống ngoài",
+    "titles": {
+      "list": "Kết nối hệ thống ngoài"
+    }
+  },
+  "report_snapshots": {
+    "report_snapshots": "Báo cáo đã lưu",
+    "titles": {
+      "list": "Báo cáo đã lưu",
+      "show": "Bản báo cáo đã lưu"
+    }
+  },
+  "evidence": {
+    "evidence": "Minh chứng hằng năm",
+    "titles": {
+      "list": "Minh chứng hoạt động hằng năm"
+    }
+  }
+}

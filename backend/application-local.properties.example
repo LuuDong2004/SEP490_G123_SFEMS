@@ -1,0 +1,6 @@
+# Chép thành application-local.properties (đã gitignore) rồi điền.
+# MinIO riêng hoặc dùng chung; bỏ trống file này thì app dùng MinIO local ở localhost:9100 (compose.yaml).
+app.storage.endpoint=http://localhost:9100
+app.storage.access-key=
+app.storage.secret-key=
+app.storage.bucket=sfems-dev

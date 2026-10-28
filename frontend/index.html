@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/png" href="/logo-so-gddt-hcm.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The navy the shell's rail is painted in, so the mobile browser chrome matches it. -->
+    <meta name="theme-color" content="#0b2e5c" />
+    <meta name="description" content="DTH Framework — bảng quản trị." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>Quản lý cơ sở vật chất và thiết bị trường học</title>
+
+    <!--
+      Theme bootstrap. Runs before the first paint so the shell never flashes
+      the wrong mode or brand colour on reload.
+
+      Keys and defaults must stay in sync with `src/lib/theme.ts`.
+    -->
+    <script>
+      (function () {
+        var d = document.documentElement;
+
+        function read(key, allowed, fallback) {
+          try {
+            var value = localStorage.getItem(key);
+            return allowed.indexOf(value) !== -1 ? value : fallback;
+          } catch (error) {
+            return fallback;
+          }
+        }
+
+        // Mặc định "light" — phải khớp DEFAULTS.mode ở src/shared/lib/theme.ts,
+        // nếu không trang sẽ nháy một nhịp sai màu trước khi React chạy.
+        var mode = read("dth-ui-mode", ["light", "dark", "system"], "light");
+        var isDark =
+          mode === "dark" ||
+          (mode === "system" &&
+            typeof matchMedia === "function" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+
+        d.classList.toggle("dark", isDark);
+        d.style.colorScheme = isDark ? "dark" : "light";
+
+        d.setAttribute(
+          "data-color-preset",
+          read(
+            "dth-ui-color",
+            [
+              "navy",
+              "blue",
+              "teal",
+              "slate",
+              "ocean",
+              "aurora",
+              "forest",
+            ],
+            "ocean"
+          )
+        );
+        d.setAttribute(
+          "data-radius",
+          read("dth-ui-radius", ["none", "sm", "md", "lg", "xl"], "md")
+        );
+        d.setAttribute(
+          "data-sidebar-tone",
+          read("dth-ui-sidebar-tone", ["dark", "light"], "dark")
+        );
+        d.setAttribute(
+          "data-density",
+          read(
+            "dth-ui-density",
+            ["compact", "comfortable", "spacious"],
+            "comfortable"
+          )
+        );
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/app/index.tsx"></script>
+  </body>
+</html>

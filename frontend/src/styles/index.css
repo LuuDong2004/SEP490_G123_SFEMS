@@ -1,0 +1,579 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* --------------------------------------------------------------------------
+   Bridge the semantic CSS variables from styles/theme.css into Tailwind's
+   design system, so `bg-primary`, `text-success`, `rounded-lg`, `shadow-e3`…
+   all resolve to the tokens the theme controls.
+   -------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* The step between the card and the page: table headers, toolbar strips,
+     inset panels. */
+  --color-surface-subtle: var(--surface-subtle);
+  --color-table-head: var(--table-head);
+  --color-table-head-text: var(--table-head-text);
+  --color-field: var(--field);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Status. Each one is a fill, the text that sits on that fill, a wash, and
+     the label that sits on the wash — see the Status block in theme.css for
+     why one value per status is not enough. */
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-text: var(--destructive-text);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-text: var(--success-text);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text: var(--warning-text);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-text: var(--info-text);
+
+  --color-neutral: var(--neutral);
+  --color-neutral-foreground: var(--neutral-foreground);
+  --color-neutral-subtle: var(--neutral-subtle);
+  --color-neutral-text: var(--neutral-text);
+
+  /* The institutional accent — fixed across presets. */
+  --color-gold-300: var(--gold-300);
+  --color-gold-400: var(--gold-400);
+  --color-gold-500: var(--gold-500);
+  --color-gold-600: var(--gold-600);
+  --color-gold-subtle: var(--gold-subtle);
+  --color-gold-text: var(--gold-text);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Density. Tailwind builds every spacing utility as
+     `calc(var(--spacing) * n)`, so pointing its base unit at the density token
+     rescales the whole shell live when `data-density` changes. */
+  --spacing: var(--density-spacing);
+
+  --radius-sm: max(0px, calc(var(--radius) - 4px));
+  --radius-md: max(0px, calc(var(--radius) - 2px));
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-e1: var(--elevation-1);
+  --shadow-e2: var(--elevation-2);
+  --shadow-e3: var(--elevation-3);
+  --shadow-e4: var(--elevation-4);
+
+  --ease-settle: var(--ease-settle);
+  --ease-standard: var(--ease-standard);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* MỘT phông cho cả ứng dụng: mã (số phiếu, mã tài sản, mã trường) cũng là Inter, chỉ khác ở chữ số
+     đều bề ngang (tabular-nums) để cột mã vẫn thẳng hàng. Phông đơn cách riêng cho mã làm bảng trông như
+     hai giao diện ghép lại. */
+  --font-mono: var(--font-sans);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/70;
+  }
+
+  /* Ô số KHÔNG có hai mũi tên tăng / giảm của trình duyệt. Chúng chiếm chỗ của chữ số trong ô hẹp, bấm
+     trúng là số lượng hay đơn giá nhảy đi một đơn vị mà không ai để ý, và không ai nhập "24 tháng" hay
+     "1.500.000 đ" bằng cách bấm mũi tên. Đặt ở đây cho MỌI ô `type="number"` — hơn hai chục màn có ô
+     số, sửa từng chỗ là sót. Gõ số, phím mũi tên lên / xuống vẫn dùng được như cũ. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* A business screen takes 14px as its body size, not 16px. Everything in
+       the shell already declares `text-sm`, so this only catches the text
+       nobody sized — a paragraph in a description, a `<td>` written by hand —
+       and stops it from arriving one step larger than the table beside it.
+       `rem` is root-relative, so no spacing or type utility moves. */
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  /* Tabular figures wherever numbers are meant to line up in a column. Set
+     here rather than per component because the places that need it — table
+     cells, pagination, counts, timestamps — are not a component, they are a
+     kind of content. */
+  th,
+  td,
+  time,
+  [data-slot="table-cell"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Headings carry the tighter tracking the dashboard uses throughout. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
+  }
+
+  /* Keep the native form controls in step with the active mode. */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* One visible focus ring for the whole application, on the token that owns
+     it. Anything that draws its own focus treatment overrides this; anything
+     that forgot to still gets a ring rather than nothing. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+
+  /* Colour transition when the mode or preset flips. Suppressed while the
+     provider is mid-swap (see `.theme-transition-suppressed`) and for anyone
+     who asked for reduced motion. */
+  body,
+  [data-slot="app-sidebar"],
+  [data-slot="app-header"] {
+    transition: background-color 200ms ease, border-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .theme-transition-suppressed *,
+  .theme-transition-suppressed *::before,
+  .theme-transition-suppressed *::after {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+
+/* The small-caps label: table headers, sidebar section headings, the caption
+   over a group of fields. It is one type style used in three places, so it is
+   a utility rather than three copies of the same four declarations — and when
+   it is a utility, a new screen that needs a group label gets the right one
+   by name instead of inventing an eleventh size. */
+@utility text-overline {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Slim, self-effacing scrollbar for the sidebar and any inner scroll area.
+   Ẩn hẳn cho tới khi rê chuột vào vùng cuộn: một thanh cuộn luôn hiện cạnh
+   menu là một vệt dọc thừa, trong khi người ta chỉ cần nó lúc đang cuộn. */
+@utility scrollbar-fade {
+  /* Firefox: chỉ có thuộc tính chuẩn. Chrome 121+ thấy hai thuộc tính này là bỏ
+     qua toàn bộ ::-webkit-scrollbar bên dưới, nên chỉ cho Firefox dùng. */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    &:hover {
+      scrollbar-color: color-mix(in oklab, currentColor 40%, transparent) transparent;
+    }
+  }
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  /* Rãnh cuộn chừa khoảng trống hai đầu -> thanh trượt ngắn lại theo tỉ lệ, chỉ
+     còn là một vạch nhỏ báo "còn nội dung", không chạy dọc cả sidebar. */
+  &::-webkit-scrollbar-track {
+    background: transparent;
+    margin-block: 30%;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: transparent;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, currentColor 40%, transparent);
+  }
+}
+
+/* Thanh cuộn TOÀN ỨNG DỤNG: mảnh và ẩn hẳn, chỉ hiện mờ khi rê chuột vào vùng cuộn được — trưởng
+   nhóm không muốn những vệt cuộn xám dọc hộp thoại, bảng, menu. Vẫn cuộn bằng chuột / chạm như thường.
+   Thuộc tính chuẩn (Chrome 121+, Edge, Firefox); trình duyệt chưa có thì dùng ::-webkit-scrollbar. */
+@layer base {
+  @supports (scrollbar-color: auto) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+    }
+    *:hover {
+      scrollbar-color: color-mix(in oklab, currentColor 30%, transparent) transparent;
+    }
+  }
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background-color: transparent;
+    }
+    *:hover::-webkit-scrollbar-thumb {
+      background-color: color-mix(in oklab, currentColor 30%, transparent);
+    }
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   The institutional ground.
+
+   The one surface in the application that is not a token but a picture: a deep
+   brand field lit from the top by the gold accent, used behind the screens
+   that sit outside the shell — sign-in, and anything else somebody meets
+   before they have an account to theme.
+
+   Built out of the preset and the gold hue rather than fixed hex, so it
+   repaints with the brand like everything else, and it is dark in both modes
+   on purpose: an auth screen that flips with the OS theme is a login form that
+   looks like two different products.
+   -------------------------------------------------------------------------- */
+
+@utility gradient-hero {
+  background-color: oklch(0.16 calc(var(--preset-sidebar-c) * 0.6) var(--preset-h));
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      color-mix(in oklab, var(--gold-500) 20%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 12% 100%,
+      color-mix(
+        in oklab,
+        oklch(0.5 calc(var(--preset-sidebar-c) * 1.4) var(--preset-h)) 42%,
+        transparent
+      ),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 88% 100%,
+      color-mix(in oklab, var(--gold-500) 11%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      oklch(0.14 calc(var(--preset-sidebar-c) * 0.5) var(--preset-h)) 0%,
+      oklch(0.2 calc(var(--preset-sidebar-c) * 0.8) var(--preset-h)) 50%,
+      oklch(0.29 var(--preset-sidebar-c) var(--preset-h)) 100%
+    );
+}
+
+/* A surveyor's grid over the hero — the texture that stops a large flat field
+   from looking like an unpainted div. Both patterns are white at low alpha, so
+   they only read on a dark ground. */
+@utility grid-pattern {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Gold as a fill, for the one element on a screen that is the seal. */
+@utility gradient-gold {
+  background-image: linear-gradient(
+    135deg,
+    var(--gold-400) 0%,
+    var(--gold-500) 55%,
+    var(--gold-600) 100%
+  );
+}
+
+/* The frosted bar the shell uses for its sticky header. */
+@utility surface-blur {
+  background-color: color-mix(in oklab, var(--card) 86%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+/* --------------------------------------------------------------------------
+   Screen entrance
+   --------------------------------------------------------------------------
+   Applied by the view wrappers in `components/refine-ui/views/*`, which mount
+   exactly when a screen opens — so this needs no route keys and never forces a
+   remount that would drop table filters or form state.
+
+   Tuned by the motion tokens in `styles/theme.css`. Both animations end on
+   `transform: none`, so nothing is left behind that could trap a `position:
+   fixed` descendant.
+   -------------------------------------------------------------------------- */
+
+@keyframes screen-enter {
+  from {
+    opacity: 0;
+    transform: scale(var(--screen-scale));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes screen-enter-child {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--screen-child-lift), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The frame: a fade and a hair of scale, no travel. */
+/* TẮT (theo trưởng nhóm): mỗi lần chuyển tab / chuyển màn, cả màn mờ về 0 rồi hiện dần và từng khối
+   trễ nhau một nhịp — nhìn thành nhấp nháy, nhất là khi dữ liệu đã có sẵn trong bộ đệm. Màn hiện ra
+   ngay, không hiệu ứng. Hai keyframe giữ lại để bật lại thì chỉ sửa hai utility này. */
+@utility screen-enter {
+  animation: none;
+}
+
+/* Its direct children lift into place one after another. Anything past the
+   third shares the third's delay — a long list should not take a second to
+   finish arriving. */
+@utility screen-enter-stagger {
+  & > * {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Print
+   --------------------------------------------------------------------------
+   A business screen gets printed — a record handed to somebody who is not
+   going to open the application. The application frame is not part of that:
+   the rail, the sticky bar and every cluster of buttons carry
+   `data-print="hide"` and come off the page, leaving the record on white A4.
+
+   `box-shadow` goes too. A printer cannot reproduce one; it only muddies the
+   ground behind a card.
+   -------------------------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  [data-print="hide"],
+  [data-slot="app-sidebar"],
+  [data-slot="app-header"],
+  [data-sidebar="rail"] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Do not cut a block in half, and never leave a heading stranded at the
+     foot of a page. */
+  section,
+  article,
+  dl,
+  table,
+  tr,
+  [data-slot="card"] {
+    break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  /* A long table may span pages, but every page repeats its header row. */
+  thead {
+    display: table-header-group;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Gradient — một chỗ áp cho cả hệ thống, component không tự tô.
+   -------------------------------------------------------------------------- */
+
+@layer components {
+  /* Thanh menu: dải dọc từ màu thương hiệu sang sắc thứ hai. */
+  [data-slot="sidebar-inner"] {
+    background-image: var(--gradient-sidebar);
+  }
+
+  /* Vùng nội dung: lớp sáng mờ ở hai góc trên, nền vẫn là --background. */
+  [data-slot="sidebar-inset"] {
+    background-image: var(--gradient-glow);
+    background-repeat: no-repeat;
+  }
+
+  /* Nút chính: gradient thay nền phẳng; di chuột thì sáng lên một chút. */
+  [data-slot="button"].bg-primary {
+    background-image: var(--gradient-brand);
+    border-color: transparent;
+  }
+  [data-slot="button"].bg-primary:hover {
+    filter: brightness(1.07) saturate(1.05);
+  }
+
+  /* Mục menu đang chọn: vệt sáng từ trái sang, trên nền mục. */
+  .nav-active {
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--sidebar-primary) 26%, transparent),
+      transparent 85%
+    );
+  }
+
+  /* Chip / huy hiệu tô nền thương hiệu dùng cùng dải. */
+  .bg-brand-gradient {
+    background-image: var(--gradient-brand);
+    color: var(--primary-foreground);
+  }
+}
+
+/* Nền tối: nút chính và chip thương hiệu dùng nền trầm `--gradient-brand`, nên chữ theo `--brand-on`.
+   Để NGOÀI @layer: chữ của nút đến từ class tiện ích `text-primary-foreground` (lớp utilities), và một quy
+   tắc trong @layer components không bao giờ thắng được nó. */
+.dark [data-slot="button"].bg-primary,
+.dark .bg-brand-gradient {
+  color: var(--brand-on);
+}
+
+@media print {
+  [data-slot="sidebar-inset"] {
+    background-image: none !important;
+  }
+}
+
+/* Đường nối của trang Quy trình: nét đứt chạy dọc đường theo hướng luồng. */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+@utility animate-flow-dash {
+  animation: flow-dash 1.1s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* Ô tìm của hộp xem trước tệp (`file-preview.tsx`): mọi chỗ khớp tô vàng, chỗ đang đứng tô cam đậm.
+   Màu cố định, không theo bộ màu: trang tài liệu luôn nền trắng chữ đen ở cả hai chế độ sáng / tối. */
+::highlight(preview-hit) {
+  background-color: oklch(0.9 0.16 98);
+  color: black;
+}
+::highlight(preview-hit-active) {
+  background-color: oklch(0.75 0.18 55);
+  color: black;
+}
+
+/* Chữ số đều bề ngang cho mọi chỗ dùng `font-mono` (mã, số phiếu) — thay cho phông đơn cách. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}

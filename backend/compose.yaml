@@ -1,0 +1,19 @@
+# Dịch vụ phụ cho môi trường dev. Chạy: docker compose -f backend/compose.yaml up -d minio
+# PostgreSQL vẫn cài thẳng trên máy như trước; ở đây chỉ có kho tệp đính kèm.
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      # Khớp app.storage.access-key / secret-key mặc định trong application.properties.
+      MINIO_ROOT_USER: sfems
+      MINIO_ROOT_PASSWORD: sfems-dev-secret
+    ports:
+      - "9100:9000" # S3 API — backend nói chuyện ở đây (9000 hay bị MinIO của dự án khác chiếm)
+      - "9101:9001" # bảng điều khiển web
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+volumes:
+  minio-data:
