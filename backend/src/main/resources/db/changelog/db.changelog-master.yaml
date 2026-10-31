@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changes/002-tai-khoan-vai-tro-quyen.sql
   - include:
       file: db/changelog/changes/003-phien-dang-nhap.sql
+  - include:
+      file: db/changelog/changes/004-seed-quyen-he-thong.sql
