@@ -279,7 +279,7 @@ export function loadAuthorities(
 
 let inFlightAuthorities: Promise<Authorities | null> | null = null;
 
-async function fetchAuthorities(apiUrl: string): Promise<Authorities | null> {
+async function fetchAuthorities(apiUrl: string, retried = false): Promise<Authorities | null> {
   const accessToken = getAccessToken();
   if (!accessToken) return null;
 
@@ -287,6 +287,14 @@ async function fetchAuthorities(apiUrl: string): Promise<Authorities | null> {
     const response = await fetch(`${apiUrl}/auth/permissions`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    // Access token hết hạn giữa hai lần kiểm phiên (tải lại trang, quay lại tab sau 15 phút):
+    // làm mới rồi hỏi lại đúng một lần, như hook 401 của `data.ts`. Không có bước này thì
+    // `check()` thấy không có quyền, xoá phiên và đẩy về màn đăng nhập dù refresh token còn sống.
+    if (response.status === 401 && !retried) {
+      const fresh = await refreshSession(apiUrl as typeof API_URL);
+      return fresh ? fetchAuthorities(apiUrl, true) : null;
+    }
 
     if (!response.ok) {
       return null;
