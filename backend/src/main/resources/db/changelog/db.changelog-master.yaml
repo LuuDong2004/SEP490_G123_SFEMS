@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/changes/003-phien-dang-nhap.sql
   - include:
       file: db/changelog/changes/004-seed-quyen-he-thong.sql
+  - include:
+      file: db/changelog/changes/005-seed-vai-tro-va-quan-tri.sql
