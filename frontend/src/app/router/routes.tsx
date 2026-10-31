@@ -1,7 +1,7 @@
 import { Authenticated } from "@refinedev/core";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
-import { Login } from "@/features/identity";
+import { Login, Profile } from "@/features/identity";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
 import { Layout } from "@/shared/components/layout/layout";
@@ -31,6 +31,8 @@ export function AppRoutes() {
       >
         {/* Trang chủ để trống; thay bằng màn hình nghiệp vụ khi dựng. */}
         <Route index element={null} />
+        {/* Hồ sơ cá nhân, đổi mật khẩu (HT-03): mọi tài khoản đều mở được, không cần quyền riêng. */}
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<ErrorComponent />} />
       </Route>
 
