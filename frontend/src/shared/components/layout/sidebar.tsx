@@ -10,9 +10,7 @@ import {
   useGetIdentity,
   useLogout,
   usePermissions,
-  useResourceParams,
   useTranslate,
-  type IResourceItem,
   type TreeMenuItem,
 } from "@refinedev/core";
 import {
@@ -24,7 +22,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { permissionFor } from "@/shared/lib/permissions";
-import { usePerspective } from "@/shared/hooks/use-perspective";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -171,74 +168,6 @@ export function useAccessibleMenuItems(items: TreeMenuItem[]): TreeMenuItem[] {
 }
 
 /* --------------------------------------------------------------------------
-   Hai góc nhìn. Góc nhìn TRƯỜNG là cây của Refine (phân hệ, phiếu) trừ các mục
-   `meta.audience: "management"`. Góc nhìn QUẢN LÝ là một cây KHÁC, dựng từ
-   `meta.mgmt` / `meta.mgmtParent` của resource — quản lý tập trung không đi theo
-   phân hệ của trường, và gặp phiếu của trường qua hồ sơ trường, không qua menu.
-   Cấu hình nằm ở `app/resources/index.tsx`; ở đây chỉ đọc.
-   -------------------------------------------------------------------------- */
-
-function withoutAudience(nodes: TreeMenuItem[], audience: string): TreeMenuItem[] {
-  return nodes.flatMap((node) => {
-    if (node.meta?.audience === audience) return [];
-    const children = withoutAudience((node.children ?? []) as TreeMenuItem[], audience);
-    if ((node.children ?? []).length > 0 && children.length === 0) return [];
-    return [{ ...node, children }];
-  });
-}
-
-/**
- * Cây của góc nhìn quản lý. Khoá mỗi dòng là TÊN resource (không phải đường dẫn
- * cha/con của Refine — cùng một resource nằm ở chỗ khác trong hai cây), nên dòng
- * đang chọn so với tên resource của trang hiện tại.
- */
-export function useManagementMenu(accessible: TreeMenuItem[]): TreeMenuItem[] {
-  const { resources } = useResourceParams();
-  const { data: permissions } = usePermissions<string[]>({});
-  const t = useTranslate();
-
-  return React.useMemo(() => {
-    const allowed = (name: string) => {
-      const code = permissionFor(name, "list");
-      return !permissions || !code || permissions.includes(code);
-    };
-    const byName = new Map<string, TreeMenuItem>();
-    const walk = (nodes: TreeMenuItem[]) =>
-      nodes.forEach((n) => { byName.set(n.name, n); walk((n.children ?? []) as TreeMenuItem[]); });
-    walk(accessible);
-    const rekey = (n: TreeMenuItem): TreeMenuItem =>
-      ({ ...n, key: n.name, children: ((n.children ?? []) as TreeMenuItem[]).map(rekey) });
-    const label = (r: IResourceItem) =>
-      (r.meta?.mgmtLabel as string) ?? (r.meta?.label as string) ?? t(`${r.name}.${r.name}`, r.name);
-    const leaf = (r: IResourceItem): TreeMenuItem =>
-      ({ ...r, key: r.name, route: r.list as string, label: label(r), meta: { ...r.meta, label: label(r) }, children: [] }) as TreeMenuItem;
-
-    return resources
-      .filter((r) => typeof r.meta?.mgmt === "number")
-      .sort((a, b) => (a.meta!.mgmt as number) - (b.meta!.mgmt as number))
-      .flatMap((r): TreeMenuItem[] => {
-        const existing = byName.get(r.name);
-        if (existing) {
-          const node = rekey(existing);
-          return [r.meta?.mgmtLabel ? { ...node, meta: { ...node.meta, label: r.meta.mgmtLabel } } : node];
-        }
-        if (r.meta?.group) {
-          const children = resources
-            .filter((c) => c.meta?.mgmtParent === r.name && c.list && allowed(c.name))
-            // `meta.mgmtOrder` xếp lại thứ tự trong nhóm khi thứ tự khai báo resource không phải thứ tự đọc.
-            .sort((a, b) => ((a.meta?.mgmtOrder as number) ?? 1) - ((b.meta?.mgmtOrder as number) ?? 1))
-            .map(leaf);
-          // Nhóm việc của cơ quan quản lý là MỘT dòng menu (`meta.mgmtTabs`): bấm vào mở mục đầu, các mục
-          // còn lại là thanh tab trên đầu trang (`module-tabs.tsx`) — cùng cách với phân hệ của trường.
-          const group = leaf(r);
-          return children.length ? [{ ...group, meta: { ...group.meta, mgmtTabs: true }, route: undefined, children }] : [];
-        }
-        return r.list && allowed(r.name) ? [leaf(r)] : [];
-      });
-  }, [accessible, resources, permissions, t]);
-}
-
-/* --------------------------------------------------------------------------
    Sidebar
    -------------------------------------------------------------------------- */
 
@@ -248,21 +177,15 @@ export function useManagementMenu(accessible: TreeMenuItem[]): TreeMenuItem[] {
  */
 export function useVisibleMenuItems(): TreeMenuItem[] {
   const { menuItems } = useMenu();
-  const accessible = useAccessibleMenuItems(menuItems);
-  const { perspective } = usePerspective();
-  const schoolItems = React.useMemo(() => withoutAudience(accessible, "management"), [accessible]);
-  const managementItems = useManagementMenu(accessible);
-  // ADMIN (`full`): cây đầy đủ của Refine — mọi phân hệ, mọi mục quản lý — không lọc.
-  return perspective === "management" ? managementItems : perspective === "full" ? accessible : schoolItems;
+  // MỘT cây cho mọi tài khoản, chỉ lọc theo quyền: Sở không thấy Nhập thiết bị vì không có quyền
+  // lập, trường không thấy Kế hoạch mua sắm vì không có quyền xem. Không có góc nhìn riêng.
+  return useAccessibleMenuItems(menuItems);
 }
 
 export function Sidebar() {
   const { open, isMobile } = useShadcnSidebar();
-  const { selectedKey: menuKey } = useMenu();
-  const { perspective } = usePerspective();
-  const { resource } = useResourceParams();
+  const { selectedKey } = useMenu();
   const visibleItems = useVisibleMenuItems();
-  const selectedKey = perspective === "management" ? resource?.name : menuKey;
   const isCollapsed = !open && !isMobile;
 
   return (

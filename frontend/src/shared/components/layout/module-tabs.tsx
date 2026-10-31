@@ -4,8 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import { useAccessibleMenuItems, useManagementMenu } from "@/shared/components/layout/sidebar";
-import { usePerspective } from "@/shared/hooks/use-perspective";
+import { useAccessibleMenuItems } from "@/shared/components/layout/sidebar";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -23,8 +22,6 @@ export function ModuleTabs() {
   const { menuItems } = useMenu();
   const items = useAccessibleMenuItems(menuItems);
   const { resource, action } = useResourceParams();
-  const { perspective } = usePerspective();
-  const managementMenu = useManagementMenu(items);
   const parent = resource?.meta?.parent as string | undefined;
   if (!resource) return null;
   // Đang LẬP / SỬA một phiếu hay bản ghi: thanh tab ẩn đi. Lúc đó người dùng đang làm dở một việc —
@@ -39,27 +36,14 @@ export function ModuleTabs() {
       if (deeper) return deeper;
     }
   };
-  // Góc nhìn quản lý: nhóm việc trên menu (Trường học, Thiết bị, Mua sắm, Kiểm kê) là một dòng, các mục
-  // của nó là thanh tab ở đây.
-  if (perspective === "management") {
-    const group = managementMenu.find((g) => g.meta?.mgmtTabs && (g.children ?? []).some((c) => c.name === resource.name));
-    // Tên tab là tên trên menu quản lý (`meta.label` đã mang `mgmtLabel`), không phải `tabLabel` của phân hệ trường.
-    const groupTabs = ((group?.children ?? []) as TreeMenuItem[])
-      .filter((c) => c.route)
-      .map((c) => ({ ...c, meta: { ...c.meta, tabLabel: undefined } }) as TreeMenuItem);
-    if (group && groupTabs.length > 1) return <TabStrip label={String(group.meta?.label ?? group.name)} tabs={groupTabs} current={resource.name} />;
-  }
-
   const module = find(items);
-  // Phân hệ là cách TRƯỜNG làm việc — góc nhìn quản lý vào từng màn thẳng từ menu của nó. Ngoại lệ:
-  // nhóm danh mục dùng chung (`tabsEverywhere`), vì Sở là người khai danh mục.
-  if (!module || (perspective === "management" && !module.meta?.tabsEverywhere)) return null;
-
-  // Tab của góc nhìn quản lý (`meta.audience: "management"`, vd. Đợt kiểm kê) không hiện với tài khoản của
-  // trường — cùng luật với sidebar. Quản trị viên (`full`) vẫn thấy đủ.
+  if (!module) return null;
   const tabs = ([...(module.children ?? [])] as TreeMenuItem[])
-    .filter((c) => c.route && !(perspective === "school" && c.meta?.audience === "management"))
+    .filter((c) => c.route)
     .sort((a, b) => ((a.meta?.tabOrder as number) ?? 99) - ((b.meta?.tabOrder as number) ?? 99));
+  // Phân hệ chỉ còn một tab (Nhập thiết bị, hoặc tài khoản chỉ có quyền một tab): dải tab một mục
+  // không dẫn đi đâu, ẩn đi.
+  if (tabs.length < 2) return null;
 
   return <TabStrip label={String(module.meta?.label ?? module.name)} tabs={tabs} current={resource.name} />;
 }

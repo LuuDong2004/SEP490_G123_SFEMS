@@ -77,24 +77,22 @@ export const ACTION_TO_PERMISSION: Record<string, PermissionAction> = {
  */
 const UNGUARDED_RESOURCES = new Set([
   "dashboard",
-  // Màn tổng quan tự gác từng khối bằng quyền của resource bên trong nó.
-  "school_explorer",
+  // Trang lối vào của hub Danh mục dùng chung: chỉ là danh sách liên kết, mỗi danh mục tự gác.
+  "catalogs",
   // Danh mục cố định chỉ đọc: API chỉ cần đăng nhập, không có mã quyền riêng.
   ...ENUM_CATALOG_RESOURCES,
 ]);
 
 /**
  * Màn hình không có tài nguyên riêng mà làm việc trên dữ liệu của tài nguyên
- * khác — in tem và tra cứu đọc thiết bị. Chúng mượn mã quyền của tài nguyên đó
- * thay vì bịa ra `equipment_labels:read` mà không migration nào cấp.
+ * khác — tra cứu theo mã đọc thiết bị, mức đáp ứng định mức đọc đề xuất. Chúng mượn mã quyền
+ * của tài nguyên đó thay vì bịa ra `equipment_lookup:read` mà không migration nào cấp.
  */
 const PERMISSION_ALIASES: Record<string, string> = {
-  equipment_labels: "equipment",
   equipment_lookup: "equipment",
   // Bảng Chi tiết của màn Thiết bị (và "Thiết bị trong phòng" của hồ sơ phòng) — máy chủ gác bằng `equipment:read`.
   equipment_items: "equipment",
   equipment_adequacy: "purchase_proposals",
-  equipment_minimum: "purchase_proposals",
 };
 
 /**
