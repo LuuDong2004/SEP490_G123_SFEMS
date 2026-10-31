@@ -22,8 +22,18 @@ export type Permission = {
   systemPermission: boolean;
 };
 
-/** The three actions every `resource:action` code ends in. */
-export const PERMISSION_ACTIONS = ["read", "write", "delete"] as const;
+/**
+ * Sáu động từ của mã quyền `{resource}:{action}` (ARCHITECTURE.md mục 2.3), theo thứ tự hiện
+ * cột trong ma trận quyền. Thao tác lạ ngoài danh sách vẫn được hiện, nối vào cuối.
+ */
+export const PERMISSION_ACTIONS = [
+  "read",
+  "write",
+  "delete",
+  "approve",
+  "export",
+  "configure",
+] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -39,6 +49,9 @@ export const ACTION_VARIANTS: Record<
   read: "outline",
   write: "secondary",
   delete: "destructive",
+  approve: "secondary",
+  export: "outline",
+  configure: "secondary",
 };
 
 /**
@@ -51,6 +64,7 @@ export const ACTION_LABELS: Record<string, string> = {
   delete: "Xoá",
   approve: "Duyệt",
   export: "Xuất",
+  configure: "Cấu hình",
 };
 
 /**
@@ -59,69 +73,50 @@ export const ACTION_LABELS: Record<string, string> = {
  * phải đọc được chứ không được mất.
  */
 const RESOURCE_LABELS: Record<string, string> = {
-  dashboard: "Tổng hợp",
+  // Hệ thống (HT)
+  dashboard: "Bảng điều khiển",
   users: "Người dùng",
   roles: "Vai trò",
   permissions: "Quyền",
   notifications: "Thông báo",
-  row_level_policies: "Phân quyền dòng dữ liệu",
+  row_level_policies: "Phạm vi dữ liệu",
+  activity_logs: "Nhật ký hoạt động",
+  // Danh mục dùng chung (DM)
+  wards: "Phường/xã",
+  school_years: "Năm học",
+  grades: "Khối lớp",
+  subjects: "Môn học",
+  room_types: "Loại phòng",
+  equipment_types: "Loại thiết bị",
+  units: "Đơn vị tính",
+  origin_sources: "Nguồn hình thành",
+  acquisition_methods: "Phương thức hình thành",
+  movement_reasons: "Lý do biến động",
+  education_levels: "Cấp học",
+  equipment_catalogs: "Danh mục thiết bị",
+  equipment_standards: "Danh mục thiết bị tối thiểu",
+  equipment_norms: "Định mức thiết bị",
+  code_rules: "Quy tắc sinh mã",
+  // Tổ chức và cơ sở vật chất (TC)
   departments_of_education: "Cơ quan quản lý",
   schools: "Trường học",
-  education_levels: "Cấp học",
-  tasks: "Công việc",
-  acquisition_methods: "Hình thức mua sắm",
-  activity_logs: "Nhật ký hoạt động",
-  api_clients: "Khoá API",
-  buildings: "Khối nhà",
-  campuses: "Cơ sở",
-  code_rules: "Mã tự động của danh mục chung",
-  consumption_records: "Phiếu tiêu hao",
-  damage_reports: "Phiếu báo hỏng - sửa chữa",
-  data_transfer: "Nhập / xuất dữ liệu",
-  depreciation_orders: "Bảng tính hao mòn",
-  disposals: "Đề nghị thanh lý - ghi giảm",
+  rooms: "Phòng",
+  // Hồ sơ thiết bị (TS)
   equipment: "Thiết bị",
-  equipment_allocations: "Phiếu cấp phát",
-  equipment_catalogs: "Danh mục thiết bị",
-  equipment_configs: "Bộ thông số kỹ thuật",
-  equipment_intakes: "Phiếu ghi tăng",
-  equipment_loans: "Phiếu mượn - trả",
-  equipment_norms: "Định mức thiết bị",
-  equipment_standards: "Bộ tiêu chuẩn",
-  equipment_stock: "Tồn kho",
-  equipment_transfers: "Phiếu điều chuyển",
-  equipment_types: "Loại thiết bị",
-  facility_works: "Sửa chữa, cải tạo công trình",
-  grades: "Khối lớp",
+  attachments: "Tệp đính kèm",
+  school_code_rules: "Bộ đếm mã tài sản của trường",
+  data_imports: "Nhập dữ liệu từ tệp",
+  // Mua sắm (NC)
+  purchase_proposals: "Đề xuất mua sắm",
+  procurement_plans: "Kế hoạch mua sắm",
+  // Nhập thiết bị (PN)
+  equipment_intakes: "Phiếu nhập thiết bị",
+  // Kiểm kê (KK)
   inventory_campaigns: "Đợt kiểm kê",
   inventory_sessions: "Phiếu kiểm kê",
-  maintenance_orders: "Phiếu bảo dưỡng",
-  maintenance_plans: "Kế hoạch bảo trì",
-  movement_reasons: "Lý do biến động",
-  origin_sources: "Nguồn hình thành",
-  procurement_plans: "Kế hoạch mua sắm",
-  purchase_proposals: "Đề xuất mua sắm",
-  repair_orders: "Phiếu sửa chữa, bảo trì",
+  // Báo cáo (BC)
   reports: "Báo cáo",
-  room_bookings: "Phiếu mượn phòng",
-  room_types: "Loại phòng",
-  rooms: "Phòng",
-  school_classes: "Lớp học",
-  school_code_rules: "Mã tự tăng của trường",
-  school_users: "Tài khoản của trường",
-  school_years: "Năm học",
-  semesters: "Học kỳ",
-  staff: "Cán bộ",
-  staff_accounts: "Tài khoản cán bộ",
-  stock_issues: "Phiếu xuất kho",
-  storage_orders: "Phiếu lưu kho",
-  subject_groups: "Tổ chuyên môn",
-  subject_teams: "Tổ bộ môn",
-  subjects: "Môn học",
-  system_status: "Tình trạng hệ thống",
-  units: "Đơn vị tính",
-  wards: "Phường/xã",
-  warranty_claims: "Phiếu bảo hành",
+  data_exports: "Xuất dữ liệu",
 };
 
 /**

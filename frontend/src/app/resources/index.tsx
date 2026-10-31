@@ -6,7 +6,7 @@
  * (`{name}:read`), nên dùng gạch dưới; đường dẫn màn hình dùng gạch nối.
  */
 import type { ResourceProps } from "@refinedev/core";
-import { Settings2, Users } from "lucide-react";
+import { Settings2, ShieldCheck, Users } from "lucide-react";
 
 export const resources: ResourceProps[] = [
   // Quản trị hệ thống. Cả nhóm ẩn với người không có quyền nào bên trong — sidebar lọc theo quyền.
@@ -21,5 +21,15 @@ export const resources: ResourceProps[] = [
     edit: "/users/edit/:id",
     show: "/users/show/:id",
     meta: { icon: <Users className="h-4 w-4" />, parent: "administration" },
+  },
+  // Vai trò và quyền chức năng (HT-05). Mã quyền: roles:read|write|delete; ma trận quyền trong
+  // form đọc danh mục `permissions` (permissions:read).
+  {
+    name: "roles",
+    list: "/roles",
+    create: "/roles/create",
+    edit: "/roles/edit/:id",
+    show: "/roles/show/:id",
+    meta: { icon: <ShieldCheck className="h-4 w-4" />, parent: "administration" },
   },
 ];
