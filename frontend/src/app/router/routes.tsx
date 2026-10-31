@@ -1,7 +1,9 @@
-import { Authenticated } from "@refinedev/core";
+import { Authenticated, CanAccess } from "@refinedev/core";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
+import { UserList, UserShow } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
+import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
 import { Layout } from "@/shared/components/layout/layout";
@@ -33,6 +35,20 @@ export function AppRoutes() {
         <Route index element={null} />
         {/* Hồ sơ cá nhân, đổi mật khẩu (HT-03): mọi tài khoản đều mở được, không cần quyền riêng. */}
         <Route path="/profile" element={<Profile />} />
+
+        {/* Quản trị hệ thống. <CanAccess> chỉ để đường dẫn gõ tay hiện đúng màn "không có quyền";
+            API vẫn kiểm cùng quyền ở mọi yêu cầu. */}
+        <Route
+          path="/users"
+          element={
+            <CanAccess resource="users" action="list" fallback={<Forbidden resource="users" />}>
+              <Outlet />
+            </CanAccess>
+          }
+        >
+          <Route index element={<UserList />} />
+          <Route path="show/:id" element={<UserShow />} />
+        </Route>
         <Route path="*" element={<ErrorComponent />} />
       </Route>
 
