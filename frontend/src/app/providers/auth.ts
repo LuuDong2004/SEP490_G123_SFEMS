@@ -2,6 +2,7 @@ import type { AuthProvider } from "@refinedev/core";
 
 import { API_URL } from "@/shared/api/constants";
 import { connect, disconnect } from "@/shared/api/live";
+import { queryClient } from "@/shared/api/query-client";
 import {
   clearSession,
   getAccessToken,
@@ -91,8 +92,11 @@ export const authProvider: AuthProvider = {
       // it here rather than from a component keeps it one connection for the
       // session instead of one per mount.
       connect();
-      // Vào thẳng danh sách thiết bị — việc người dùng mở đầu tiên sau khi đăng nhập. Trang chủ (`/`) vẫn là
-      // màn Tổng hợp. Nếu địa chỉ đăng nhập mang `?to=` (bị đẩy ra khi đang ở một trang) thì Refine ưu tiên nó.
+      // Bộ đệm truy vấn còn dữ liệu của tài khoản đăng nhập trước trong cùng tab
+      // (đăng xuất không tải lại trang). Xoá ở đây chứ không lúc đăng xuất: lúc
+      // này chỉ còn màn đăng nhập, không màn nào đang giữ truy vấn để bị gỡ ngang.
+      queryClient.clear();
+      // Về trang chủ. Nếu địa chỉ đăng nhập mang `?to=` (bị đẩy ra khi đang ở một trang) thì Refine ưu tiên nó.
       return { success: true, redirectTo: "/" };
     } catch {
       return {
