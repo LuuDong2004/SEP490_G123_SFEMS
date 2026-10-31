@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/changes/001-nen-toi-thieu.sql
   - include:
       file: db/changelog/changes/002-tai-khoan-vai-tro-quyen.sql
+  - include:
+      file: db/changelog/changes/003-phien-dang-nhap.sql
