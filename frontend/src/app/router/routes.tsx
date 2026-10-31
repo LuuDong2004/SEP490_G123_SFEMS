@@ -1,7 +1,7 @@
 import { Authenticated, CanAccess } from "@refinedev/core";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
-import { UserList, UserShow } from "@/features/administration";
+import { UserCreate, UserEdit, UserList, UserShow } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
@@ -47,6 +47,8 @@ export function AppRoutes() {
           }
         >
           <Route index element={<UserList />} />
+          <Route path="create" element={<UserCreate />} />
+          <Route path="edit/:id" element={<UserEdit />} />
           <Route path="show/:id" element={<UserShow />} />
         </Route>
         <Route path="*" element={<ErrorComponent />} />

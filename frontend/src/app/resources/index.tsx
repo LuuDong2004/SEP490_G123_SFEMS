@@ -17,6 +17,8 @@ export const resources: ResourceProps[] = [
   {
     name: "users",
     list: "/users",
+    create: "/users/create",
+    edit: "/users/edit/:id",
     show: "/users/show/:id",
     meta: { icon: <Users className="h-4 w-4" />, parent: "administration" },
   },
