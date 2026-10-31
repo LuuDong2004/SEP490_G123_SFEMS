@@ -152,6 +152,10 @@ public class User {
     @Column(name = "mfa_locked_until")
     private Instant mfaLockedUntil;
 
+    /** Bước thời gian của mã TOTP dùng gần nhất — mã cùng bước hoặc cũ hơn không dùng lại được. */
+    @Column(name = "mfa_last_step")
+    private Long mfaLastStep;
+
     /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0 (QLTB-509). */
     @Column(name = "failed_login_count", nullable = false)
     private int failedLoginCount;
@@ -251,6 +255,14 @@ public class User {
 
     public void setMfaLockedUntil(Instant mfaLockedUntil) {
         this.mfaLockedUntil = mfaLockedUntil;
+    }
+
+    public Long getMfaLastStep() {
+        return mfaLastStep;
+    }
+
+    public void setMfaLastStep(Long mfaLastStep) {
+        this.mfaLastStep = mfaLastStep;
     }
 
     protected User() {

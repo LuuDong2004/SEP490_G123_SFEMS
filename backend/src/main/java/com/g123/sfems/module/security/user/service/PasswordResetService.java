@@ -14,7 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Quên mật khẩu (QLTB-509): người dùng nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của
@@ -37,9 +40,12 @@ public class PasswordResetService {
     private final MailService mail;
     private final JdbcTemplate jdbc;
     private final String frontendUrl;
+    private final TransactionTemplate tx;
 
     public PasswordResetService(UserService users, LoginGuard guard, MailService mail, JdbcTemplate jdbc,
-                                @Value("${app.frontend-url:http://localhost:5555}") String frontendUrl) {
+                                @Value("${app.frontend-url:http://localhost:5555}") String frontendUrl,
+                                PlatformTransactionManager transactionManager) {
+        this.tx = new TransactionTemplate(transactionManager);
         this.users = users;
         this.guard = guard;
         this.mail = mail;
@@ -47,7 +53,12 @@ public class PasswordResetService {
         this.frontendUrl = frontendUrl.replaceAll("/+$", "");
     }
 
-    @Transactional
+    /**
+     * Không giữ giao dịch bao ngoài: token được lưu và commit trước, thư gửi SAU — SMTP (có khi vài giây) không
+     * giữ kết nối CSDL. Gửi hỏng thì xoá token vừa lưu, để lần thử lại không bị chặn {@code THROTTLE} vì một thư
+     * không hề đi.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void request(String login) {
         if (login == null || login.isBlank()) {
             throw new FieldValidationException("login", "Nhập tên đăng nhập hoặc email");
@@ -59,15 +70,35 @@ public class PasswordResetService {
         }
         User user = found.get();
         Instant now = Instant.now();
-        Integer recent = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = ? AND created_at > ?",
-                Integer.class, user.getId(), Timestamp.from(now.minus(THROTTLE)));
-        if (recent != null && recent > 0) {
+        String token = Hashes.urlToken(32);
+        String tokenHash = Hashes.sha256(token);
+        // Mọi câu SQL nằm TRONG tx.execute: gọi JdbcTemplate thẳng trong phạm vi NOT_SUPPORTED thì Spring buộc kết
+        // nối vào luồng tới hết phương thức — tức là giữ nó suốt lúc gửi thư.
+        Boolean issued = tx.execute(status -> {
+            Integer recent = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = ? AND created_at > ?",
+                    Integer.class, user.getId(), Timestamp.from(now.minus(THROTTLE)));
+            if (recent != null && recent > 0) {
+                return false;
+            }
+            jdbc.update("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)"
+                            + " VALUES (?, ?, ?, ?)",
+                    user.getId(), tokenHash, Timestamp.from(now.plus(TTL)), Timestamp.from(now));
+            return true;
+        });
+        if (!Boolean.TRUE.equals(issued)) {
             return;
         }
-        String token = Hashes.urlToken(32);
-        jdbc.update("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
-                user.getId(), Hashes.sha256(token), Timestamp.from(now.plus(TTL)), Timestamp.from(now));
+        try {
+            sendLink(user, token);
+        } catch (RuntimeException e) {
+            tx.executeWithoutResult(status ->
+                    jdbc.update("DELETE FROM password_reset_tokens WHERE token_hash = ?", tokenHash));
+            throw e;
+        }
+    }
+
+    private void sendLink(User user, String token) {
         mail.send(user.getEmail(), "Đặt lại mật khẩu hệ thống quản lý CSVC & thiết bị",
                 "Có yêu cầu đặt lại mật khẩu cho tài khoản " + user.getUsername() + ".\n\n"
                         + "Mở link sau để đặt mật khẩu mới (hiệu lực " + TTL.toMinutes() + " phút, dùng một lần):\n"

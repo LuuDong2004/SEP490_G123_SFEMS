@@ -42,7 +42,7 @@ public class LoginGuard {
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void recordFailure(Long userId, String message) {
         Instant now = Instant.now();
-        User user = repository.findById(userId).orElse(null);
+        User user = repository.lockById(userId).orElse(null);
         if (user != null) {
             int failures = user.getFailedLoginCount() + 1;
             if (failures >= MAX_FAILURES) {

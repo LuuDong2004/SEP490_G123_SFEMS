@@ -27,7 +27,10 @@ import java.util.Optional;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Signing in, renewing and signing out.
@@ -82,6 +85,9 @@ public class AuthService {
     // data in it. Answered from the policy cache, so it costs no query either.
     private final RowLevelSecurity rowLevel;
 
+    // Giao dịch NGẮN cuối lần đăng nhập (xoá bộ đếm sai, ghi lần đăng nhập, cấp token) — xem login().
+    private final TransactionTemplate tx;
+
     public AuthService(UserService userService,
                        RefreshTokenService refreshTokenService,
                        JwtService jwtService,
@@ -90,7 +96,9 @@ public class AuthService {
                        RowLevelSecurity rowLevel,
                        MfaService mfaService,
                        EmailMfaService emailMfa,
-                       LoginGuard loginGuard) {
+                       LoginGuard loginGuard,
+                       PlatformTransactionManager transactionManager) {
+        this.tx = new TransactionTemplate(transactionManager);
         this.emailMfa = emailMfa;
         this.loginGuard = loginGuard;
         this.userService = userService;
@@ -110,8 +118,13 @@ public class AuthService {
      *                                 exception and the same message for all
      *                                 three, so that a failed attempt reveals
      *                                 nothing about which accounts exist
+     *
+     * <p>KHÔNG chạy trong một giao dịch bao ngoài: so BCrypt (~100 ms) và gửi mã qua email (SMTP, có khi vài
+     * giây) không được giữ kết nối CSDL. Mỗi bước đọc / ghi tự mở giao dịch ngắn của nó — lần sai mật khẩu, lần
+     * sai mã vốn đã ở giao dịch riêng ({@code REQUIRES_NEW}), nay không còn phải mượn kết nối THỨ HAI trong lúc
+     * giữ kết nối thứ nhất (đợt đăng nhập buổi sáng từng có thể khoá chéo cả pool).
      */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public TokenResponse login(LoginRequest request, Client client) {
         Optional<User> found = userService.findForAuthentication(request.username());
         Instant now = Instant.now();
@@ -147,9 +160,15 @@ public class AuthService {
             emailMfa.verifyForLogin(user.getId(), request.code());
         }
 
-        loginGuard.recordSuccess(user);
-        userService.recordLogin(user, now);
-        return issue(user, now, Session.open(now), client);
+        // Đọc LẠI tài khoản trong giao dịch cuối, không lưu bản `user` ở trên: bản đó đã tách khỏi phiên từ lúc
+        // đọc, và lưu nó (merge) ghi đè lên những gì các bước mã xác thực vừa ghi — mã email vừa dùng sống lại.
+        Long userId = user.getId();
+        return tx.execute(status -> {
+            User fresh = userService.get(userId);
+            loginGuard.recordSuccess(fresh);
+            userService.recordLogin(fresh, now);
+            return issue(fresh, now, Session.open(now), client);
+        });
     }
 
     /**
@@ -159,7 +178,9 @@ public class AuthService {
      * role change or a disabled account takes effect on the next refresh
      * instead of surviving as long as the session does.
      */
-    @Transactional
+    // Từ chối (401) vẫn commit: token bị dùng lại thì cả phiên bị đóng trong CHÍNH giao dịch này — đóng ở một giao
+    // dịch riêng là giữ một kết nối để chờ kết nối thứ hai, vài chục yêu cầu song song là cạn pool.
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public TokenResponse refresh(String refreshToken, Client client) {
         Instant now = Instant.now();
         RefreshToken used = refreshTokenService.consume(refreshToken, now);

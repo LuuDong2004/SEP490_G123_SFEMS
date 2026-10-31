@@ -27,6 +27,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -115,6 +116,36 @@ public class UserService {
     public User get(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
+    }
+
+    /**
+     * Những gì bộ nhớ đệm quyền cần biết về một tài khoản, đọc bằng ba câu chiếu hẹp thay vì
+     * nạp cả thực thể (vai EAGER → quyền, trường, cơ quan). Rỗng khi không có tài khoản.
+     */
+    public Optional<AuthorityFacts> authorityFacts(long id) {
+        List<Object[]> header = repository.authorityHeader(id);
+        if (header.isEmpty()) {
+            return Optional.empty();
+        }
+        Object[] h = header.get(0);
+        Set<Long> roleIds = new TreeSet<>();
+        Set<String> roleCodes = new TreeSet<>();
+        for (Object[] role : repository.authorityRoles(id)) {
+            roleIds.add(((Number) role[0]).longValue());
+            roleCodes.add((String) role[1]);
+        }
+        Set<String> permissions = new TreeSet<>(repository.authorityPermissionCodes(id));
+        return Optional.of(new AuthorityFacts(
+                h[0] == UserStatus.ACTIVE, roleCodes, roleIds, permissions,
+                h[1] == null ? null : ((Number) h[1]).longValue(),
+                h[2] == null ? null : ((Number) h[2]).longValue(),
+                (Instant) h[3]));
+    }
+
+    /** Tài khoản dưới dạng bộ nhớ đệm quyền đọc — xem {@link #authorityFacts}. Các tập đã sắp xếp. */
+    public record AuthorityFacts(boolean canSignIn, Set<String> roleCodes, Set<Long> roleIds,
+                                 Set<String> permissionCodes, Long schoolId, Long managingBodyId,
+                                 Instant passwordChangedAt) {
     }
 
     public List<User> getMany(List<Long> ids) {

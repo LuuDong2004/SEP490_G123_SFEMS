@@ -24,6 +24,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    // Bộ nhớ đệm dùng chung giữa các node: mức 2 của cache tổng hợp và sổ phiên đăng nhập — xem
+    // shared/cache/SharedCache. Không khai REDIS_HOST thì không dùng, mọi thứ chạy từ CSDL.
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // Authentication / authorisation. The resource-server starter is what pulls
     // in Nimbus JOSE, which is how access tokens are signed and verified — see
     // shared/security/JwtService.

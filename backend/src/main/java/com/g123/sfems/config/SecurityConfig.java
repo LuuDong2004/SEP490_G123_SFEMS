@@ -1,6 +1,7 @@
 package com.g123.sfems.config;
 
 import com.g123.sfems.module.security.auth.service.AuthorizationService;
+import com.g123.sfems.shared.security.DeployStack;
 import com.g123.sfems.shared.security.JwtProperties;
 import com.g123.sfems.shared.security.JwtService;
 import com.g123.sfems.shared.security.RestAuthenticationEntryPoint;
@@ -13,6 +14,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -58,8 +60,9 @@ import org.springframework.core.convert.converter.Converter;
 public class SecurityConfig {
 
     private final JwtProperties properties;
+    private final DeployStack stack;
 
-    public SecurityConfig(JwtProperties properties) {
+    public SecurityConfig(JwtProperties properties, DeployStack stack) {
         if (properties.secret() == null
                 || properties.secret().getBytes(StandardCharsets.UTF_8).length < JwtProperties.MIN_SECRET_LENGTH) {
             // Failing at startup rather than signing tokens with a key that a
@@ -69,7 +72,15 @@ public class SecurityConfig {
                     "app.security.jwt.secret must be at least %d bytes for HS256"
                             .formatted(JwtProperties.MIN_SECRET_LENGTH));
         }
+        if (stack.deployed() && JwtProperties.DEV_SECRET.equals(properties.secret())) {
+            // Khoá mặc định nằm trong repo: ai có nó tự ký được token của bất kỳ tài khoản nào, và giải mã được
+            // bí mật TOTP, khoá AI (SecretBox dẫn khoá từ đây). Đủ dài nên lọt kiểm tra trên — chặn riêng.
+            throw new IllegalStateException(
+                    "app.security.jwt.secret đang là giá trị mặc định trong mã nguồn — đặt APP_SECURITY_JWT_SECRET cho "
+                            + stack.name());
+        }
         this.properties = properties;
+        this.stack = stack;
     }
 
     @Bean
@@ -104,8 +115,10 @@ public class SecurityConfig {
                         // token is signing in, by another credential.
                         .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
                         // Tài liệu API (QLTB-449): trang và bản mô tả mở để đối tác đọc trước khi có khoá; gọi API thì
-                        // vẫn cần token ("Authorize" trên trang). Tắt hẳn bằng APP_API_DOCS=false.
-                        .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // vẫn cần token ("Authorize" trên trang). Tắt hẳn bằng APP_API_DOCS=false. Bản chính thức
+                        // không mở: bản đồ mọi endpoint quản trị là thứ người dò lỗi cần đầu tiên — đối tác đọc ở UAT.
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                        .access((authentication, context) -> new AuthorizationDecision(!stack.production()))
                         // The WebSocket handshake, and only the handshake. The
                         // browser cannot put an Authorization header on it, so
                         // there is nothing here for this chain to check;
@@ -186,7 +199,8 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter(AuthorizationService authorizationService) {
         Converter<Jwt, Collection<GrantedAuthority>> authorities =
-                jwt -> authorizationService.authoritiesOf(jwt.getSubject());
+                jwt -> authorizationService.authoritiesOf(jwt.getSubject(), jwt.getIssuedAt(),
+                        jwt.getClaimAsString(JwtService.CLAIM_SESSION));
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);

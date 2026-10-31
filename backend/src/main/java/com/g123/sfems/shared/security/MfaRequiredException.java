@@ -9,6 +9,12 @@ import org.springframework.security.authentication.BadCredentialsException;
  */
 public class MfaRequiredException extends BadCredentialsException {
 
+    /**
+     * Thuộc tính request đặt khi trả lời "cần mã" — bước bình thường của đăng nhập hai lớp, không phải lần thử sai,
+     * nên bộ giới hạn theo IP ({@code LoginRateLimitFilter}) không đếm nó.
+     */
+    public static final String PROMPTED = MfaRequiredException.class.getName() + ".prompted";
+
     /** {@code app} — mã từ ứng dụng xác thực (TOTP); {@code email} — mã vừa gửi tới email (QLTB-509). */
     private final String method;
 

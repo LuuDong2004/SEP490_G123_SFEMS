@@ -116,17 +116,20 @@ public class MfaService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void verifyForLogin(Long userId, String code) {
-        User user = user(userId);
+        // Khoá dòng: bộ đếm sai mã và bước TOTP đã dùng phải đọc-rồi-ghi tuần tự, nếu không thử song song là vượt
+        // ngưỡng khoá, và cùng một mã lọt hai lần.
+        User user = repository.lockById(userId).orElseThrow(() -> new ResourceNotFoundException("User", userId));
         Instant now = Instant.now();
         if (user.getMfaLockedUntil() != null && user.getMfaLockedUntil().isAfter(now)) {
             throw new BadCredentialsException("Nhập sai mã quá nhiều lần — thử lại sau ít phút");
         }
-        if (Totp.verify(box.open(user.getMfaSecret()), code, now.getEpochSecond())) {
-            if (user.getMfaFailedAttempts() > 0 || user.getMfaLockedUntil() != null) {
-                user.setMfaFailedAttempts(0);
-                user.setMfaLockedUntil(null);
-                repository.save(user);
-            }
+        long step = Totp.matchedStep(box.open(user.getMfaSecret()), code, now.getEpochSecond());
+        boolean replay = step >= 0 && user.getMfaLastStep() != null && step <= user.getMfaLastStep();
+        if (step >= 0 && !replay) {
+            user.setMfaLastStep(step);
+            user.setMfaFailedAttempts(0);
+            user.setMfaLockedUntil(null);
+            repository.save(user);
             return;
         }
         int failures = user.getMfaFailedAttempts() + 1;

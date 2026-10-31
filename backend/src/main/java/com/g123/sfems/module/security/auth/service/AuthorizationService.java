@@ -1,5 +1,8 @@
 package com.g123.sfems.module.security.auth.service;
 
+import com.g123.sfems.module.security.token.service.RefreshTokenService;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Optional;
 import org.springframework.security.core.GrantedAuthority;
@@ -29,9 +32,11 @@ import org.springframework.stereotype.Service;
 public class AuthorizationService {
 
     private final AuthorityCache cache;
+    private final RefreshTokenService sessions;
 
-    public AuthorizationService(AuthorityCache cache) {
+    public AuthorizationService(AuthorityCache cache, RefreshTokenService sessions) {
         this.cache = cache;
+        this.sessions = sessions;
     }
 
     /**
@@ -55,6 +60,28 @@ public class AuthorizationService {
      *                                     not to ask for something else
      */
     public Collection<GrantedAuthority> authoritiesOf(String subject) {
+        return authoritiesOf(subject, null);
+    }
+
+    /**
+     * Như trên, và từ chối access token phát TRƯỚC lần đổi / đặt lại mật khẩu gần nhất: đổi mật khẩu sau khi bị lộ
+     * phải cắt cả phiên kẻ kia đang cầm, không để nó dùng tiếp tới hết 15 phút. {@code iat} tính theo giây nên so
+     * với mốc đổi mật khẩu đã cắt về giây — token cấp ngay trong lần đổi mật khẩu vẫn dùng được. Mốc đọc từ bộ nhớ
+     * đệm quyền, nên trên node khác có thể chậm tới một lần hết hạn của nó (≤ 60 giây).
+     */
+    public Collection<GrantedAuthority> authoritiesOf(String subject, Instant issuedAt) {
+        return authoritiesOf(subject, issuedAt, null);
+    }
+
+    /**
+     * Như trên, và token mang phiên ({@code sid}) mà phiên đó đã đóng — đăng xuất, bị đăng xuất từ máy khác, khoá tài
+     * khoản — thì từ chối ngay, qua sổ phiên dùng chung ({@link RefreshTokenService#isSessionOpen}). Không có Redis
+     * thì sổ luôn trả "mở", và token sống tới hết hạn như trước.
+     */
+    public Collection<GrantedAuthority> authoritiesOf(String subject, Instant issuedAt, String sessionId) {
+        if (!sessions.isSessionOpen(sessionId, Instant.now())) {
+            throw new InvalidBearerTokenException("Phiên đăng nhập đã kết thúc — hãy đăng nhập lại");
+        }
         AuthorityCache.Entry entry = cache.get(parse(subject))
                 .orElseThrow(() -> new InvalidBearerTokenException("This account no longer exists"));
 
@@ -63,6 +90,10 @@ public class AuthorizationService {
             // disabled account kept working for the rest of the access token's
             // life. Resolving authorities per request is what closes that.
             throw new InvalidBearerTokenException("This account is no longer active");
+        }
+        if (issuedAt != null && entry.passwordChangedAt() != null
+                && issuedAt.isBefore(entry.passwordChangedAt().truncatedTo(ChronoUnit.SECONDS))) {
+            throw new InvalidBearerTokenException("Mật khẩu đã đổi — hãy đăng nhập lại");
         }
         return entry.authorities();
     }

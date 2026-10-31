@@ -37,20 +37,30 @@ public final class Totp {
     }
 
     public static boolean verify(String secret, String code, long epochSeconds) {
+        return matchedStep(secret, code, epochSeconds) >= 0;
+    }
+
+    /**
+     * Bước thời gian (epoch / 30 giây) mà mã khớp, lệch tối đa một bước; {@code -1} nếu không khớp. Lưu bước đã dùng
+     * và từ chối bước không mới hơn là cách chặn một mã bị nhìn trộm được dùng lại trong khoảng còn hiệu lực.
+     */
+    public static long matchedStep(String secret, String code, long epochSeconds) {
         if (code == null) {
-            return false;
+            return -1;
         }
         String digits = code.replaceAll("\\s", "");
         if (!digits.matches("\\d{" + DIGITS + "}")) {
-            return false;
+            return -1;
         }
         long counter = epochSeconds / STEP_SECONDS;
         byte[] given = digits.getBytes(StandardCharsets.US_ASCII);
-        boolean ok = false;
+        long matched = -1;
         for (long drift = -1; drift <= 1; drift++) {
-            ok |= MessageDigest.isEqual(given, code(secret, counter + drift).getBytes(StandardCharsets.US_ASCII));
+            if (MessageDigest.isEqual(given, code(secret, counter + drift).getBytes(StandardCharsets.US_ASCII))) {
+                matched = counter + drift;
+            }
         }
-        return ok;
+        return matched;
     }
 
     /** Mã của một bước — cho kiểm thử. */

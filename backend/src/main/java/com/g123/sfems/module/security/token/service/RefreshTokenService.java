@@ -3,19 +3,24 @@ package com.g123.sfems.module.security.token.service;
 import com.g123.sfems.domain.security.token.RefreshToken;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.token.repo.RefreshTokenRepository;
+import com.g123.sfems.shared.cache.SharedCache;
 import com.g123.sfems.shared.security.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -38,13 +43,23 @@ public class RefreshTokenService {
     /** 256 bits of entropy: not guessable, and short enough to sit in a header. */
     private static final int TOKEN_BYTES = 32;
 
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
+
+    /**
+     * Token đã đốt mà được trình lại trong khoảng này thì coi là hai tab cùng làm mới bằng một token (chúng dùng
+     * chung localStorage) — từ chối, không phạt. Muộn hơn là dấu hiệu token bị đánh cắp: thu hồi cả phiên.
+     */
+    static final Duration REUSE_GRACE = Duration.ofSeconds(60);
+
     private final RefreshTokenRepository repository;
     private final JwtProperties properties;
+    private final SharedCache shared;
     private final SecureRandom random = new SecureRandom();
 
-    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties) {
+    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties, SharedCache shared) {
         this.repository = repository;
         this.properties = properties;
+        this.shared = shared;
     }
 
     /**
@@ -62,7 +77,56 @@ public class RefreshTokenService {
 
         repository.save(new RefreshToken(user, hash(raw), now.plus(properties.refreshTokenTtl()), session.id(),
                 session.startedAt(), truncate(client.ip(), 64), truncate(client.userAgent(), 300)));
+        opened(session.id(), now.plus(properties.refreshTokenTtl()), now);
         return raw;
+    }
+
+    // ------------------------------------------------------------------ sổ phiên dùng chung (Redis)
+
+    /**
+     * Phiên còn mở không — hỏi ở mỗi yêu cầu mang access token có {@code sid}, để đăng xuất, đăng xuất phiên khác,
+     * khoá tài khoản hay đổi mật khẩu cắt phiên NGAY trên mọi node, không đợi access token hết 15 phút.
+     *
+     * <p>Sổ nằm ở Redis ({@code session:<sid>} = {@code 1} mở / {@code 0} đã đóng); CSDL vẫn là nguồn sự thật. Sổ
+     * không có câu trả lời (Redis khởi động lại, bỏ khoá khi đầy) thì hỏi bảng refresh token rồi ghi lại vào sổ.
+     * Không có Redis thì không hỏi gì — trả {@code true}, như trước khi có sổ.
+     */
+    // NOT_SUPPORTED đè @Transactional(readOnly) của lớp: chạy ở MỌI yêu cầu, và trúng sổ thì không được mượn kết
+    // nối CSDL nào. Hỏi CSDL (trượt sổ) thì câu của repository tự mở giao dịch ngắn của nó.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public boolean isSessionOpen(String sessionId, Instant now) {
+        if (sessionId == null || !shared.available()) {
+            return true;
+        }
+        String mark = shared.getRaw(SESSION + sessionId);
+        if (mark != null) {
+            return OPEN.equals(mark);
+        }
+        boolean open = repository.existsBySessionIdAndRevokedAtIsNullAndExpiresAtAfter(sessionId, now);
+        if (open) {
+            shared.putRawIfAbsent(SESSION + sessionId, OPEN, SESSION_MARK);
+        } else {
+            shared.putRaw(SESSION + sessionId, CLOSED, properties.accessTokenTtl());
+        }
+        return open;
+    }
+
+    private static final String SESSION = "session:";
+    private static final String OPEN = "1";
+    private static final String CLOSED = "0";
+    /** Cờ "mở" sống ngắn hơn phiên: hết hạn thì hỏi lại CSDL một lần, không giữ cờ sai lâu. */
+    private static final Duration SESSION_MARK = Duration.ofHours(1);
+
+    private void opened(String sessionId, Instant expiresAt, Instant now) {
+        Duration left = Duration.between(now, expiresAt);
+        Duration ttl = left.compareTo(SESSION_MARK) < 0 ? left : SESSION_MARK;
+        // Không đè: phiên vừa bị đóng ("0") mà một lần làm mới chậm chân ghi "1" sau thì phiên sống lại.
+        shared.afterCommit(() -> shared.putRawIfAbsent(SESSION + sessionId, OPEN, ttl));
+    }
+
+    /** Cờ "đã đóng" chỉ cần sống bằng access token dài nhất còn có thể mang {@code sid} này. */
+    private void closed(String sessionId) {
+        shared.afterCommit(() -> shared.putRaw(SESSION + sessionId, CLOSED, properties.accessTokenTtl()));
     }
 
     /** Một phiên đăng nhập: mã phiên và lúc mở. Đăng nhập mở phiên mới; làm mới token đi tiếp phiên cũ. */
@@ -100,6 +164,7 @@ public class RefreshTokenService {
                 .filter(t -> t.getSessionId().equals(sessionId)).toList();
         open.forEach(t -> t.revoke(now));
         repository.saveAll(open);
+        closed(sessionId);
         return !open.isEmpty();
     }
 
@@ -110,6 +175,7 @@ public class RefreshTokenService {
                 .filter(t -> !t.getSessionId().equals(keepSessionId)).toList();
         open.forEach(t -> t.revoke(now));
         repository.saveAll(open);
+        open.stream().map(RefreshToken::getSessionId).distinct().forEach(this::closed);
         return (int) open.stream().map(RefreshToken::getSessionId).distinct().count();
     }
 
@@ -129,15 +195,42 @@ public class RefreshTokenService {
      *                                 revoked or expired — all four are the
      *                                 same answer to whoever presented it.
      */
-    @Transactional
+    /**
+     * Thu hồi phiên khi thấy token bị dùng lại nằm trong CHÍNH giao dịch này, nên người gọi phải để giao dịch commit
+     * khi từ chối ({@code noRollbackFor} — {@code AuthService.refresh} cũng vậy).
+     */
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public RefreshToken consume(String rawToken, Instant now) {
-        RefreshToken token = repository.findByTokenHash(hash(rawToken))
-                .filter(candidate -> candidate.isUsable(now))
-                .orElseThrow(() -> new BadCredentialsException("Phiên đăng nhập đã hết hạn — hãy đăng nhập lại"));
+        RefreshToken token = repository.lockByTokenHash(hash(rawToken))
+                .orElseThrow(RefreshTokenService::expired);
+        if (!token.isUsable(now)) {
+            if (token.getRevokedAt() != null && token.getRevokedAt().isBefore(now.minus(REUSE_GRACE))) {
+                revokeReusedSession(token, now);
+            }
+            throw expired();
+        }
 
         token.revoke(now);
         repository.save(token);
         return token;
+    }
+
+    private static BadCredentialsException expired() {
+        return new BadCredentialsException("Phiên đăng nhập đã hết hạn — hãy đăng nhập lại");
+    }
+
+    /**
+     * Token đã thu hồi lại được trình: một trong hai bên — người dùng hay kẻ giữ bản sao — đang cầm token cũ, và
+     * không biết bên nào. Đóng cả phiên, cả hai cùng phải đăng nhập lại; người thật đăng nhập được, kẻ kia thì không.
+     */
+    private void revokeReusedSession(RefreshToken reused, Instant now) {
+        String sessionId = reused.getSessionId();
+        List<RefreshToken> open = repository.findBySessionIdAndRevokedAtIsNull(sessionId);
+        open.forEach(t -> t.revoke(now));
+        repository.saveAll(open);
+        closed(sessionId);
+        log.warn("Refresh token đã thu hồi bị dùng lại — đóng phiên {} của tài khoản {}", sessionId,
+                reused.getUser().getId());
     }
 
     /** Ends one session. Unknown tokens are ignored: signing out cannot fail. */
@@ -148,6 +241,7 @@ public class RefreshTokenService {
         token.ifPresent(found -> {
             found.revoke(now);
             repository.save(found);
+            closed(found.getSessionId());
         });
         return token.map(t -> t.getUser().getId()).orElse(null);
     }
@@ -165,6 +259,7 @@ public class RefreshTokenService {
         List<RefreshToken> open = repository.findByUserAndRevokedAtIsNull(user);
         open.forEach(token -> token.revoke(now));
         repository.saveAll(open);
+        open.stream().map(RefreshToken::getSessionId).distinct().forEach(this::closed);
     }
 
     /** Housekeeping: removes rows that can no longer affect any decision. */

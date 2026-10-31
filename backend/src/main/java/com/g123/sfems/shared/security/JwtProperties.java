@@ -26,4 +26,7 @@ public record JwtProperties(
 
     /** Shortest key HS256 may be signed with, in bytes. */
     public static final int MIN_SECRET_LENGTH = 32;
+
+    /** Giá trị mặc định trong {@code application.properties} — ai đọc repo cũng biết, chỉ dùng trên máy dev. */
+    public static final String DEV_SECRET = "dev-only-secret-change-me-in-every-real-deployment";
 }

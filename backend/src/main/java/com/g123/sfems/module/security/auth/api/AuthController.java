@@ -112,11 +112,13 @@ public class AuthController {
         return Map.of("ended", service.endOtherSessions());
     }
 
-    /** IP (qua proxy thì phần đầu của X-Forwarded-For) và trình duyệt của request — ghi lên phiên. */
+    /**
+     * IP và trình duyệt của request — ghi lên phiên. Sau proxy, {@code getRemoteAddr()} đã là IP thật do Tomcat
+     * đọc {@code X-Forwarded-For} từ proxy tin cậy ({@code server.forward-headers-strategy}); đọc thẳng phần đầu
+     * của header là tin chữ client tự khai.
+     */
     static Client client(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        String ip = forwarded != null && !forwarded.isBlank() ? forwarded.split(",")[0].trim() : http.getRemoteAddr();
-        return new Client(ip, http.getHeader("User-Agent"));
+        return new Client(http.getRemoteAddr(), http.getHeader("User-Agent"));
     }
 
     /**

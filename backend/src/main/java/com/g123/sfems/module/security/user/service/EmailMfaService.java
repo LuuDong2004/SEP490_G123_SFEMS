@@ -7,13 +7,17 @@ import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.mail.MailService;
 import com.g123.sfems.shared.security.Hashes;
 import com.g123.sfems.shared.security.MfaRequiredException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Xác thực hai lớp QUA EMAIL (QLTB-509): mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
@@ -35,8 +39,11 @@ public class EmailMfaService {
     private final UserRepository repository;
     private final MailService mail;
     private final PasswordEncoder passwordEncoder;
+    private final TransactionTemplate tx;
 
-    public EmailMfaService(UserRepository repository, MailService mail, PasswordEncoder passwordEncoder) {
+    public EmailMfaService(UserRepository repository, MailService mail, PasswordEncoder passwordEncoder,
+                           PlatformTransactionManager transactionManager) {
+        this.tx = new TransactionTemplate(transactionManager);
         this.repository = repository;
         this.mail = mail;
         this.passwordEncoder = passwordEncoder;
@@ -60,45 +67,71 @@ public class EmailMfaService {
     }
 
     /**
-     * Gửi mã (mật khẩu vừa đúng, chưa có mã) rồi báo màn đăng nhập hiện ô nhập mã. Giao dịch RIÊNG: mã phải được
-     * lưu dù lần đăng nhập kết thúc bằng lỗi "cần mã".
+     * Gửi mã (mật khẩu vừa đúng, chưa có mã) rồi báo màn đăng nhập hiện ô nhập mã. Mã được lưu và COMMIT trong một
+     * giao dịch ngắn TRƯỚC khi gửi thư — mã phải còn dù lần đăng nhập kết thúc bằng lỗi "cần mã", và SMTP (có khi
+     * vài giây) không được giữ kết nối CSDL. Gửi hỏng thì gỡ mã vừa lưu, để lần thử lại gửi thư mới thay vì bảo
+     * "đã gửi" một thư không hề đi.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void sendForLogin(Long userId) {
-        User user = user(userId);
         Instant now = Instant.now();
+        Outgoing outgoing = tx.execute(status -> issueCode(userId, now));
+        if (outgoing.code() != null) {
+            try {
+                mail.send(outgoing.email(), "Mã đăng nhập hệ thống quản lý CSVC & thiết bị",
+                        "Mã đăng nhập của tài khoản " + outgoing.username() + " là: " + outgoing.code() + "\n\n"
+                                + "Mã có hiệu lực " + CODE_TTL.toMinutes() + " phút và chỉ dùng một lần. "
+                                + "Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay.");
+            } catch (RuntimeException e) {
+                tx.executeWithoutResult(status -> repository.findById(userId).ifPresent(user -> {
+                    user.setEmailCodeHash(null);
+                    user.setEmailCodeExpiresAt(null);
+                    user.setEmailCodeSentAt(null);
+                    repository.save(user);
+                }));
+                throw e;
+            }
+        }
+        throw new MfaRequiredException("Đã gửi mã 6 số tới " + MailService.mask(outgoing.email())
+                + " — nhập mã để đăng nhập (hiệu lực " + CODE_TTL.toMinutes() + " phút)", "email");
+    }
+
+    /** Thư cần gửi; {@code code} rỗng = mã vừa gửi trong {@code RESEND_AFTER} còn dùng được, không gửi lại. */
+    private record Outgoing(String email, String username, String code) {
+    }
+
+    private Outgoing issueCode(Long userId, Instant now) {
+        User user = user(userId);
         if (user.getEmail() == null || user.getEmail().isBlank()) {
             throw new BadCredentialsException(
                     "Tài khoản bật xác thực qua email nhưng chưa có email — liên hệ quản trị viên");
         }
         boolean fresh = user.getEmailCodeSentAt() != null && user.getEmailCodeSentAt().plus(RESEND_AFTER).isAfter(now)
                 && user.getEmailCodeExpiresAt() != null && user.getEmailCodeExpiresAt().isAfter(now);
-        if (!fresh) {
-            String code = Hashes.digits(6);
-            user.setEmailCodeHash(Hashes.sha256(user.getId() + ":" + code));
-            user.setEmailCodeExpiresAt(now.plus(CODE_TTL));
-            user.setEmailCodeSentAt(now);
-            repository.save(user);
-            mail.send(user.getEmail(), "Mã đăng nhập hệ thống quản lý CSVC & thiết bị",
-                    "Mã đăng nhập của tài khoản " + user.getUsername() + " là: " + code + "\n\n"
-                            + "Mã có hiệu lực " + CODE_TTL.toMinutes() + " phút và chỉ dùng một lần. "
-                            + "Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay.");
+        if (fresh) {
+            return new Outgoing(user.getEmail(), user.getUsername(), null);
         }
-        throw new MfaRequiredException("Đã gửi mã 6 số tới " + MailService.mask(user.getEmail())
-                + " — nhập mã để đăng nhập (hiệu lực " + CODE_TTL.toMinutes() + " phút)", "email");
+        String code = Hashes.digits(6);
+        user.setEmailCodeHash(Hashes.sha256(user.getId() + ":" + code));
+        user.setEmailCodeExpiresAt(now.plus(CODE_TTL));
+        user.setEmailCodeSentAt(now);
+        repository.save(user);
+        return new Outgoing(user.getEmail(), user.getUsername(), code);
     }
 
     /** Kiểm mã lúc đăng nhập — giao dịch riêng, như {@code MfaService.verifyForLogin}, để lần sai được đếm. */
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void verifyForLogin(Long userId, String code) {
-        User user = user(userId);
+        // Khoá dòng: bộ đếm sai mã và việc đốt mã phải tuần tự giữa các lần thử song song.
+        User user = repository.lockById(userId).orElseThrow(() -> new ResourceNotFoundException("User", userId));
         Instant now = Instant.now();
         if (user.getMfaLockedUntil() != null && user.getMfaLockedUntil().isAfter(now)) {
             throw new BadCredentialsException("Nhập sai mã quá nhiều lần — thử lại sau ít phút");
         }
         boolean live = user.getEmailCodeHash() != null && user.getEmailCodeExpiresAt() != null
                 && user.getEmailCodeExpiresAt().isAfter(now);
-        if (live && user.getEmailCodeHash().equals(Hashes.sha256(user.getId() + ":" + code.trim()))) {
+        if (live && MessageDigest.isEqual(user.getEmailCodeHash().getBytes(StandardCharsets.US_ASCII),
+                Hashes.sha256(user.getId() + ":" + code.trim()).getBytes(StandardCharsets.US_ASCII))) {
             user.setEmailCodeHash(null);
             user.setEmailCodeExpiresAt(null);
             user.setMfaFailedAttempts(0);
