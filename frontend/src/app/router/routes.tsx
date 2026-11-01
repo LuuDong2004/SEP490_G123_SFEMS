@@ -127,7 +127,9 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/room-types", "room_types", catalogScreens("room_types"))}
         {crudRoutes("/catalogs/school-types", "school_types", catalogScreens("school_types"))}
         {crudRoutes("/catalogs/school-years", "school_years", catalogScreens("school_years"))}
+        {crudRoutes("/catalogs/semesters", "semesters", catalogScreens("semesters"))}
         {crudRoutes("/catalogs/grades", "grades", catalogScreens("grades"))}
+        {crudRoutes("/catalogs/subject-groups", "subject_groups", catalogScreens("subject_groups"))}
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}

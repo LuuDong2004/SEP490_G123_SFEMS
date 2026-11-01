@@ -4,6 +4,7 @@ import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
 import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
+import { semesterConfig } from "@/features/catalogs/extras/semester";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
 
@@ -16,6 +17,7 @@ export const CATALOG_CONFIGS = {
   room_types: roomTypeConfig,
   school_types: schoolTypeConfig,
   school_years: schoolYearConfig,
+  semesters: semesterConfig,
   grades: gradeConfig,
   subjects: subjectConfig,
   movement_reasons: movementReasonConfig,
@@ -26,6 +28,13 @@ export const CATALOG_CONFIGS = {
     codeRequired: true,
     codePlaceholder: "26734",
     namePlaceholder: "Phường Bến Thành",
+  },
+  subject_groups: {
+    resource: "subject_groups",
+    noun: "tổ chuyên môn",
+    description: "Tổ chuyên môn của trường: Tổ Toán – Tin, Tổ Khoa học tự nhiên…",
+    codePlaceholder: "TO_TOAN_TIN",
+    namePlaceholder: "Tổ Toán – Tin",
   },
   equipment_types: {
     resource: "equipment_types",

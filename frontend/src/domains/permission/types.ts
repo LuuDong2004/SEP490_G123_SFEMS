@@ -85,6 +85,8 @@ const RESOURCE_LABELS: Record<string, string> = {
   wards: "Phường/xã",
   school_years: "Năm học",
   grades: "Khối lớp",
+  semesters: "Học kỳ",
+  subject_groups: "Tổ chuyên môn",
   subjects: "Môn học",
   room_types: "Loại phòng",
   school_types: "Loại hình trường",
