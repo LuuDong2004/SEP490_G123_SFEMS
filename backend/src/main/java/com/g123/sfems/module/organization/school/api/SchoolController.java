@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,5 +49,11 @@ public class SchoolController {
         return ListResponse.of(
                 page.map(row -> SchoolResponse.from(row, rowLevel)).getContent(),
                 page.getTotalElements());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHOOLS_READ + "')")
+    public SchoolResponse get(@PathVariable Long id) {
+        return SchoolResponse.from(service.get(id), rowLevel);
     }
 }
