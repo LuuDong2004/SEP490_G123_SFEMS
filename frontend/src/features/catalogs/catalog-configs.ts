@@ -4,7 +4,6 @@ import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
 import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
-import { semesterConfig } from "@/features/catalogs/extras/semester";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
 
@@ -17,7 +16,13 @@ export const CATALOG_CONFIGS = {
   room_types: roomTypeConfig,
   school_types: schoolTypeConfig,
   school_years: schoolYearConfig,
-  semesters: semesterConfig,
+  semesters: {
+    resource: "semesters",
+    noun: "học kỳ",
+    description: "Học kỳ dùng chung cho mọi năm học: Học kỳ 1, Học kỳ 2, Cả năm.",
+    codePlaceholder: "HOC_KY_1",
+    namePlaceholder: "Học kỳ 1",
+  },
   grades: gradeConfig,
   subjects: subjectConfig,
   movement_reasons: movementReasonConfig,
