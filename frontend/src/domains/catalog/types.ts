@@ -42,6 +42,8 @@ export type SchoolYear = CatalogItem & {
   /** Ngày lịch dạng "2026-09-05". */
   startDate: string;
   endDate: string;
+  /** Năm học đang diễn ra; chỉ một năm mang cờ này. */
+  current: boolean;
 };
 
 export type Semester = CatalogItem & {

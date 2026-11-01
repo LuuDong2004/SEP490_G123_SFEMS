@@ -29,5 +29,8 @@ public record SchoolYearRequest(
         LocalDate startDate,
 
         @NotNull(message = "Ngày kết thúc là bắt buộc")
-        LocalDate endDate) implements CatalogInput {
+        LocalDate endDate,
+
+        /** Đặt năm học này là hiện hành; năm học hiện hành cũ tự bỏ cờ. */
+        Boolean current) implements CatalogInput {
 }

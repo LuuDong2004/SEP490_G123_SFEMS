@@ -24,5 +24,7 @@ public record SchoolYearPatchRequest(
 
         LocalDate startDate,
 
-        LocalDate endDate) implements CatalogInput {
+        LocalDate endDate,
+
+        Boolean current) implements CatalogInput {
 }

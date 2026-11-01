@@ -18,6 +18,10 @@ public class SchoolYear extends CatalogEntity {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    /** Năm học đang diễn ra. Chỉ một năm học mang cờ này (unique index một phần trong DB). */
+    @Column(name = "is_current", nullable = false)
+    private Boolean current = Boolean.FALSE;
+
     public LocalDate getStartDate() {
         return startDate;
     }
@@ -32,5 +36,13 @@ public class SchoolYear extends CatalogEntity {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public Boolean getCurrent() {
+        return current;
+    }
+
+    public void setCurrent(Boolean current) {
+        this.current = current == null ? Boolean.FALSE : current;
     }
 }
