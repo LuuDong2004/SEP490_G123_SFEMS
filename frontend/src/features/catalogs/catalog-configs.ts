@@ -6,6 +6,7 @@ import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
 import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
+import { subjectGroupConfig } from "@/features/catalogs/extras/subject-group";
 
 /**
  * Cấu hình của từng danh mục dùng chung (DM-01). Thêm một danh mục = thêm một mục ở đây rồi gắn vào
@@ -24,6 +25,7 @@ export const CATALOG_CONFIGS = {
     namePlaceholder: "Học kỳ 1",
   },
   grades: gradeConfig,
+  subject_groups: subjectGroupConfig,
   subjects: subjectConfig,
   movement_reasons: movementReasonConfig,
   wards: {
@@ -33,13 +35,6 @@ export const CATALOG_CONFIGS = {
     codeRequired: true,
     codePlaceholder: "26734",
     namePlaceholder: "Phường Bến Thành",
-  },
-  subject_groups: {
-    resource: "subject_groups",
-    noun: "tổ chuyên môn",
-    description: "Tổ chuyên môn của trường: Tổ Toán – Tin, Tổ Khoa học tự nhiên…",
-    codePlaceholder: "TO_TOAN_TIN",
-    namePlaceholder: "Tổ Toán – Tin",
   },
   equipment_types: {
     resource: "equipment_types",

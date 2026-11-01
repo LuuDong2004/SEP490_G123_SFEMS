@@ -3,40 +3,22 @@ import type { UseTableReturnType } from "@refinedev/react-table";
 import type { Control } from "react-hook-form";
 
 import { RefFilter } from "@/shared/components/data-table/ref-filter";
-import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { ReadField } from "@/shared/components/form/read-field";
 import { TextField } from "@/shared/components/form/simple-fields";
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
-import type { CatalogRef, Grade } from "@/domains/catalog/types";
+import type { Grade } from "@/domains/catalog/types";
 import type { CatalogConfig, CatalogFormValues, CatalogRecord } from "@/features/catalogs/catalog-config";
+import { RefSelectField } from "@/features/catalogs/ref-select-field";
 
 function GradeFields({ control }: { control: Control<CatalogFormValues> }) {
   return (
     <>
-      <FormField
+      <RefSelectField
         control={control}
         name="educationLevel"
-        rules={{ required: "Chọn cấp học" }}
-        render={({ field }) => {
-          // Giá trị trên form là tham chiếu {id, mã, tên}; ô chọn chỉ cần id, tên dùng làm nhãn khi chưa tải.
-          const current = field.value as CatalogRef | null;
-          return (
-            <FormItem>
-              <FormLabel>Cấp học</FormLabel>
-              <FormControl>
-                <AsyncCombobox<CatalogRef>
-                  resource="education_levels"
-                  value={current?.id ?? null}
-                  onChange={(id) => field.onChange(id == null ? null : { id })}
-                  labelOf={(level) => level.name}
-                  fallbackLabel={current?.name}
-                  placeholder="Chọn cấp học"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          );
-        }}
+        label="Cấp học"
+        resource="education_levels"
+        placeholder="Chọn cấp học"
+        required="Chọn cấp học"
       />
       <TextField
         control={control}

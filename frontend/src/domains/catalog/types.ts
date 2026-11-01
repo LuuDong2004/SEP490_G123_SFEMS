@@ -51,9 +51,19 @@ export type Grade = CatalogItem & {
   gradeNumber: number | null;
 };
 
+export type SubjectGroup = CatalogItem & {
+  educationLevel: CatalogRef | null;
+  /** Số môn học thuộc tổ, máy chủ đếm. */
+  subjectCount: number;
+};
+
 export type Subject = CatalogItem & {
-  /** Mã môn ngắn — thành phần MH của mã tài sản. */
+  /** Ký hiệu môn — thành phần MH của mã tài sản. */
   shortCode: string | null;
+  /** Cấp học giảng dạy môn này. */
+  educationLevel: CatalogRef | null;
+  /** Tổ chuyên môn phụ trách; null là chưa xếp tổ. */
+  subjectGroup: CatalogRef | null;
 };
 
 export type MovementDirection = "increase" | "decrease";
