@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/changes/006-seed-quyen-nghiep-vu.sql
   - include:
       file: db/changelog/changes/010-nen-phieu-va-pham-vi-du-lieu.sql
+  - include:
+      file: db/changelog/changes/030-danh-muc-dung-chung.sql
