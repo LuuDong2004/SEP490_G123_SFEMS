@@ -6,8 +6,8 @@ import { TextField, TextareaField } from "@/shared/components/form/simple-fields
 import { RouteDialog } from "@/shared/components/views/route-dialog";
 import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Button } from "@/shared/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/shared/ui/form";
-import { Switch } from "@/shared/ui/switch";
+import { Form } from "@/shared/ui/form";
+import { SwitchField } from "@/features/catalogs/switch-field";
 import {
   BASE_FORM_DEFAULTS,
   BASE_FORM_KEYS,
@@ -95,17 +95,11 @@ export function CatalogFormDialog({
 
           <TextareaField control={form.control} name="note" label="Ghi chú" inGrid className="sm:col-span-2" />
 
-          <FormField
+          <SwitchField
             control={form.control}
             name="active"
-            render={({ field }) => (
-              <FormItem className="flex items-center gap-3 sm:col-span-2">
-                <FormControl>
-                  <Switch checked={field.value !== false} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormLabel className="font-normal">Đang dùng — tắt để ẩn khỏi các ô chọn mà không xoá</FormLabel>
-              </FormItem>
-            )}
+            label="Đang dùng — tắt để ẩn khỏi các ô chọn mà không xoá"
+            className="sm:col-span-2"
           />
         </form>
       </Form>

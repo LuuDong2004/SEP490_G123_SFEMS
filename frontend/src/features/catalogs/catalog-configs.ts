@@ -1,10 +1,22 @@
 import type { CatalogConfig } from "@/features/catalogs/catalog-config";
+import { educationLevelConfig } from "@/features/catalogs/extras/education-level";
+import { gradeConfig } from "@/features/catalogs/extras/grade";
+import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
+import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
+import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
+import { subjectConfig } from "@/features/catalogs/extras/subject";
 
 /**
  * Cấu hình của từng danh mục dùng chung (DM-01). Thêm một danh mục = thêm một mục ở đây rồi gắn vào
- * `routes.tsx` bằng `catalogScreens("<resource>")`.
+ * `routes.tsx` bằng `catalogScreens("<resource>")`. Danh mục có trường riêng khai trong `extras/`.
  */
 export const CATALOG_CONFIGS = {
+  education_levels: educationLevelConfig,
+  room_types: roomTypeConfig,
+  school_years: schoolYearConfig,
+  grades: gradeConfig,
+  subjects: subjectConfig,
+  movement_reasons: movementReasonConfig,
   wards: {
     resource: "wards",
     noun: "phường/xã",
