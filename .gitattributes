@@ -1,0 +1,5 @@
+# Script shell phải giữ LF kể cả checkout trên Windows, nếu không Git Bash báo lỗi $'\r'.
+*.sh      text eol=lf
+gradlew   text eol=lf
+*.bat     text eol=crlf
+*.ps1     text eol=crlf
