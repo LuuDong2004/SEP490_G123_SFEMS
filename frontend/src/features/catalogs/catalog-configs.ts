@@ -3,6 +3,7 @@ import { educationLevelConfig } from "@/features/catalogs/extras/education-level
 import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
+import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
 
@@ -13,6 +14,7 @@ import { subjectConfig } from "@/features/catalogs/extras/subject";
 export const CATALOG_CONFIGS = {
   education_levels: educationLevelConfig,
   room_types: roomTypeConfig,
+  school_types: schoolTypeConfig,
   school_years: schoolYearConfig,
   grades: gradeConfig,
   subjects: subjectConfig,

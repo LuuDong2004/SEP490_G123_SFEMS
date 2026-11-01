@@ -125,6 +125,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/wards", "wards", catalogScreens("wards"))}
         {crudRoutes("/catalogs/education-levels", "education_levels", catalogScreens("education_levels"))}
         {crudRoutes("/catalogs/room-types", "room_types", catalogScreens("room_types"))}
+        {crudRoutes("/catalogs/school-types", "school_types", catalogScreens("school_types"))}
         {crudRoutes("/catalogs/school-years", "school_years", catalogScreens("school_years"))}
         {crudRoutes("/catalogs/grades", "grades", catalogScreens("grades"))}
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}

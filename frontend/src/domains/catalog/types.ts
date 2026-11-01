@@ -28,6 +28,11 @@ export type EducationLevel = CatalogItem & {
   shortName: string | null;
 };
 
+export type SchoolType = CatalogItem & {
+  /** Tên viết tắt: CL, DL, TT. */
+  shortName: string | null;
+};
+
 export type RoomType = CatalogItem & {
   /** Phòng thuộc loại này là kho. */
   warehouse: boolean;

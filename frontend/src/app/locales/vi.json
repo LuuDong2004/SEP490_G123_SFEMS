@@ -370,6 +370,15 @@
       "show": "Chi tiết loại phòng"
     }
   },
+  "school_types": {
+    "school_types": "Loại hình trường",
+    "titles": {
+      "list": "Loại hình trường",
+      "create": "Thêm loại hình trường",
+      "edit": "Sửa loại hình trường",
+      "show": "Chi tiết loại hình trường"
+    }
+  },
   "school_years": {
     "school_years": "Năm học",
     "titles": {
