@@ -1,8 +1,13 @@
 package com.g123.sfems.domain.catalog.subject;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
+import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
+import com.g123.sfems.domain.catalog.subjectgroup.SubjectGroup;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /** Môn học (DM-01): Toán, Vật lí, Hoá học… theo chương trình THPT 2018. */
@@ -18,11 +23,37 @@ public class Subject extends CatalogEntity {
     @Column(name = "short_code", length = 10)
     private String shortCode;
 
+    /** Cấp học giảng dạy môn này. EAGER vì open-in-view tắt. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "education_level_id")
+    private EducationLevel educationLevel;
+
+    /** Tổ chuyên môn phụ trách môn; để trống được (môn chưa xếp tổ). */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "subject_group_id")
+    private SubjectGroup subjectGroup;
+
     public String getShortCode() {
         return shortCode;
     }
 
     public void setShortCode(String shortCode) {
         this.shortCode = shortCode;
+    }
+
+    public EducationLevel getEducationLevel() {
+        return educationLevel;
+    }
+
+    public void setEducationLevel(EducationLevel educationLevel) {
+        this.educationLevel = educationLevel;
+    }
+
+    public SubjectGroup getSubjectGroup() {
+        return subjectGroup;
+    }
+
+    public void setSubjectGroup(SubjectGroup subjectGroup) {
+        this.subjectGroup = subjectGroup;
     }
 }

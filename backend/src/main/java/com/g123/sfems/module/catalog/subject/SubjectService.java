@@ -1,20 +1,36 @@
 package com.g123.sfems.module.catalog.subject;
 
+import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
 import com.g123.sfems.domain.catalog.subject.Subject;
+import com.g123.sfems.domain.catalog.subjectgroup.SubjectGroup;
 import com.g123.sfems.module.catalog.base.CatalogService;
+import com.g123.sfems.module.catalog.base.CatalogSpecifications;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
+import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
+import com.g123.sfems.module.catalog.subjectgroup.SubjectGroupService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.web.ListParams;
 import java.util.List;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SubjectService extends CatalogService<Subject, SubjectRequest, SubjectPatchRequest> {
 
     private final SubjectRepository repository;
+    private final EducationLevelService educationLevels;
+    private final SubjectGroupService subjectGroups;
 
-    public SubjectService(SubjectRepository repository, RowLevelSecurity rowLevel) {
+    public SubjectService(
+            SubjectRepository repository,
+            RowLevelSecurity rowLevel,
+            EducationLevelService educationLevels,
+            SubjectGroupService subjectGroups) {
         super(repository, rowLevel, Subject.class, Subject::new, "Môn học");
         this.repository = repository;
+        this.educationLevels = educationLevels;
+        this.subjectGroups = subjectGroups;
     }
 
     @Override
@@ -31,6 +47,8 @@ public class SubjectService extends CatalogService<Subject, SubjectRequest, Subj
     @Override
     protected void applyCreate(Subject item, SubjectRequest request) {
         item.setShortCode(normalizeShortCode(request.shortCode(), null));
+        item.setEducationLevel(resolveEducationLevel(request.educationLevel()));
+        item.setSubjectGroup(resolveSubjectGroup(request.subjectGroup()));
     }
 
     @Override
@@ -38,6 +56,19 @@ public class SubjectService extends CatalogService<Subject, SubjectRequest, Subj
         if (request.shortCode() != null) {
             item.setShortCode(normalizeShortCode(request.shortCode(), item.getId()));
         }
+        if (request.educationLevel() != null) {
+            item.setEducationLevel(resolveEducationLevel(request.educationLevel()));
+        }
+        if (request.subjectGroup() != null) {
+            item.setSubjectGroup(resolveSubjectGroup(request.subjectGroup()));
+        }
+    }
+
+    /** Lọc {@code educationLevel.id=1} và {@code subjectGroup.id=2}. */
+    @Override
+    protected Specification<Subject> extraFilters(ListParams params) {
+        return CatalogSpecifications.<Subject>referenceFilter(params, "educationLevel")
+                .and(CatalogSpecifications.referenceFilter(params, "subjectGroup"));
     }
 
     /**
@@ -57,5 +88,18 @@ public class SubjectService extends CatalogService<Subject, SubjectRequest, Subj
                             "Mã môn %s đã dùng cho môn %s".formatted(other.getShortCode(), other.getName()));
                 });
         return shortCode;
+    }
+
+    /** Cấp học giảng dạy là bắt buộc; đi qua service của cấp học để id lạ trả đúng lỗi 404. */
+    private EducationLevel resolveEducationLevel(IdRef ref) {
+        if (ref == null || ref.id() == null) {
+            throw new FieldValidationException("educationLevel", "Chọn cấp học giảng dạy");
+        }
+        return educationLevels.get(ref.id());
+    }
+
+    /** Tổ chuyên môn không bắt buộc: vắng hoặc id rỗng là môn chưa xếp tổ. */
+    private SubjectGroup resolveSubjectGroup(IdRef ref) {
+        return ref == null || ref.id() == null ? null : subjectGroups.get(ref.id());
     }
 }

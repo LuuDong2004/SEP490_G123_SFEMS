@@ -1,6 +1,7 @@
 package com.g123.sfems.module.catalog.subject;
 
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -23,5 +24,10 @@ public record SubjectPatchRequest(
 
         @Size(max = 10, message = "Mã môn tối đa 10 ký tự")
         @Pattern(regexp = "^[A-Za-z0-9]*$", message = "Mã môn chỉ gồm chữ và số")
-        String shortCode) implements CatalogInput {
+        String shortCode,
+
+        IdRef educationLevel,
+
+        /** {@code {"id": null}} là bỏ môn ra khỏi tổ. */
+        IdRef subjectGroup) implements CatalogInput {
 }
