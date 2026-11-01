@@ -301,7 +301,8 @@ Ví dụ: phiếu nhập thiết bị (`equipment_intakes`).
 | Đăng nhập, phân quyền FE (providers, màn login, kiểu user/role/permission) | Có code |
 | Đăng nhập, phân quyền BE (`security/*`, `shared/security`) | Có code |
 | Code BE kéo theo phần đăng nhập | Có code, đọc lại cho đúng phạm vi đồ án: trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký hoạt động, mail, lưu tệp |
-| Các package nghiệp vụ còn lại (gồm `system/approvalflow` mà `school/voucher` cần) | Thư mục rỗng (có `.gitkeep`), mỗi người làm theo phân công ở `AGENTS.md` |
+| Nền dùng chung `school/base`, `school/voucher`, `system/approvalflow` (+ changelog 010) | Có |
+| Các package nghiệp vụ còn lại | Thư mục rỗng (có `.gitkeep`), mỗi người làm theo phân công ở `AGENTS.md` |
 | Liquibase changelog | Có 001–006, xem mục 2.4 |
 | Menu, route, trang giữ chỗ cho 42 UC; màn HT-04, HT-05 | Có |
 | Script kiểm tra gộp `verify.ps1` / `verify.sh` | Có |

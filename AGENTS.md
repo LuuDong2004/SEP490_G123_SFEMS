@@ -68,8 +68,14 @@ Chi tiết ở `ARCHITECTURE.md` mục 3. Tóm tắt phần hay sai:
   `ShowView` + `*ViewHeader` tương ứng; form bằng `react-hook-form` + `zod` qua `@refinedev/react-hook-form`.
 - **Component dùng chung** đã có ở `shared/components/`: `buttons/` (Create/Edit/Show/Delete/Refresh),
   `data-table/` (bảng, phân trang, lọc nhanh, lọc tham chiếu, thao tác dòng), `form/` (combobox tải động,
-  ngày, khoảng ngày, tiền, mật khẩu, ô chỉ đọc, section), `views/`, `confirm/`, `timeline.tsx`, `voucher/`
-  (khung phiếu có vòng duyệt). Dùng trước, hỏi sau; thiếu thì nhắn DongLV, không tự tạo bản sao trong feature.
+  ngày, khoảng ngày, tiền, mật khẩu, ô chỉ đọc, section), `views/`, `confirm/`, `timeline.tsx`.
+  Dùng trước, hỏi sau; thiếu thì nhắn DongLV, không tự tạo bản sao trong feature.
+- **Bộ phiếu dùng chung** `shared/components/voucher/` cho đề xuất mua sắm, phiếu nhập, phiếu kiểm kê:
+  `VoucherList` (danh sách: số phiếu, trường, trạng thái, lọc, "Chờ tôi duyệt"), `VoucherFormPage` (lập /
+  sửa hai cột, Lưu nháp · Trình, danh sách "Cần hoàn thiện"), `VoucherShowShell` (chi tiết: nút vòng duyệt,
+  lời nhắn trả lại, quá trình duyệt, menu ⚙), `VoucherActions`, `VoucherStatusBadge`, `VoucherTimeline`,
+  `VoucherLinesCard` (chỗ đặt bảng dòng). Kiểu chung ở `domains/voucher/types.ts` (`VoucherBase`). Màn
+  của một loại phiếu chỉ khai cột riêng, ô riêng và bảng dòng của nó.
 - **Không sửa `shared/ui/`** (shadcn gốc). Thêm component shadcn mới bằng `npx shadcn add <tên>`.
 - **Màu, ngày, trạng thái:** màu qua class token (`bg-primary`, `text-success`…), không hex trong JSX;
   ngày qua `shared/lib/format.ts`; nhãn trạng thái trong `domains/<x>/types.ts`, màu badge trong
@@ -91,8 +97,16 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4, 6. Tóm tắt phần hay sai:
   cần mã mới thì nhắn DongLV.
 - **Danh sách** trả mảng JSON trần + header `X-Total-Count`; đọc tham số qua `ListParams`. Lỗi ném
   `ResourceNotFoundException` / `ConflictException` / `FieldValidationException`, không tự trả JSON lỗi.
-- **Phiếu có vòng duyệt** (đề xuất mua sắm, phiếu nhập, phiếu kiểm kê) kế thừa `SchoolVoucher` và đi qua
-  `VoucherWorkflow` ở `module/school/voucher` (DongLV dựng), không tự viết máy trạng thái riêng.
+- **Phiếu có vòng duyệt** (đề xuất mua sắm, phiếu nhập, phiếu kiểm kê): entity kế thừa `SchoolVoucher`
+  (`domain/school/voucher`), service kế thừa `VoucherService`, controller kế thừa `VoucherController`,
+  policies kế thừa `VoucherPolicies` (`module/school/voucher`). Có sẵn: trình / duyệt từng cấp / trả lại /
+  từ chối / huỷ / hoàn tất, số phiếu, nhật ký duyệt, bộ lọc chung, `_actions` cho màn hình. Loại phiếu
+  chỉ viết `applyCreate`, `applyUpdate`, `filters`, `validateSubmit`, `onApproved`. Khai loại phiếu mới
+  trong `ApprovalFlowType`. Không tự viết máy trạng thái riêng.
+- **Dữ liệu thuộc trường** (phòng, thiết bị, đợt kiểm kê): entity kế thừa `SchoolOwnedEntity`, service
+  kế thừa `SchoolOwnedService`, repository kế thừa `SchoolOwnedRepository`, policies kế thừa
+  `SchoolOwnedPolicies` (`module/school/base`). Phạm vi "chỉ trường mình" cho 5 vai trò đã seed ở
+  changelog 010 cho rooms, equipment, ba loại phiếu, inventory_campaigns.
 - **Liquibase:** mỗi thay đổi schema là một file mới `NNN-<ten-khong-dau>.sql` trong
   `db/changelog/changes/`, khai vào `db.changelog-master.yaml`, changeset ghi
   `--changeset <username>:NNN-<slug>`. Không sửa file đã có trên `main`. Để không đụng số, mỗi người

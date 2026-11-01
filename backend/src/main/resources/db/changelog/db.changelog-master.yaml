@@ -13,3 +13,5 @@ databaseChangeLog:
       file: db/changelog/changes/005-seed-vai-tro-va-quan-tri.sql
   - include:
       file: db/changelog/changes/006-seed-quyen-nghiep-vu.sql
+  - include:
+      file: db/changelog/changes/010-nen-phieu-va-pham-vi-du-lieu.sql
