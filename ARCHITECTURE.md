@@ -2,7 +2,7 @@
 
 Tài liệu này mô tả cách tổ chức mã nguồn của SFEMS (Hệ thống quản lý cơ sở vật chất và thiết bị trường học) cho cả **backend (BE)** và **frontend (FE)**: thư mục nào chứa gì, tầng nào được gọi tầng nào, và khi thêm một chức năng thì đặt code ở đâu.
 
-Khung được lấy từ dự án qltb và thu gọn theo phạm vi đồ án: 3 luồng nghiệp vụ (mua sắm, nhập thiết bị – ghi tăng tài sản, kiểm kê), 42 use case. Mọi tên class, endpoint, mã quyền và phụ thuộc trong file này đối chiếu với code qltb (nhánh `dong_dev`, commit `3c263c8`).
+Phạm vi đồ án: 3 luồng nghiệp vụ (mua sắm, nhập thiết bị – ghi tăng tài sản, kiểm kê), 42 use case. Quy tắc làm việc của nhóm (ai sửa gì, commit, verify) ở `AGENTS.md`.
 
 ---
 
@@ -92,14 +92,14 @@ com.g123.sfems
     └── system/{notification, attachment, datachange, dataimport, dataexport, activity, approvalflow}/
 ```
 
-Một lát có đủ các vai trò: Controller (nhận HTTP, `@PreAuthorize`), Request/Response (DTO), Service (nghiệp vụ, `@Transactional`), Repository + Specifications (truy vấn, bộ lọc), Policies (phạm vi dữ liệu). qltb đặt chúng theo **hai kiểu**:
+Một lát có đủ các vai trò: Controller (nhận HTTP, `@PreAuthorize`), Request/Response (DTO), Service (nghiệp vụ, `@Transactional`), Repository + Specifications (truy vấn, bộ lọc), Policies (phạm vi dữ liệu). Code hiện có đặt chúng theo **hai kiểu**:
 
 | Kiểu | Cách đặt | Module đang dùng |
 |---|---|---|
 | Chia thư mục | `api/` (+ `api/dto/`), `service/`, `repo/` | `security/*`, `organization/*`, `system/notification`, `catalog/educationlevel` |
 | Gói phẳng | mọi file của chức năng trong một package | đa số module nghiệp vụ: `school/*`, `catalog/*`, `report`, phần còn lại của `system/*` |
 
-Ví dụ gói phẳng (qltb `module/school/intake/`):
+Ví dụ gói phẳng (`module/school/intake/`, dự kiến):
 
 ```
 module/school/intake/
@@ -137,7 +137,7 @@ Lớp nền dùng chung (kế thừa, không viết lại): `catalog/base` (`Cat
 - **Liquibase giữ schema.** `spring.jpa.hibernate.ddl-auto=validate`: Hibernate chỉ kiểm entity có khớp bảng không, sai thì báo lỗi lúc khởi động.
 - **Thêm migration:** tạo file trong `src/main/resources/db/changelog/changes/`, rồi khai vào `db.changelog-master.yaml`.
 - **Dữ liệu mẫu nối theo khoá tự nhiên** (mã, username), không ghi cứng id.
-- **Trạng thái hiện tại: thư mục changelog còn trống.** Nhóm cần viết changelog tạo các bảng mà các entity đang có, gồm user/role/permission, refresh token, phạm vi dữ liệu, trường, Sở, cấp học, địa bàn, quy tắc mã và nhật ký. Thêm dữ liệu mẫu: tài khoản admin, mã quyền, vai. Chưa có changelog thì ứng dụng không khởi động được.
+- **Đã có changelog 001–006:** nền tối thiểu (trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký), tài khoản/vai trò/quyền, phiên đăng nhập, seed mã quyền hệ thống và nghiệp vụ cho 42 UC, 5 vai trò và tài khoản `admin`. Mỗi người thêm changelog trong dải số của mình (xem `AGENTS.md` mục 4).
 
 ---
 
@@ -151,8 +151,8 @@ src/
 │   ├── App.tsx, index.tsx        <Refine> + các provider
 │   ├── providers/                auth (đăng nhập), access-control (quyền), authorities-sync,
 │   │                             i18n, document-title
-│   ├── resources/index.tsx       mảng resources khai cho Refine (đang trống)
-│   ├── router/routes.tsx         cây <Route> (đang có: /login và trang chủ trống)
+│   ├── resources/index.tsx       mảng resources khai cho Refine – MENU của cả nhóm, đủ 42 UC
+│   ├── router/routes.tsx         cây <Route> khớp resources; màn chưa làm trỏ PlaceholderScreen
 │   └── locales/vi.json           chuỗi giao diện tiếng Việt
 ├── features/     mỗi vùng màn hình một thư mục, chỉ lộ ra qua index.ts
 │   ├── identity/                 login (có code), profile
@@ -301,8 +301,10 @@ Ví dụ: phiếu nhập thiết bị (`equipment_intakes`).
 | Đăng nhập, phân quyền FE (providers, màn login, kiểu user/role/permission) | Có code |
 | Đăng nhập, phân quyền BE (`security/*`, `shared/security`) | Có code |
 | Code BE kéo theo phần đăng nhập | Có code, đọc lại cho đúng phạm vi đồ án: trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký hoạt động, mail, lưu tệp |
-| Các package nghiệp vụ còn lại (gồm `system/approvalflow` mà `school/voucher` cần) | Thư mục rỗng (có `.gitkeep`) |
-| Liquibase changelog | Chưa có, xem mục 2.4 |
-| Deploy, CI | Chưa có |
+| Các package nghiệp vụ còn lại (gồm `system/approvalflow` mà `school/voucher` cần) | Thư mục rỗng (có `.gitkeep`), mỗi người làm theo phân công ở `AGENTS.md` |
+| Liquibase changelog | Có 001–006, xem mục 2.4 |
+| Menu, route, trang giữ chỗ cho 42 UC; màn HT-04, HT-05 | Có |
+| Script kiểm tra gộp `verify.ps1` / `verify.sh` | Có |
+| Deploy, CI | Không làm trong phạm vi đồ án |
 
 Phạm vi đồ án không có chức năng gắn thiết bị vật lý: không in hay quét mã QR, không in ấn. Biên bản và báo cáo chỉ xuất ra tệp (Excel/PDF).

@@ -96,7 +96,8 @@
     "build": "tsc && refine build",
     "start": "refine start",
     "refine": "refine",
-    "verify:arch": "node scripts/verify-architecture.mjs"
+    "verify:arch": "node scripts/verify-architecture.mjs",
+    "verify": "tsc --noEmit && eslint . --quiet && node scripts/verify-architecture.mjs"
   },
   "browserslist": {
     "production": [
