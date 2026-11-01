@@ -81,7 +81,7 @@ function App() {
               projectId: "OjKL83-Rc63sQ-E2vtK1",
               // Drives the sidebar brand block and the document title.
               title: {
-                icon: <img src="/favicon.ico" alt="SFEMS" />,
+                icon: <img src="/logo-so-gddt-hcm.png" alt="Sở GD&ĐT TP.HCM" />,
                 text: "SFEMS",
               },
             }}
