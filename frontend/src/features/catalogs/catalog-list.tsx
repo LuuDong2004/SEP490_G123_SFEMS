@@ -11,12 +11,13 @@ import { OptionFilter } from "@/shared/components/data-table/ref-filter";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
+import { ACTIVE_LABELS } from "@/domains/catalog/types";
 import type { CatalogConfig, CatalogRecord } from "@/features/catalogs/catalog-config";
 import { ActiveBadge } from "@/features/catalogs/active-badge";
 
 const ACTIVE_FILTER_OPTIONS = [
-  { value: "true", label: "Đang dùng" },
-  { value: "false", label: "Ngừng dùng" },
+  { value: "true", label: ACTIVE_LABELS.true },
+  { value: "false", label: ACTIVE_LABELS.false },
 ];
 
 /**
@@ -27,9 +28,21 @@ export function CatalogList({ config }: { config: CatalogConfig }) {
   const columns = useMemo<ColumnDef<CatalogRecord>[]>(
     () => [
       {
+        id: "index",
+        header: "STT",
+        size: 60,
+        enableSorting: false,
+        enableHiding: false,
+        // Số thứ tự liên tục qua các trang: trang 2 bắt đầu từ 21 chứ không quay về 1.
+        cell: ({ row, table }) => {
+          const { pageIndex, pageSize } = table.getState().pagination;
+          return <span className="text-muted-foreground tabular-nums">{pageIndex * pageSize + row.index + 1}</span>;
+        },
+      },
+      {
         id: "code",
         accessorKey: "code",
-        header: "Mã",
+        header: config.codeLabel ?? "Mã",
         size: 140,
         enableSorting: false,
         cell: ({ row }) => <span className="font-mono text-xs">{row.original.code}</span>,

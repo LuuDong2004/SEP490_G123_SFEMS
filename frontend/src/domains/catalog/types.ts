@@ -77,6 +77,6 @@ export const MOVEMENT_DIRECTION_OPTIONS = (Object.keys(MOVEMENT_DIRECTION_LABELS
 );
 
 export const ACTIVE_LABELS = {
-  true: "Đang dùng",
-  false: "Ngừng dùng",
+  true: "Đang hoạt động",
+  false: "Ngừng hoạt động",
 } as const;

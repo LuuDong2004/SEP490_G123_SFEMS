@@ -28,6 +28,8 @@ export type CatalogConfig = {
   noun: string;
   /** Câu mô tả ngắn hiện dưới tiêu đề hộp thoại. */
   description: string;
+  /** Nhãn cột và ô mã, mặc định "Mã" (môn học dùng "Mã môn"). */
+  codeLabel?: string;
   /** Mã bắt buộc gõ tay (vd. mã hành chính của phường/xã), không để máy chủ tự cấp. */
   codeRequired?: boolean;
   /** Ví dụ trong ô mã và ô tên. */

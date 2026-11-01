@@ -76,7 +76,7 @@ export function CatalogFormDialog({
           <TextField
             control={form.control}
             name="code"
-            label="Mã"
+            label={config.codeLabel ?? "Mã"}
             placeholder={config.codePlaceholder}
             description={
               config.codeRequired ? undefined : "Để trống để hệ thống tự cấp theo quy tắc sinh mã (nếu đã khai)."
@@ -98,7 +98,7 @@ export function CatalogFormDialog({
           <SwitchField
             control={form.control}
             name="active"
-            label="Đang dùng — tắt để ẩn khỏi các ô chọn mà không xoá"
+            label="Đang hoạt động — tắt để ẩn khỏi các ô chọn mà không xoá"
             className="sm:col-span-2"
           />
         </form>

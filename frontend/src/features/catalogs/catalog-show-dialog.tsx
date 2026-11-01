@@ -31,7 +31,7 @@ export function CatalogShowDialog({ config, id }: { config: CatalogConfig; id?: 
     >
       {record ? (
         <div className="grid gap-5 sm:grid-cols-2">
-          <ReadField label="Mã">
+          <ReadField label={config.codeLabel ?? "Mã"}>
             <span className="font-mono">{record.code}</span>
           </ReadField>
           <ReadField label="Tên">{record.name}</ReadField>
