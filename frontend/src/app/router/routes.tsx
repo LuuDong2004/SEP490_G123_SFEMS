@@ -13,6 +13,7 @@ import {
   UserShow,
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
+import { catalogScreens } from "@/features/catalogs";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -121,19 +122,19 @@ export function AppRoutes() {
 
         {/* Danh mục dùng chung (DM-01 – DM-04). Trang lối vào `/catalogs` không có quyền riêng. */}
         <Route path="/catalogs" element={<PlaceholderScreen note="Chọn một danh mục ở cột bên trái." />} />
-        {crudRoutes("/catalogs/wards", "wards")}
+        {crudRoutes("/catalogs/wards", "wards", catalogScreens("wards"))}
         {crudRoutes("/catalogs/education-levels", "education_levels")}
         {crudRoutes("/catalogs/room-types", "room_types")}
         {crudRoutes("/catalogs/school-years", "school_years")}
         {crudRoutes("/catalogs/grades", "grades")}
         {crudRoutes("/catalogs/subjects", "subjects")}
-        {crudRoutes("/catalogs/equipment-types", "equipment_types")}
-        {crudRoutes("/catalogs/units", "units")}
+        {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
+        {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
         {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs")}
         {crudRoutes("/catalogs/equipment-standards", "equipment_standards")}
         {crudRoutes("/catalogs/equipment-norms", "equipment_norms")}
-        {crudRoutes("/catalogs/origin-sources", "origin_sources")}
-        {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods")}
+        {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
+        {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons")}
         {crudRoutes("/catalogs/code-rules", "code_rules")}
 
