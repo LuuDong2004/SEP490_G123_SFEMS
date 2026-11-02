@@ -15,3 +15,17 @@ databaseChangeLog:
       file: db/changelog/changes/006-seed-quyen-nghiep-vu.sql
   - include:
       file: db/changelog/changes/010-nen-phieu-va-pham-vi-du-lieu.sql
+  - include:
+      file: db/changelog/changes/030-danh-muc-dung-chung.sql
+  - include:
+      file: db/changelog/changes/031-seed-danh-muc-dung-chung.sql
+  - include:
+      file: db/changelog/changes/032-loai-hinh-truong.sql
+  - include:
+      file: db/changelog/changes/033-hoc-ky-to-chuyen-mon.sql
+  - include:
+      file: db/changelog/changes/034-nam-hoc-hien-hanh.sql
+  - include:
+      file: db/changelog/changes/035-hoc-ky-don-gian.sql
+  - include:
+      file: db/changelog/changes/036-to-chuyen-mon-mon-hoc.sql
