@@ -8,7 +8,9 @@ import { Sidebar } from "@/shared/components/layout/sidebar";
 import { ModuleTabs } from "@/shared/components/layout/module-tabs";
 import { HubShell } from "@/shared/components/layout/hub-shell";
 import { Breadcrumb } from "@/shared/components/layout/breadcrumb";
-import { SecurityReminder } from "@/shared/components/layout/security-reminder";
+import { ScreenErrorBoundary, ServerDownGate } from "@/shared/components/layout/error-guards";
+import { WelcomeSplash } from "@/shared/components/layout/welcome-splash";
+// import { SecurityReminder } from "@/shared/components/layout/security-reminder";
 import { SidebarInset, SidebarProvider } from "@/shared/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
 
@@ -57,6 +59,8 @@ export function Layout({ children }: PropsWithChildren) {
         {t("layout.skipToContent", "Skip to content")}
       </a>
 
+      {/* Lời chào lúc vừa vào app, che màn đang tải dữ liệu phía sau. */}
+      <WelcomeSplash />
       <Sidebar />
 
       <SidebarInset className="min-w-0 bg-background">
@@ -77,9 +81,15 @@ export function Layout({ children }: PropsWithChildren) {
           <div className="empty:hidden md:hidden">
             <Breadcrumb />
           </div>
-          <SecurityReminder />
+          {/* Tạm tắt dải nhắc bảo mật (xác thực hai lớp, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}
+          {/* <SecurityReminder /> */}
           <ModuleTabs />
-          <HubShell>{children}</HubShell>
+          {/* Màn lỗi thay cho trang trắng (500) và cho vùng "Đang tải…" mãi khi máy chủ không phản hồi (503). */}
+          <ScreenErrorBoundary>
+            <ServerDownGate>
+              <HubShell>{children}</HubShell>
+            </ServerDownGate>
+          </ScreenErrorBoundary>
         </main>
       </SidebarInset>
     </SidebarProvider>

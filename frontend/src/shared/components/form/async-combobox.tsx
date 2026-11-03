@@ -159,7 +159,7 @@ export function AsyncCombobox<T extends { id: number }>({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-(--radix-popover-trigger-width) min-w-64 p-0"
+        className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] min-w-96 p-0"
         align="start"
       >
         {/* `shouldFilter={false}`: lọc là việc của server. Để Command tự lọc
@@ -171,7 +171,7 @@ export function AsyncCombobox<T extends { id: number }>({
             value={term}
             onValueChange={setTerm}
           />
-          <CommandList className="max-h-72">
+          <CommandList className="max-h-96">
             {isLoading ? (
               <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
                 <Spinner size="sm" />

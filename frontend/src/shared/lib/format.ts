@@ -51,6 +51,27 @@ export function formatPlainDate(value?: string | null): string {
   return y && m && d ? `${d}/${m}/${y}` : value;
 }
 
+/** Ngày lịch của một thời điểm theo giờ MÁY người dùng, dạng "YYYY-MM-DD". */
+export function localIsoDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Hôm nay (cộng `offsetDays` ngày), dạng "YYYY-MM-DD", theo giờ địa phương.
+ *
+ * Không dùng `new Date().toISOString().slice(0, 10)`: đó là ngày theo UTC, nên ở
+ * Việt Nam từ 0 giờ tới 7 giờ sáng nó ra ngày HÔM QUA. Gọi lúc cần (lúc form
+ * mount), không chốt vào hằng cấp module — tab mở từ hôm qua sẽ giữ ngày hôm qua.
+ */
+export function todayLocal(offsetDays = 0): string {
+  const date = new Date();
+  if (offsetDays) date.setDate(date.getDate() + offsetDays);
+  return localIsoDate(date);
+}
+
 /**
  * Số dòng mỗi trang mặc định của các màn nghiệp vụ (thiết bị, danh mục, phiếu). 20 chứ không
  * phải 10 của Refine: bảng cuộn trong khung nên nhiều dòng hơn không làm trang dài ra.

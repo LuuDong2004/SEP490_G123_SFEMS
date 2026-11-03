@@ -1,6 +1,6 @@
 import { useNavigation, type TreeMenuItem } from "@refinedev/core";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, ClipboardList, DoorOpen, FileInput, Loader2, Package, SearchIcon, School, UserRound } from "lucide-react";
+import { Building2, ClipboardList, DoorOpen, FileInput, FileText, Loader2, Package, SearchIcon, School, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 
@@ -46,6 +46,8 @@ const SOURCES: {
   title: (r: any) => string;
   sub: (r: any) => string | undefined;
   id?: (r: any) => number;
+  /** Chỉ hỏi khi từ khoá trông như số phiếu (có chữ số) — khỏi mười request phiếu cho mỗi lần gõ một tên. */
+  codeOnly?: boolean;
 }[] = [
   { resource: "equipment_items", open: "equipment", heading: "Thiết bị", icon: <Package />, title: (r) => r.name, sub: (r) => [r.code, r.room?.name, r.school?.name].filter(Boolean).join(" · "), id: (r) => r.equipmentId },
   { resource: "schools", heading: "Trường học", icon: <School />, title: (r) => r.name, sub: (r) => [r.code, r.ward?.name ?? r.area].filter(Boolean).join(" · ") },
@@ -54,8 +56,24 @@ const SOURCES: {
   { resource: "equipment_catalogs", heading: "Danh mục thiết bị", icon: <ClipboardList />, title: (r) => r.name, sub: (r) => r.code },
   { resource: "equipment_intakes", heading: "Phiếu ghi tăng", icon: <FileInput />, title: (r) => r.code ?? "Phiếu nháp", sub: (r) => [r.school?.name, r.intakeDate].filter(Boolean).join(" · ") },
   { resource: "departments_of_education", heading: "Cơ quan quản lý", icon: <Building2 />, title: (r) => r.name, sub: (r) => r.code },
+  // Số phiếu (E2E-31): gõ "TL-2026-00023" hay "00023" ra đúng phiếu.
+  { resource: "equipment_allocations", heading: "Phiếu cấp phát", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "equipment_transfers", heading: "Phiếu điều chuyển", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "equipment_loans", heading: "Phiếu mượn - trả", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "room_bookings", heading: "Phiếu mượn phòng", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "consumption_records", heading: "Phiếu tiêu hao", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "damage_reports", heading: "Phiếu báo hỏng", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "repair_orders", heading: "Phiếu sửa chữa, bảo trì", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "warranty_claims", heading: "Phiếu bảo hành", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "inventory_sessions", heading: "Phiếu kiểm kê", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "disposals", heading: "Đề nghị ghi giảm", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  { resource: "purchase_proposals", heading: "Đề xuất mua sắm", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
 ];
 const PER_SOURCE = 5;
+
+function voucherSub(r: any): string {
+  return [r.school?.name, r.status === "DRAFT" ? "Nháp" : null].filter(Boolean).join(" · ");
+}
 
 function useDebounced<T>(value: T, ms: number) {
   const [v, setV] = useState(value);
@@ -96,16 +114,16 @@ export function HeaderSearch() {
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "relative me-1 hidden h-8 w-48 items-center gap-2 rounded-lg xl:w-64",
-          "border-input bg-field border ps-2.5 pe-2 text-start text-sm",
-          "text-muted-foreground hover:bg-muted/70 transition-colors",
+          "relative hidden h-9 w-48 items-center gap-2 rounded-full xl:w-72",
+          "bg-muted/50 border ps-3.5 pe-1.5 text-start text-sm",
+          "text-muted-foreground hover:bg-card hover:shadow-e1 hover:border-primary/30 transition-[background-color,box-shadow,border-color]",
           "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
           "sm:flex",
         )}
       >
         <SearchIcon className="size-4 shrink-0" />
         <span className="flex-1 truncate">Tìm kiếm…</span>
-        <kbd className="border-border bg-muted pointer-events-none hidden shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium lg:inline-block">
+        <kbd className="border-border bg-card pointer-events-none hidden shrink-0 rounded-full border px-2 py-0.5 font-mono text-[0.625rem] font-medium lg:inline-block">
           Ctrl K
         </kbd>
       </button>
@@ -126,7 +144,7 @@ function SearchPanel({ onDone }: { onDone: () => void }) {
   const visible = useVisibleMenuItems();
   const screens = useMemo(() => flatten(visible), [visible]);
   const [q, setQ] = useState("");
-  const term = useDebounced(q.trim(), 250);
+  const term = useDebounced(q.trim(), 400);
   const needle = fold(q.trim());
 
   const shownScreens = useMemo(() => {
@@ -139,20 +157,24 @@ function SearchPanel({ onDone }: { onDone: () => void }) {
   }, [screens, needle]);
 
   const held = new Set(getAuthorities()?.permissions ?? []);
-  const sources = SOURCES.filter((s) => held.has(`${s.open ?? s.resource}:read`));
+  const codeLike = /\d/.test(term);
+  const sources = SOURCES.filter((s) => held.has(`${s.open ?? s.resource}:read`) && (!s.codeOnly || codeLike));
   const { data, isFetching } = useQuery({
     queryKey: ["header-search", term, sources.map((s) => s.resource)],
     enabled: term.length >= 2,
     staleTime: 30_000,
-    queryFn: async () =>
+    // `signal`: gõ tiếp thì react-query huỷ đợt cũ, bảy request tìm toàn văn
+    // của từ khoá cũ dừng lại thay vì chạy hết trên máy chủ.
+    queryFn: async ({ signal }) =>
       Promise.all(
         sources.map(async (s) => {
           try {
             const rows = await kyInstance
-              .get(s.resource, { searchParams: { q: term, _start: 0, _end: PER_SOURCE } })
+              .get(s.resource, { searchParams: { q: term, _start: 0, _end: PER_SOURCE }, signal })
               .json<any[]>();
             return { source: s, rows: Array.isArray(rows) ? rows : [] };
-          } catch {
+          } catch (error) {
+            if (signal.aborted) throw error;
             return { source: s, rows: [] };
           }
         }),

@@ -30,6 +30,12 @@ export type ColorPreset =
 export type Radius = "none" | "sm" | "md" | "lg" | "xl";
 export type SidebarTone = "dark" | "light";
 export type Density = "compact" | "comfortable" | "spacious";
+/**
+ * Hiệu ứng chuyển động: theo máy (Windows tắt "Animation effects" thì giảm), luôn bật, hay tắt. Kết quả đặt lên
+ * `<html data-reduce-motion>` — CSS và JS chỉ đọc cờ này, không tự hỏi `prefers-reduced-motion`. Vòng quay / khung
+ * chờ khi đang tải vẫn chạy cả lúc giảm (đó là báo trạng thái, không phải trang trí).
+ */
+export type Motion = "system" | "on" | "off";
 
 export const STORAGE_KEYS = {
   mode: "dth-ui-mode",
@@ -37,6 +43,7 @@ export const STORAGE_KEYS = {
   radius: "dth-ui-radius",
   sidebarTone: "dth-ui-sidebar-tone",
   density: "dth-ui-density",
+  motion: "dth-ui-motion",
 } as const;
 
 export const DEFAULTS = {
@@ -51,7 +58,14 @@ export const DEFAULTS = {
   radius: "md" as Radius,
   sidebarTone: "dark" as SidebarTone,
   density: "comfortable" as Density,
+  motion: "system" as Motion,
 };
+
+export const MOTION_OPTIONS: Array<{ key: Motion; label: string; hint: string }> = [
+  { key: "system", label: "Theo máy", hint: "Windows" },
+  { key: "on", label: "Luôn bật", hint: "Mọi máy" },
+  { key: "off", label: "Tắt", hint: "Giảm" },
+];
 
 /**
  * Swatch metadata for the customizer.
@@ -212,4 +226,26 @@ export function applySidebarTone(tone: SidebarTone) {
 export function applyDensity(density: Density) {
   document.documentElement.setAttribute("data-density", density);
   writeStored(STORAGE_KEYS.density, density);
+}
+
+export function getStoredMotion(fallback: Motion = DEFAULTS.motion): Motion {
+  return readStored(STORAGE_KEYS.motion, ["system", "on", "off"] as const, fallback);
+}
+
+function systemReducesMotion(): boolean {
+  return typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Đặt lựa chọn lên `<html data-motion>` và kết quả lên `data-reduce-motion` (có / không). */
+export function applyMotion(motion: Motion) {
+  const root = document.documentElement;
+  const reduce = motion === "off" || (motion === "system" && systemReducesMotion());
+  root.setAttribute("data-motion", motion);
+  root.toggleAttribute("data-reduce-motion", reduce);
+  writeStored(STORAGE_KEYS.motion, motion);
+}
+
+/** Đang giảm chuyển động không — theo lựa chọn trong Tuỳ chỉnh, không hỏi thẳng hệ điều hành. */
+export function isMotionReduced(): boolean {
+  return typeof document !== "undefined" && document.documentElement.hasAttribute("data-reduce-motion");
 }

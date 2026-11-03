@@ -1,11 +1,32 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import path from "path";
 import { defineConfig } from "vite";
+
+/** Mã commit ngắn của bản đang chạy; ngoài git (vd. build từ tệp nén) thì để trống. */
+function gitCommit(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8")) as { version: string };
+const built = new Date();
+const pad = (n: number) => String(n).padStart(2, "0");
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Phiên bản hiện ở chân thanh bên.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_COMMIT__: JSON.stringify(gitCommit()),
+    __APP_BUILT__: JSON.stringify(`${pad(built.getDate())}/${pad(built.getMonth() + 1)}/${built.getFullYear()}`),
+  },
   // Prefer 5555, but keep the dev server usable when another local instance
   // already owns it. Vite will select the next free port (for example 5556).
   // The backend accepts localhost development-origin patterns accordingly.

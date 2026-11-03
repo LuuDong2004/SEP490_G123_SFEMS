@@ -1,7 +1,8 @@
 "use client";
 
+import { useLocation } from "react-router";
 import { Fragment, useMemo } from "react";
-import { Home } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import {
   matchResourceFromRoute,
   useBreadcrumb,
@@ -17,8 +18,14 @@ import {
 } from "@/shared/ui/breadcrumb";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 
+/** Tên trên thanh đường dẫn của các màn không thuộc resource nào. */
+const STATIC_CRUMBS: Record<string, string> = {
+  "/profile": "Tài khoản của tôi",
+};
+
 export function Breadcrumb() {
   const Link = useLink();
+  const { pathname } = useLocation();
   const { breadcrumbs } = useBreadcrumb();
   const { resources, resource, action } = useResourceParams();
   const { perspective } = usePerspective();
@@ -37,7 +44,7 @@ export function Breadcrumb() {
       Component: (
         <Link to={rootRouteResource.matchedRoute ?? "/"}>
           {rootRouteResource?.resource?.meta?.icon ?? (
-            <Home className="h-4 w-4" />
+            <LayoutDashboard className="h-4 w-4" />
           )}
         </Link>
       ),
@@ -77,14 +84,19 @@ export function Breadcrumb() {
     return list;
   }, [breadcrumbs, Link, rootRouteResource, resources, resource, action, perspective]);
 
-  // Chỉ có "Trang chủ" (tổng quan, trang không thuộc resource nào): không có gì để chỉ đường.
-  if (breadCrumbItems.length <= 1) return null;
+  // Màn ngoài cây resource (vd. Tài khoản của tôi) vẫn có tên trên thanh đường dẫn — không để thanh trống.
+  const staticLabel = STATIC_CRUMBS[pathname];
+  const items = breadCrumbItems.length <= 1 && staticLabel
+    ? [...breadCrumbItems, { key: "breadcrumb-item-static", href: pathname, Component: <span>{staticLabel}</span> }]
+    : breadCrumbItems;
+  // Chỉ có "Trang chủ" (tổng quan): không có gì để chỉ đường.
+  if (items.length <= 1) return null;
 
   return (
     <ShadcnBreadcrumb data-print="hide">
       <ShadcnBreadcrumbList>
-        {breadCrumbItems.map((item, index) => {
-          if (index === breadCrumbItems.length - 1) {
+        {items.map((item, index) => {
+          if (index === items.length - 1) {
             return (
               <ShadcnBreadcrumbPage key={item.key}>
                 {item.Component}

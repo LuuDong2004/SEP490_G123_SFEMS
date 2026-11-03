@@ -35,7 +35,7 @@ import { cn } from "@/shared/lib/utils";
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { enabled, notifications, unreadCount, isLoading, markRead, markAllRead } =
-    useNotifications();
+    useNotifications({ live: true });
   const t = useTranslate();
 
   if (!enabled) return null;
@@ -53,12 +53,12 @@ export function NotificationBell() {
               : t("notifications.notifications", "Notifications")
           }
         >
-          <BellIcon className="size-[18px]" />
+          <BellIcon className="size-[1.125rem]" />
           {unreadCount > 0 && (
             <Badge
               className={cn(
                 "absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center",
-                "rounded-full px-1 text-[10px] font-semibold tabular-nums",
+                "rounded-full px-1 text-[0.625rem] font-semibold tabular-nums",
                 "bg-destructive text-destructive-foreground"
               )}
             >
@@ -171,7 +171,7 @@ function NotificationRow({
             {notification.body}
           </span>
         )}
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[0.6875rem] text-muted-foreground">
           {relativeTime(notification.createdAt, t)}
         </span>
       </span>

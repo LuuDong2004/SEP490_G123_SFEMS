@@ -1,6 +1,7 @@
 package com.g123.sfems.module.organization.school.api;
 
 import com.g123.sfems.domain.organization.School;
+import com.g123.sfems.module.organization.school.api.dto.SchoolPatchRequest;
 import com.g123.sfems.module.organization.school.api.dto.SchoolRequest;
 import com.g123.sfems.module.organization.school.api.dto.SchoolResponse;
 import com.g123.sfems.module.organization.school.service.SchoolService;
@@ -15,11 +16,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -69,5 +72,19 @@ public class SchoolController {
         return ResponseEntity
                 .created(URI.create("/api/schools/" + created.getId()))
                 .body(SchoolResponse.from(created, rowLevel));
+    }
+
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
+    @PreAuthorize("hasAuthority('" + Permissions.SCHOOLS_WRITE + "')")
+    public SchoolResponse update(
+            @PathVariable Long id, @Valid @RequestBody SchoolPatchRequest request) {
+        return SchoolResponse.from(service.update(id, request), rowLevel);
+    }
+
+    /** Vọng lại bản ghi vừa xoá — data provider có phân tích body trả về. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHOOLS_DELETE + "')")
+    public SchoolResponse delete(@PathVariable Long id) {
+        return SchoolResponse.from(service.delete(id));
     }
 }

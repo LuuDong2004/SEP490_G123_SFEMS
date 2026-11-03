@@ -22,6 +22,8 @@ const SIZES = {
   md: 24,
   lg: 40,
   xl: 56,
+  /** Vòng quanh logo ở màn chờ toàn trang. */
+  "2xl": 112,
 } as const;
 
 export type SpinnerSize = keyof typeof SIZES;
@@ -37,48 +39,22 @@ export function Spinner({
   label?: string;
 }) {
   const px = SIZES[size];
-  // Nét dày theo đường kính: một vòng 16px với nét 4px trông như một cục mực,
-  // còn vòng 56px với nét 2px thì mảnh đến mức không thấy.
-  const stroke = Math.max(2, Math.round(px / 10));
-  const r = (px - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-
+  // Nét dày theo đường kính (~1/16, làm tròn nửa pixel): 16–24px → 1,5px, 40px → 2,5px, 56px → 3,5px, vòng màn chờ
+  // 112px → 7px. Dày hơn (1/9 trước đây) trông nặng như cục mực; mảnh hơn 1,5px thì vòng nhỏ không thấy.
+  const stroke = Math.max(1.5, Math.round((px / 16) * 2) / 2);
+  // Vòng chuyển sắc kiểu iOS: một dải màu chính đậm dần về đầu cung, phần đuôi tan vào nền — quay với nhịp
+  // nhanh-chậm (không đều) nên trông "sống" hơn vòng quay đều. Mặt nạ tròn khoét giữa thành vòng.
+  const ring = `radial-gradient(farthest-side, transparent calc(100% - ${stroke}px), #000 calc(100% - ${stroke - 0.5}px))`;
   return (
-    <span
-      role="status"
-      aria-label={label}
-      className={cn("inline-flex shrink-0", className)}
-      style={{ width: px, height: px }}
-    >
-      <svg
-        width={px}
-        height={px}
-        viewBox={`0 0 ${px} ${px}`}
-        className="animate-spin"
-        aria-hidden="true"
-      >
-        <circle
-          cx={px / 2}
-          cy={px / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          className="text-muted opacity-60"
-        />
-        <circle
-          cx={px / 2}
-          cy={px / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          // Cung chiếm khoảng một phần tư vòng, phần còn lại để trống.
-          strokeDasharray={`${circumference * 0.28} ${circumference}`}
-          className="text-primary"
-        />
-      </svg>
+    <span role="status" aria-label={label} className={cn("relative inline-flex shrink-0", className)} style={{ width: px, height: px }}>
+      {px >= 40 ? <span aria-hidden className="bg-primary/20 animate-breathe absolute -inset-2 rounded-full blur-md" /> : null}
+      <span aria-hidden className="bg-muted/70 absolute inset-0 rounded-full" style={{ mask: ring, WebkitMask: ring }} />
+      <span aria-hidden className="animate-orbit absolute inset-0 rounded-full"
+        style={{
+          background: "conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--primary) 15%, transparent) 90deg, var(--primary) 340deg, transparent 341deg)",
+          mask: ring,
+          WebkitMask: ring,
+        }} />
     </span>
   );
 }
@@ -120,9 +96,14 @@ export function PageSpinner({
  * dùng đang ở chế độ tối.
  */
 export function FullPageSpinner({ label = "Đang tải" }: { label?: string }) {
+  // Logo Sở giữa một vòng chuyển sắc đang quay — màn chờ lúc vỏ ứng dụng chưa dựng không còn là một vòng xoay trơn.
   return (
-    <div className="bg-background flex h-screen w-full items-center justify-center">
-      <Spinner size="xl" label={label} />
+    <div className="bg-background flex h-screen w-full flex-col items-center justify-center gap-5">
+      <div className="relative flex size-28 items-center justify-center">
+        <Spinner size="2xl" label={label} className="absolute inset-0" />
+        <img src="/logo-so-gddt-hcm.png" alt="" className="relative size-[4.5rem] rounded-full bg-white object-contain p-1 shadow-e2" />
+      </div>
+      <p className="text-muted-foreground animate-pulse text-sm font-medium tracking-wide">{label}…</p>
     </div>
   );
 }

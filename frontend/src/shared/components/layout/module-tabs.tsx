@@ -1,10 +1,12 @@
 import { useMenu, useResourceParams } from "@refinedev/core";
 import type { TreeMenuItem } from "@refinedev/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { useAccessibleMenuItems } from "@/shared/components/layout/sidebar";
+import { useLiquid } from "@/shared/hooks/use-liquid";
+import { TAB_ACTIVE, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -45,6 +47,8 @@ export function ModuleTabs() {
   // không dẫn đi đâu, ẩn đi.
   if (tabs.length < 2) return null;
 
+  // Chỉ một tab thì không có gì để chọn — không vẽ dải tab.
+  if (tabs.length <= 1) return null;
   return <TabStrip label={String(module.meta?.label ?? module.name)} tabs={tabs} current={resource.name} />;
 }
 
@@ -55,26 +59,36 @@ export function ModuleTabs() {
  * mép đó có nút mũi tên — một dải chữ bị cắt ngang không nói rằng nó cuộn được.
  */
 function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[]; current: string }) {
-  const ref = useRef<HTMLElement>(null);
+  // Nền tab đang mở trượt kiểu iOS khi đổi tab (`useLiquid`); cùng phần tử với khung cuộn của dải tab.
+  const [ref, indRef] = useLiquid<HTMLElement>(current, { memory: `tabs:${label}` });
   const [edge, setEdge] = useState({ left: false, right: false });
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const measure = () => {
+      // Mép phải tính theo TAB CUỐI, không theo `scrollWidth`: viên màu trượt hơi vượt đà khi đổi tab, nằm ngoài
+      // tab cuối một lúc và kéo `scrollWidth` ra theo — nút ">" bật lên che chữ tab cuối và nằm lì ở đó vì không còn
+      // sự kiện cuộn / đổi cỡ nào để đo lại.
+      const tabsInStrip = el.querySelectorAll<HTMLElement>("a");
+      const lastTab = tabsInStrip[tabsInStrip.length - 1];
+      const end = lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : el.scrollWidth;
       const left = el.scrollLeft > 4;
-      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+      const right = el.scrollLeft + el.clientWidth < end - 4;
       setEdge((e) => (e.left === left && e.right === right ? e : { left, right }));
     };
     measure();
     el.addEventListener("scroll", measure, { passive: true });
+    // Đo lại khi viên màu dừng trượt — lúc nó vượt đà trình duyệt có thể đã cuộn dải tab đi vài điểm ảnh.
+    el.addEventListener("transitionend", measure);
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => {
       el.removeEventListener("scroll", measure);
+      el.removeEventListener("transitionend", measure);
       observer.disconnect();
     };
-  }, [tabs.length]);
+  }, [ref, tabs.length, current]);
 
   useEffect(() => {
     const el = ref.current;
@@ -100,32 +114,37 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
       alive = false;
       observer.disconnect();
     };
-  }, [current]);
+  }, [ref, current]);
 
   const scroll = (dir: -1 | 1) =>
     ref.current?.scrollBy({ left: dir * Math.max(ref.current.clientWidth * 0.6, 160), behavior: "smooth" });
 
   return (
-    <div className="relative -mt-1" data-print="hide">
+    // Thanh chọn kiểu iOS (như thanh chọn nghề của demo_taichinh), bo góc theo thẻ / nút của app: các tab nằm trên một thanh trắng, tab đang
+    // mở là viên màu chính nổi lên, trượt kiểu chất lỏng sang tab mới (`useLiquid`).
+    <div className={cn(TAB_STRIP, "block")} data-print="hide">
       {edge.left ? (
         <button type="button" aria-label="Xem các tab phía trước" onClick={() => scroll(-1)}
-          className="from-background via-background text-muted-foreground hover:text-foreground absolute inset-y-0 left-0 z-10 flex w-9 items-center justify-start bg-gradient-to-r to-transparent pb-px">
+          className="from-muted via-muted text-muted-foreground hover:text-foreground absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-start rounded-l-full bg-gradient-to-r to-transparent ps-2.5">
           <ChevronLeft className="size-4" />
         </button>
       ) : null}
       {edge.right ? (
         <button type="button" aria-label="Xem các tab phía sau" onClick={() => scroll(1)}
-          className="from-background via-background text-muted-foreground hover:text-foreground absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-end bg-gradient-to-l to-transparent pb-px">
+          className="from-muted via-muted text-muted-foreground hover:text-foreground absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-end rounded-r-full bg-gradient-to-l to-transparent pe-2.5">
           <ChevronRight className="size-4" />
         </button>
       ) : null}
       <nav
         ref={ref}
         aria-label={`Chức năng của phân hệ ${label}`}
-        // `overflow-y-hidden` đi cùng `overflow-x-auto`: thiếu nó trình duyệt tự bật cuộn DỌC, và chỉ cần
-        // một điểm ảnh tràn (gạch chân của tab đang mở) là hiện thanh cuộn dọc ở cuối thanh tab.
-        className="scrollbar-fade relative flex gap-1 overflow-x-auto overflow-y-hidden border-b"
+        // `overflow-y-hidden` đi cùng `overflow-x-auto`: thiếu nó trình duyệt tự bật cuộn DỌC khi chỉ một điểm ảnh tràn.
+        className="relative flex gap-1 overflow-x-auto overflow-y-hidden rounded-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
+        {/* Viên màu của tab đang mở: MỘT phần tử trượt giữa các tab thay vì mỗi tab tự vẽ. Lớp sáng chéo + bóng màu
+            chính cho cảm giác nổi như nút iOS. */}
+        <span ref={indRef} aria-hidden
+          className="pill-on pointer-events-none absolute rounded-full opacity-0" />
         {tabs.map((t) => {
           const active = t.name === current;
           return (
@@ -133,20 +152,20 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
               key={t.name}
               to={t.route!}
               aria-current={active ? "page" : undefined}
+              title={TAB_SHORT[t.name] ? String(t.meta?.label ?? t.label) : undefined}
               className={cn(
-                "relative flex shrink-0 items-center gap-2 rounded-t-md px-3.5 py-2.5 text-sm whitespace-nowrap transition-colors",
-                active
-                  ? "text-primary font-semibold after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                // Chữ đổi màu trễ một nhịp (delay) để viên màu trượt tới rồi chữ mới sáng lên.
+                TAB_ITEM,
+                active ? TAB_ACTIVE : TAB_IDLE
               )}
             >
               {/* Icon của resource (cùng icon với menu) — nhận ra tab bằng hình nhanh hơn đọc chữ. */}
               {t.meta?.icon ? (
-                <span className={cn("shrink-0 [&_svg]:size-4", active ? "text-primary" : "text-muted-foreground")} aria-hidden>
+                <span className={cn("shrink-0 transition-colors duration-300 [&_svg]:size-4", active ? "text-primary-foreground delay-75" : "text-muted-foreground")} aria-hidden>
                   {t.meta.icon as React.ReactNode}
                 </span>
               ) : null}
-              {(t.meta?.tabLabel as string) ?? (t.meta?.label as string) ?? t.label}
+              {TAB_SHORT[t.name] ?? (t.meta?.tabLabel as string) ?? (t.meta?.label as string) ?? t.label}
             </Link>
           );
         })}
@@ -154,3 +173,45 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
     </div>
   );
 }
+
+/**
+ * Tên NGẮN trên tab — tab nằm trong một phân hệ / nhóm đã nói rõ ngữ cảnh ("Mua sắm" › "Đề xuất"), nên không lặp
+ * lại cả tên đầy đủ. Tiêu đề trang, breadcrumb, menu vẫn dùng tên đầy đủ; rê chuột lên tab thấy tên đầy đủ.
+ * Tên ở đây: tối đa ba chữ.
+ */
+const TAB_SHORT: Record<string, string> = {
+  // Quản trị — cấu hình
+  code_rules: "Mã danh mục",
+  school_code_rules: "Mã của trường",
+  approval_flows: "Luồng duyệt",
+  ai_settings: "AI",
+  // Quản trị — tài khoản, dữ liệu, giám sát
+  row_level_policies: "Phạm vi dữ liệu",
+  school_users: "Tài khoản trường",
+  staff_accounts: "Tài khoản cán bộ",
+  data_transfer: "Nhập / xuất",
+  system_status: "Tình trạng",
+  activity_logs: "Nhật ký",
+  data_changes: "Lịch sử dữ liệu",
+  // Thiết bị
+  equipment: "Thiết bị",
+  // Cấp phát & sử dụng
+  equipment_allocations: "Cấp phát",
+  // Mượn trả
+  equipment_loans: "Mượn thiết bị",
+  // Sửa chữa & bảo trì
+  repair_orders: "Sửa chữa",
+  facility_works: "Sửa chữa công trình",
+  // Mua sắm
+  equipment_adequacy: "Định mức",
+  purchase_proposals: "Đề xuất",
+  procurement_plans: "Kế hoạch",
+  // Danh mục chung
+  standard_adjustment_rules: "Điều chỉnh chuẩn",
+  equipment_configs: "Thông số kỹ thuật",
+  equipment_standards: "Danh mục tối thiểu",
+  equipment_norms: "Định mức",
+  acquisition_methods: "Hình thức mua",
+  movement_reasons: "Lý do biến động",
+  school_types: "Loại hình trường",
+};

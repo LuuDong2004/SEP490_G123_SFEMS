@@ -8,7 +8,7 @@ export function SectionHeader({ icon, title, hint, right }: { icon: ReactNode; t
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[18px]">
+        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[1.125rem]">
           {icon}
         </span>
         <div className="min-w-0">
