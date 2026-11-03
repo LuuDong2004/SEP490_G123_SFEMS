@@ -16,10 +16,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/010-nen-phieu-va-pham-vi-du-lieu.sql
   - include:
-      file: db/changelog/changes/011-khung-du-lieu-nghiep-vu.sql
-  - include:
-      file: db/changelog/changes/012-seed-du-lieu-mau.sql
-  - include:
       file: db/changelog/changes/030-danh-muc-dung-chung.sql
   - include:
       file: db/changelog/changes/031-seed-danh-muc-dung-chung.sql
@@ -35,3 +31,8 @@ databaseChangeLog:
       file: db/changelog/changes/036-to-chuyen-mon-mon-hoc.sql
   - include:
       file: db/changelog/changes/050-logo-truong.sql
+  # 011/012 trỏ FK và seed theo mã vào danh mục của 030–031, nên phải chạy SAU các changelog 030–050.
+  - include:
+      file: db/changelog/changes/011-khung-du-lieu-nghiep-vu.sql
+  - include:
+      file: db/changelog/changes/012-seed-du-lieu-mau.sql
