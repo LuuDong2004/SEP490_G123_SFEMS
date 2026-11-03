@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -78,5 +79,12 @@ public class SchoolController {
     public SchoolResponse update(
             @PathVariable Long id, @Valid @RequestBody SchoolPatchRequest request) {
         return SchoolResponse.from(service.update(id, request), rowLevel);
+    }
+
+    /** Vọng lại bản ghi vừa xoá — data provider có phân tích body trả về. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.SCHOOLS_DELETE + "')")
+    public SchoolResponse delete(@PathVariable Long id) {
+        return SchoolResponse.from(service.delete(id));
     }
 }
