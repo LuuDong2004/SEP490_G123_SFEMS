@@ -122,8 +122,9 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4, 6. Tóm tắt phần hay sai:
 
 - **Dữ liệu mẫu** nối theo khoá tự nhiên (mã, username), không ghi cứng id. Bảng mới có đủ `id`,
   `created_at/by`, `updated_at/by` để khớp `BaseEntity`; `ddl-auto=validate` sẽ chặn khởi động nếu lệch.
-- **Cấu hình máy mình** để ở `backend/application-local.properties` (đã ignore), không sửa
-  `application.properties` để đổi mật khẩu DB.
+- **Cấu hình máy mình** (mật khẩu DB, cổng, MinIO, SMTP) để ở `backend/.env`, chép từ
+  `backend/.env.example` (file `.env` đã ignore). KHÔNG sửa `application.properties` để đổi mật
+  khẩu DB — giá trị trong đó là mặc định dùng chung, mỗi người sửa một kiểu là conflict.
 
 ---
 

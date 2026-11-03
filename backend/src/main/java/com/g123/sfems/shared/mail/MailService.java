@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
  * Gửi thư (mã xác thực hai lớp, link đặt lại mật khẩu — QLTB-509).
  *
  * <p>Máy chủ thư khai bằng {@code spring.mail.*} (host, port, username, password) trong
- * {@code application-local.properties} hoặc biến môi trường. CHƯA khai thì Spring không dựng
+ * {@code backend/.env} hoặc biến môi trường. CHƯA khai thì Spring không dựng
  * {@link JavaMailSender}, và thư được ghi ra log ở mức WARN thay vì gửi — môi trường dev thử được luồng
  * đăng nhập mà không cần SMTP. Gửi hỏng thì báo lỗi lên trên: người dùng phải biết thư không đi.
  */

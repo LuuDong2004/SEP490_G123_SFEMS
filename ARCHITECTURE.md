@@ -46,7 +46,7 @@ npx eslint .                      # lint
 npm run verify:arch               # kiểm luật phụ thuộc giữa các tầng (mục 3.2)
 ```
 
-- Cấu hình riêng từng máy (khoá MinIO, mật khẩu…) để trong `backend/application-local.properties`, chép từ `application-local.properties.example`. File này đã nằm trong `.gitignore`.
+- Cấu hình riêng từng máy (mật khẩu DB, cổng, khoá MinIO, SMTP…) để trong `backend/.env`, chép từ `backend/.env.example`. `application.properties` chỉ giữ mặc định dạng `${DB_PASSWORD:123}`; file `.env` đã nằm trong `.gitignore`.
 - Địa chỉ API của frontend lấy từ `VITE_API_URL`. Không đặt thì dùng `http://localhost:8888/api` (`src/shared/api/constants.ts`).
 - **Thư mục chứa dự án phải có tên không dấu.** Gradle trên Windows không chạy được trong đường dẫn có chữ tiếng Việt (ví dụ `đồ án`).
 
