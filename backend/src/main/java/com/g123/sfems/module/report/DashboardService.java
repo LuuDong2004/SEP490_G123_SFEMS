@@ -3,8 +3,10 @@ package com.g123.sfems.module.report;
 import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
 import com.g123.sfems.module.catalog.schoolyear.SchoolYearRepository;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
+import com.g123.sfems.shared.security.rowlevel.Action;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,23 +16,26 @@ import org.springframework.stereotype.Service;
 public class DashboardService {
 
     private final SchoolYearRepository schoolYears;
+    private final RowLevelSecurity rowLevel;
     private final RowLevelPrincipalResolver principals;
     private final VisibleSchools visibleSchools;
     private final JdbcTemplate jdbc;
 
     public DashboardService(
             SchoolYearRepository schoolYears,
+            RowLevelSecurity rowLevel,
             RowLevelPrincipalResolver principals,
             VisibleSchools visibleSchools,
             JdbcTemplate jdbc) {
         this.schoolYears = schoolYears;
+        this.rowLevel = rowLevel;
         this.principals = principals;
         this.visibleSchools = visibleSchools;
         this.jdbc = jdbc;
     }
 
     public DashboardResponse get(Long requestedSchoolYearId) {
-        List<SchoolYear> activeYears = schoolYears.findAll().stream()
+        List<SchoolYear> activeYears = schoolYears.findAll(rowLevel.scope(SchoolYear.class, Action.READ)).stream()
                 .filter(year -> Boolean.TRUE.equals(year.getActive()))
                 .sorted(Comparator.comparing(SchoolYear::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder()))
