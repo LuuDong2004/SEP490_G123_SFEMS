@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type PropsWithChildren, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import type { BaseRecord, HttpError } from "@refinedev/core";
@@ -42,11 +42,34 @@ export function ToolbarExtrasProvider({ lead, trail, menu, children }: PropsWith
 export const useToolbarMenu = () => useContext(ToolbarExtras).menu;
 /** Cho bảng muốn THÊM mục của riêng nó vào những gì màn đã đặt: đọc ra, bọc lại bằng `ToolbarExtrasProvider`. */
 export const useToolbarExtras = () => useContext(ToolbarExtras);
-/** Chỗ trong hàng công cụ (ngay sau ô tìm) để cột lọc bên trái đưa ô lọc của nó lên — xem `TOOLBAR_FILTER_SLOT`. */
-export const TOOLBAR_FILTER_SLOT = "toolbar-filter-slot";
+/**
+ * Chỗ trong hàng công cụ (ngay sau ô tìm) để cột lọc bên trái đưa ô lọc của nó lên (qua portal).
+ *
+ * Chỗ đặt xuất hiện sau khi bảng vẽ xong và đổi theo chế độ xem, nên cột lọc phải biết khi nào nó có /
+ * mất. Các ô đặt tự báo lên một kho nhỏ (`useToolbarFilterSlot` đọc qua `useSyncExternalStore`) thay vì
+ * cột lọc dò `document` bằng một `MutationObserver` trên cả trang — cái sau chạy theo MỌI thay đổi DOM.
+ * Có nhiều ô cùng lúc (bảng trong hộp thoại) thì ô gắn trước thắng, như `getElementById` trước đây.
+ */
+let filterSlots: HTMLElement[] = [];
+const filterSlotListeners = new Set<() => void>();
+const notifyFilterSlot = () => filterSlotListeners.forEach((l) => l());
+const attachFilterSlot = (el: HTMLSpanElement) => {
+  filterSlots = [...filterSlots, el];
+  notifyFilterSlot();
+  return () => {
+    filterSlots = filterSlots.filter((x) => x !== el);
+    notifyFilterSlot();
+  };
+};
+const subscribeFilterSlot = (listener: () => void) => {
+  filterSlotListeners.add(listener);
+  return () => void filterSlotListeners.delete(listener);
+};
+export const useToolbarFilterSlot = () =>
+  useSyncExternalStore(subscribeFilterSlot, () => filterSlots[0] ?? null, () => null);
 export const ToolbarLead = () => (
   <>
-    <span id={TOOLBAR_FILTER_SLOT} className="contents" />
+    <span ref={attachFilterSlot} className="contents" />
     {useContext(ToolbarExtras).lead}
   </>
 );
@@ -222,7 +245,8 @@ export function ListToolbar<TData extends BaseRecord>({
   return (
     <div
       data-print="hide"
-      className={cn("flex flex-wrap items-center gap-2", className)}
+      // Hàng công cụ của danh sách: ô tìm, ô chọn cũng bo tròn như nút — một dải cùng dáng.
+      className={cn("flex flex-wrap items-center gap-2 [&_[data-slot=input]]:rounded-full [&_[data-slot=select-trigger]]:rounded-full", className)}
     >
       {search && (
         <div className={cn("min-w-0 flex-1 sm:max-w-xl", extras.lead ? "basis-40" : "basis-72", searchClassName)}>{search}</div>

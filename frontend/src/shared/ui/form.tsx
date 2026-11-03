@@ -32,7 +32,12 @@ type FormFieldContextValue<
 const RequiredFieldsContext = React.createContext<ReadonlySet<string>>(new Set());
 
 function RequiredFieldsProvider({ names, children }: { names: ReadonlySet<string>; children: React.ReactNode }) {
-  return <RequiredFieldsContext.Provider value={names}>{children}</RequiredFieldsContext.Provider>;
+  // Trang lập phiếu dựng tập này lại ở mỗi lần vẽ (mỗi phím gõ): giữ nguyên định danh khi NỘI DUNG không đổi,
+  // nếu không mọi nhãn trên form vẽ lại theo từng phím.
+  const key = [...names].sort().join("|");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const value = React.useMemo(() => names, [key]);
+  return <RequiredFieldsContext.Provider value={value}>{children}</RequiredFieldsContext.Provider>;
 }
 
 /** `rules.required` có thể là chuỗi lời nhắc, `true`, hoặc `{ value, message }`. */

@@ -58,7 +58,7 @@ export function Header() {
     <header
       data-slot="app-header"
       className={cn(
-        "sticky top-0 z-30 flex h-12 shrink-0",
+        "sticky top-0 z-30 flex h-14 shrink-0",
         "border-b border-border bg-card"
       )}
     >
@@ -96,13 +96,15 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           <HeaderSearch />
-          <HelpButton />
-          <NotificationBell />
-          <ThemeToggle />
-          <ThemeCustomizer />
-          <span aria-hidden className="bg-border mx-1.5 hidden h-6 w-px sm:block" />
+          {/* Các nút biểu tượng gom vào một khung bo tròn — một cụm gọn thay vì năm nút rời rạc. */}
+          <div className="bg-muted/50 flex h-9 items-center gap-0.5 rounded-full border px-0.5 [&_button]:size-8 [&_button]:rounded-full [&_button]:transition-[background-color,scale] [&_button]:active:scale-95 [&_button:hover]:bg-card [&_button:hover]:shadow-e1">
+            <HelpButton />
+            <NotificationBell />
+            <ThemeToggle />
+            <ThemeCustomizer />
+          </div>
           <UserMenu />
         </div>
       </div>
@@ -141,7 +143,7 @@ function UserMenu() {
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         )}
       >
-        {avatar("size-8", "text-xs")}
+        {avatar("size-9 ring-2 ring-primary/15", "text-xs")}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8} className="w-72 p-0">

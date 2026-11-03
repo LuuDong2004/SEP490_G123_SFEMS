@@ -1,5 +1,6 @@
 import type { Control } from "react-hook-form";
 
+import { TimeInput } from "@/shared/components/form/time-input";
 import { DateInput } from "@/shared/components/form/date-input";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { MoneyInput } from "@/shared/components/form/money-input";
@@ -44,6 +45,9 @@ export function TextField({ control, name, label, description, rules, className,
             {type === "money" ? (
               <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur}
                 name={field.name} ref={field.ref} placeholder={placeholder} />
+            ) : type === "time" ? (
+              // Ô giờ của dự án (24 giờ, hộp chọn theo theme), không phải ô giờ của trình duyệt.
+              <TimeInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
             ) : (
             <Input
               type={type}

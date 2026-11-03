@@ -57,18 +57,19 @@ export function SecurityReminder() {
   const items: { key: string; tone: "warning" | "info"; icon: typeof ShieldAlert; text: string; action: string; to: string; dismiss: boolean }[] = [];
   if (ageDays != null && ageDays >= PASSWORD_MAX_AGE_DAYS && !snoozed(`sec.pwd.${me.id}`)) {
     items.push({ key: `sec.pwd.${me.id}`, tone: "warning", icon: KeyRound, dismiss: true,
-      text: `Mật khẩu đã dùng ${ageDays} ngày chưa đổi.`, action: "Đổi mật khẩu", to: "/profile?tab=password" });
+      text: `Mật khẩu đã ${ageDays} ngày chưa đổi.`, action: "Đổi mật khẩu", to: "/profile?tab=security" });
   }
   if (items.length === 0) return null;
 
   return (
-    <div className="space-y-2" data-print="hide">
+    // Dải gọn vừa chữ, dồn sang phải — không kéo hết bề ngang nội dung.
+    <div className="flex flex-col items-end gap-2" data-print="hide">
       {items.map((it) => (
         <div key={it.key} role="status"
-          className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
+          className={cn("flex max-w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm",
             it.tone === "warning" ? "bg-warning-subtle text-warning-text" : "bg-info-subtle text-info-text")}>
           <it.icon className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1">{it.text}</span>
+          <span className="min-w-0">{it.text}</span>
           <Link to={it.to} className="shrink-0 font-medium underline underline-offset-2">{it.action}</Link>
           {it.dismiss ? (
             <button type="button" aria-label="Nhắc sau" title={`Nhắc lại sau ${SNOOZE_DAYS} ngày`}

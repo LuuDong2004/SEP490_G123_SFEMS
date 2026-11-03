@@ -177,7 +177,7 @@ export const SignInForm = () => {
       }}
     >
       {/* Nền trơn theo bộ màu — không cảnh vẽ, quầng sáng hay lưới chấm (theo trưởng nhóm). */}
-      <header className="flex items-center gap-3 px-5 py-5 sm:px-10 sm:py-7">
+      <header className="flex items-center gap-3 px-5 py-5 sm:px-10 sm:py-7 lg:hidden">
         {title.icon ? (
           <div className="shadow-e2 flex size-11 items-center justify-center overflow-hidden rounded-xl bg-white p-1 [&>img]:size-full">
             {title.icon}
@@ -191,10 +191,29 @@ export const SignInForm = () => {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 pb-10">
-        <div className="w-full max-w-[24rem]">
+      {/* Màn rộng: hai nửa — trái là đơn vị và tên hệ thống (không câu giới thiệu, theo trưởng nhóm), phải là khung
+          đăng nhập; trải gần hết bề ngang để không thừa hai dải trống. Màn hẹp: chỉ khung đăng nhập dưới đầu trang. */}
+      <main className="grid w-full flex-1 items-center gap-12 px-4 pb-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16 lg:px-[7vw] lg:py-12">
+        <section className="hidden space-y-12 lg:block lg:-mt-24">
+          <div className="flex items-center gap-5">
+            {title.icon ? (
+              <div className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1.5 shadow-[0_12px_30px_-10px_rgb(0_0_0/.5)] ring-4 ring-white/15 [&>img]:size-full">
+                {title.icon}
+              </div>
+            ) : null}
+            <div className="leading-tight">
+              <p className="text-2xl font-semibold xl:text-3xl">Sở Giáo dục và Đào tạo</p>
+              <p className="mt-1 text-lg text-white/70 xl:text-xl">Thành phố Hồ Chí Minh</p>
+            </div>
+          </div>
+          <h2 className="max-w-[16ch] text-5xl leading-[1.08] font-bold tracking-tight xl:text-7xl">
+            Hệ thống quản lý cơ sở vật chất và thiết bị trường học
+          </h2>
+        </section>
+
+        <div className="mx-auto w-full max-w-[28rem]">
           {/* Thẻ gọn, căn trái, góc vừa: tên hệ thống một lần dưới tiêu đề, không dòng nhãn nhỏ + câu nhắc thừa. */}
-          <div className="bg-card text-card-foreground shadow-e4 space-y-6 rounded-xl p-7 sm:p-8">
+          <div className="bg-card text-card-foreground space-y-6 rounded-3xl p-7 shadow-[0_30px_70px_-20px_rgb(0_0_0/.55)] sm:p-9">
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">
                 Đăng nhập
@@ -240,7 +259,7 @@ export const SignInForm = () => {
                     autoComplete="username"
                     autoFocus
                     required
-                    className={cn("h-10", school ? "rounded-s-none" : "pl-9")}
+                    className={cn("h-11 rounded-full", school ? "rounded-s-none" : "pl-10")}
                     placeholder={school ? "Mã cán bộ, vd. cb0001" : undefined}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -254,13 +273,13 @@ export const SignInForm = () => {
                   {t("pages.login.fields.password", "Password")}
                 </Label>
                 <div className="relative">
-                  <LockKeyhole className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2" />
+                  <LockKeyhole className="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2" />
                   <InputPassword
                     id="password"
                     name="password"
                     autoComplete="current-password"
                     required
-                    className="h-10 pl-9"
+                    className="h-11 rounded-full pl-10"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -278,7 +297,7 @@ export const SignInForm = () => {
                     autoFocus
                     maxLength={6}
                     required
-                    className="h-10 text-center text-lg tracking-[0.5em]"
+                    className="h-11 rounded-full text-center text-lg tracking-[0.5em]"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   />

@@ -6,10 +6,11 @@ import type { UseTableReturnType } from "@refinedev/react-table";
 import type { Column, RowData } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
 import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
   Inbox,
-  Loader2,
   SearchX,
-  ShieldOff,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -23,6 +24,7 @@ import {
 } from "@/shared/ui/table";
 import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { HelpHint } from "@/shared/components/form/help-hint";
 import { cn } from "@/shared/lib/utils";
 import { isScopedResource } from "@/shared/api/session";
@@ -121,7 +123,7 @@ type DataTableProps<TData extends BaseRecord> = {
    */
   empty?: { title: string; description?: string };
   /**
-   * Bấm đúp một dòng. Mặc định: mở trang chi tiết (`show`) của resource nếu có.
+   * Bấm một dòng (tên cũ giữ cho khỏi đổi các màn đang dùng). Mặc định: mở trang chi tiết (`show`) của resource nếu có.
    * Màn nào xem chi tiết bằng hộp thoại thì truyền handler riêng.
    */
   onRowDoubleClick?: (record: TData) => void;
@@ -142,7 +144,13 @@ type DataTableProps<TData extends BaseRecord> = {
    * (phiếu đã huỷ). Màu lấy từ token, không tự đặt màu.
    */
   rowClassName?: (record: TData) => string | undefined;
+  /** Rê chuột lên một dòng thì dòng "nổi" lên (nhấc, bóng, nền pha màu chính). Mặc định bật cho mọi danh sách. */
+  liftRows?: boolean;
 };
+
+
+/** Bề rộng các thanh xương lúc bảng đang tải — xen kẽ dài ngắn cho giống chữ thật. */
+const SKELETON_WIDTHS = ["72%", "48%", "86%", "60%", "38%", "66%", "54%"];
 
 export function DataTable<TData extends BaseRecord>({
   table,
@@ -150,17 +158,21 @@ export function DataTable<TData extends BaseRecord>({
   onRowDoubleClick,
   renderBody,
   rowClassName,
+  liftRows = true,
   externallyFiltered,
   fill,
   empty,
 }: DataTableProps<TData>) {
   const { resource: currentResource, identifier: currentIdentifier } = useResourceParams();
-  const { show } = useNavigation();
-  const openRecord = (record: TData) => {
+  const { show, showUrl } = useNavigation();
+  const canOpen = !!onRowDoubleClick || !!currentResource?.show;
+  const openRecord = (record: TData, newTab = false) => {
     if (onRowDoubleClick) {
       onRowDoubleClick(record);
     } else if (currentResource?.show && record?.id != null) {
-      show(currentIdentifier ?? currentResource.name, record.id);
+      const name = currentIdentifier ?? currentResource.name;
+      if (newTab) window.open(showUrl(name, record.id), "_blank");
+      else show(name, record.id);
     }
   };
   const {
@@ -296,14 +308,29 @@ export function DataTable<TData extends BaseRecord>({
                 {headerGroup.headers.map((header) => {
                   const isPlaceholder = header.isPlaceholder;
 
-                  // Tiêu đề cột KHÔNG sắp xếp được (bỏ theo trưởng nhóm, toàn ứng dụng): danh sách xếp theo thứ
-                  // tự mặc định của màn. `enableSorting` trên cột vì thế không còn tác dụng ở giao diện.
-                  // `meta.hint`: dấu "?" cạnh tiêu đề cột.
+                  // Sắp xếp là TỰ KHAI: chỉ cột ghi `enableSorting: true` mới có nút. TanStack mặc định cho mọi
+                  // cột accessor sắp được, nhưng API chỉ sắp theo thuộc tính nó biết (và bỏ qua thuộc tính lạ) —
+                  // một mũi tên trên cột máy chủ không sắp được là mũi tên nói dối.
+                  const sortable =
+                    !isPlaceholder &&
+                    header.column.columnDef.enableSorting === true &&
+                    header.column.getCanSort();
+                  const sorted = header.column.getIsSorted();
+                  // `meta.hint`: dấu "?" cạnh tiêu đề cột. Đứng NGOÀI nút sắp xếp — nút trong nút là HTML sai.
                   const hint = header.column.columnDef.meta?.hint;
 
                   return (
                     <TableHead
                       key={header.id}
+                      aria-sort={
+                        !sortable
+                          ? undefined
+                          : sorted === "asc"
+                          ? "ascending"
+                          : sorted === "desc"
+                          ? "descending"
+                          : "none"
+                      }
                       style={{
                         ...getCommonStyles({
                           column: header.column,
@@ -313,7 +340,32 @@ export function DataTable<TData extends BaseRecord>({
                       className={getPinnedClasses({ column: header.column })}
                     >
                       <div className="flex max-w-full items-center gap-1">
-                      {isPlaceholder ? null : (
+                      {isPlaceholder ? null : sortable ? (
+                        // `getToggleSortingHandler`: giữ shift-click sắp nhiều cột và vòng tăng → giảm → bỏ.
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className={cn(
+                            "group/sort -mx-1 flex max-w-full min-w-0 items-center gap-1",
+                            "rounded px-1 py-0.5 text-inherit",
+                            // Preflight xoá `text-transform` trên `button`: nhắc lại `text-overline`, không thì
+                            // cột sắp được ra chữ thường giữa các cột viết hoa.
+                            "text-overline",
+                            "transition-colors hover:text-foreground",
+                            "focus-visible:outline-none focus-visible:ring-2",
+                            "focus-visible:ring-ring/50",
+                            sorted && "text-foreground"
+                          )}
+                        >
+                          <span className="truncate">
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </span>
+                          <SortIndicator sorted={sorted} />
+                        </button>
+                      ) : (
                         <div className={cn("flex", "items-center", "gap-1")}>
                           {flexRender(
                             header.column.columnDef.header,
@@ -357,66 +409,42 @@ export function DataTable<TData extends BaseRecord>({
           </TableHeader>
           <TableBody className="relative">
             {isLoading ? (
-              <>
-                {Array.from({ length: pageSize < 1 ? 1 : pageSize }).map(
-                  (_, rowIndex) => (
-                    <TableRow
-                      key={`skeleton-row-${rowIndex}`}
-                      aria-hidden="true"
-                      className="group/row"
+              // Dòng xương: mỗi ô một thanh dài ngắn khác nhau có vệt sáng lướt qua, các dòng hiện dần từ trên xuống —
+              // thấy trước hình dạng bảng sắp có, không phải một vòng xoay giữa khoảng trắng.
+              Array.from({ length: Math.min(pageSize < 1 ? 1 : pageSize, 12) }).map((_, rowIndex) => (
+                <TableRow key={`skeleton-row-${rowIndex}`} aria-hidden="true"
+                  className="animate-skeleton-in hover:bg-transparent" style={{ animationDelay: `${rowIndex * 45}ms` }}>
+                  {leafColumns.map((column, colIndex) => (
+                    <TableCell
+                      key={`skeleton-cell-${rowIndex}-${column.id}`}
+                      style={{ ...getCommonStyles({ column, isOverflowing: isOverflowing }) }}
+                      className={cn("truncate", getPinnedClasses({ column }))}
                     >
-                      {leafColumns.map((column) => (
-                        <TableCell
-                          key={`skeleton-cell-${rowIndex}-${column.id}`}
-                          style={{
-                            ...getCommonStyles({
-                              column,
-                              isOverflowing: isOverflowing,
-                            }),
-                          }}
-                          className={cn(
-                            "truncate",
-                            getPinnedClasses({ column })
-                          )}
-                        >
-                          <div className="h-8" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  )
-                )}
-                <TableRow>
-                  <TableCell
-                    colSpan={leafColumns.length}
-                    className={cn("absolute", "inset-0", "pointer-events-none")}
-                  >
-                    <Loader2
-                      className={cn(
-                        "absolute",
-                        "top-1/2",
-                        "left-1/2",
-                        "animate-spin",
-                        "text-primary",
-                        "h-8",
-                        "w-8",
-                        "-translate-x-1/2",
-                        "-translate-y-1/2"
-                      )}
-                    />
-                  </TableCell>
+                      <div className="flex h-8 items-center">
+                        {column.id === "actions" ? (
+                          <Skeleton className="ms-auto size-6 rounded-full" />
+                        ) : (
+                          <Skeleton className="h-3.5 rounded-full" style={{ width: SKELETON_WIDTHS[(rowIndex * 3 + colIndex) % SKELETON_WIDTHS.length] }} />
+                        )}
+                      </div>
+                    </TableCell>
+                  ))}
                 </TableRow>
-              </>
+              ))
             ) : getRowModel().rows?.length ? (
               getRowModel().rows.map((row) => {
                 return (
                   <TableRow
                     key={row.original?.id ?? row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className={cn("group/row cursor-default", rowClassName?.(row.original))}
-                    onDoubleClick={(e) => {
-                      // Bấm đúp lên nút / ô nhập trong dòng thì không mở chi tiết.
-                      if ((e.target as HTMLElement).closest("button, a, input, [role=checkbox]")) return;
-                      openRecord(row.original);
+                    className={cn("group/row", canOpen ? "cursor-pointer" : "cursor-default", liftRows && LIFT_ROW, rowClassName?.(row.original))}
+                    onClick={(e) => {
+                      // Bấm một lần là mở chi tiết (trước đây phải bấm đúp, không ai biết). Bấm lên nút / ô nhập /
+                      // liên kết trong dòng, hoặc đang bôi đen chữ để chép, thì không mở. Ctrl / Cmd + bấm mở tab mới.
+                      if (!canOpen) return;
+                      if ((e.target as HTMLElement).closest("button, a, input, textarea, select, label, [role=checkbox], [role=menuitem], [data-no-row-open]")) return;
+                      if (window.getSelection()?.toString()) return;
+                      openRecord(row.original, e.ctrlKey || e.metaKey);
                     }}
                   >
                     {row.getVisibleCells().map((cell) => {
@@ -492,6 +520,24 @@ export function DataTable<TData extends BaseRecord>({
   );
 }
 
+/** Dấu cột sắp được và đang sắp thế nào. Vẽ trên MỌI cột sắp được (mờ khi chưa sắp) — không thì không ai biết bấm được. */
+function SortIndicator({ sorted }: { sorted: false | "asc" | "desc" }) {
+  if (sorted === "asc") {
+    return <ArrowUp className="text-primary size-3 shrink-0" />;
+  }
+  if (sorted === "desc") {
+    return <ArrowDown className="text-primary size-3 shrink-0" />;
+  }
+  return (
+    <ChevronsUpDown
+      className={cn(
+        "size-3 shrink-0 opacity-35 transition-opacity",
+        "group-hover/sort:opacity-80"
+      )}
+    />
+  );
+}
+
 function DataTableNoData({
   isOverflowing,
   columnsLength,
@@ -551,7 +597,7 @@ function DataTableNoData({
               "bg-accent text-muted-foreground [&_svg]:size-6"
             )}
           >
-            {filtered ? <SearchX /> : scoped ? <ShieldOff /> : <Inbox />}
+            {filtered ? <SearchX /> : <Inbox />}
           </span>
           <div className={cn("text-base", "font-semibold", "text-foreground")}>
             {filtered
