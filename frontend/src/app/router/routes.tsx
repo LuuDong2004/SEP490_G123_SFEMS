@@ -14,6 +14,7 @@ import {
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
 import { catalogScreens } from "@/features/catalogs";
+import { Dashboard } from "@/features/dashboard";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -85,7 +86,7 @@ export function AppRoutes() {
         }
       >
         {/* Bảng điều khiển (BC-01). Không gác quyền: từng khối tự gác. */}
-        <Route index element={<PlaceholderScreen />} />
+        <Route index element={<Dashboard />} />
         {/* Hồ sơ cá nhân, đổi mật khẩu (HT-03): mọi tài khoản đều mở được, không cần quyền riêng. */}
         <Route path="/profile" element={<Profile />} />
 
