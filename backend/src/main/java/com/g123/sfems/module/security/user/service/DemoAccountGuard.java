@@ -31,23 +31,19 @@ public class DemoAccountGuard {
 
     private static final Logger log = LoggerFactory.getLogger(DemoAccountGuard.class);
 
-    private static final String DEMO = "Demo@123";
+    /** Mật khẩu chung của mọi tài khoản seed (changelog 005 và 012). */
+    private static final String SEED_PASSWORD = "Admin@123";
 
-    /** Tên đăng nhập → mật khẩu seed. */
+    /** Tên đăng nhập → mật khẩu seed. Phải khớp đúng danh sách tài khoản mẫu ở changelog 012. */
     private static final Map<String, String> SEEDED = Map.ofEntries(
-            Map.entry("admin", "Admin@123"),
-            Map.entry("manager", "Manager@123"),
-            Map.entry("viewer", "User@123"),
-            Map.entry("so.lanhdao", DEMO),
-            Map.entry("so.chuyenvien", DEMO),
-            Map.entry("ubnd.lanhdao", DEMO),
-            Map.entry("ubnd.chuyenvien", DEMO),
-            Map.entry("thcs.canbo", DEMO),
-            Map.entry("thcs.hieutruong", DEMO),
-            Map.entry("thcs2.canbo", DEMO),
-            Map.entry("thcs2.hieutruong", DEMO),
-            Map.entry("thpt.canbo", DEMO),
-            Map.entry("thpt.hieutruong", DEMO));
+            Map.entry("admin", SEED_PASSWORD),
+            Map.entry("so.lanhdao", SEED_PASSWORD),
+            Map.entry("so.chuyenvien", SEED_PASSWORD),
+            Map.entry("mk.hieutruong", SEED_PASSWORD),
+            Map.entry("mk.thietbi", SEED_PASSWORD),
+            Map.entry("lqd.hieutruong", SEED_PASSWORD),
+            Map.entry("lqd.thietbi", SEED_PASSWORD),
+            Map.entry("btx.thietbi", SEED_PASSWORD));
 
     private final DeployStack stack;
     private final UserRepository users;

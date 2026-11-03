@@ -89,6 +89,8 @@ public class VoucherWorkflow {
         voucher.setSubmittedAt(Instant.now());
         voucher.setSubmittedById(CurrentUser.id().orElse(null));
         voucher.setRejectReason(null);
+        // Lời nhắn trả lại là của LẦN TRÌNH TRƯỚC; trình lại thì xoá, nhật ký duyệt vẫn còn giữ.
+        voucher.setReturnNote(null);
 
         ApprovalStep first = nextStep(voucher, null);
         voucher.setApprovalStep(first);
