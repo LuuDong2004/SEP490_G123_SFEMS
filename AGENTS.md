@@ -107,6 +107,18 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4, 6. Tóm tắt phần hay sai:
   kế thừa `SchoolOwnedService`, repository kế thừa `SchoolOwnedRepository`, policies kế thừa
   `SchoolOwnedPolicies` (`module/school/base`). Phạm vi "chỉ trường mình" cho 5 vai trò đã seed ở
   changelog 010 cho rooms, equipment, ba loại phiếu, inventory_campaigns.
+- **Khung dữ liệu đã có sẵn** (changelog 011, entity trong `domain/`): `EquipmentCatalog`,
+  `EquipmentStandard`/`EquipmentNorm` (DM-02, DM-03); `Room` (TC-02); `Equipment`, `EquipmentHistory`,
+  `SchoolCodeRule` (TS); `PurchaseProposal`/`PurchaseProposalLine`, `ProcurementPlan` (NC);
+  `EquipmentIntake`/`EquipmentIntakeLine` (PN); `InventoryCampaign`, `InventorySession`, `InventoryLine`,
+  `InventorySurplus` (KK); `Notification` (HT-06); `Attachment` (TS-03). Lớp `*Policies` của năm resource
+  phân quyền dòng cũng có sẵn trong `module/school/*`. Người phụ trách UC viết repository, service,
+  controller, màn hình TRÊN entity này; cần thêm cột thì `ALTER TABLE` trong changelog của mình và sửa
+  entity, KHÔNG tạo lại bảng, không đổi tên bảng/cột đã có.
+- **Dữ liệu mẫu** (changelog 012) có sẵn để thử: Sở GD&ĐT, 3 trường THPT, danh mục thiết bị, định mức,
+  phòng, thiết bị, một phiếu nhập đã ghi tăng, đề xuất mua sắm và phiếu kiểm kê ở nhiều trạng thái.
+  Tài khoản thử (mật khẩu `Admin@123`): `so.lanhdao`, `so.chuyenvien`, `mk.hieutruong`, `mk.thietbi`
+  (THPT Nguyễn Thị Minh Khai), `lqd.hieutruong`, `lqd.thietbi` (THPT Lê Quý Đôn), `btx.thietbi`.
 - **Liquibase:** mỗi thay đổi schema là một file mới `NNN-<ten-khong-dau>.sql` trong
   `db/changelog/changes/`, khai vào `db.changelog-master.yaml`, changeset ghi
   `--changeset <username>:NNN-<slug>`. Không sửa file đã có trên `main`. Để không đụng số, mỗi người

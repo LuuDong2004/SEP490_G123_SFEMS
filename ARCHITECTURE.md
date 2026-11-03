@@ -137,7 +137,10 @@ Lớp nền dùng chung (kế thừa, không viết lại): `catalog/base` (`Cat
 - **Liquibase giữ schema.** `spring.jpa.hibernate.ddl-auto=validate`: Hibernate chỉ kiểm entity có khớp bảng không, sai thì báo lỗi lúc khởi động.
 - **Thêm migration:** tạo file trong `src/main/resources/db/changelog/changes/`, rồi khai vào `db.changelog-master.yaml`.
 - **Dữ liệu mẫu nối theo khoá tự nhiên** (mã, username), không ghi cứng id.
-- **Đã có changelog 001–006:** nền tối thiểu (trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký), tài khoản/vai trò/quyền, phiên đăng nhập, seed mã quyền hệ thống và nghiệp vụ cho 42 UC, 5 vai trò và tài khoản `admin`. Mỗi người thêm changelog trong dải số của mình (xem `AGENTS.md` mục 4).
+- **Đã có changelog 001–006:** nền tối thiểu (trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký), tài khoản/vai trò/quyền, phiên đăng nhập, seed mã quyền hệ thống và nghiệp vụ cho 42 UC, 5 vai trò và tài khoản `admin`.
+- **010–012 (DongLV):** nền phiếu (nhật ký duyệt, dãy số phiếu, luồng duyệt) và phạm vi dữ liệu theo trường; khung dữ liệu nghiệp vụ (danh mục thiết bị, định mức, phòng, thiết bị và lịch sử, đề xuất và kế hoạch mua sắm, phiếu nhập, kiểm kê, thông báo, tệp đính kèm); dữ liệu mẫu (Sở, 3 trường, tài khoản 5 vai trò, phiếu ở nhiều trạng thái).
+- **030–036 (TuTN):** chín danh mục dùng chung và seed; loại hình trường; học kỳ, tổ chuyên môn, năm học hiện hành. **050 (HoangPND):** logo trường.
+- Mỗi người thêm changelog trong dải số của mình (xem `AGENTS.md` mục 4); bảng đã có thì `ALTER TABLE`, không tạo lại.
 
 ---
 
@@ -302,8 +305,10 @@ Ví dụ: phiếu nhập thiết bị (`equipment_intakes`).
 | Đăng nhập, phân quyền BE (`security/*`, `shared/security`) | Có code |
 | Code BE kéo theo phần đăng nhập | Có code, đọc lại cho đúng phạm vi đồ án: trường, Sở, cấp học, địa bàn, quy tắc mã, nhật ký hoạt động, mail, lưu tệp |
 | Nền dùng chung `school/base`, `school/voucher`, `system/approvalflow` (+ changelog 010) | Có |
-| Các package nghiệp vụ còn lại | Thư mục rỗng (có `.gitkeep`), mỗi người làm theo phân công ở `AGENTS.md` |
-| Liquibase changelog | Có 001–006, xem mục 2.4 |
+| Entity + bảng + dữ liệu mẫu cho mọi bảng nghiệp vụ (changelog 011, 012) | Có. Service, API, màn hình của từng UC do người phụ trách làm trên entity này |
+| Danh mục dùng chung DM-01 (BE + FE), API trường học TC-01 | Có (TuTN, HoangPND) |
+| Các package nghiệp vụ còn lại (`module/school/*`, `module/report`, `system/notification`...) | Mới có entity và `*Policies`; service, controller, màn hình theo phân công ở `AGENTS.md` |
+| Liquibase changelog | Có 001–006, 010–012, 030–036, 050, xem mục 2.4 |
 | Menu, route, trang giữ chỗ cho 42 UC; màn HT-04, HT-05 | Có |
 | Script kiểm tra gộp `verify.ps1` / `verify.sh` | Có |
 | Deploy, CI | Không làm trong phạm vi đồ án |
