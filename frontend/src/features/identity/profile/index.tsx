@@ -9,7 +9,9 @@ import {
   useOne,
   useTranslate,
 } from "@refinedev/core";
-import { AtSign, BadgeCheck, Check, KeyRound, Mail, MonitorSmartphone, School, Search, X } from "lucide-react";
+import { AtSign, BadgeCheck, Check, KeyRound, Mail, MonitorSmartphone, School, Search, ShieldCheck, X } from "lucide-react";
+
+import { TwoFactorCard } from "./two-factor-card";
 
 import { API_URL } from "@/shared/api/constants";
 import {
@@ -52,10 +54,11 @@ const ACTIONS = [
  * lời đúng câu người ta hỏi — "tôi làm được gì với phiếu nhập".
  */
 export const Profile = () => {
-  // `?tab=sessions|password|permissions` mở đúng tab — dải nhắc bảo mật dẫn thẳng tới việc cần làm.
-  // Không có tab xác thực hai lớp: ngoài phạm vi đồ án.
+  // `?tab=security|sessions|permissions` mở đúng tab — dải nhắc bảo mật dẫn thẳng tới việc cần làm.
+  // `?tab=password` (đường dẫn cũ của dải nhắc) vẫn mở tab Bảo mật, nơi có đổi mật khẩu.
   const [search] = useSearchParams();
-  const initialTab = ["password", "sessions", "permissions"].includes(search.get("tab") ?? "") ? search.get("tab")! : "password";
+  const asked = search.get("tab") === "password" ? "security" : search.get("tab") ?? "";
+  const initialTab = ["security", "sessions", "permissions"].includes(asked) ? asked : "security";
   const { data: identity } = useGetIdentity<Identity>();
   // Roles and permissions are not part of the identity: they come from
   // `/auth/permissions`, which `authProvider.check` has already fetched and
@@ -116,9 +119,9 @@ export const Profile = () => {
         </div>
         <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-t bg-transparent px-4 py-0">
           {/* Mỗi việc bảo mật một tab — xếp dọc một trang thì phiên đăng nhập đẩy mọi thứ xuống rất xa. */}
-          <TabsTrigger value="password" className={tab}>
-            <KeyRound className="size-4" />
-            Đổi mật khẩu
+          <TabsTrigger value="security" className={tab}>
+            <ShieldCheck className="size-4" />
+            Bảo mật
           </TabsTrigger>
           <TabsTrigger value="sessions" className={tab}>
             <MonitorSmartphone className="size-4" />
@@ -149,8 +152,10 @@ export const Profile = () => {
         </Card>
 
         <div className="min-w-0">
-          <TabsContent value="password" className="mt-0">
+          {/* Đổi mật khẩu và xác thực hai bước chung một tab: cùng là "cách đăng nhập vào tài khoản này". */}
+          <TabsContent value="security" className="mt-0 flex flex-col gap-4">
             <ChangePasswordCard />
+            <TwoFactorCard />
           </TabsContent>
           <TabsContent value="sessions" className="mt-0">
             <SessionsCard source="auth/sessions" endPath={(id) => `auth/sessions/${id}`} endOthers="auth/sessions/end-others" />
