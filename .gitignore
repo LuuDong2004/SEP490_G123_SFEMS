@@ -68,3 +68,6 @@ dist-ssr/
 ### Office lock files ###
 ~$*
 .~lock*
+
+# Dấu vết công cụ trình duyệt tự động trên máy dev
+.playwright-mcp/
