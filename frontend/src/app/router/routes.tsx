@@ -15,6 +15,12 @@ import {
 import { Login, Profile } from "@/features/identity";
 import { catalogScreens } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
+import {
+  EquipmentIntakeCreate,
+  EquipmentIntakeEdit,
+  EquipmentIntakeList,
+  EquipmentIntakeShow,
+} from "@/features/organization/equipment-intakes";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -111,7 +117,12 @@ export function AppRoutes() {
         {crudRoutes("/procurement-plans", "procurement_plans")}
 
         {/* Nhập thiết bị – ghi tăng (PN-01 – PN-03) */}
-        {crudRoutes("/equipment-intakes", "equipment_intakes")}
+        {crudRoutes("/equipment-intakes", "equipment_intakes", {
+          list: <EquipmentIntakeList />,
+          create: <EquipmentIntakeCreate />,
+          edit: <EquipmentIntakeEdit />,
+          show: <EquipmentIntakeShow />,
+        })}
 
         {/* Kiểm kê (KK-01 – KK-07) */}
         {crudRoutes("/inventory-campaigns", "inventory_campaigns")}
