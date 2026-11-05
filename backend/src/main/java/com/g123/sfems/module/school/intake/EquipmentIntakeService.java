@@ -3,8 +3,13 @@ package com.g123.sfems.module.school.intake;
 import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
 import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
+import com.g123.sfems.domain.school.equipment.Equipment;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
+import com.g123.sfems.domain.school.equipment.EquipmentHistory;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
@@ -12,7 +17,9 @@ import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.web.ListParams;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -25,18 +32,23 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 /**
- * Phiếu nhập thiết bị (PN-01): lập, sửa nháp, trình. Vòng duyệt và phạm vi dữ liệu là của
- * {@link VoucherService}; ở đây chỉ có phần riêng của phiếu nhập: ghi đầu phiếu, ghi các dòng, và
- * các luật của dòng.
- *
- * <p>Ghi tăng tài sản lúc duyệt cuối (PN-03) chưa làm: phiếu duyệt xong dừng ở trạng thái đã duyệt.
+ * Phiếu nhập thiết bị (PN-01..03): lập, sửa nháp, trình, và ghi tăng tài sản lúc duyệt cuối. Vòng duyệt
+ * và phạm vi dữ liệu là của {@link VoucherService}; ở đây chỉ có phần riêng của phiếu nhập.
  */
 @Service
 public class EquipmentIntakeService
         extends VoucherService<EquipmentIntake, EquipmentIntakeRequest, EquipmentIntakeRequest> {
 
-    public EquipmentIntakeService(VoucherServiceDeps deps, EquipmentIntakeRepository repository) {
+    private static final String RESOURCE = "equipment_intakes";
+    /** Loại phòng là kho: thiết bị đặt ở đây chưa đưa vào sử dụng. */
+    private static final String WAREHOUSE_ROOM_TYPE = "KHO";
+
+    private final AssetCodeIssuer assetCodes;
+
+    public EquipmentIntakeService(VoucherServiceDeps deps, EquipmentIntakeRepository repository,
+            AssetCodeIssuer assetCodes) {
         super(deps, repository, EquipmentIntake.class, EquipmentIntake::new);
+        this.assetCodes = assetCodes;
     }
 
     // ------------------------------------------------------------------ ghi
@@ -92,8 +104,8 @@ public class EquipmentIntakeService
         line.setCatalog(catalog);
         String name = trimToNull(in.name());
         line.setName(name != null ? name : catalog.getName());
-        line.setPhysicalOrDigital(in.physicalOrDigital());
-        line.setAssetCategory(in.assetCategory());
+        line.setPhysicalOrDigital(in.physicalOrDigital() != null ? in.physicalOrDigital() : catalog.getPhysicalOrDigital());
+        line.setAssetCategory(in.assetCategory() != null ? in.assetCategory() : catalog.getAssetCategory());
         line.setDocumentQuantity(in.documentQuantity());
         line.setReceivedQuantity(in.receivedQuantity());
         line.setVarianceReason(trimToNull(in.varianceReason()));
@@ -168,6 +180,117 @@ public class EquipmentIntakeService
         if (intake.getLines().stream().allMatch(l -> l.getReceivedQuantity() == null || l.getReceivedQuantity() == 0)) {
             throw new FieldValidationException("lines", "Phiếu không có thiết bị nào thực nhận");
         }
+        for (int i = 0; i < intake.getLines().size(); i++) {
+            validateForWriteUp(intake, intake.getLines().get(i), "lines." + i + ".");
+        }
+    }
+
+    /** Tài sản sinh ra phải có hồ sơ chuẩn ({@link Equipment#missingProfile}), nên thiếu thì chặn ngay lúc trình. */
+    private void validateForWriteUp(EquipmentIntake intake, EquipmentIntakeLine line, String prefix) {
+        if (line.getReceivedQuantity() == null || line.getReceivedQuantity() == 0) {
+            return;
+        }
+        if (line.getUnitPrice() == null) {
+            throw new FieldValidationException(prefix + "unitPrice", "Nhập đơn giá");
+        }
+        if (line.getFundingSource() == null && intake.getFundingSource() == null) {
+            throw new FieldValidationException("fundingSource", "Chọn nguồn kinh phí");
+        }
+        if (line.getCatalog().getUnit() == null) {
+            throw new FieldValidationException(prefix + "catalog",
+                    "Nhóm thiết bị \"" + line.getCatalog().getName() + "\" chưa có đơn vị tính");
+        }
+        assetCodes.requireIssuable(intake.getSchool(), line.getCatalog(), prefix + "catalog");
+    }
+
+    // ------------------------------------------------------------------ ghi tăng
+
+    @Override
+    protected void onApproved(EquipmentIntake intake) {
+        int created = writeUp(intake);
+        workflow.complete(intake, "Ghi tăng " + created + " tài sản.");
+    }
+
+    /** Chỉ chạy với phiếu đã dừng ở "đã duyệt" từ trước khi có ghi tăng: duyệt mới thì đã ghi ở {@link #onApproved}. */
+    @Override
+    protected void onCompleted(EquipmentIntake intake) {
+        writeUp(intake);
+    }
+
+    /**
+     * Sinh tài sản từ các dòng: quản lý từng cái thì mỗi cái một tài sản, quản lý theo lô thì một tài sản
+     * mang cả số lượng. Dòng đã sinh thì bỏ qua; dòng phiếu đang bị khoá nên không có hai lần ghi song song.
+     */
+    private int writeUp(EquipmentIntake intake) {
+        AssetCodeIssuer.Batch codes = assetCodes.begin(intake.getSchool());
+        Long actorId = CurrentUser.id().orElse(null);
+        String actorName = actorName(actorId);
+        int created = 0;
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            int received = line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
+            if (received == 0 || line.getGeneratedCount() > 0) {
+                continue;
+            }
+            boolean bulk = line.getCatalog().getTrackingType() == TrackingType.BULK;
+            int count = bulk ? 1 : received;
+            for (int i = 0; i < count; i++) {
+                Equipment asset = newAsset(intake, line, BigDecimal.valueOf(bulk ? received : 1));
+                asset.setCode(codes.next(line.getCatalog(), line.getPhysicalOrDigital(), intake.getIntakeDate().getYear()));
+                entityManager.persist(asset);
+                entityManager.persist(new EquipmentHistory(asset.getId(), EquipmentHistory.Action.GHI_TANG, null, null,
+                        null, RESOURCE, intake.getId(), intake.getCode(), "Ghi tăng theo phiếu nhập " + intake.getCode(),
+                        actorId, actorName));
+            }
+            line.setGeneratedCount(count);
+            created += count;
+        }
+        return created;
+    }
+
+    /** Khoản khai riêng ở dòng được ưu tiên, trống thì theo đầu phiếu. */
+    private static Equipment newAsset(EquipmentIntake intake, EquipmentIntakeLine line, BigDecimal quantity) {
+        EquipmentCatalog catalog = line.getCatalog();
+        Equipment asset = new Equipment();
+        asset.setSchool(intake.getSchool());
+        asset.setName(line.getName());
+        asset.setCatalog(catalog);
+        asset.setPhysicalOrDigital(line.getPhysicalOrDigital());
+        asset.setAssetCategory(line.getAssetCategory() != null ? line.getAssetCategory() : catalog.getAssetCategory());
+        asset.setModel(line.getModel() != null ? line.getModel() : catalog.getModel());
+        asset.setManufacturer(line.getManufacturer() != null ? line.getManufacturer() : catalog.getManufacturer());
+        asset.setUnit(catalog.getUnit());
+        asset.setQuantity(quantity);
+        asset.setOriginSource(intake.getOriginSource());
+        asset.setOriginNote(intake.getOriginNote());
+        asset.setAcquisitionMethod(line.getAcquisitionMethod() != null ? line.getAcquisitionMethod() : intake.getAcquisitionMethod());
+        asset.setAcquisitionNote(line.getAcquisitionNote());
+        asset.setFundingSource(line.getFundingSource() != null ? line.getFundingSource() : intake.getFundingSource());
+        asset.setFundingNote(line.getFundingNote());
+        asset.setUsageStartYear(intake.getIntakeDate().getYear());
+        asset.setReceivedDate(intake.getIntakeDate());
+        asset.setPurchaseDate(line.getDocumentDate() != null ? line.getDocumentDate() : intake.getDocumentDate());
+        asset.setOriginalValue(line.getUnitPrice());
+        asset.setRemainingValue(line.getUnitPrice());
+        Integer warranty = line.getWarrantyMonths() != null ? line.getWarrantyMonths() : intake.getWarrantyMonths();
+        asset.setWarrantyExpiry(warranty == null ? null : intake.getIntakeDate().plusMonths(warranty));
+        asset.setRoom(line.getRoom());
+        asset.setCondition(EquipmentCondition.TOT);
+        asset.setStatus(inWarehouse(line.getRoom()) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
+        asset.setIntakeLine(line);
+        return asset;
+    }
+
+    private static boolean inWarehouse(Room room) {
+        return room == null || (room.getRoomType() != null && WAREHOUSE_ROOM_TYPE.equals(room.getRoomType().getCode()));
+    }
+
+    private String actorName(Long actorId) {
+        if (actorId == null) {
+            return null;
+        }
+        return (String) entityManager.createNativeQuery("SELECT COALESCE(NULLIF(full_name, ''), username) FROM users WHERE id = :id")
+                .setParameter("id", actorId)
+                .getSingleResult();
     }
 
     // ------------------------------------------------------------------ đọc

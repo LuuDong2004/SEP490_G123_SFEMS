@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatVnd } from "@/features/organization/equipment-intakes/money";
 import { FUNDING_SOURCE_LABELS, type EquipmentIntake, type EquipmentIntakeLine } from "@/domains/equipment-intake/types";
 
-function LinesTable({ lines, total }: { lines: EquipmentIntakeLine[]; total: number }) {
+function LinesTable({ lines, total, writtenUp }: { lines: EquipmentIntakeLine[]; total: number; writtenUp: boolean }) {
   return (
     <VoucherLinesCard>
       <div className="px-4 py-3">
@@ -23,12 +23,13 @@ function LinesTable({ lines, total }: { lines: EquipmentIntakeLine[]; total: num
             <TableHead className="text-right">Đơn giá</TableHead>
             <TableHead className="text-right">Thành tiền</TableHead>
             <TableHead>Phòng nhận</TableHead>
+            {writtenUp ? <TableHead className="text-right">Tài sản đã sinh</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {lines.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-muted-foreground py-6 text-center">Phiếu chưa có dòng nào</TableCell>
+              <TableCell colSpan={writtenUp ? 8 : 7} className="text-muted-foreground py-6 text-center">Phiếu chưa có dòng nào</TableCell>
             </TableRow>
           ) : (
             lines.map((l) => (
@@ -46,6 +47,7 @@ function LinesTable({ lines, total }: { lines: EquipmentIntakeLine[]; total: num
                 <TableCell className="text-right tabular-nums">{formatVnd(l.unitPrice)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatVnd(l.amount)}</TableCell>
                 <TableCell>{l.room?.name ?? <span className="text-muted-foreground">Kho</span>}</TableCell>
+                {writtenUp ? <TableCell className="text-right tabular-nums">{l.generatedCount}</TableCell> : null}
               </TableRow>
             ))
           )}
@@ -77,7 +79,7 @@ export const EquipmentIntakeShow = () => {
         { label: "Bảo hành", value: r?.warrantyMonths != null ? `${r.warrantyMonths} tháng` : null },
       ]}
     >
-      {r ? <LinesTable lines={r.lines ?? []} total={r.totalAmount} /> : null}
+      {r ? <LinesTable lines={r.lines ?? []} total={r.totalAmount} writtenUp={r.status === "COMPLETED"} /> : null}
     </VoucherShowShell>
   );
 };
