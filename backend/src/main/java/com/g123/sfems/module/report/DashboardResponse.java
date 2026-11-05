@@ -19,13 +19,20 @@ public record DashboardResponse(
             Integer proposalsAwaitingDepartmentApproval,
             ProcurementPlan procurementPlan,
             Inventory inventory,
-            List<SchoolAttention> schoolsNeedingAttention) {}
+            List<SchoolAttention> schoolsNeedingAttention,
+            List<StatusCount> statuses,
+            List<Month> months,
+            List<PendingTask> pendingByType) {}
 
     public record School(
             Devices devices,
             SchoolMinimumStandard minimumStandard,
             Integer pendingVouchers,
-            SchoolInventory inventory) {}
+            SchoolInventory inventory,
+            List<StatusCount> statuses,
+            List<StatusCount> vouchers,
+            List<Month> months,
+            List<PendingTask> pendingByType) {}
 
     public record Devices(
             Integer total,
@@ -34,7 +41,8 @@ public record DashboardResponse(
             Integer inStorage,
             Integer broken,
             Integer missing,
-            Integer disposed) {}
+            Integer disposed,
+            Integer pendingLiquidation) {}
 
     public record MinimumStandard(Integer schoolsMeeting, Integer schoolCount, Double rate) {}
 
@@ -46,5 +54,12 @@ public record DashboardResponse(
 
     public record SchoolInventory(String campaignName, String dueDate, Boolean submitted) {}
 
-    public record SchoolAttention(Long id, String name, String reason) {}
+    public record SchoolAttention(Long id, String name, String reason, Integer equipment,
+            Integer broken, Integer missing, Integer pending) {}
+
+    public record StatusCount(String key, String label, Integer count) {}
+
+    public record Month(String month, Integer intake, Integer allocation, Integer damage, Integer disposal) {}
+
+    public record PendingTask(String key, String label, Integer count) {}
 }

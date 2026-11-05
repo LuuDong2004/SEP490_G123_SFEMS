@@ -18,7 +18,8 @@ public class ReportController {
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasAuthority('reports:read')")
-    public DashboardResponse dashboard(@RequestParam(required = false) Long schoolYearId) {
-        return dashboardService.get(schoolYearId);
+    public DashboardResponse dashboard(@RequestParam(required = false) Long schoolYearId,
+            @RequestParam(defaultValue = "month") String period) {
+        return dashboardService.get(schoolYearId, period);
     }
 }
