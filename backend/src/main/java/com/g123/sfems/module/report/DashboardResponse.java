@@ -2,7 +2,7 @@ package com.g123.sfems.module.report;
 
 import java.util.List;
 
-/** Dữ liệu bảng điều khiển BC-01. Khối nghiệp vụ để null cho tới khi các module nguồn được chuyển sang. */
+/** Dữ liệu bảng điều khiển BC-01 theo phạm vi xem và năm học được chọn. */
 public record DashboardResponse(
         String scope,
         String schoolName,
