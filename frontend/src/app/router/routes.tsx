@@ -21,6 +21,7 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
+import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -104,7 +105,12 @@ export function AppRoutes() {
         <Route path="/reports" element={<Navigate to="/reports/assets" replace />} />
 
         {/* Thiết bị (TS-01 – TS-07) */}
-        {crudRoutes("/equipment", "equipment")}
+        {crudRoutes("/equipment", "equipment", {
+          list: <EquipmentList />,
+          create: <EquipmentCreate />,
+          edit: <EquipmentEdit />,
+          show: <EquipmentShow />,
+        })}
         {listRoute("/equipment-lookup", "equipment_lookup")}
         <Route path="/data-imports" element={guarded("data_imports")}>
           <Route index element={<PlaceholderScreen />} />
