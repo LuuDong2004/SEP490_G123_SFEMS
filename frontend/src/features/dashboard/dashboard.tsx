@@ -167,7 +167,7 @@ function SchoolDashboard({ data }: { data: DashboardData }) {
 
 function CityDashboard({ data }: { data: DashboardData }) {
   const city = data.city;
-  if (!city) return <EmptyCard title="Bảng điều khiển tổng hợp"><p className="text-muted-foreground text-sm">Dữ liệu thiết bị, định mức, mua sắm và kiểm kê chưa được tích hợp vào bản đồ án.</p></EmptyCard>;
+  if (!city) return <EmptyCard title="Bảng điều khiển tổng hợp"><p className="text-muted-foreground text-sm">Dữ liệu thiết bị, định mức, mua sắm và kiểm kê chưa được tích hợp.</p></EmptyCard>;
   const rate = city.minimumStandard.rate;
   const inventoryProgress = city.inventory ? `${number.format(city.inventory.submittedSchools)} / ${number.format(city.inventory.schoolCount)} trường` : "Không có đợt đang mở";
 
