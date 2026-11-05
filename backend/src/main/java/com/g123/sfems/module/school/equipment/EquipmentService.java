@@ -8,6 +8,8 @@ import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.equipment.EquipmentHistory;
 import com.g123.sfems.domain.school.equipment.EquipmentHistory.Action;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
@@ -24,6 +26,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,6 +35,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -286,6 +290,38 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (request.specs() != null) {
             item.setSpecs(request.specs());
         }
+    }
+
+    /**
+     * Bộ lọc riêng của hồ sơ: trạng thái, tình trạng, loại. Lớp cha chỉ nhận id, mã, tên, ghi chú và
+     * active; trường enum không khai ở đây thì {@code ?status=...} bị bỏ qua lặng lẽ.
+     */
+    @Override
+    protected Specification<Equipment> ownedFilters(ListParams params) {
+        Specification<Equipment> spec = Specification.unrestricted();
+        for (ListParams.Criterion criterion : params.filters()) {
+            spec = switch (criterion.field()) {
+                case "status" -> spec.and(enumSpec("status", criterion, AssetStatus.class));
+                case "condition" -> spec.and(enumSpec("condition", criterion, EquipmentCondition.class));
+                case "physicalOrDigital" -> spec.and(enumSpec("physicalOrDigital", criterion, PhysicalDigitalType.class));
+                default -> spec;
+            };
+        }
+        return spec;
+    }
+
+    /** Lọc theo một hằng enum. Giá trị lạ trả về không khớp dòng nào, không phải lỗi 500. */
+    private static <E extends Enum<E>> Specification<Equipment> enumSpec(
+            String attribute, ListParams.Criterion criterion, Class<E> type) {
+        E value;
+        try {
+            value = Enum.valueOf(type, criterion.value().trim());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        return criterion.operator() == ListParams.Operator.NE
+                ? (root, query, cb) -> cb.notEqual(root.get(attribute), value)
+                : (root, query, cb) -> cb.equal(root.get(attribute), value);
     }
 
     /**
