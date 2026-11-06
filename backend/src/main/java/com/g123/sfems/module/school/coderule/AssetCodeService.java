@@ -56,6 +56,9 @@ public class AssetCodeService {
     @Transactional
     public Batch begin(School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
         requireIssuable(school, catalog, "catalog");
+        if (type == null) {
+            throw new FieldValidationException("physicalOrDigital", "Chọn loại vật lý hay số để cấp mã");
+        }
         entityManager.createNativeQuery("SELECT id FROM schools WHERE id = :id FOR NO KEY UPDATE")
                 .setParameter("id", school.getId())
                 .getSingleResult();
@@ -96,16 +99,37 @@ public class AssetCodeService {
         return view(school);
     }
 
-    /** Kiểm trường và nhóm thiết bị đủ dữ liệu để cấp mã. */
-    private static void requireIssuable(School school, EquipmentCatalog catalog, String field) {
+    /**
+     * Mã kế tiếp của bộ, KHÔNG tăng bộ đếm — cho ô "Mã sẽ cấp" của form. Rỗng khi bộ đã hết 999 số, hoặc
+     * thiếu dữ liệu để cấp (xem {@link #missing}).
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> peek(School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
+        if (missing(school, catalog).isPresent()) {
+            return Optional.empty();
+        }
+        Bo bo = new Bo(school, catalog, type, year);
+        int next = nextNumber(school.getId(), bo);
+        return next > MAX_NUMBER ? Optional.empty() : Optional.of(bo.format(next));
+    }
+
+    /** Lý do không cấp được mã cho nhóm này ở trường này, rỗng nếu đủ dữ liệu. */
+    public Optional<String> missing(School school, EquipmentCatalog catalog) {
         if (school.getShortCode() == null || school.getShortCode().isBlank()) {
-            throw new FieldValidationException(field, "Trường chưa có mã viết tắt, chưa cấp được mã tài sản");
+            return Optional.of("trường chưa có mã viết tắt");
         }
         Subject subject = catalog.getSubject();
         if (subject == null || subject.getSortOrder() == null) {
-            throw new FieldValidationException(field,
-                    "Nhóm thiết bị \"" + catalog.getName() + "\" chưa gắn môn học, chưa cấp được mã tài sản");
+            return Optional.of("nhóm thiết bị \"" + catalog.getName() + "\" chưa gắn môn học");
         }
+        return Optional.empty();
+    }
+
+    /** Kiểm trường và nhóm thiết bị đủ dữ liệu để cấp mã. */
+    private void requireIssuable(School school, EquipmentCatalog catalog, String field) {
+        missing(school, catalog).ifPresent(reason -> {
+            throw new FieldValidationException(field, "Chưa cấp được mã tài sản: " + reason);
+        });
     }
 
     private int startNumber(Long schoolId) {

@@ -27,6 +27,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -80,6 +81,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private final OriginSourceService originSources;
     private final AcquisitionMethodService acquisitionMethods;
     private final AssetCodeService assetCodes;
+    private final SchoolService schools;
+    private final RowLevelPrincipalResolver principals;
 
     public EquipmentService(
             EquipmentRepository repository,
@@ -100,11 +103,42 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.originSources = originSources;
         this.acquisitionMethods = acquisitionMethods;
         this.assetCodes = assetCodes;
+        this.schools = schools;
+        this.principals = principals;
+    }
+
+    /** Kết quả của {@link #nextCode}: mã dự kiến, hoặc lý do chưa cấp được. */
+    public record NextCode(String code, String reason) {
+    }
+
+    /**
+     * Mã sẽ cấp cho form tạo mới (không tăng bộ đếm). Trường vắng thì lấy trường của tài khoản đăng nhập.
+     */
+    @Transactional(readOnly = true)
+    public NextCode nextCode(Long schoolId, Long catalogId, PhysicalDigitalType type,
+            LocalDate receivedDate, LocalDate purchaseDate) {
+        Long sid = schoolId != null ? schoolId
+                : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        if (sid == null) {
+            return new NextCode(null, "Chọn trường để sinh mã");
+        }
+        School school = schools.get(sid);
+        EquipmentCatalog catalog = catalogOf(new IdRef(catalogId));
+        PhysicalDigitalType kind = type != null ? type : catalog.getPhysicalOrDigital();
+        int year = yearOf(receivedDate, purchaseDate);
+        String code = assetCodes.peek(school, catalog, kind, year).orElse(null);
+        if (code != null) {
+            return new NextCode(code, null);
+        }
+        String reason = assetCodes.missing(school, catalog)
+                .map(r -> "chưa cấp được mã tài sản: " + r)
+                .orElse("đã hết số thứ tự 001-999 cho bộ mã này");
+        return new NextCode(null, reason);
     }
 
     /**
      * Mã để trống thì máy cấp theo quy tắc của trường (TS-06). Mã gõ tay giữ nguyên và vẫn đi qua kiểm
-     * trùng như trước. Ngày ghi nhận quyết định năm trong mã; thiếu thì lấy ngày hôm nay.
+     * trùng như trước.
      */
     @Override
     protected String resolveCode(Equipment item, String code) {
@@ -115,8 +149,40 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (catalog == null) {
             throw new FieldValidationException("catalog", "Chọn nhóm thiết bị để máy cấp mã tài sản");
         }
-        LocalDate date = item.getReceivedDate() != null ? item.getReceivedDate() : LocalDate.now();
-        return assetCodes.begin(item.getSchool(), catalog, item.getPhysicalOrDigital(), date.getYear()).next();
+        int year = yearOf(item.getReceivedDate(), item.getPurchaseDate());
+        return assetCodes.begin(item.getSchool(), catalog, item.getPhysicalOrDigital(), year).next();
+    }
+
+    /**
+     * Cấp mã chuẩn cho tài sản đang mang mã cũ (sổ cũ, tệp nhập). Mã cũ chuyển sang {@code legacyCode} để
+     * tem cũ vẫn tra được; lịch sử ghi lại lần đổi mã.
+     */
+    @Transactional
+    public Equipment standardizeCode(Long id) {
+        Equipment item = getWritable(id);
+        if (Equipment.STANDARD_CODE.matcher(item.getCode()).matches()) {
+            throw new FieldValidationException("code", "Tài sản đã mang mã chuẩn " + item.getCode());
+        }
+        String old = item.getCode();
+        if (item.getLegacyCode() == null) {
+            item.setLegacyCode(old);
+        }
+        EquipmentCatalog catalog = item.getCatalog();
+        int year = yearOf(item.getReceivedDate(), item.getPurchaseDate());
+        String code = assetCodes.begin(item.getSchool(), catalog, item.getPhysicalOrDigital(), year).next();
+        requireCodeFree(item.getSchool(), code);
+        item.setCode(code);
+        lifecycle.change(item, Action.CAP_NHAT, "code", old, code, null, "Cấp mã chuẩn thay mã cũ " + old);
+        // Entity đang được quản lý trong giao dịch (getWritable), nên thay đổi ghi khi commit.
+        return item;
+    }
+
+    /** Năm cấp mã: ngày tiếp nhận, không có thì ngày mua, không có nữa thì năm nay. */
+    private static int yearOf(LocalDate receivedDate, LocalDate purchaseDate) {
+        if (receivedDate != null) {
+            return receivedDate.getYear();
+        }
+        return purchaseDate != null ? purchaseDate.getYear() : LocalDate.now().getYear();
     }
 
     /**
