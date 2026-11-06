@@ -1,6 +1,8 @@
 import type { CatalogConfig } from "@/features/catalogs/catalog-config";
 import { educationLevelConfig } from "@/features/catalogs/extras/education-level";
 import { equipmentCatalogConfig } from "@/features/catalogs/extras/equipment-catalog";
+import { equipmentNormConfig } from "@/features/catalogs/extras/equipment-norm";
+import { equipmentStandardConfig } from "@/features/catalogs/extras/equipment-standard";
 import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
@@ -45,6 +47,8 @@ export const CATALOG_CONFIGS = {
     namePlaceholder: "Thiết bị dạy học",
   },
   equipment_catalogs: equipmentCatalogConfig,
+  equipment_standards: equipmentStandardConfig,
+  equipment_norms: equipmentNormConfig,
   units: {
     resource: "units",
     noun: "đơn vị tính",
