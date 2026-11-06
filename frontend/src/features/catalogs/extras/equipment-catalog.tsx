@@ -2,7 +2,7 @@ import type { HttpError } from "@refinedev/core";
 import type { UseTableReturnType } from "@refinedev/react-table";
 import type { Control } from "react-hook-form";
 
-import { RefFilter } from "@/shared/components/data-table/ref-filter";
+import { OptionFilter, RefFilter } from "@/shared/components/data-table/ref-filter";
 import { ReadField } from "@/shared/components/form/read-field";
 import { SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { Badge } from "@/shared/ui/badge";
@@ -70,6 +70,11 @@ function EquipmentCatalogFilters({ table }: { table: UseTableReturnType<CatalogR
   return <>
     <RefFilter table={table} field="equipmentType.id" resource="equipment_types" all="Mọi loại thiết bị" />
     <RefFilter table={table} field="subject.id" resource="subjects" all="Mọi môn học" />
+    <OptionFilter table={table} field="trackingType" all="Mọi cách quản lý" options={options(TRACKING_LABELS)} />
+    <OptionFilter table={table} field="minimumRequired" all="Mọi danh mục" options={[
+      { value: "true", label: "Danh mục tối thiểu" },
+      { value: "false", label: "Ngoài danh mục tối thiểu" },
+    ]} />
   </>;
 }
 
