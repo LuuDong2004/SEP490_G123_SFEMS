@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router";
 import { useTable } from "@refinedev/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -14,6 +15,7 @@ import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { ACTIVE_LABELS } from "@/domains/catalog/types";
 import type { CatalogConfig, CatalogRecord } from "@/features/catalogs/catalog-config";
 import { ActiveBadge } from "@/features/catalogs/active-badge";
+import { Button } from "@/shared/ui/button";
 
 const ACTIVE_FILTER_OPTIONS = [
   { value: "true", label: ACTIVE_LABELS.true },
@@ -56,14 +58,14 @@ export function CatalogList({ config }: { config: CatalogConfig }) {
         cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
       },
       ...(config.extraColumns ?? []),
-      {
+      ...(!config.hideActive ? [{
         id: "active",
         accessorKey: "active",
         header: "Trạng thái",
         size: 130,
         enableSorting: false,
         cell: ({ row }) => <ActiveBadge active={row.original.active} />,
-      },
+      } as ColumnDef<CatalogRecord>] : []),
       {
         id: "actions",
         header: () => <span className="sr-only">Thao tác</span>,
@@ -72,14 +74,14 @@ export function CatalogList({ config }: { config: CatalogConfig }) {
         cell: ({ row }) => (
           <RowActions>
             <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            <DeleteButton
+            {(!config.canModify || config.canModify(row.original)) ? <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" /> : null}
+            {(!config.canModify || config.canModify(row.original)) ? <DeleteButton
               recordItemId={row.original.id}
               record={row.original}
               noun={config.noun}
               iconOnly
               size="icon-sm"
-            />
+            /> : null}
           </RowActions>
         ),
       },
@@ -106,7 +108,7 @@ export function CatalogList({ config }: { config: CatalogConfig }) {
 
   return (
     <ListView>
-      <ListViewHeader />
+      <ListViewHeader actions={config.listLink ? <Button variant="outline" asChild><Link to={config.listLink.to}>{config.listLink.label}</Link></Button> : undefined} />
       <DataTable
         table={table}
         toolbar={
@@ -115,7 +117,7 @@ export function CatalogList({ config }: { config: CatalogConfig }) {
             search={<DataTableQuickFilter table={table} placeholder="Tìm theo mã hoặc tên" />}
             filters={
               <>
-                <OptionFilter table={table} field="active" all="Mọi trạng thái" options={ACTIVE_FILTER_OPTIONS} />
+                {!config.hideActive ? <OptionFilter table={table} field="active" all="Mọi trạng thái" options={ACTIVE_FILTER_OPTIONS} /> : null}
                 {ExtraFilters ? <ExtraFilters table={table} /> : null}
               </>
             }

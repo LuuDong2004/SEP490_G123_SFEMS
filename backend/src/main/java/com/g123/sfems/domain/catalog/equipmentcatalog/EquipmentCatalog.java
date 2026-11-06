@@ -41,7 +41,7 @@ public class EquipmentCatalog extends CatalogEntity {
     @Column(name = "teaching_code", length = 3)
     private String teachingCode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "parent_id")
     private EquipmentCatalog parent;

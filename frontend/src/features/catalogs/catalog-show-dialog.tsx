@@ -27,7 +27,7 @@ export function CatalogShowDialog({ config, id }: { config: CatalogConfig; id?: 
     <RouteDialog
       title={title}
       description={config.description}
-      footer={record ? <EditButton recordItemId={record.id}>Sửa</EditButton> : null}
+      footer={record && (!config.canModify || config.canModify(record)) ? <EditButton recordItemId={record.id}>Sửa</EditButton> : null}
     >
       {record ? (
         <div className="grid gap-5 sm:grid-cols-2">
@@ -41,9 +41,9 @@ export function CatalogShowDialog({ config, id }: { config: CatalogConfig; id?: 
           <ReadField label="Ghi chú" className="sm:col-span-2">
             {record.note || undefined}
           </ReadField>
-          <ReadField label="Trạng thái">
+          {!config.hideActive ? <ReadField label="Trạng thái">
             <ActiveBadge active={record.active} />
-          </ReadField>
+          </ReadField> : null}
           <ReadField label="Cập nhật lần cuối">{formatDateTime(record.updatedAt ?? record.createdAt)}</ReadField>
         </div>
       ) : null}
