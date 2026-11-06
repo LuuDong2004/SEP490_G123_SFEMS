@@ -134,7 +134,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
-        {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs")}
+        {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs", catalogScreens("equipment_catalogs"))}
         {crudRoutes("/catalogs/equipment-standards", "equipment_standards")}
         {crudRoutes("/catalogs/equipment-norms", "equipment_norms")}
         {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
