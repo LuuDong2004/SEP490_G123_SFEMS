@@ -13,7 +13,7 @@ import {
   UserShow,
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
-import { catalogScreens } from "@/features/catalogs";
+import { catalogScreens, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
@@ -135,8 +135,11 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
         {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs", catalogScreens("equipment_catalogs"))}
-        {crudRoutes("/catalogs/equipment-standards", "equipment_standards")}
-        {crudRoutes("/catalogs/equipment-norms", "equipment_norms")}
+        {crudRoutes("/catalogs/equipment-standards", "equipment_standards", {
+          list: <MinimumCatalogPage />, create: <MinimumCatalogPage />,
+          edit: <MinimumCatalogPage />, show: <MinimumCatalogPage />,
+        })}
+        {crudRoutes("/catalogs/equipment-norms", "equipment_norms", catalogScreens("equipment_norms"))}
         {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
