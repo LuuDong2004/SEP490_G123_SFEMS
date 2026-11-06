@@ -1,12 +1,15 @@
 package com.g123.sfems.module.organization.departmentofeducation.api;
 
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
+import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationRequest;
 import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationResponse;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.security.Permissions;
 import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.ListResponse;
+import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -72,5 +77,15 @@ public class DepartmentOfEducationController {
     @PreAuthorize("hasAuthority('" + Permissions.DEPARTMENTS_OF_EDUCATION_READ + "')")
     public DepartmentOfEducationResponse get(@PathVariable Long id) {
         return DepartmentOfEducationResponse.from(service.get(id), rowLevel);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAuthority('" + Permissions.DEPARTMENTS_OF_EDUCATION_WRITE + "')")
+    public ResponseEntity<DepartmentOfEducationResponse> create(
+            @Valid @RequestBody DepartmentOfEducationRequest request) {
+        DepartmentOfEducation created = service.create(request);
+        return ResponseEntity
+                .created(URI.create("/api/departments_of_education/" + created.getId()))
+                .body(DepartmentOfEducationResponse.from(created, rowLevel));
     }
 }
