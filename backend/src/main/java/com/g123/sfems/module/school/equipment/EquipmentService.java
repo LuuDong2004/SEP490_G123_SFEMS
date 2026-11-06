@@ -20,6 +20,7 @@ import com.g123.sfems.module.catalog.originsource.OriginSourceService;
 import com.g123.sfems.module.catalog.unit.UnitService;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
+import com.g123.sfems.module.school.coderule.AssetCodeService;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle.VoucherRef;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -78,6 +79,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private final UnitService units;
     private final OriginSourceService originSources;
     private final AcquisitionMethodService acquisitionMethods;
+    private final AssetCodeService assetCodes;
 
     public EquipmentService(
             EquipmentRepository repository,
@@ -88,7 +90,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             EquipmentLifecycle lifecycle,
             UnitService units,
             OriginSourceService originSources,
-            AcquisitionMethodService acquisitionMethods) {
+            AcquisitionMethodService acquisitionMethods,
+            AssetCodeService assetCodes) {
         super(repository, rowLevel, Equipment.class, Equipment::new, "Thiết bị", schools, principals);
         this.items = repository;
         this.historyRows = historyRows;
@@ -96,6 +99,24 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.units = units;
         this.originSources = originSources;
         this.acquisitionMethods = acquisitionMethods;
+        this.assetCodes = assetCodes;
+    }
+
+    /**
+     * Mã để trống thì máy cấp theo quy tắc của trường (TS-06). Mã gõ tay giữ nguyên và vẫn đi qua kiểm
+     * trùng như trước. Ngày ghi nhận quyết định năm trong mã; thiếu thì lấy ngày hôm nay.
+     */
+    @Override
+    protected String resolveCode(Equipment item, String code) {
+        if (code != null && !code.isBlank()) {
+            return code;
+        }
+        EquipmentCatalog catalog = item.getCatalog();
+        if (catalog == null) {
+            throw new FieldValidationException("catalog", "Chọn nhóm thiết bị để máy cấp mã tài sản");
+        }
+        LocalDate date = item.getReceivedDate() != null ? item.getReceivedDate() : LocalDate.now();
+        return assetCodes.begin(item.getSchool(), catalog, item.getPhysicalOrDigital(), date.getYear()).next();
     }
 
     /**
