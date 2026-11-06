@@ -124,7 +124,8 @@ public class EquipmentCatalogService extends CatalogService<
     @Override
     @Transactional
     public EquipmentCatalog update(Long id, EquipmentCatalogPatchRequest request) {
-        EquipmentCatalog current = get(id);
+        EquipmentCatalog current = getWritable(id);
+        requireOfficial(current);
         if (Boolean.TRUE.equals(current.getMinimumRequired()) && current.getOwnerSchool() == null) {
             unchanged("code", request.code(), current.getCode());
             unchanged("name", request.name(), current.getName());
@@ -134,6 +135,7 @@ public class EquipmentCatalogService extends CatalogService<
 
     @Override
     protected void beforeDelete(EquipmentCatalog item) {
+        requireOfficial(item);
         if (Boolean.TRUE.equals(item.getMinimumRequired())) {
             throw new FieldValidationException("id", "Thiết bị thuộc danh mục tối thiểu không được xoá trực tiếp");
         }
@@ -151,7 +153,11 @@ public class EquipmentCatalogService extends CatalogService<
                 CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "parent"),
                 CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "equipmentType"),
                 CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "subject"),
-                CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "unit")));
+                CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "educationLevel"),
+                CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "grade"),
+                CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "unit"),
+                CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "ownerSchool"),
+                trackingFilter(params), minimumFilter(params)));
     }
 
     public EquipmentCatalog getVisible(Long id) {
@@ -181,7 +187,58 @@ public class EquipmentCatalogService extends CatalogService<
         }
     }
 
+    private static void requireOfficial(EquipmentCatalog item) {
+        if (item.getOwnerSchool() != null) {
+            throw new FieldValidationException("id",
+                    "Thiết bị ngoài danh mục của trường không được sửa hoặc xoá qua danh mục dùng chung");
+        }
+    }
+
+    private static Specification<EquipmentCatalog> trackingFilter(ListParams params) {
+        return params.filters().stream()
+                .filter(filter -> filter.field().equals("trackingType"))
+                .map(filter -> {
+                    TrackingType wanted;
+                    try {
+                        wanted = TrackingType.valueOf(filter.value().trim().toUpperCase(java.util.Locale.ROOT));
+                    } catch (IllegalArgumentException exception) {
+                        return (Specification<EquipmentCatalog>) (root, query, cb) -> cb.disjunction();
+                    }
+                    return (Specification<EquipmentCatalog>) (root, query, cb) ->
+                            filter.operator() == ListParams.Operator.NE
+                                    ? cb.notEqual(root.get("trackingType"), wanted)
+                                    : cb.equal(root.get("trackingType"), wanted);
+                })
+                .reduce(Specification.unrestricted(), Specification::and);
+    }
+
+    private static Specification<EquipmentCatalog> minimumFilter(ListParams params) {
+        return params.filters().stream()
+                .filter(filter -> filter.field().equals("minimumRequired"))
+                .map(filter -> {
+                    if (!filter.value().equalsIgnoreCase("true") && !filter.value().equalsIgnoreCase("false")) {
+                        return (Specification<EquipmentCatalog>) (root, query, cb) -> cb.disjunction();
+                    }
+                    boolean wanted = Boolean.parseBoolean(filter.value());
+                    return (Specification<EquipmentCatalog>) (root, query, cb) ->
+                            filter.operator() == ListParams.Operator.NE
+                                    ? cb.notEqual(root.get("minimumRequired"), wanted)
+                                    : cb.equal(root.get("minimumRequired"), wanted);
+                })
+                .reduce(Specification.unrestricted(), Specification::and);
+    }
+
     private static void validate(EquipmentCatalog item) {
+        if (item.getParent() != null && item.getParent().getOwnerSchool() != null) {
+            throw new FieldValidationException("parent", "Nhóm cha phải thuộc danh mục dùng chung của Sở");
+        }
+        if (item.getEducationLevel() != null && !"THPT".equalsIgnoreCase(item.getEducationLevel().getCode())) {
+            throw new FieldValidationException("educationLevel", "Danh mục này chỉ áp dụng cho cấp THPT");
+        }
+        if (item.getGrade() != null && (item.getGrade().getGradeNumber() == null
+                || item.getGrade().getGradeNumber() < 10 || item.getGrade().getGradeNumber() > 12)) {
+            throw new FieldValidationException("grade", "Chỉ chọn khối 10, 11 hoặc 12");
+        }
         if (item.getTrackingType() == TrackingType.BULK
                 && item.getAssetCategory() != AssetCategory.SUPPLY
                 && item.getAssetCategory() != AssetCategory.CHEMICAL) {
