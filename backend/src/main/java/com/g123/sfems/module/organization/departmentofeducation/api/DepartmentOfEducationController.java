@@ -1,6 +1,7 @@
 package com.g123.sfems.module.organization.departmentofeducation.api;
 
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
+import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationPatchRequest;
 import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationRequest;
 import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationResponse;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -87,5 +89,12 @@ public class DepartmentOfEducationController {
         return ResponseEntity
                 .created(URI.create("/api/departments_of_education/" + created.getId()))
                 .body(DepartmentOfEducationResponse.from(created, rowLevel));
+    }
+
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
+    @PreAuthorize("hasAuthority('" + Permissions.DEPARTMENTS_OF_EDUCATION_WRITE + "')")
+    public DepartmentOfEducationResponse update(
+            @PathVariable Long id, @Valid @RequestBody DepartmentOfEducationPatchRequest request) {
+        return DepartmentOfEducationResponse.from(service.update(id, request), rowLevel);
     }
 }
