@@ -12,11 +12,12 @@ import java.math.BigDecimal;
 public record EquipmentNormPatchRequest(
         @Size(min = 1, max = 64) String code, @Size(min = 1, max = 255) String name,
         @PositiveOrZero Integer sortOrder, Boolean active, @Size(max = 500) String note,
-        IdRef standard, IdRef catalog, IdRef equipmentType, IdRef subject,
+        IdRef standard, IdRef catalog, IdRef sourceDocument, IdRef equipmentType, IdRef subject,
         IdRef grade, IdRef roomType, @DecimalMin("0") BigDecimal minQuantity,
         @Min(1) Integer basisSize, @Size(max = 100) String quantityText,
         @Size(max = 50) String unitText, IdRef unit, NormBasis normBasis,
-        @Size(max = 20) String itemNo, @Size(max = 500) String topic,
+        @Size(max = 20) String itemNo, @Size(max = 40) String gradeLevels,
+        @Size(max = 500) String sectionName, @Size(max = 500) String topic,
         @Size(max = 20000) String purpose, @Size(max = 20000) String description,
         Boolean forTeacher, Boolean forStudent, Boolean optional) implements CatalogInput {
 }
