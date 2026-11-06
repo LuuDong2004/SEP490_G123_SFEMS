@@ -7,6 +7,7 @@ import { FormPanel, FormActions } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
 import { MoneyInput } from "@/shared/components/form/money-input";
 import { DateField, SelectField, TextField } from "@/shared/components/form/simple-fields";
+import { CodeField, CodeSuggestion } from "./equipment-code";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { RecordNotFound, isRecordMissing } from "@/shared/components/views/record-not-found";
@@ -216,12 +217,26 @@ function RefField({ control, name, label, resource, placeholder }: {
 const GRID = "grid items-start gap-5 @md:grid-cols-2 @3xl:grid-cols-3";
 
 /** Phần khung form dùng chung cho tạo và sửa. */
-function EquipmentFields({ control, mode }: { control: any; mode: "create" | "edit" }) {
+function EquipmentFields({
+  control,
+  mode,
+  recordId,
+  onCodeChanged,
+}: {
+  control: any;
+  mode: "create" | "edit";
+  recordId?: number;
+  onCodeChanged?: () => void;
+}) {
   return (
     <>
       <FormSection title="Nhận diện" compact>
         <div className={GRID}>
-          <TextField control={control} name="code" label="Mã tài sản" placeholder="79.MK.08.TB.001.25" />
+          {mode === "create" ? (
+            <CodeSuggestion control={control} />
+          ) : (
+            <CodeField control={control} recordId={recordId} onChanged={onCodeChanged ?? (() => {})} />
+          )}
           <TextField control={control} name="name" label="Tên thiết bị" className="@3xl:col-span-2" />
           <RefField control={control} name="catalog" label="Danh mục thiết bị" resource="equipment_catalogs" />
           <SelectField control={control} name="physicalOrDigital" label="Loại" options={PHYSICAL_DIGITAL_OPTIONS} />
@@ -288,7 +303,7 @@ function EquipmentFields({ control, mode }: { control: any; mode: "create" | "ed
   );
 }
 
-/** Tạo hồ sơ thiết bị thủ công (TS-01). Mã hiện phải nhập tay cho tới khi TS-06 xong. */
+/** Tạo hồ sơ thiết bị thủ công (TS-01). Mã do máy cấp theo quy tắc của trường (TS-06). */
 export const EquipmentCreate = () => {
   const navigate = useNavigate();
   const {
@@ -358,7 +373,12 @@ export const EquipmentEdit = () => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormPanel contentClassName="@container space-y-6">
-            <EquipmentFields control={form.control} mode="edit" />
+            <EquipmentFields
+              control={form.control}
+              mode="edit"
+              recordId={record?.id}
+              onCodeChanged={() => query?.refetch?.()}
+            />
             <FormActions>
               <Button type="submit">Lưu thay đổi</Button>
               <Button type="button" variant="outline" onClick={() => navigate(`/equipment/show/${record?.id ?? ""}`)}>
