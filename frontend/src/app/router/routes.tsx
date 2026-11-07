@@ -139,8 +139,8 @@ export function AppRoutes() {
         {crudRoutes("/schools", "schools")}
         {crudRoutes("/rooms", "rooms")}
 
-        {/* Danh mục dùng chung (DM-01 – DM-04). Trang lối vào `/catalogs` không có quyền riêng. */}
-        <Route path="/catalogs" element={<PlaceholderScreen note="Chọn một danh mục ở cột bên trái." />} />
+        {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
+        <Route path="/catalogs" element={<Navigate to="/catalogs/equipment-catalogs" replace />} />
         {crudRoutes("/catalogs/wards", "wards", catalogScreens("wards"))}
         {crudRoutes("/catalogs/education-levels", "education_levels", catalogScreens("education_levels"))}
         {crudRoutes("/catalogs/room-types", "room_types", catalogScreens("room_types"))}
