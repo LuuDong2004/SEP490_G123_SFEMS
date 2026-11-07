@@ -50,3 +50,5 @@ databaseChangeLog:
       file: db/changelog/changes/041-bo-thong-so-ky-thuat.sql
   - include:
       file: db/changelog/changes/042-danh-muc-thiet-bi-bo-sung.sql
+  - include:
+      file: db/changelog/changes/043-quy-tac-ma-danh-muc.sql
