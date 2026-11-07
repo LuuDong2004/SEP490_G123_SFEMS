@@ -143,6 +143,12 @@ export const resources: ResourceProps[] = [
   { name: "catalog_business", meta: { label: "Danh mục nghiệp vụ", icon: icon(FileCog), parent: "catalog", module: true } },
   { ...crud("movement_reasons", "/catalogs/movement-reasons"), meta: { label: "Lý do biến động", icon: icon(ArrowRightLeft), parent: "catalog_business" } },
   { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Quy tắc sinh mã", icon: icon(Hash), parent: "catalog_business" } },
+  // Danh mục cố định, chỉ đọc: chỉ có màn danh sách, không lên menu hay thanh tab — chúng chỉ là lựa
+  // chọn trong ô chọn của form; đường dẫn vẫn mở được.
+  { name: "asset_categories", list: "/catalogs/asset-categories", meta: { label: "Loại tài sản", icon: icon(Tag), parent: "catalog_equip", hide: true } },
+  { name: "usage_purposes", list: "/catalogs/usage-purposes", meta: { label: "Mục đích sử dụng thiết bị", icon: icon(ListChecks), parent: "catalog_equip", hide: true } },
+  { name: "funding_sources", list: "/catalogs/funding-sources", meta: { label: "Nguồn kinh phí", icon: icon(Banknote), parent: "catalog_finance", hide: true } },
+  { name: "staff_positions", list: "/catalogs/staff-positions", meta: { label: "Chức vụ", icon: icon(Award), parent: "catalog_business", hide: true } },
 
   // ── Quản trị hệ thống (HT-04, HT-05, DongLV)
   { name: "administration", meta: { label: "Quản trị hệ thống", icon: icon(Settings2), group: true } },

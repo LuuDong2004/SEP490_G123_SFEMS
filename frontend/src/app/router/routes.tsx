@@ -13,7 +13,7 @@ import {
   UserShow,
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
-import { catalogScreens, MinimumCatalogPage } from "@/features/catalogs";
+import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { AssetsReport } from "@/features/reports";
 import {
@@ -162,6 +162,10 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
         {crudRoutes("/catalogs/code-rules", "code_rules")}
+        {/* Danh mục cố định, chỉ đọc: chỉ có màn danh sách. */}
+        {ENUM_CATALOGS.map((catalog) => (
+          <Route key={catalog.resource} path={catalog.path} element={<EnumCatalogList config={catalog} />} />
+        ))}
 
         {/* Quản trị hệ thống (HT-04, HT-05) — đã có màn thật. */}
         {crudRoutes("/users", "users", {
