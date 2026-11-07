@@ -5,6 +5,7 @@ import { equipmentNormConfig } from "@/features/catalogs/extras/equipment-norm";
 import { equipmentStandardConfig } from "@/features/catalogs/extras/equipment-standard";
 import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
+import { originSourceConfig } from "@/features/catalogs/extras/origin-source";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
 import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
@@ -51,19 +52,13 @@ export const CATALOG_CONFIGS = {
   equipment_standards: equipmentStandardConfig,
   equipment_norms: equipmentNormConfig,
   units: unitConfig,
-  origin_sources: {
-    resource: "origin_sources",
-    noun: "nguồn hình thành",
-    description: "Nguồn kinh phí hình thành tài sản: ngân sách, xã hội hoá, tài trợ…",
-    codePlaceholder: "NSNN",
-    namePlaceholder: "Ngân sách nhà nước",
-  },
+  origin_sources: originSourceConfig,
   acquisition_methods: {
     resource: "acquisition_methods",
-    noun: "phương thức hình thành",
-    description: "Tài sản về trường bằng cách nào: mua sắm, được cấp, được tài trợ…",
-    codePlaceholder: "MUASAM",
-    namePlaceholder: "Mua sắm",
+    noun: "hình thức mua sắm",
+    description: "Cách trường mua hoặc nhận thiết bị.",
+    codePlaceholder: "DAU_THAU",
+    namePlaceholder: "Đấu thầu",
   },
 } satisfies Record<string, CatalogConfig>;
 

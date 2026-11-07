@@ -139,7 +139,7 @@ export const resources: ResourceProps[] = [
   { ...crud("equipment_norms", "/catalogs/equipment-norms"), meta: { label: "Định mức thiết bị", icon: icon(ListChecks), parent: "catalog_equip", hide: true } },
   { name: "catalog_finance", meta: { label: "Tài chính", icon: icon(Wallet), parent: "catalog", module: true } },
   { ...crud("origin_sources", "/catalogs/origin-sources"), meta: { label: "Nguồn hình thành", icon: icon(Banknote), parent: "catalog_finance" } },
-  { ...crud("acquisition_methods", "/catalogs/acquisition-methods"), meta: { label: "Phương thức hình thành", icon: icon(ShoppingCart), parent: "catalog_finance" } },
+  { ...crud("acquisition_methods", "/catalogs/acquisition-methods"), meta: { label: "Hình thức mua sắm", icon: icon(ShoppingCart), parent: "catalog_finance" } },
   { name: "catalog_business", meta: { label: "Danh mục nghiệp vụ", icon: icon(FileCog), parent: "catalog", module: true } },
   { ...crud("movement_reasons", "/catalogs/movement-reasons"), meta: { label: "Lý do biến động", icon: icon(ArrowRightLeft), parent: "catalog_business" } },
   { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Quy tắc sinh mã", icon: icon(Hash), parent: "catalog_business" } },

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 public class AcquisitionMethodService extends CatalogService<AcquisitionMethod, CatalogRequest, CatalogPatchRequest> {
 
     public AcquisitionMethodService(AcquisitionMethodRepository repository, RowLevelSecurity rowLevel) {
-        super(repository, rowLevel, AcquisitionMethod.class, AcquisitionMethod::new, "Phương thức hình thành");
+        super(repository, rowLevel, AcquisitionMethod.class, AcquisitionMethod::new, "Hình thức mua sắm");
     }
 
     /** Danh mục lựa chọn: hai mục cùng tên thì không phân biệt được trong ô chọn. */
