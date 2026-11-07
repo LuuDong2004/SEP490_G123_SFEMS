@@ -33,6 +33,14 @@ public class EquipmentNorm extends CatalogEntity {
     private EquipmentStandard standard;
 
     @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "source_document_id")
+    private EquipmentStandardDocument sourceDocument;
+
+    public EquipmentStandardDocument getSourceDocument() { return sourceDocument; }
+
+    public void setSourceDocument(EquipmentStandardDocument sourceDocument) { this.sourceDocument = sourceDocument; }
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "catalog_id")
     private EquipmentCatalog catalog;
 
@@ -79,6 +87,12 @@ public class EquipmentNorm extends CatalogEntity {
     /** Số thứ tự trong phụ lục ("I.1.3"). */
     @Column(name = "item_no", length = 20)
     private String itemNo;
+
+    @Column(name = "grade_levels", length = 40)
+    private String gradeLevels;
+
+    @Column(name = "section_name", length = 500)
+    private String sectionName;
 
     /** Chủ đề / mục của phụ lục chứa dòng này. */
     @Column(length = 500)
@@ -203,6 +217,14 @@ public class EquipmentNorm extends CatalogEntity {
     public void setItemNo(String itemNo) {
         this.itemNo = itemNo;
     }
+
+    public String getGradeLevels() { return gradeLevels; }
+
+    public void setGradeLevels(String gradeLevels) { this.gradeLevels = gradeLevels; }
+
+    public String getSectionName() { return sectionName; }
+
+    public void setSectionName(String sectionName) { this.sectionName = sectionName; }
 
     public String getTopic() {
         return topic;

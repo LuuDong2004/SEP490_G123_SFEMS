@@ -95,12 +95,12 @@ export function CatalogFormDialog({
 
           <TextareaField control={form.control} name="note" label="Ghi chú" inGrid className="sm:col-span-2" />
 
-          <SwitchField
+          {!config.hideActive ? <SwitchField
             control={form.control}
             name="active"
             label="Đang hoạt động — tắt để ẩn khỏi các ô chọn mà không xoá"
             className="sm:col-span-2"
-          />
+          /> : null}
         </form>
       </Form>
     </RouteDialog>

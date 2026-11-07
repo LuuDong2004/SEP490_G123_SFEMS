@@ -48,6 +48,11 @@ export type CatalogConfig = {
   ExtraRead?: ComponentType<{ record: CatalogRecord }>;
   /** Ô lọc riêng trên thanh công cụ của danh sách. */
   ExtraFilters?: ComponentType<{ table: UseTableReturnType<CatalogRecord, HttpError> }>;
+  /** Vòng đời riêng của danh mục có thể khóa sửa hoặc xóa từng bản ghi. */
+  canModify?: (record: CatalogRecord) => boolean;
+  /** Bộ tiêu chuẩn dùng trạng thái hiệu lực riêng, không dùng công tắc active. */
+  hideActive?: boolean;
+  listLink?: { to: string; label: string };
 };
 
 /** Năm trường chung luôn gửi lên khi lưu. Thứ tự không có trên form nên không gửi. */

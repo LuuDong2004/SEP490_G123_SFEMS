@@ -38,3 +38,7 @@ databaseChangeLog:
       file: db/changelog/changes/012-seed-du-lieu-mau.sql
   - include:
       file: db/changelog/changes/013-pham-vi-quan-tri-va-khoa-ngoai-phong.sql
+  - include:
+      file: db/changelog/changes/037-dinh-muc-thpt.sql
+  - include:
+      file: db/changelog/changes/038-van-ban-dinh-muc-thpt.sql

@@ -43,6 +43,14 @@ public class EquipmentStandard extends CatalogEntity {
     @Column(nullable = false, length = 16)
     private StandardStatus status = StandardStatus.DRAFT;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "previous_standard_id")
+    private EquipmentStandard previousStandard;
+
+    public EquipmentStandard getPreviousStandard() { return previousStandard; }
+
+    public void setPreviousStandard(EquipmentStandard previousStandard) { this.previousStandard = previousStandard; }
+
     public EducationLevel getEducationLevel() {
         return educationLevel;
     }

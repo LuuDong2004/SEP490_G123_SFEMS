@@ -1,0 +1,31 @@
+package com.g123.sfems.module.catalog.norm;
+
+import com.g123.sfems.domain.catalog.standard.NormBasis;
+import com.g123.sfems.module.catalog.base.dto.CatalogInput;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+
+public record EquipmentNormRequest(
+        @Size(max = 64) String code, @NotBlank @Size(max = 255) String name,
+        @PositiveOrZero Integer sortOrder, Boolean active, @Size(max = 500) String note,
+        @NotNull IdRef standard, IdRef catalog, IdRef sourceDocument, IdRef equipmentType, IdRef subject,
+        IdRef grade, IdRef roomType, @DecimalMin("0") BigDecimal minQuantity,
+        @Min(1) Integer basisSize, @Size(max = 100) String quantityText,
+        @Size(max = 50) String unitText, IdRef unit, NormBasis normBasis,
+        @Size(max = 20) String itemNo, @Size(max = 40) String gradeLevels,
+        @Size(max = 500) String sectionName, @Size(max = 500) String topic,
+        @Size(max = 20000) String purpose, @Size(max = 20000) String description,
+        Boolean forTeacher, Boolean forStudent, Boolean optional) implements CatalogInput {
+    public EquipmentNormRequest withSortOrder(int order) {
+        return new EquipmentNormRequest(code, name, order, active, note, standard, catalog,
+                sourceDocument, equipmentType, subject, grade, roomType, minQuantity, basisSize,
+                quantityText, unitText, unit, normBasis, itemNo, gradeLevels, sectionName,
+                topic, purpose, description, forTeacher, forStudent, optional);
+    }
+}
