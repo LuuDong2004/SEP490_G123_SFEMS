@@ -152,6 +152,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
+        {crudRoutes("/catalogs/equipment-configs", "equipment_configs", catalogScreens("equipment_configs"))}
         {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs", catalogScreens("equipment_catalogs"))}
         {crudRoutes("/catalogs/equipment-standards", "equipment_standards", {
           list: <MinimumCatalogPage />, create: <MinimumCatalogPage />,

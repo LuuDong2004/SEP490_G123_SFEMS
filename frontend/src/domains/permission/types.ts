@@ -90,6 +90,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   subjects: "Môn học",
   room_types: "Loại phòng",
   school_types: "Loại hình trường",
+  equipment_configs: "Bộ thông số kỹ thuật",
   equipment_types: "Loại thiết bị",
   units: "Đơn vị tính",
   origin_sources: "Nguồn hình thành",

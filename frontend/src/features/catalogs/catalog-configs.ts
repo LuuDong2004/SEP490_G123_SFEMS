@@ -1,6 +1,7 @@
 import type { CatalogConfig } from "@/features/catalogs/catalog-config";
 import { educationLevelConfig } from "@/features/catalogs/extras/education-level";
 import { equipmentCatalogConfig } from "@/features/catalogs/extras/equipment-catalog";
+import { equipmentConfigConfig } from "@/features/catalogs/extras/equipment-config";
 import { equipmentNormConfig } from "@/features/catalogs/extras/equipment-norm";
 import { equipmentStandardConfig } from "@/features/catalogs/extras/equipment-standard";
 import { gradeConfig } from "@/features/catalogs/extras/grade";
@@ -52,6 +53,7 @@ export const CATALOG_CONFIGS = {
   equipment_standards: equipmentStandardConfig,
   equipment_norms: equipmentNormConfig,
   units: unitConfig,
+  equipment_configs: equipmentConfigConfig,
   origin_sources: originSourceConfig,
   acquisition_methods: {
     resource: "acquisition_methods",

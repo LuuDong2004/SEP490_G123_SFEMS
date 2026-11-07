@@ -46,3 +46,5 @@ databaseChangeLog:
       file: db/changelog/changes/039-don-vi-tinh-so-le.sql
   - include:
       file: db/changelog/changes/040-nguon-hinh-thanh-co-dinh.sql
+  - include:
+      file: db/changelog/changes/041-bo-thong-so-ky-thuat.sql

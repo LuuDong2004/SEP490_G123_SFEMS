@@ -53,6 +53,7 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingCart,
+  SlidersHorizontal,
   Tag,
   University,
   Users,
@@ -133,6 +134,7 @@ export const resources: ResourceProps[] = [
   { name: "catalog_equip", meta: { label: "Tài sản và thiết bị", icon: icon(Boxes), parent: "catalog", module: true } },
   { ...crud("equipment_types", "/catalogs/equipment-types"), meta: { label: "Loại thiết bị", icon: icon(Tag), parent: "catalog_equip" } },
   { ...crud("units", "/catalogs/units"), meta: { label: "Đơn vị tính", icon: icon(Ruler), parent: "catalog_equip" } },
+  { ...crud("equipment_configs", "/catalogs/equipment-configs"), meta: { label: "Bộ thông số kỹ thuật", icon: icon(SlidersHorizontal), parent: "catalog_equip" } },
   { ...crud("equipment_catalogs", "/catalogs/equipment-catalogs"), meta: { label: "Danh mục thiết bị", icon: icon(Package), parent: "catalog_equip" } },
   { ...crud("equipment_standards", "/catalogs/equipment-standards"), meta: { label: "Danh mục tối thiểu và định mức", icon: icon(ListChecks), parent: "catalog_equip" } },
   // Dòng định mức (DM-03) nằm trong màn bộ danh mục tối thiểu, có route riêng nhưng không lên cột trái.
