@@ -113,7 +113,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   purchase_proposals: "Đề xuất mua sắm",
   procurement_plans: "Kế hoạch mua sắm",
   // Nhập thiết bị (PN)
-  equipment_intakes: "Phiếu nhập thiết bị",
+  equipment_intakes: "Phiếu ghi tăng",
   // Kiểm kê (KK)
   inventory_campaigns: "Đợt kiểm kê",
   inventory_sessions: "Phiếu kiểm kê",
