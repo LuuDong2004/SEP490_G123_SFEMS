@@ -33,7 +33,8 @@ public class AssetReportService {
         LocalDate to = parseOr(toValue, today);
         LocalDate from = parseOr(fromValue, to.withDayOfYear(1));
         if (from.isAfter(to)) from = to;
-        String status = STATUSES.contains(requestedStatus) ? requestedStatus : null;
+        // Immutable Set implementations reject null in contains(), while the filter is optional.
+        String status = requestedStatus != null && STATUSES.contains(requestedStatus) ? requestedStatus : null;
         String scope = visible.level();
 
         String where = " WHERE e.active AND (e.received_date IS NULL OR e.received_date <= ?) "
