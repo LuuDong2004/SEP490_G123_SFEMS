@@ -1,5 +1,8 @@
 import { useMemo } from "react";
+import { useCan } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
+import { PackagePlus } from "lucide-react";
+import { Link } from "react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 
 import { DeleteButton } from "@/shared/components/buttons/delete";
@@ -13,14 +16,25 @@ import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views
 import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
 import {
   ASSET_STATUS_LABELS,
   ASSET_STATUS_OPTIONS,
   CONDITION_LABELS,
+  OFF_BOOK_STATUSES,
   type Equipment,
 } from "@/domains/equipment/types";
 
-/** Danh sách hồ sơ thiết bị (TS-01). Tra cứu theo mã riêng ở TS-02. */
+/**
+ * Danh sách hồ sơ thiết bị (TS-01). Tra cứu theo mã riêng ở TS-02.
+ *
+ * Thiết bị MỚI vào sổ bằng phiếu ghi tăng (lập → lãnh đạo trường duyệt → sinh tài sản, PN-01..03),
+ * không tạo thẳng ở đây: nút chính là "Ghi tăng", mở form lập phiếu nhập. Thiết bị trường đã có từ
+ * trước khi dùng hệ thống thì nhập từ tệp (TS-07).
+ *
+ * Không xoá thẳng thiết bị đang trong sổ — chỉ hồ sơ đã ra khỏi sổ (thanh lý, mất) mới xoá được; hồ sơ
+ * đã ra khỏi sổ cũng không sửa nữa, chỉ còn để tra.
+ */
 export const EquipmentList = () => {
   const columns = useMemo(() => {
     const helper = createColumnHelper<Equipment>();
@@ -90,9 +104,13 @@ export const EquipmentList = () => {
         ...ROW_ACTIONS_COLUMN,
         cell: ({ row }) => (
           <RowActions>
-            <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
+            {offBook(row.original) ? null : (
+              <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
+            )}
             <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
+            {offBook(row.original) ? (
+              <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
+            ) : null}
           </RowActions>
         ),
       }),
@@ -115,7 +133,7 @@ export const EquipmentList = () => {
 
   return (
     <ListView>
-      <ListViewHeader />
+      <ListViewHeader canCreate={false} actions={<IntakeButton />} />
       <DataTable
         table={table}
         toolbar={
@@ -131,3 +149,20 @@ export const EquipmentList = () => {
     </ListView>
   );
 };
+
+/** Hồ sơ đã ra khỏi sổ (thanh lý, mất): còn để tra, không sửa; là thứ duy nhất được xoá. */
+const offBook = (record: Equipment) => OFF_BOOK_STATUSES.includes(record.status);
+
+/** "Ghi tăng" — mở form lập phiếu nhập; chỉ hiện với người lập được phiếu nhập. */
+function IntakeButton() {
+  const { data } = useCan({ resource: "equipment_intakes", action: "create" });
+  if (!data?.can) return null;
+  return (
+    <Button asChild>
+      <Link to="/equipment-intakes/create">
+        <PackagePlus />
+        Ghi tăng
+      </Link>
+    </Button>
+  );
+}

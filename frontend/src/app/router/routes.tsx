@@ -22,7 +22,7 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
+import { EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -108,7 +108,8 @@ export function AppRoutes() {
         {/* Thiết bị (TS-01 – TS-07) */}
         {crudRoutes("/equipment", "equipment", {
           list: <EquipmentList />,
-          create: <EquipmentCreate />,
+          // Thiết bị mới vào sổ bằng phiếu ghi tăng, không tạo thẳng (PN-01..03).
+          create: <Navigate to="/equipment-intakes/create" replace />,
           edit: <EquipmentEdit />,
           show: <EquipmentShow />,
         })}
