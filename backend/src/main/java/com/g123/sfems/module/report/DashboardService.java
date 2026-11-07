@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,7 @@ public class DashboardService {
     }
 
     @Transactional(readOnly = true)
-    public DashboardResponse get(Long requestedSchoolYearId) {
+    public DashboardResponse get(Long requestedSchoolYearId, String requestedPeriod) {
         List<SchoolYear> years = schoolYears.findAll(rowLevel.scope(SchoolYear.class, Action.READ),
                 Sort.by(Sort.Direction.ASC, "sortOrder").and(Sort.by("name"))).stream()
                 .filter(year -> Boolean.TRUE.equals(year.getActive()))
@@ -64,16 +65,21 @@ public class DashboardService {
         }
 
         LocalDate asOf = selected.getEndDate();
+        String period = switch (requestedPeriod == null ? "month" : requestedPeriod) {
+            case "quarter", "year", "all" -> requestedPeriod;
+            default -> "month";
+        };
         if ("SCHOOL".equals(scope)) {
             long schoolId = principal.schoolId();
             return new DashboardResponse(scope, schoolName, yearOptions, selected.getId(), null,
-                    schoolDashboard(schoolId, selected, asOf));
+                    schoolDashboard(schoolId, selected, asOf, period));
         }
         return new DashboardResponse(scope, schoolName, yearOptions, selected.getId(),
-                cityDashboard(principal, selected, asOf), null);
+                cityDashboard(principal, selected, asOf, period), null);
     }
 
-    private DashboardResponse.City cityDashboard(RowLevelPrincipal principal, SchoolYear year, LocalDate asOf) {
+    private DashboardResponse.City cityDashboard(RowLevelPrincipal principal, SchoolYear year, LocalDate asOf,
+            String period) {
         DashboardResponse.Devices devices = devices("TRUE", asOf);
         int schoolCount = count("SELECT COUNT(*) FROM schools s WHERE s.status = 'ACTIVE'"
                 + visible.sqlFilter("s.id"));
@@ -90,6 +96,9 @@ public class DashboardService {
                     school.id(), asOf);
             int missing = count("SELECT COALESCE(SUM(quantity), 0)::int FROM equipment WHERE school_id = ? AND active"
                     + " AND status = 'MISSING' AND (received_date IS NULL OR received_date <= ?)", school.id(), asOf);
+            int equipment = count("SELECT COALESCE(SUM(quantity), 0)::int FROM equipment WHERE school_id = ? AND active"
+                    + " AND status NOT IN ('LIQUIDATED', 'LOST') AND (received_date IS NULL OR received_date <= ?)",
+                    school.id(), asOf);
             int pending = count("SELECT COUNT(*) FROM purchase_proposals WHERE school_id = ? AND status = 'PENDING'"
                     + " AND approval_step = 'MANAGING_BODY' AND COALESCE(budget_year, ?) = ?",
                     school.id(), asOf.getYear(), asOf.getYear());
@@ -99,7 +108,8 @@ public class DashboardService {
             if (missing > 0) reasons.add(missing + " thiết bị mất");
             if (pending > 0) reasons.add(pending + " đề xuất chờ duyệt");
             if (!reasons.isEmpty() && attention.size() < 10) {
-                attention.add(new DashboardResponse.SchoolAttention(school.id(), school.name(), String.join("; ", reasons)));
+                attention.add(new DashboardResponse.SchoolAttention(school.id(), school.name(), String.join("; ", reasons),
+                        equipment, broken, missing, pending));
             }
         }
 
@@ -120,11 +130,12 @@ public class DashboardService {
                 bodyId, year.getId());
         DashboardResponse.Inventory inventory = bodyId == null ? null : cityInventory(bodyId);
         double rate = schoolCount == 0 ? 0 : roundPercent(meeting, schoolCount);
+        List<DashboardResponse.PendingTask> pendingByType = pendingByType("MANAGING_BODY", null, asOf.getYear());
         return new DashboardResponse.City(devices, new DashboardResponse.MinimumStandard(meeting, schoolCount, rate),
-                pendingProposals, plan, inventory, attention);
+                pendingProposals, plan, inventory, attention, deviceStatuses(devices), months(), pendingByType);
     }
 
-    private DashboardResponse.School schoolDashboard(long schoolId, SchoolYear year, LocalDate asOf) {
+    private DashboardResponse.School schoolDashboard(long schoolId, SchoolYear year, LocalDate asOf, String period) {
         DashboardResponse.Devices devices = devices("e.school_id = " + schoolId, asOf);
         DashboardResponse.SchoolMinimumStandard standard = adequacy(schoolId, year);
         int pending = count("SELECT (SELECT COUNT(*) FROM equipment_intakes WHERE school_id = ? AND status = 'PENDING' AND approval_step = 'SCHOOL')"
@@ -134,7 +145,8 @@ public class DashboardService {
         Long bodyId = jdbc.query("SELECT department_of_education_id FROM schools WHERE id = ?",
                 rs -> rs.next() ? (Long) rs.getObject(1) : null, schoolId);
         DashboardResponse.SchoolInventory inventory = bodyId == null ? null : schoolInventory(bodyId, schoolId);
-        return new DashboardResponse.School(devices, standard, pending, inventory);
+        return new DashboardResponse.School(devices, standard, pending, inventory, deviceStatuses(devices),
+                voucherStatuses(schoolId, period), months(), pendingByType("SCHOOL", schoolId, null));
     }
 
     private DashboardResponse.Devices devices(String schoolPredicate, LocalDate asOf) {
@@ -145,13 +157,14 @@ public class DashboardService {
                        COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'IN_STOCK'), 0)::int,
                        COALESCE(SUM(e.quantity) FILTER (WHERE e.status IN ('BROKEN', 'REPAIRING')), 0)::int,
                        COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'MISSING'), 0)::int,
-                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'LIQUIDATED'), 0)::int
+                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'LIQUIDATED'), 0)::int,
+                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'PENDING_LIQUIDATION'), 0)::int
                 FROM equipment e
                 WHERE e.active AND (e.received_date IS NULL OR e.received_date <= ?)
                   AND """ + " " + schoolPredicate
                         + ("SCHOOL".equals(visible.level()) ? "" : visible.sqlFilter("e.school_id")),
                 rs -> rs.next() ? new DashboardResponse.Devices(rs.getInt(1), rs.getLong(2), rs.getInt(3),
-                        rs.getInt(4), rs.getInt(5), rs.getInt(6), rs.getInt(7)) : emptyDevices(), asOf);
+                        rs.getInt(4), rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getInt(8)) : emptyDevices(), asOf);
     }
 
     private DashboardResponse.SchoolMinimumStandard adequacy(long schoolId, SchoolYear year) {
@@ -230,6 +243,90 @@ public class DashboardService {
                 rs.getDate(2).toLocalDate().toString(), rs.getBoolean(3)) : null, schoolId, bodyId);
     }
 
+    private List<DashboardResponse.StatusCount> deviceStatuses(DashboardResponse.Devices devices) {
+        return List.of(
+                new DashboardResponse.StatusCount("use", "Đang sử dụng", devices.inUse()),
+                new DashboardResponse.StatusCount("stock", "Trong kho", devices.inStorage()),
+                new DashboardResponse.StatusCount("broken", "Hỏng, đang sửa", devices.broken()),
+                new DashboardResponse.StatusCount("missing", "Mất", devices.missing()),
+                new DashboardResponse.StatusCount("leaving", "Chờ ghi giảm", devices.pendingLiquidation()));
+    }
+
+    private List<DashboardResponse.PendingTask> pendingByType(String approvalStep, Long schoolId, Integer budgetYear) {
+        List<DashboardResponse.PendingTask> pending = new ArrayList<>();
+        List<Map.Entry<String, String>> types = "MANAGING_BODY".equals(approvalStep)
+                ? List.of(Map.entry("purchase_proposals", "Đề xuất mua sắm"))
+                : List.of(Map.entry("equipment_intakes", "Phiếu nhập thiết bị"),
+                        Map.entry("purchase_proposals", "Đề xuất mua sắm"),
+                        Map.entry("inventory_sessions", "Phiếu kiểm kê"));
+        for (Map.Entry<String, String> type : types) {
+            String sql = "SELECT COUNT(*) FROM " + type.getKey()
+                    + " WHERE status = 'PENDING' AND approval_step = ?";
+            List<Object> args = new ArrayList<>();
+            args.add(approvalStep);
+            if (schoolId != null) {
+                sql += " AND school_id = ?";
+                args.add(schoolId);
+            } else if ("MANAGING_BODY".equals(approvalStep)) {
+                sql += " AND COALESCE(budget_year, ?) = ?";
+                args.add(budgetYear);
+                args.add(budgetYear);
+                sql += visible.sqlFilter("school_id");
+            }
+            int amount = count(sql, args.toArray());
+            if (amount > 0) pending.add(new DashboardResponse.PendingTask(type.getKey(), type.getValue(), amount));
+        }
+        return pending;
+    }
+
+    private List<DashboardResponse.StatusCount> voucherStatuses(long schoolId, String period) {
+        String since = switch (period) {
+            case "quarter" -> "DATE_TRUNC('quarter', CURRENT_DATE)";
+            case "year" -> "DATE_TRUNC('year', CURRENT_DATE)";
+            case "all" -> "DATE '1900-01-01'";
+            default -> "DATE_TRUNC('month', CURRENT_DATE)";
+        };
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        jdbc.query("""
+                SELECT v.status, COUNT(*)::int FROM (
+                    SELECT status, created_at, school_id FROM equipment_intakes
+                    UNION ALL SELECT status, created_at, school_id FROM purchase_proposals
+                    UNION ALL SELECT status, created_at, school_id FROM inventory_sessions
+                ) v WHERE v.school_id = ? AND v.created_at >= """ + since + " GROUP BY v.status",
+                rs -> {
+                    counts.put(rs.getString(1), rs.getInt(2));
+                }, schoolId);
+        return List.of(
+                new DashboardResponse.StatusCount("COMPLETED", "Hoàn tất", counts.getOrDefault("COMPLETED", 0)),
+                new DashboardResponse.StatusCount("APPROVED", "Đang thực hiện", counts.getOrDefault("APPROVED", 0)),
+                new DashboardResponse.StatusCount("PENDING", "Chờ duyệt", counts.getOrDefault("PENDING", 0)),
+                new DashboardResponse.StatusCount("DRAFT", "Nháp", counts.getOrDefault("DRAFT", 0)),
+                new DashboardResponse.StatusCount("CLOSED", "Từ chối, huỷ", counts.getOrDefault("REJECTED", 0)
+                        + counts.getOrDefault("CANCELLED", 0)));
+    }
+
+    private List<DashboardResponse.Month> months() {
+        return jdbc.query("""
+                WITH months AS (
+                    SELECT generate_series(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months',
+                                           DATE_TRUNC('month', CURRENT_DATE), INTERVAL '1 month') AS month
+                )
+                SELECT TO_CHAR(m.month, 'MM/YYYY'),
+                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'GHI_TANG')::int,
+                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN'))::int,
+                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'BAO_HONG')::int,
+                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('THANH_LY', 'TIEU_HUY', 'MAT'))::int
+                FROM months m
+                LEFT JOIN (
+                    SELECT h.* FROM equipment_history h JOIN equipment e ON e.id = h.equipment_id
+                    WHERE h.created_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months' - INTERVAL '1 day'
+                    """ + visible.sqlFilter("e.school_id") + """
+                ) h ON DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') = m.month
+                GROUP BY m.month ORDER BY m.month
+                """, (rs, row) -> new DashboardResponse.Month(rs.getString(1), rs.getInt(2), rs.getInt(3),
+                rs.getInt(4), rs.getInt(5)));
+    }
+
     private Long dashboardBodyId(RowLevelPrincipal principal) {
         if (principal != null && principal.managingBodyId() != null) return principal.managingBodyId();
         return jdbc.query("SELECT id FROM departments_of_education WHERE type = 'SO' ORDER BY id LIMIT 1",
@@ -246,7 +343,7 @@ public class DashboardService {
         return BigDecimal.valueOf(value * 100.0 / total).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
     private static DashboardResponse.Devices emptyDevices() {
-        return new DashboardResponse.Devices(0, 0L, 0, 0, 0, 0, 0);
+        return new DashboardResponse.Devices(0, 0L, 0, 0, 0, 0, 0, 0);
     }
 
     private record SchoolRow(long id, String name) {}
