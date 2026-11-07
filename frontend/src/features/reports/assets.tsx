@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Boxes, CalendarPlus, CircleDollarSign, PackageCheck, PackageSearch, Warehouse } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AssetReport, ReportOption } from "@/domains/report/types";
 import { kyInstance } from "@/shared/api/data";
@@ -14,20 +14,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const ALL = "__all__";
 const today = new Date().toISOString().slice(0, 10);
-const yearStart = `${today.slice(0, 4)}-01-01`;
 const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 });
 const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 
-function FilterSelect({ label, value, options, onChange }: {
-  label: string; value: string; options: ReportOption[]; onChange: (value: string) => void;
+function FilterSelect({ label, value, options, onChange, useKey = false }: {
+  label: string; value: string; options: ReportOption[]; onChange: (value: string) => void; useKey?: boolean;
 }) {
-  return <label className="grid min-w-40 gap-1.5 text-xs text-muted-foreground">
+  return <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
     {label}
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger><SelectValue placeholder={label} /></SelectTrigger>
+      <SelectTrigger className="h-9 w-full min-w-0 px-2 text-xs"><SelectValue placeholder={label} /></SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL}>Tất cả</SelectItem>
-        {options.map((option) => <SelectItem key={option.key ?? option.id} value={option.key ?? String(option.id)}>{option.label}</SelectItem>)}
+        {options.map((option) => {
+          const optionValue = useKey ? option.key : option.id == null ? null : String(option.id);
+          return optionValue ? <SelectItem key={optionValue} value={optionValue}>{option.label}</SelectItem> : null;
+        })}
       </SelectContent>
     </Select>
   </label>;
@@ -35,7 +37,8 @@ function FilterSelect({ label, value, options, onChange }: {
 
 export function AssetsReport() {
   const { perspective } = usePerspective();
-  const [fromDate, setFromDate] = useState(yearStart);
+  const [fromDate, setFromDate] = useState("");
+  const [defaultFromDate, setDefaultFromDate] = useState("");
   const [toDate, setToDate] = useState(today);
   const [schoolId, setSchoolId] = useState(ALL);
   const [subjectId, setSubjectId] = useState(ALL);
@@ -53,6 +56,10 @@ export function AssetsReport() {
       ...(originId !== ALL ? { originId } : {}),
     } }).json<AssetReport>(),
   });
+  useEffect(() => {
+    if (!defaultFromDate && query.data?.fromDate) setDefaultFromDate(query.data.fromDate);
+    if (!fromDate && query.data?.fromDate) setFromDate(query.data.fromDate);
+  }, [defaultFromDate, fromDate, query.data?.fromDate]);
   const report = query.data;
   const scopeName = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
   const stats = report ? [
@@ -70,7 +77,7 @@ export function AssetsReport() {
       <div>
         <p className="text-muted-foreground text-sm">{scopeName}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Báo cáo tài sản thiết bị</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Tồn tài sản đến ngày kết thúc; số ghi tăng tính trong khoảng thời gian đã chọn.</p>
+        <p className="text-muted-foreground mt-1 text-sm">Thống kê tài sản ghi tăng trong khoảng ngày đã chọn, theo trạng thái hiện tại.</p>
       </div>
       <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
         {query.isFetching ? "Đang tải…" : "Làm mới"}
@@ -79,15 +86,15 @@ export function AssetsReport() {
 
     <Card>
       <CardHeader className="pb-3"><CardTitle className="text-base">Bộ lọc báo cáo</CardTitle></CardHeader>
-      <CardContent className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1.5 text-xs text-muted-foreground">Từ ngày<Input type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></label>
-        <label className="grid gap-1.5 text-xs text-muted-foreground">Đến ngày<Input type="date" value={toDate} min={fromDate} onChange={(event) => setToDate(event.target.value)} /></label>
+      <CardContent className={`grid grid-cols-2 items-end gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:gap-2 ${perspective === "school" ? "xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]" : "xl:grid-cols-[repeat(7,minmax(0,1fr))_auto]"}`}>
+        <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">Từ ngày<Input className="h-9 min-w-0 px-2 text-xs" type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></label>
+        <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">Đến ngày<Input className="h-9 min-w-0 px-2 text-xs" type="date" value={toDate} min={fromDate} onChange={(event) => setToDate(event.target.value)} /></label>
         {perspective !== "school" && <FilterSelect label="Trường" value={schoolId} options={report?.filters.schools ?? []} onChange={setSchoolId} />}
         <FilterSelect label="Môn học" value={subjectId} options={report?.filters.subjects ?? []} onChange={setSubjectId} />
         <FilterSelect label="Loại thiết bị" value={equipmentTypeId} options={report?.filters.equipmentTypes ?? []} onChange={setEquipmentTypeId} />
-        <FilterSelect label="Trạng thái" value={status} options={report?.filters.statuses ?? []} onChange={setStatus} />
+        <FilterSelect label="Trạng thái" value={status} options={report?.filters.statuses ?? []} onChange={setStatus} useKey />
         <FilterSelect label="Nguồn hình thành" value={originId} options={report?.filters.origins ?? []} onChange={setOriginId} />
-        <Button variant="ghost" onClick={() => { setFromDate(yearStart); setToDate(today); setSchoolId(ALL); setSubjectId(ALL); setEquipmentTypeId(ALL); setStatus(ALL); setOriginId(ALL); }}>Xóa bộ lọc</Button>
+        <Button className="h-9 px-2 text-xs" variant="ghost" onClick={() => { setFromDate(defaultFromDate); setToDate(today); setSchoolId(ALL); setSubjectId(ALL); setEquipmentTypeId(ALL); setStatus(ALL); setOriginId(ALL); }}>Xóa lọc</Button>
       </CardContent>
     </Card>
 
@@ -105,23 +112,22 @@ export function AssetsReport() {
           {report.truncated && <Badge variant="secondary">Đang hiển thị 1.000 dòng đầu</Badge>}
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <Table className="min-w-[1120px]">
+          <Table className="min-w-[1480px]">
             <TableHeader><TableRow>
-              <TableHead>Mã thiết bị</TableHead><TableHead>Tên thiết bị</TableHead>
+              <TableHead>Mã thiết bị</TableHead><TableHead>Tên thiết bị</TableHead><TableHead className="min-w-[150px] whitespace-nowrap">Ngày ghi tăng</TableHead>
               {report.scope !== "SCHOOL" && <TableHead>Trường</TableHead>}
               <TableHead>Môn học</TableHead><TableHead>Loại thiết bị</TableHead><TableHead>Trạng thái</TableHead>
               <TableHead>Nguồn hình thành</TableHead><TableHead className="text-right">Số lượng</TableHead>
-              <TableHead className="text-right">Nguyên giá</TableHead><TableHead>Ngày ghi tăng</TableHead>
+              <TableHead className="text-right">Nguyên giá</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {report.rows.length ? report.rows.map((row) => <TableRow key={row.id}>
-                <TableCell className="font-medium">{row.code}</TableCell><TableCell>{row.name}</TableCell>
+                <TableCell className="font-medium">{row.code}</TableCell><TableCell>{row.name}</TableCell><TableCell className="whitespace-nowrap">{row.receivedDate ?? "—"}</TableCell>
                 {report.scope !== "SCHOOL" && <TableCell>{row.schoolName}</TableCell>}
                 <TableCell>{row.subjectName ?? "—"}</TableCell><TableCell>{row.equipmentTypeName ?? "—"}</TableCell>
                 <TableCell><Badge variant={row.status === "BROKEN" || row.status === "MISSING" ? "destructive" : "secondary"}>{row.statusLabel}</Badge></TableCell>
                 <TableCell>{row.originName ?? "—"}</TableCell><TableCell className="text-right tabular-nums">{number.format(row.quantity)}</TableCell>
                 <TableCell className="text-right tabular-nums">{row.originalValue == null ? "—" : money.format(row.originalValue)}</TableCell>
-                <TableCell>{row.receivedDate ?? "—"}</TableCell>
               </TableRow>) : <TableRow><TableCell colSpan={report.scope === "SCHOOL" ? 9 : 10} className="h-24 text-center text-muted-foreground">Không có tài sản phù hợp với bộ lọc.</TableCell></TableRow>}
             </TableBody>
           </Table>

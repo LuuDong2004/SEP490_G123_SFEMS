@@ -31,15 +31,21 @@ public class AssetReportService {
             Long equipmentTypeId, String requestedStatus, Long originId) {
         LocalDate today = LocalDate.now();
         LocalDate to = parseOr(toValue, today);
-        LocalDate from = parseOr(fromValue, to.withDayOfYear(1));
+        LocalDate earliest = jdbc.query("SELECT MIN(e.received_date) FROM equipment e WHERE e.active "
+                        + "AND e.received_date <= ? " + visible.sqlFilter("e.school_id"),
+                rs -> { Date date = rs.next() ? rs.getDate(1) : null; return date == null ? null : date.toLocalDate(); },
+                Date.valueOf(to));
+        LocalDate from = parseOr(fromValue, earliest == null ? to.withDayOfYear(1) : earliest);
         if (from.isAfter(to)) from = to;
         // Immutable Set implementations reject null in contains(), while the filter is optional.
         String status = requestedStatus != null && STATUSES.contains(requestedStatus) ? requestedStatus : null;
         String scope = visible.level();
 
-        String where = " WHERE e.active AND (e.received_date IS NULL OR e.received_date <= ?) "
+        // BC-02 lọc theo thời điểm ghi tăng: cả danh sách và các số liệu đều thuộc khoảng ngày được chọn.
+        String where = " WHERE e.active AND e.received_date >= ? AND e.received_date <= ? "
                 + visible.sqlFilter("e.school_id");
         List<Object> args = new ArrayList<>();
+        args.add(Date.valueOf(from));
         args.add(Date.valueOf(to));
         if (schoolId != null) { where += " AND e.school_id = ?"; args.add(schoolId); }
         if (subjectId != null) { where += " AND c.subject_id = ?"; args.add(subjectId); }
@@ -89,12 +95,14 @@ public class AssetReportService {
                 ? List.of() : jdbc.query("SELECT s.id, s.name FROM schools s WHERE s.status = 'ACTIVE'"
                         + visible.sqlFilter("s.id") + " ORDER BY s.name",
                         (rs, n) -> new AssetReportResponse.Option(rs.getLong(1), null, rs.getString(2)));
+        // Giữ nguyên các lựa chọn khi tổ hợp bộ lọc hiện tại không có bản ghi phù hợp.
+        String optionWhere = " WHERE e.active " + visible.sqlFilter("e.school_id");
         List<AssetReportResponse.Option> subjects = options("SELECT DISTINCT sub.id, sub.code, sub.name" + joins
-                + where + " AND sub.id IS NOT NULL ORDER BY sub.name", args);
+                + optionWhere + " AND sub.id IS NOT NULL ORDER BY sub.name", List.of());
         List<AssetReportResponse.Option> equipmentTypes = options("SELECT DISTINCT et.id, et.code, et.name" + joins
-                + where + " AND et.id IS NOT NULL ORDER BY et.name", args);
+                + optionWhere + " AND et.id IS NOT NULL ORDER BY et.name", List.of());
         List<AssetReportResponse.Option> origins = options("SELECT DISTINCT os.id, os.code, os.name" + joins
-                + where + " AND os.id IS NOT NULL ORDER BY os.name", args);
+                + optionWhere + " AND os.id IS NOT NULL ORDER BY os.name", List.of());
         List<AssetReportResponse.Option> statuses = List.of(
                 new AssetReportResponse.Option(null, "IN_USE", "Đang sử dụng"),
                 new AssetReportResponse.Option(null, "IN_STOCK", "Trong kho"),
