@@ -297,14 +297,31 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
     }
 
-    @Override
-    protected void applyUpdateOwned(Equipment item, EquipmentPatchRequest request) {
+    /**
+     * Trạng thái, tình trạng và số lượng chỉ đổi qua phiếu đã duyệt (SRS TS-01, GBR-14), không sửa thẳng
+     * trên hồ sơ. Gửi lại đúng giá trị hiện có thì không tính là đổi, vì form sửa gửi lại cả ba trường.
+     */
+    private static void rejectDirectChanges(Equipment item, EquipmentPatchRequest request) {
+        List<String> changed = new ArrayList<>();
         if (request.status() != null && request.status() != item.getStatus()) {
-            lifecycle.status(item, request.status(), Action.CAP_NHAT, null, null);
+            changed.add("trạng thái (phiếu tương ứng)");
         }
         if (request.condition() != null && request.condition() != item.getCondition()) {
-            lifecycle.condition(item, request.condition(), Action.CAP_NHAT, null, null);
+            changed.add("tình trạng (phiếu báo hỏng / sửa chữa / kiểm kê)");
         }
+        if (request.quantity() != null
+                && (item.getQuantity() == null || request.quantity().compareTo(item.getQuantity()) != 0)) {
+            changed.add("số lượng (phiếu ghi tăng / xuất kho)");
+        }
+        if (!changed.isEmpty()) {
+            throw new FieldValidationException("status", "Không sửa thẳng trên hồ sơ được: "
+                    + String.join(", ", changed) + ". Những thứ này chỉ đổi qua phiếu, để có người duyệt và để lại chứng từ.");
+        }
+    }
+
+    @Override
+    protected void applyUpdateOwned(Equipment item, EquipmentPatchRequest request) {
+        rejectDirectChanges(item, request);
         if (request.catalog() != null) {
             item.setCatalog(catalogOf(request.catalog()));
         }
@@ -332,9 +349,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.unit() != null) {
             item.setUnit(unitOf(request.unit()));
-        }
-        if (request.quantity() != null) {
-            item.setQuantity(request.quantity());
         }
         if (request.originSource() != null) {
             item.setOriginSource(originSourceOf(request.originSource()));
