@@ -1,4 +1,5 @@
 import type { CatalogConfig } from "@/features/catalogs/catalog-config";
+import { codeRuleConfig } from "@/features/catalogs/extras/code-rule";
 import { educationLevelConfig } from "@/features/catalogs/extras/education-level";
 import { equipmentCatalogConfig } from "@/features/catalogs/extras/equipment-catalog";
 import { equipmentConfigConfig } from "@/features/catalogs/extras/equipment-config";
@@ -34,6 +35,7 @@ export const CATALOG_CONFIGS = {
   subject_groups: subjectGroupConfig,
   subjects: subjectConfig,
   movement_reasons: movementReasonConfig,
+  code_rules: codeRuleConfig,
   wards: {
     resource: "wards",
     noun: "phường/xã",

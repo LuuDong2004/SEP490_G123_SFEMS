@@ -162,7 +162,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
-        {crudRoutes("/catalogs/code-rules", "code_rules")}
+        {crudRoutes("/catalogs/code-rules", "code_rules", catalogScreens("code_rules"))}
         {/* Danh mục cố định, chỉ đọc: chỉ có màn danh sách. */}
         {ENUM_CATALOGS.map((catalog) => (
           <Route key={catalog.resource} path={catalog.path} element={<EnumCatalogList config={catalog} />} />

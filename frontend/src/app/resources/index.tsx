@@ -144,7 +144,7 @@ export const resources: ResourceProps[] = [
   { ...crud("acquisition_methods", "/catalogs/acquisition-methods"), meta: { label: "Hình thức mua sắm", icon: icon(ShoppingCart), parent: "catalog_finance" } },
   { name: "catalog_business", meta: { label: "Danh mục nghiệp vụ", icon: icon(FileCog), parent: "catalog", module: true } },
   { ...crud("movement_reasons", "/catalogs/movement-reasons"), meta: { label: "Lý do biến động", icon: icon(ArrowRightLeft), parent: "catalog_business" } },
-  { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Quy tắc sinh mã", icon: icon(Hash), parent: "catalog_business" } },
+  { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Mã tự động của danh mục chung", icon: icon(Hash), parent: "catalog_business" } },
   // Danh mục cố định, chỉ đọc: chỉ có màn danh sách, không lên menu hay thanh tab — chúng chỉ là lựa
   // chọn trong ô chọn của form; đường dẫn vẫn mở được.
   { name: "asset_categories", list: "/catalogs/asset-categories", meta: { label: "Loại tài sản", icon: icon(Tag), parent: "catalog_equip", hide: true } },
