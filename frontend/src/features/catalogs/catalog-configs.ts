@@ -10,6 +10,7 @@ import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
 import { subjectGroupConfig } from "@/features/catalogs/extras/subject-group";
+import { unitConfig } from "@/features/catalogs/extras/unit";
 
 /**
  * Cấu hình của từng danh mục dùng chung (DM-01). Thêm một danh mục = thêm một mục ở đây rồi gắn vào
@@ -49,13 +50,7 @@ export const CATALOG_CONFIGS = {
   equipment_catalogs: equipmentCatalogConfig,
   equipment_standards: equipmentStandardConfig,
   equipment_norms: equipmentNormConfig,
-  units: {
-    resource: "units",
-    noun: "đơn vị tính",
-    description: "Đơn vị đếm thiết bị trên phiếu và trong sổ tài sản.",
-    codePlaceholder: "CAI",
-    namePlaceholder: "Cái",
-  },
+  units: unitConfig,
   origin_sources: {
     resource: "origin_sources",
     noun: "nguồn hình thành",

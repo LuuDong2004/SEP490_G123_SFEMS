@@ -33,6 +33,11 @@ export type SchoolType = CatalogItem & {
   shortName: string | null;
 };
 
+export type Unit = CatalogItem & {
+  /** Chia được (kg, g, lít, ml, mét); tắt là chỉ đếm số nguyên. */
+  allowsFraction: boolean;
+};
+
 export type RoomType = CatalogItem & {
   /** Phòng thuộc loại này là kho. */
   warehouse: boolean;
