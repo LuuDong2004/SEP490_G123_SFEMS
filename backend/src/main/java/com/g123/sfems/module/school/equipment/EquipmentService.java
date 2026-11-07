@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.data.jpa.domain.Specification;
@@ -75,6 +76,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static final String FIELD_WARRANTY_EXPIRY = "warrantyExpiry";
 
     private final EquipmentRepository items;
+    private final RowLevelSecurity scopes;
     private final EquipmentHistoryRepository historyRows;
     private final EquipmentLifecycle lifecycle;
     private final UnitService units;
@@ -97,6 +99,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             AssetCodeService assetCodes) {
         super(repository, rowLevel, Equipment.class, Equipment::new, "Thiết bị", schools, principals);
         this.items = repository;
+        this.scopes = rowLevel;
         this.historyRows = historyRows;
         this.lifecycle = lifecycle;
         this.units = units;
@@ -441,6 +444,24 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     public List<EquipmentHistory> history(Long id) {
         Equipment item = get(id);
         return historyRows.findByEquipmentIdOrderByCreatedAtDescIdDesc(item.getId());
+    }
+
+    /**
+     * Tra cứu theo mã (TS-02): khớp đúng mã chuẩn hoặc mã cũ, không phân biệt hoa thường. Chỉ trả hồ sơ trong
+     * phạm vi đọc của người gọi; ngoài phạm vi coi như không có, nên danh sách rỗng chứ không lỗi 403/404.
+     */
+    @Transactional(readOnly = true)
+    public List<Equipment> lookupByCode(String code) {
+        String term = code == null ? "" : code.trim().toLowerCase(Locale.ROOT);
+        if (term.isEmpty()) {
+            return List.of();
+        }
+        Specification<Equipment> exact = (root, query, cb) -> cb.or(
+                cb.equal(cb.lower(root.get("code")), term),
+                cb.equal(cb.lower(root.get("legacyCode")), term));
+        return items.findAll(
+                scopes.<Equipment>scope(Equipment.class, com.g123.sfems.shared.security.rowlevel.Action.READ)
+                        .and(exact));
     }
 
     /** Ghi một trường hồ sơ nếu giá trị thật sự đổi. {@code setter} áp giá trị mới. */
