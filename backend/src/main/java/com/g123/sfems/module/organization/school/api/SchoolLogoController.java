@@ -56,7 +56,9 @@ public class SchoolLogoController {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT content_type, data FROM school_logos WHERE school_id = ?", id);
         if (rows.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            // Chưa có logo là chuyện thường, không phải lỗi: 204 thay vì 404, khỏi một dòng lỗi đỏ trên console mỗi
+            // lần mở màn trường (E2E-29). Giao diện coi 204 là "chưa có logo".
+            return ResponseEntity.noContent().build();
         }
         Map<String, Object> row = rows.getFirst();
         return ResponseEntity.ok()
