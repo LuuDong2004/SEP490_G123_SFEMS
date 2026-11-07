@@ -23,6 +23,13 @@ public class Subject extends CatalogEntity {
     @Column(name = "short_code", length = 10)
     private String shortCode;
 
+    /**
+     * Mã dạy học 2 chữ số — thành phần MH của mã tài sản (DR-09, theo repo mẫu). Để trống thì thiết bị của
+     * môn này chưa cấp được mã chuẩn (DR-10). Khác với {@link #shortCode} (mã chữ, dùng cho tên gọi).
+     */
+    @Column(name = "teaching_code", length = 2)
+    private String teachingCode;
+
     /** Cấp học giảng dạy môn này. EAGER vì open-in-view tắt. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "education_level_id")
@@ -39,6 +46,14 @@ public class Subject extends CatalogEntity {
 
     public void setShortCode(String shortCode) {
         this.shortCode = shortCode;
+    }
+
+    public String getTeachingCode() {
+        return teachingCode;
+    }
+
+    public void setTeachingCode(String teachingCode) {
+        this.teachingCode = teachingCode;
     }
 
     public EducationLevel getEducationLevel() {
