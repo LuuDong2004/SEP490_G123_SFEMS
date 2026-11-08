@@ -22,7 +22,13 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
+import {
+  EquipmentCreate,
+  EquipmentEdit,
+  EquipmentList,
+  EquipmentLookup,
+  EquipmentShow,
+} from "@/features/organization/resources";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -112,7 +118,7 @@ export function AppRoutes() {
           edit: <EquipmentEdit />,
           show: <EquipmentShow />,
         })}
-        {listRoute("/equipment-lookup", "equipment_lookup")}
+        {listRoute("/equipment-lookup", "equipment_lookup", <EquipmentLookup />)}
         <Route path="/data-imports" element={guarded("data_imports")}>
           <Route index element={<PlaceholderScreen />} />
           <Route path="show/:id" element={<PlaceholderScreen />} />

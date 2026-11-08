@@ -54,3 +54,4 @@ databaseChangeLog:
       file: db/changelog/changes/042-danh-muc-thiet-bi-bo-sung.sql
   - include:
       file: db/changelog/changes/043-quy-tac-ma-danh-muc.sql
+      file: db/changelog/changes/070-ma-day-hoc-cua-mon.sql
