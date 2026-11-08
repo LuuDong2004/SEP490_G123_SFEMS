@@ -2,6 +2,7 @@ package com.g123.sfems.domain.organization;
 
 import com.g123.sfems.domain.base.BaseEntity;
 import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
+import com.g123.sfems.domain.catalog.schooltype.SchoolType;
 import com.g123.sfems.domain.catalog.ward.Ward;
 import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.Column;
@@ -83,6 +84,11 @@ public class School extends BaseEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "education_level_id")
     private EducationLevel educationLevel;
+
+    /** Loại hình trường (Công lập, Dân lập, Tư thục). Cho phép rỗng: trường cũ chưa khai. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "school_type_id")
+    private SchoolType schoolType;
 
     /** Mã trường, duy nhất toàn hệ thống. */
     @Column(nullable = false, length = 64, unique = true)
@@ -220,6 +226,14 @@ public class School extends BaseEntity {
 
     public void setDepartmentOfEducation(DepartmentOfEducation departmentOfEducation) {
         this.departmentOfEducation = departmentOfEducation;
+    }
+
+    public SchoolType getSchoolType() {
+        return schoolType;
+    }
+
+    public void setSchoolType(SchoolType schoolType) {
+        this.schoolType = schoolType;
     }
 
     public EducationLevel getEducationLevel() {
