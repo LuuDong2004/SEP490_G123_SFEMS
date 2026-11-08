@@ -1,6 +1,7 @@
 package com.g123.sfems.module.organization.school.api.dto;
 
 import com.g123.sfems.domain.organization.DepartmentSource;
+import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.organization.OrgStatus;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -45,7 +46,7 @@ public record SchoolResponse(
      * vậy nới rộng payload của endpoint Sở không lặng lẽ nới rộng payload của
      * endpoint trường.
      */
-    public record DepartmentSummary(Long id, String code, String name) {
+    public record DepartmentSummary(Long id, String code, String name, ManagingBodyType type) {
     }
 
     /**
@@ -85,7 +86,8 @@ public record SchoolResponse(
                 department == null
                         ? null
                         : new DepartmentSummary(
-                                department.getId(), department.getCode(), department.getName()),
+                                department.getId(), department.getCode(), department.getName(),
+                                department.getType()),
                 school.getDepartmentSource(),
                 level == null
                         ? null
