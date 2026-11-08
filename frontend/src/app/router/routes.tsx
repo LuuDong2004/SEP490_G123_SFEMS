@@ -15,7 +15,7 @@ import {
 import { Login, Profile } from "@/features/identity";
 import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
-import { AssetsReport } from "@/features/reports";
+import { AdequacyReportPage, AssetsReport, PurchaseReportPage } from "@/features/reports";
 import {
   EquipmentIntakeCreate,
   EquipmentIntakeEdit,
@@ -106,8 +106,8 @@ export function AppRoutes() {
 
         {/* Báo cáo (BC-02 – BC-06): bốn tab cùng quyền reports:read. */}
         {listRoute("/reports/assets", "report_assets", <AssetsReport />)}
-        {listRoute("/reports/adequacy", "report_adequacy")}
-        {listRoute("/reports/purchase", "report_purchase")}
+        {listRoute("/reports/adequacy", "report_adequacy", <AdequacyReportPage />)}
+        {listRoute("/reports/purchase", "report_purchase", <PurchaseReportPage />)}
         {listRoute("/reports/inventory", "report_inventory")}
         <Route path="/reports" element={<Navigate to="/reports/assets" replace />} />
 
