@@ -33,6 +33,8 @@ databaseChangeLog:
       file: db/changelog/changes/050-logo-truong.sql
   # 011/012 trỏ FK và seed theo mã vào danh mục của 030–031, nên phải chạy SAU các changelog 030–050.
   - include:
+      file: db/changelog/changes/051-loai-hinh-cua-truong.sql
+  - include:
       file: db/changelog/changes/011-khung-du-lieu-nghiep-vu.sql
   - include:
       file: db/changelog/changes/012-seed-du-lieu-mau.sql
