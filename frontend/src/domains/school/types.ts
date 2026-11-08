@@ -99,8 +99,8 @@ export const DEPARTMENT_SOURCE_LABELS: Record<DepartmentSource, string> = {
   nguon: "Theo dữ liệu nguồn",
   nq_1685: "Suy từ địa chỉ (NQ 1685)",
   nhieu_chang: "Suy từ địa chỉ, qua nhiều đợt sắp xếp",
-  phuong_chia: "Phường cũ bị chia, đã chọn một",
-  quan_cu: "Chỉ biết quận cũ, gán tạm",
+  phuong_chia: "Phường cũ đã chia cho nhiều phường mới, hệ thống tạm chọn một phường.",
+  quan_cu: "Hồ sơ trường chỉ ghi quận cũ, hệ thống tạm gán về một phường của quận đó.",
 };
 
 /**
