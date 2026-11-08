@@ -45,6 +45,9 @@ public record SchoolRequest(
          */
         EducationLevelRef educationLevel,
 
+        /** Loại hình trường — tuỳ chọn. */
+        SchoolTypeRef schoolType,
+
         /**
          * Mã hai ký tự của trường, hoặc để trống.
          *

@@ -6,6 +6,7 @@ import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.module.catalog.coderule.CodeGenerator;
 import com.g123.sfems.module.catalog.ward.WardService;
 import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
+import com.g123.sfems.module.catalog.schooltype.SchoolTypeService;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.organization.school.api.dto.SchoolPatchRequest;
 import com.g123.sfems.module.organization.school.api.dto.SchoolRequest;
@@ -47,6 +48,7 @@ public class SchoolService {
     private final DepartmentOfEducationService departments;
     private final EducationLevelService educationLevels;
     private final WardService wards;
+    private final SchoolTypeService schoolTypes;
     private final RowLevelSecurity rowLevel;
     private final ManagedSchoolsCache managedSchools;
     private CodeGenerator codes;
@@ -62,6 +64,7 @@ public class SchoolService {
             DepartmentOfEducationService departments,
             EducationLevelService educationLevels,
             WardService wards,
+            SchoolTypeService schoolTypes,
             RowLevelSecurity rowLevel,
             ManagedSchoolsCache managedSchools) {
         this.repository = repository;
@@ -69,6 +72,7 @@ public class SchoolService {
         this.departments = departments;
         this.educationLevels = educationLevels;
         this.wards = wards;
+        this.schoolTypes = schoolTypes;
         this.rowLevel = rowLevel;
     }
 
@@ -117,6 +121,9 @@ public class SchoolService {
         // được chạm tới vẫn gửi cả đối tượng lên.
         if (request.educationLevel() != null && request.educationLevel().id() != null) {
             school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
+        }
+        if (request.schoolType() != null && request.schoolType().id() != null) {
+            school.setSchoolType(schoolTypes.get(request.schoolType().id()));
         }
         String shortCode = trimToNull(request.shortCode());
         school.setShortCode(shortCode == null ? nextShortCode() : shortCode);
@@ -201,6 +208,10 @@ public class SchoolService {
             Long levelId = request.educationLevel().id();
             EducationLevel level = levelId == null ? null : educationLevels.get(levelId);
             school.setEducationLevel(level);
+        }
+        if (request.schoolType() != null) {
+            Long typeId = request.schoolType().id();
+            school.setSchoolType(typeId == null ? null : schoolTypes.get(typeId));
         }
         if (request.shortCode() != null) {
             school.setShortCode(trimToNull(request.shortCode()));
