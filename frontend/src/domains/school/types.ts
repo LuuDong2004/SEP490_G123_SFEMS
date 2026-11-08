@@ -35,6 +35,13 @@ export type School = {
     name: string;
     shortName: string | null;
   } | null;
+  /** Loại hình trường (Công lập, Dân lập, Tư thục) — danh mục `school_types`. */
+  schoolType: {
+    id: number;
+    code: string;
+    name: string;
+    shortName: string | null;
+  } | null;
   /**
    * Phường/xã, giờ là tham chiếu tới danh mục chứ không còn là chữ tự do.
    *
