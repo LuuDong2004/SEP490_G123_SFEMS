@@ -115,7 +115,7 @@ public final class SchoolSpecifications {
         String value = criterion.value();
         return switch (criterion.operator()) {
             case LIKE -> (root, query, cb) ->
-                    cb.like(cb.lower(root.get(attribute)), ListParams.likePattern(value));
+                    ListParams.foldedLike(cb, root.get(attribute), value);
             case NE -> (root, query, cb) -> cb.notEqual(root.get(attribute), value);
             default -> (root, query, cb) -> cb.equal(root.get(attribute), value);
         };
