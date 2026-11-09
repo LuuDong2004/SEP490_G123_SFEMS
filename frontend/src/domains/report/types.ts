@@ -49,7 +49,7 @@ export type AdequacyReport = {
 
 export type PurchaseReport = {
   scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
-  filters: { schools: { key: string; label: string }[]; years: { key: string; label: string }[]; statuses: { key: string; label: string }[] };
+  filters: { schools: { key: string; label: string }[]; years: { key: string; label: string }[]; equipment: { key: string; label: string }[]; statuses: { key: string; label: string }[] };
   summary: { proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number };
   rows: { key: string; name: string; schools: number; proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number }[];
 };

@@ -50,7 +50,8 @@ public class ReportController {
     @GetMapping("/purchase")
     @PreAuthorize("hasAuthority('reports:read')")
     public PurchaseReportResponse purchase(@RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Long schoolId, @RequestParam(required = false) String status) {
-        return purchaseReportService.get(year, schoolId, status);
+            @RequestParam(required = false) Long schoolId, @RequestParam(required = false) Long equipmentId,
+            @RequestParam(required = false) String status) {
+        return purchaseReportService.get(year, schoolId, equipmentId, status);
     }
 }
