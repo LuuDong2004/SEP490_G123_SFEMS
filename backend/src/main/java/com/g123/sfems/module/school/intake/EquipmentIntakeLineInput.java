@@ -56,5 +56,6 @@ public record EquipmentIntakeLineInput(
         @Size(max = 255, message = "Hãng sản xuất tối đa 255 ký tự")
         String manufacturer,
         @Size(max = 255, message = "Ghi chú tối đa 255 ký tự")
-        String note) {
+        String note,
+        IdRef movementReason) {
 }

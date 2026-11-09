@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.intake;
 
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.school.intake.EquipmentIntake.InspectionResult;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.voucher.VoucherRequest;
 import jakarta.validation.Valid;
@@ -35,6 +36,19 @@ public record EquipmentIntakeRequest(
         Integer warrantyMonths,
         @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
         String note,
+        @Size(max = 255, message = "Người giao tối đa 255 ký tự")
+        String deliverer,
+        @Size(max = 255, message = "Đại diện bên giao tối đa 255 ký tự")
+        String delivererRepresentative,
+        @Size(max = 255, message = "Người nhận tối đa 255 ký tự")
+        String receiver,
+        @Size(max = 255, message = "Chức vụ tối đa 255 ký tự")
+        String receiverPosition,
+        @Size(max = 255, message = "Thủ kho tối đa 255 ký tự")
+        String storekeeper,
+        InspectionResult inspectionResult,
+        @Size(max = 100, message = "Số biên bản tối đa 100 ký tự")
+        String handoverNo,
         @Size(max = 500, message = "Một phiếu tối đa 500 dòng")
         List<@Valid EquipmentIntakeLineInput> lines) implements VoucherRequest {
 }

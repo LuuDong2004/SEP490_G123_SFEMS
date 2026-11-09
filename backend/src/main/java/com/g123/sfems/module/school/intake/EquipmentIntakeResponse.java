@@ -5,6 +5,7 @@ import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.intake.EquipmentIntake.InspectionResult;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.school.voucher.VoucherHeader;
@@ -34,10 +35,21 @@ public record EquipmentIntakeResponse(
         RefSummary acquisitionMethod,
         RefSummary schoolYear,
         Integer warrantyMonths,
+        String deliverer,
+        String delivererRepresentative,
+        String receiver,
+        String receiverPosition,
+        String storekeeper,
+        InspectionResult inspectionResult,
+        String handoverNo,
         List<Line> lines,
         int lineCount,
         int totalReceived,
-        BigDecimal totalAmount) {
+        BigDecimal totalAmount,
+        /** Số hồ sơ tài sản sẽ sinh khi duyệt: từng cái thì mỗi cái một hồ sơ, theo lô thì một hồ sơ một dòng. */
+        int expectedAssets,
+        /** Số hồ sơ đã sinh (phiếu hoàn tất). */
+        int generatedCount) {
 
     /** Một dòng phiếu. {@code trackingType} và {@code unit} là của nhóm thiết bị, đi kèm để màn hình khỏi hỏi lại. */
     public record Line(
@@ -66,7 +78,8 @@ public record EquipmentIntakeResponse(
             Integer warrantyMonths,
             String model,
             String manufacturer,
-            String note) {
+            String note,
+            RefSummary movementReason) {
 
         static Line from(EquipmentIntakeLine line) {
             BigDecimal price = line.getUnitPrice();
@@ -81,7 +94,8 @@ public record EquipmentIntakeResponse(
                     line.getSupplier(), line.getDocumentNo(), line.getDocumentDate(),
                     line.getFundingSource(), line.getFundingNote(),
                     RefSummary.of(line.getAcquisitionMethod()), line.getAcquisitionNote(),
-                    line.getWarrantyMonths(), line.getModel(), line.getManufacturer(), line.getNote());
+                    line.getWarrantyMonths(), line.getModel(), line.getManufacturer(), line.getNote(),
+                    RefSummary.of(line.getMovementReason()));
         }
     }
 
@@ -107,8 +121,21 @@ public record EquipmentIntakeResponse(
                 RefSummary.of(item.getOriginSource()), item.getOriginNote(),
                 RefSummary.of(item.getAcquisitionMethod()), RefSummary.of(item.getSchoolYear()),
                 item.getWarrantyMonths(),
+                item.getDeliverer(), item.getDelivererRepresentative(), item.getReceiver(), item.getReceiverPosition(),
+                item.getStorekeeper(), item.getInspectionResult(), item.getHandoverNo(),
                 withLines ? lines.stream().map(Line::from).toList() : null,
-                lines.size(), received, total);
+                lines.size(), received, total,
+                lines.stream().mapToInt(EquipmentIntakeResponse::expectedAssets).sum(),
+                lines.stream().mapToInt(l -> l.getGeneratedCount() == null ? 0 : l.getGeneratedCount()).sum());
+    }
+
+    /** Số hồ sơ một dòng sẽ sinh khi duyệt — cùng phép với phần ghi tăng của service. */
+    static int expectedAssets(EquipmentIntakeLine line) {
+        int received = line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
+        if (received == 0) {
+            return 0;
+        }
+        return line.getCatalog().getTrackingType() == TrackingType.BULK ? 1 : received;
     }
 
     private static BigDecimal amount(EquipmentIntakeLine line) {

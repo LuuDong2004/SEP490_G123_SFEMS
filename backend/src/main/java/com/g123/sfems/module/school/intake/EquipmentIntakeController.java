@@ -3,8 +3,11 @@ package com.g123.sfems.module.school.intake;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.module.school.voucher.VoucherController;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,6 +22,13 @@ public class EquipmentIntakeController
 
     public EquipmentIntakeController(EquipmentIntakeService service, RowLevelSecurity rowLevel) {
         super(service, rowLevel);
+    }
+
+    /** Tài sản phiếu đã sinh khi ghi tăng (PN-03), theo mã. Ai xem được phiếu thì xem được danh sách này. */
+    @GetMapping("/{id}/assets")
+    public List<EquipmentIntakeService.WrittenUpAsset> assets(@PathVariable Long id) {
+        require("read");
+        return ((EquipmentIntakeService) service).writtenUpAssets(id);
     }
 
     @Override
