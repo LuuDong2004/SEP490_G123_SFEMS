@@ -23,6 +23,7 @@ import {
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
 import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
+import { SchoolList } from "@/features/organization/schools/list";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -136,7 +137,9 @@ export function AppRoutes() {
         {crudRoutes("/inventory-sessions", "inventory_sessions")}
 
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
-        {crudRoutes("/schools", "schools")}
+        {crudRoutes("/schools", "schools", {
+          list: <SchoolList />,
+        })}
         {crudRoutes("/rooms", "rooms")}
 
         {/* Danh mục dùng chung (DM-01 – DM-04). Trang lối vào `/catalogs` không có quyền riêng. */}
