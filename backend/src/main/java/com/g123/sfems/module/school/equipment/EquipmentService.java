@@ -495,9 +495,14 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (term.isEmpty()) {
             return List.of();
         }
-        Specification<Equipment> exact = (root, query, cb) -> cb.or(
-                cb.equal(cb.lower(root.get("code")), term),
-                cb.equal(cb.lower(root.get("legacyCode")), term));
+        // Mã đã bị thay (TS-05) chỉ còn trong lịch sử; tra theo đó để tem cũ vẫn tìm được thiết bị.
+        List<Long> byPastCode = historyRows.findEquipmentIdsByPastCode(term);
+        Specification<Equipment> exact = (root, query, cb) -> {
+            var current = cb.or(
+                    cb.equal(cb.lower(root.get("code")), term),
+                    cb.equal(cb.lower(root.get("legacyCode")), term));
+            return byPastCode.isEmpty() ? current : cb.or(current, root.get("id").in(byPastCode));
+        };
         return items.findAll(
                 scopes.<Equipment>scope(Equipment.class, com.g123.sfems.shared.security.rowlevel.Action.READ)
                         .and(exact));
