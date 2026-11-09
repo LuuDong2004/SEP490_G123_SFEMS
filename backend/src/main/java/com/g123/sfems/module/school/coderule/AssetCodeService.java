@@ -71,6 +71,9 @@ public class AssetCodeService {
      */
     @Transactional(readOnly = true)
     public int remaining(School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
+        if (missing(school, catalog).isPresent()) {
+            return 0;
+        }
         Bo bo = new Bo(school, catalog, type, year);
         return Math.max(0, MAX_NUMBER - nextNumber(school.getId(), bo) + 1);
     }
@@ -119,8 +122,12 @@ public class AssetCodeService {
             return Optional.of("trường chưa có mã viết tắt");
         }
         Subject subject = catalog.getSubject();
-        if (subject == null || subject.getSortOrder() == null) {
+        if (subject == null) {
             return Optional.of("nhóm thiết bị \"" + catalog.getName() + "\" chưa gắn môn học");
+        }
+        String teaching = subject.getTeachingCode();
+        if (teaching == null || !teaching.matches("\\d{2}")) {
+            return Optional.of("môn \"" + subject.getName() + "\" chưa có mã dạy học 2 chữ số");
         }
         return Optional.empty();
     }
@@ -168,7 +175,7 @@ public class AssetCodeService {
         Bo(School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
             this(PROVINCE,
                     school.getShortCode().toUpperCase(),
-                    String.format("%02d", catalog.getSubject().getSortOrder() / 10),
+                    catalog.getSubject().getTeachingCode(),
                     kind(type),
                     String.format("%02d", year % 100));
         }

@@ -79,6 +79,18 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
         return new NextCodeResponse(next.code(), next.reason());
     }
 
+    /**
+     * Tra cứu theo mã chuẩn hoặc mã cũ (TS-02). Trả mảng JSON trần như danh sách: thường 0 hoặc 1 phần tử;
+     * nhiều hơn chỉ khi hai hồ sơ trùng mã cũ. Hồ sơ ngoài phạm vi không xuất hiện.
+     */
+    @GetMapping("/lookup")
+    @PreAuthorize("hasAuthority('equipment:read')")
+    public List<EquipmentResponse> lookup(@RequestParam String code) {
+        return equipment.lookupByCode(code).stream()
+                .map(item -> EquipmentResponse.from(item, scopes))
+                .toList();
+    }
+
     /** Cấp mã chuẩn cho tài sản đang mang mã cũ; mã cũ giữ lại ở {@code legacyCode} để tra tem cũ. */
     @PostMapping("/{id}/standard-code")
     @PreAuthorize("hasAuthority('equipment:write')")
