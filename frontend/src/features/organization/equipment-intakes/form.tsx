@@ -1,38 +1,22 @@
-import { Plus, Trash2 } from "lucide-react";
-import { useFieldArray, useWatch, type Control } from "react-hook-form";
-
-import { AsyncCombobox } from "@/shared/components/form/async-combobox";
-import { MoneyInput } from "@/shared/components/form/money-input";
 import { DateField, SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { VoucherFormPage, type VoucherFieldsProps } from "@/shared/components/voucher/voucher-form-page";
-import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
+import { StepTitle, type ChecklistItem } from "@/shared/components/voucher/voucher-layout";
 import { todayLocal } from "@/shared/lib/format";
-import { Button } from "@/shared/ui/button";
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
-import { Input } from "@/shared/ui/input";
-import { formatVnd } from "@/features/organization/equipment-intakes/money";
-import { FUNDING_SOURCE_OPTIONS, type EquipmentIntake, type Ref } from "@/domains/equipment-intake/types";
+import { IntField, NO_REF, RefField, type RefValue } from "@/features/organization/equipment-intakes/fields";
+import { FROM_HEAD, LinesEditor, OPEN_LINE_EVENT, type CatalogValue, type LineForm } from "@/features/organization/equipment-intakes/lines-editor";
+import {
+  FUNDING_SOURCE_OPTIONS,
+  INSPECTION_RESULT_OPTIONS,
+  lineIssues,
+  type EquipmentIntake,
+  type Ref,
+} from "@/domains/equipment-intake/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type RefValue = { id: number | null; name?: string | null };
-
-const NO_REF: RefValue = { id: null };
-
-const NEW_LINE = {
-  catalog: NO_REF,
-  name: "",
-  documentQuantity: 1,
-  receivedQuantity: 1,
-  varianceReason: "",
-  unitPrice: null as number | null,
-  room: NO_REF,
-  model: "",
-  manufacturer: "",
-};
-
 const DEFAULTS = {
   intakeDate: todayLocal(),
+  deliverer: "",
   documentNo: "",
   documentDate: "",
   supplier: "",
@@ -41,19 +25,26 @@ const DEFAULTS = {
   originNote: "",
   acquisitionMethod: NO_REF,
   schoolYear: NO_REF,
-  warrantyMonths: "",
+  warrantyMonths: "" as number | "",
   note: "",
-  lines: [] as (typeof NEW_LINE)[],
+  delivererRepresentative: "",
+  receiver: "",
+  receiverPosition: "",
+  storekeeper: "",
+  inspectionResult: "",
+  handoverNo: "",
+  lines: [] as LineForm[],
 };
 
-const refOf = (r: Ref | null | undefined): RefValue => (r ? { id: r.id, name: r.name } : NO_REF);
-const idRef = (r: RefValue | null | undefined) => ({ id: r?.id ?? null });
+const refOf = (r: Ref | null | undefined): RefValue => (r ? { id: r.id, name: r.name, code: r.code } : NO_REF);
+const idRef = (r: RefValue | null | undefined) => (r?.id ? { id: r.id } : null);
 const textOrNull = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const numOrNull = (v: unknown) => (v === "" || v == null ? null : Number(v));
 
 function toForm(r: EquipmentIntake) {
   return {
     intakeDate: r.intakeDate ?? "",
+    deliverer: r.deliverer ?? "",
     documentNo: r.documentNo ?? "",
     documentDate: r.documentDate ?? "",
     supplier: r.supplier ?? "",
@@ -64,16 +55,34 @@ function toForm(r: EquipmentIntake) {
     schoolYear: refOf(r.schoolYear),
     warrantyMonths: r.warrantyMonths ?? "",
     note: r.note ?? "",
-    lines: (r.lines ?? []).map((l) => ({
-      catalog: refOf(l.catalog),
+    delivererRepresentative: r.delivererRepresentative ?? "",
+    receiver: r.receiver ?? "",
+    receiverPosition: r.receiverPosition ?? "",
+    storekeeper: r.storekeeper ?? "",
+    inspectionResult: r.inspectionResult ?? "",
+    handoverNo: r.handoverNo ?? "",
+    lines: (r.lines ?? []).map((l): LineForm => ({
+      catalog: {
+        id: l.catalog.id, name: l.catalog.name, code: l.catalog.code,
+        trackingType: l.trackingType, unit: l.unit ? { id: l.unit.id, name: l.unit.name } : null,
+        physicalOrDigital: l.physicalOrDigital,
+      } as CatalogValue,
       name: l.name ?? "",
+      physicalOrDigital: l.physicalOrDigital ?? "",
       documentQuantity: l.documentQuantity,
       receivedQuantity: l.receivedQuantity,
       varianceReason: l.varianceReason ?? "",
       unitPrice: l.unitPrice,
       room: refOf(l.room),
+      movementReason: refOf(l.movementReason),
+      supplier: l.supplier ?? "",
+      documentNo: l.documentNo ?? "",
+      documentDate: l.documentDate ?? "",
+      fundingSource: l.fundingSource ?? FROM_HEAD,
+      warrantyMonths: l.warrantyMonths ?? "",
       model: l.model ?? "",
       manufacturer: l.manufacturer ?? "",
+      note: l.note ?? "",
     })),
   };
 }
@@ -81,6 +90,7 @@ function toForm(r: EquipmentIntake) {
 function toPayload(v: typeof DEFAULTS) {
   return {
     intakeDate: v.intakeDate || null,
+    deliverer: textOrNull(v.deliverer),
     documentNo: textOrNull(v.documentNo),
     documentDate: v.documentDate || null,
     supplier: textOrNull(v.supplier),
@@ -91,185 +101,92 @@ function toPayload(v: typeof DEFAULTS) {
     schoolYear: idRef(v.schoolYear),
     warrantyMonths: numOrNull(v.warrantyMonths),
     note: textOrNull(v.note),
+    delivererRepresentative: textOrNull(v.delivererRepresentative),
+    receiver: textOrNull(v.receiver),
+    receiverPosition: textOrNull(v.receiverPosition),
+    storekeeper: textOrNull(v.storekeeper),
+    inspectionResult: v.inspectionResult || null,
+    handoverNo: textOrNull(v.handoverNo),
     lines: (v.lines ?? []).map((l) => ({
       catalog: idRef(l.catalog),
       name: textOrNull(l.name),
+      physicalOrDigital: l.physicalOrDigital || null,
       documentQuantity: numOrNull(l.documentQuantity),
       receivedQuantity: numOrNull(l.receivedQuantity),
-      varianceReason: textOrNull(l.varianceReason),
+      // Lý do lệch chỉ có nghĩa khi hai số khác nhau — ô bị ẩn thì không gửi chữ cũ còn sót.
+      varianceReason: Number(l.documentQuantity) !== Number(l.receivedQuantity) ? textOrNull(l.varianceReason) : null,
       unitPrice: l.unitPrice ?? null,
       room: idRef(l.room),
+      movementReason: idRef(l.movementReason),
+      supplier: textOrNull(l.supplier),
+      documentNo: textOrNull(l.documentNo),
+      documentDate: l.documentDate || null,
+      fundingSource: l.fundingSource && l.fundingSource !== FROM_HEAD ? l.fundingSource : null,
+      warrantyMonths: numOrNull(l.warrantyMonths),
       model: textOrNull(l.model),
       manufacturer: textOrNull(l.manufacturer),
+      note: textOrNull(l.note),
     })),
   };
 }
 
-/** Ô chọn một bản ghi danh mục; giá trị trên form là `{ id, name }`, gửi đi chỉ `{ id }`. */
-function RefField({ control, name, label, resource, placeholder, className, bare }: {
-  control: Control<any>;
-  name: string;
-  label: string;
-  resource: string;
-  placeholder?: string;
-  className?: string;
-  /** Không vẽ nhãn (ô nằm trong bảng dòng). */
-  bare?: boolean;
-}) {
-  return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <FormItem className={className}>
-          {bare ? null : <FormLabel>{label}</FormLabel>}
-          <FormControl>
-            <AsyncCombobox<{ id: number; code?: string | null; name: string }>
-              resource={resource}
-              value={field.value?.id ?? null}
-              fallbackLabel={field.value?.name}
-              onChange={(id) => field.onChange(id == null ? NO_REF : { id })}
-              onPick={(item) => field.onChange({ id: item.id, name: item.name })}
-              labelOf={(item) => (item.code ? `${item.code} · ${item.name}` : item.name)}
-              placeholder={placeholder ?? `Chọn ${label.toLowerCase()}`}
-            />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-function NumberCell({ control, name, min }: { control: Control<any>; name: string; min: number }) {
-  return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          <FormControl>
-            <Input type="number" min={min} inputMode="numeric" className="w-20 text-right tabular-nums"
-              value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? "" : Number(e.target.value))}
-              onBlur={field.onBlur} name={field.name} ref={field.ref} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-/** Một dòng thiết bị: nhóm, tên, số lượng chứng từ / thực nhận, đơn giá, phòng nhận. */
-function LineRow({ control, index, onRemove }: { control: Control<any>; index: number; onRemove: () => void }) {
-  const p = `lines.${index}`;
-  const [doc, recv, price] = useWatch({
-    control,
-    name: [`${p}.documentQuantity`, `${p}.receivedQuantity`, `${p}.unitPrice`],
-  }) as [number | "", number | "", number | null];
-  const differs = doc !== "" && recv !== "" && Number(doc) !== Number(recv);
-  const amount = price != null && recv !== "" ? price * Number(recv) : null;
-  return (
-    <div className="grid gap-3 border-t px-4 py-4 first:border-t-0">
-      <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-xs font-medium">Dòng {index + 1}</span>
-        <Button type="button" variant="ghost" size="icon-sm" title="Bỏ dòng này" onClick={onRemove}>
-          <Trash2 />
-        </Button>
-      </div>
-      <div className="grid items-start gap-3 @2xl:grid-cols-2">
-        <RefField control={control} name={`${p}.catalog`} label="Nhóm thiết bị" resource="equipment_catalogs" />
-        <TextField control={control} name={`${p}.name`} label="Tên trên chứng từ" placeholder="Trống = theo tên nhóm" />
-      </div>
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="grid gap-1">
-          <span className="text-sm font-medium">SL chứng từ</span>
-          <NumberCell control={control} name={`${p}.documentQuantity`} min={1} />
-        </div>
-        <div className="grid gap-1">
-          <span className="text-sm font-medium">SL thực nhận</span>
-          <NumberCell control={control} name={`${p}.receivedQuantity`} min={0} />
-        </div>
-        <FormField
-          control={control}
-          name={`${p}.unitPrice`}
-          render={({ field }) => (
-            <FormItem className="w-44">
-              <FormLabel>Đơn giá</FormLabel>
-              <FormControl>
-                <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid gap-1">
-          <span className="text-sm font-medium">Thành tiền</span>
-          <span className="flex h-9 items-center text-sm tabular-nums">{formatVnd(amount)}</span>
-        </div>
-      </div>
-      {differs ? (
-        <TextField control={control} name={`${p}.varianceReason`} label="Lý do chênh lệch"
-          placeholder="Số thực nhận khác chứng từ, ghi lý do" />
-      ) : null}
-      <div className="grid items-start gap-3 @2xl:grid-cols-3">
-        <RefField control={control} name={`${p}.room`} label="Phòng nhận" resource="rooms" placeholder="Trống = nhập kho" />
-        <TextField control={control} name={`${p}.model`} label="Model" />
-        <TextField control={control} name={`${p}.manufacturer`} label="Hãng sản xuất" />
-      </div>
-    </div>
-  );
-}
-
-function LinesEditor({ control }: { control: Control<any> }) {
-  const { fields, append, remove } = useFieldArray({ control, name: "lines" });
-  const lines = (useWatch({ control, name: "lines" }) ?? []) as { receivedQuantity: number | ""; unitPrice: number | null }[];
-  const total = lines.reduce((s, l) => s + (l.unitPrice != null && l.receivedQuantity !== "" ? l.unitPrice * Number(l.receivedQuantity) : 0), 0);
-  return (
-    <VoucherLinesCard>
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
-        <StepTitle title="Thiết bị nhập" aside={fields.length ? `${fields.length} dòng · ${formatVnd(total)}` : undefined} />
-        <Button type="button" variant="outline" size="sm" onClick={() => append({ ...NEW_LINE })}>
-          <Plus />
-          Thêm dòng
-        </Button>
-      </div>
-      <div className="@container border-t">
-        {fields.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-6 text-center text-sm">
-            Chưa có thiết bị nào. Bấm "Thêm dòng" để khai thiết bị nhập về.
-          </p>
-        ) : (
-          fields.map((f, i) => <LineRow key={f.id} control={control} index={i} onRemove={() => remove(i)} />)
-        )}
-      </div>
-    </VoucherLinesCard>
-  );
-}
-
-function HeadFields({ control }: VoucherFieldsProps) {
+function HeadFields({ control, setValue, watch }: VoucherFieldsProps) {
   return (
     <>
       <div className="grid items-start gap-x-4 gap-y-5 @2xl:grid-cols-2 @4xl:grid-cols-3">
         <DateField control={control} name="intakeDate" label="Ngày nhập" />
-        <TextField control={control} name="supplier" label="Nhà cung cấp" />
+        <TextField control={control} name="deliverer" label="Người giao" />
         <RefField control={control} name="schoolYear" label="Năm học" resource="school_years" />
-        <TextField control={control} name="documentNo" label="Số chứng từ" placeholder="Hoá đơn, hợp đồng, biên bản" />
-        <DateField control={control} name="documentDate" label="Ngày chứng từ" />
-        <SelectField control={control} name="fundingSource" label="Nguồn kinh phí" options={FUNDING_SOURCE_OPTIONS} />
         <RefField control={control} name="originSource" label="Nguồn hình thành" resource="origin_sources" />
-        <RefField control={control} name="acquisitionMethod" label="Phương thức hình thành" resource="acquisition_methods" />
-        <TextField control={control} name="warrantyMonths" label="Bảo hành (tháng)" type="number" />
+        <RefField control={control} name="acquisitionMethod" label="Hình thức mua sắm" resource="acquisition_methods" />
+        <SelectField control={control} name="fundingSource" label="Nguồn kinh phí" options={FUNDING_SOURCE_OPTIONS}
+          description="Áp cho các dòng không khai riêng" />
+        <TextField control={control} name="supplier" label="Nhà cung cấp" />
+        <TextField control={control} name="documentNo" label="Số hoá đơn, hợp đồng" />
+        <DateField control={control} name="documentDate" label="Ngày hoá đơn" />
+        <IntField control={control} name="warrantyMonths" label="Bảo hành (tháng)" min={0} max={600} />
       </div>
       <TextareaField control={control} name="note" label="Ghi chú" rows={2} />
-      <LinesEditor control={control} />
+
+      <div className="grid gap-4 border-t pt-4">
+        <StepTitle title="Biên bản giao nhận" hint="Không bắt buộc, trừ người giao ở trên" />
+        <div className="grid items-start gap-x-4 gap-y-5 @2xl:grid-cols-2 @4xl:grid-cols-3">
+          <TextField control={control} name="handoverNo" label="Số biên bản" />
+          <TextField control={control} name="delivererRepresentative" label="Đại diện bên giao" />
+          <SelectField control={control} name="inspectionResult" label="Kết quả kiểm tra" options={INSPECTION_RESULT_OPTIONS} />
+          <TextField control={control} name="receiver" label="Người nhận" />
+          <TextField control={control} name="receiverPosition" label="Chức vụ người nhận" />
+          <TextField control={control} name="storekeeper" label="Thủ kho" />
+        </div>
+      </div>
+
+      <LinesEditor control={control} setValue={setValue} getValues={(n?: any) => (n ? watch(n) : watch())} />
     </>
   );
 }
 
-const REQUIRED = [{ name: "intakeDate", label: "Ngày nhập" }];
+const REQUIRED = [
+  { name: "intakeDate", label: "Ngày nhập" },
+  { name: "deliverer", label: "Người giao" },
+];
 
-/** Lập / sửa phiếu nhập thiết bị (PN-01). */
+/** Mỗi dòng còn thiếu gì — mục bấm được, mở đúng dòng. Cùng luật với máy chủ lúc trình. */
+function lineChecks(values: Record<string, any>): ChecklistItem[] {
+  const lines = (values.lines ?? []) as LineForm[];
+  return lines.flatMap((l, i) => {
+    const issues = lineIssues(l, l.catalog ?? undefined, values.fundingSource);
+    if (!issues.length) return [];
+    return [{
+      key: `line:${i}`,
+      label: `Dòng ${i + 1}: ${issues[0]}`,
+      hint: issues.length > 1 ? `và ${issues.length - 1} mục khác` : (l.name || l.catalog?.name || undefined),
+      ok: false,
+      onClick: () => window.dispatchEvent(new CustomEvent(OPEN_LINE_EVENT, { detail: i })),
+    }];
+  });
+}
+
+/** Lập / sửa phiếu nhập thiết bị (PN-01, PN-02). */
 export function EquipmentIntakeForm({ mode }: { mode: "create" | "edit" }) {
   return (
     <VoucherFormPage
@@ -278,6 +195,7 @@ export function EquipmentIntakeForm({ mode }: { mode: "create" | "edit" }) {
       toForm={toForm}
       toPayload={toPayload}
       required={REQUIRED}
+      checks={lineChecks}
     >
       {(props) => <HeadFields {...props} />}
     </VoucherFormPage>

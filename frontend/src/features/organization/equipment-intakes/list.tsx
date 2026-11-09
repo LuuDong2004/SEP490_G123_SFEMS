@@ -16,6 +16,12 @@ const COLUMNS: ColumnDef<EquipmentIntake, any>[] = [
     cell: ({ row }) => <span className="tabular-nums">{formatDate(row.original.intakeDate)}</span>,
   },
   {
+    id: "deliverer",
+    header: "Người giao",
+    enableSorting: false,
+    cell: ({ row }) => row.original.deliverer ?? <span className="text-muted-foreground">{EMPTY}</span>,
+  },
+  {
     id: "supplier",
     accessorKey: "supplier",
     header: "Nhà cung cấp",
