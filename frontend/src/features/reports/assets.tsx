@@ -12,6 +12,7 @@ import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 
 const ALL = "__all__";
 const today = new Date().toISOString().slice(0, 10);
@@ -88,12 +89,23 @@ export function AssetsReport() {
   ] : [];
   const exportData = {
     filename: "bao-cao-tai-san-thiet-bi",
-    headers: ["Mã thiết bị", "Tên thiết bị", "Trường", "Môn học", "Loại thiết bị", "Trạng thái", "Nguồn hình thành", "Tình trạng", "Số lượng", "Nguyên giá", "Ngày ghi tăng"],
+    title: "Báo cáo tài sản thiết bị",
+    subtitle: `${report ? `${report.fromDate} — ${report.toDate}` : ""} · ${visibleRows.length} thiết bị`,
+    columns: [
+      { label: "Mã thiết bị", type: "text" as const }, { label: "Tên thiết bị", type: "text" as const },
+      { label: "Trường", type: "text" as const }, { label: "Môn học", type: "text" as const },
+      { label: "Loại thiết bị", type: "text" as const }, { label: "Trạng thái", type: "text" as const },
+      { label: "Nguồn hình thành", type: "text" as const }, { label: "Tình trạng", type: "text" as const },
+      { label: "Số lượng", type: "number" as const }, { label: "Nguyên giá", type: "money" as const },
+      { label: "Ngày ghi tăng", type: "date" as const },
+    ],
     rows: visibleRows.map((row) => [row.code, row.name, row.schoolName, row.subjectName, row.equipmentTypeName,
       row.statusLabel, row.originName, row.condition, row.quantity, row.originalValue, row.receivedDate]),
   };
 
   return <main className="space-y-5 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={scopeName} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-5 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-muted-foreground text-sm">{scopeName}</p>
@@ -157,5 +169,6 @@ export function AssetsReport() {
         </CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }

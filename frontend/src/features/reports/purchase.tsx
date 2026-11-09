@@ -7,6 +7,7 @@ import { ChartCard, GroupedBars } from "@/shared/components/charts/charts";
 import { kyInstance } from "@/shared/api/data";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
@@ -57,12 +58,22 @@ export function PurchaseReportPage() {
   }), { schools: 0, proposals: 0, pending: 0, approved: 0, planned: 0, quantity: 0, receivedQuantity: 0, amount: 0, approvedAmount: 0 });
   const exportData = {
     filename: "bao-cao-nhu-cau-va-ke-hoach-mua-sam",
-    headers: ["Trường / cơ quan quản lý", "Số trường", "Số đề xuất", "Chờ duyệt", "Đã duyệt", "Đã vào kế hoạch", "Số lượng đề xuất", "Số đã nhập về", "Dự toán (đ)", "Dự toán đã duyệt (đ)"],
+    title: "Nhu cầu và kế hoạch mua sắm",
+    subtitle: `Năm ngân sách ${selectedYearLabel} · ${visibleRows.length} đơn vị`,
+    columns: [
+      { label: "Trường / cơ quan quản lý", type: "text" as const }, { label: "Số trường", type: "number" as const },
+      { label: "Số đề xuất", type: "number" as const }, { label: "Chờ duyệt", type: "number" as const },
+      { label: "Đã duyệt", type: "number" as const }, { label: "Đã vào kế hoạch", type: "number" as const },
+      { label: "Số lượng đề xuất", type: "number" as const }, { label: "Số đã nhập về", type: "number" as const },
+      { label: "Dự toán (đ)", type: "money" as const }, { label: "Dự toán đã duyệt (đ)", type: "money" as const },
+    ],
     rows: visibleRows.map((row) => [row.name, row.schools, row.proposals, row.pending, row.approved, row.planned,
       row.quantity, row.receivedQuantity, row.amount, row.approvedAmount]),
   };
 
   return <main className="space-y-4 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={report.scope === "SCHOOL" ? "Trường của bạn" : report.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><p className="text-muted-foreground text-sm">{report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Nhu cầu và kế hoạch mua sắm</h1>
@@ -118,6 +129,7 @@ export function PurchaseReportPage() {
         </TableBody></Table></CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }
 

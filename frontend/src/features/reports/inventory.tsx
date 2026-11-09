@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 
 const ALL = "__all__";
 const count = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 });
@@ -36,13 +37,24 @@ export function InventoryReportPage() {
   const scope = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
   const exportData = {
     filename: "bao-cao-ket-qua-kiem-ke",
-    headers: ["Số phiếu", "Đợt kiểm kê", "Trường", "Ngày kiểm kê", "Trạng thái", "Số thiết bị theo sổ", "Số khớp", "Số thiếu", "Số thừa", "Số hỏng", "Sai vị trí", "Giá trị chênh lệch ước tính (đ)"],
+    title: "Báo cáo kết quả kiểm kê",
+    subtitle: `${visibleRows.length} phiếu kiểm kê · Lọc theo đợt kiểm kê và trường`,
+    columns: [
+      { label: "Số phiếu", type: "text" as const }, { label: "Đợt kiểm kê", type: "text" as const },
+      { label: "Trường", type: "text" as const }, { label: "Ngày kiểm kê", type: "date" as const },
+      { label: "Trạng thái", type: "text" as const }, { label: "Số thiết bị theo sổ", type: "number" as const },
+      { label: "Số khớp", type: "number" as const }, { label: "Số thiếu", type: "number" as const },
+      { label: "Số thừa", type: "number" as const }, { label: "Số hỏng", type: "number" as const },
+      { label: "Sai vị trí", type: "number" as const }, { label: "Giá trị chênh lệch ước tính (đ)", type: "money" as const },
+    ],
     rows: visibleRows.map((row) => [row.code, row.campaign, row.school, row.inventoryDate, row.statusLabel,
       row.bookQuantity, row.matchedQuantity, row.shortageQuantity, row.surplusQuantity, row.damagedQuantity,
       row.wrongLocationQuantity, row.discrepancyValue]),
   };
 
   return <main className="space-y-4 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={scope} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-muted-foreground text-sm">{scope}</p>
@@ -98,6 +110,7 @@ export function InventoryReportPage() {
         </CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }
 

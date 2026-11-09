@@ -1,12 +1,16 @@
 import { useCan } from "@refinedev/core";
 import { ChevronDown, Download, FileSpreadsheet, Printer } from "lucide-react";
 
+import { kyInstance } from "@/shared/api/data";
 import { Button } from "@/shared/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 
+export type ReportExportColumn = { label: string; type: "text" | "number" | "money" | "date" };
 export type ReportExportData = {
   filename: string;
-  headers: string[];
+  title: string;
+  subtitle: string;
+  columns: ReportExportColumn[];
   rows: (string | number | null | undefined)[][];
 };
 
@@ -14,20 +18,20 @@ export function ReportExportMenu({ data }: { data: ReportExportData }) {
   const mayExport = useCan({ resource: "reports", action: "export" }).data?.can ?? false;
   if (!mayExport) return null;
 
-  const exportCsv = () => {
-    const escape = (value: string | number | null | undefined) => {
-      const text = value == null ? "" : String(value);
-      return `"${text.replace(/"/g, '""')}"`;
-    };
-    const content = "\uFEFF" + [data.headers, ...data.rows]
-      .map((row) => row.map(escape).join(","))
-      .join("\r\n");
-    const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${data.filename}.csv`;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const exportXlsx = async () => {
+    try {
+      const response = await kyInstance.post("reports/export-xlsx", { json: data });
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${data.filename}.xlsx`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Không thể xuất báo cáo Excel", error);
+      window.alert("Không thể xuất báo cáo Excel. Vui lòng thử lại hoặc kiểm tra quyền xuất báo cáo.");
+    }
   };
 
   return (
@@ -38,7 +42,7 @@ export function ReportExportMenu({ data }: { data: ReportExportData }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem onSelect={exportCsv}><FileSpreadsheet /> CSV / Excel (.csv)</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void exportXlsx()}><FileSpreadsheet /> Excel (.xlsx)</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => window.print()}><Printer /> In / Lưu PDF</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

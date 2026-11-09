@@ -6,6 +6,7 @@ import type { AdequacyReport } from "@/domains/report/types";
 import { ChartCard, DonutBreakdown, GroupedBars } from "@/shared/components/charts/charts";
 import { kyInstance } from "@/shared/api/data";
 import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -52,14 +53,26 @@ export function AdequacyReportPage() {
   const bands = (report?.distribution ?? []).map((band) => ({ key: band.key, label: band.label, count: band.count }));
   const lowest = [...(report?.rows ?? [])].filter((row) => row.percent != null).sort((a, b) => a.percent! - b.percent!).slice(0, 10)
     .map((row) => ({ school: row.schoolName, percent: row.percent ?? 0 }));
+  const scope = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
   const exportData = {
     filename: "bao-cao-dap-ung-danh-muc-toi-thieu",
-    headers: ["Mã trường", "Trường", "Cấp học", "Số định mức", "Đã đạt", "Chưa tính", "Định mức thiếu", "Thiết bị thiếu", "Định mức thừa", "Thiết bị thừa", "Tỷ lệ đạt (%)"],
+    title: "Đáp ứng danh mục thiết bị tối thiểu",
+    subtitle: `${visibleRows.length} trường · Lọc theo môn học, khối lớp và loại thiết bị`,
+    columns: [
+      { label: "Mã trường", type: "text" as const }, { label: "Trường", type: "text" as const },
+      { label: "Cấp học", type: "text" as const }, { label: "Số định mức", type: "number" as const },
+      { label: "Đã đạt", type: "number" as const }, { label: "Chưa tính", type: "number" as const },
+      { label: "Định mức thiếu", type: "number" as const }, { label: "Thiết bị thiếu", type: "number" as const },
+      { label: "Định mức thừa", type: "number" as const }, { label: "Thiết bị thừa", type: "number" as const },
+      { label: "Tỷ lệ đạt (%)", type: "number" as const },
+    ],
     rows: visibleRows.map((row) => [row.schoolCode, row.schoolName, row.educationLevel, row.norms, row.met,
       row.unknown, row.shortageNorms, row.shortageTotal, row.surplusNorms, row.surplusTotal, row.percent]),
   };
 
   return <main className="space-y-4 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={scope} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><p className="text-muted-foreground text-sm">{report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Đáp ứng danh mục thiết bị tối thiểu</h1>
@@ -108,6 +121,7 @@ export function AdequacyReportPage() {
         </TableBody></Table></CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }
 

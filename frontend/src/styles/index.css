@@ -579,6 +579,34 @@
   }
 }
 
+@page reports {
+  size: A4 landscape;
+  margin: 13mm 12mm;
+}
+
+@media print {
+  .report-print-sheet {
+    page: reports;
+    break-inside: auto !important;
+  }
+
+  .report-print-table {
+    break-inside: auto !important;
+  }
+
+  .report-print-table tr {
+    break-inside: avoid !important;
+  }
+
+  .report-print-table thead {
+    display: table-header-group;
+  }
+
+  .report-print-signatures {
+    break-inside: avoid;
+  }
+}
+
 /* Đường nối của trang Quy trình: nét đứt chạy dọc đường theo hướng luồng. */
 @keyframes flow-dash {
   to {
