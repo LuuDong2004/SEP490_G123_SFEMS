@@ -1,6 +1,7 @@
 package com.g123.sfems.module.organization.school.api.dto;
 
 import com.g123.sfems.domain.organization.DepartmentSource;
+import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.organization.OrgStatus;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -23,6 +24,7 @@ public record SchoolResponse(
          */
         DepartmentSource departmentSource,
         EducationLevelSummary educationLevel,
+        SchoolTypeSummary schoolType,
         WardSummary ward,
         String wardText,
         String district,
@@ -44,7 +46,7 @@ public record SchoolResponse(
      * vậy nới rộng payload của endpoint Sở không lặng lẽ nới rộng payload của
      * endpoint trường.
      */
-    public record DepartmentSummary(Long id, String code, String name) {
+    public record DepartmentSummary(Long id, String code, String name, ManagingBodyType type) {
     }
 
     /**
@@ -61,6 +63,10 @@ public record SchoolResponse(
     public record EducationLevelSummary(Long id, String code, String name, String shortName) {
     }
 
+    /** Loại hình trường, rút gọn. Cùng lý do như trên. */
+    public record SchoolTypeSummary(Long id, String code, String name, String shortName) {
+    }
+
     /** Không kèm cờ dòng — dùng cho tiếng vọng của bản ghi vừa xoá. */
     public static SchoolResponse from(School school) {
         return from(school, null);
@@ -70,6 +76,7 @@ public record SchoolResponse(
         var department = school.getDepartmentOfEducation();
         var level = school.getEducationLevel();
         var ward = school.getWard();
+        var type = school.getSchoolType();
         return new SchoolResponse(
                 school.getId(),
                 school.getCode(),
@@ -79,12 +86,15 @@ public record SchoolResponse(
                 department == null
                         ? null
                         : new DepartmentSummary(
-                                department.getId(), department.getCode(), department.getName()),
+                                department.getId(), department.getCode(), department.getName(),
+                                department.getType()),
                 school.getDepartmentSource(),
                 level == null
                         ? null
                         : new EducationLevelSummary(
                                 level.getId(), level.getCode(), level.getName(), level.getShortName()),
+                type == null ? null
+                        : new SchoolTypeSummary(type.getId(), type.getCode(), type.getName(), type.getShortName()),
                 ward == null ? null : new WardSummary(ward.getId(), ward.getCode(), ward.getName()),
                 school.getWardText(),
                 school.getDistrict(),
