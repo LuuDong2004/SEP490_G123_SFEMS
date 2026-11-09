@@ -29,7 +29,8 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import { SchoolList } from "@/features/organization/schools/list";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -149,7 +150,9 @@ export function AppRoutes() {
         })}
 
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
-        {crudRoutes("/schools", "schools")}
+        {crudRoutes("/schools", "schools", {
+          list: <SchoolList />,
+        })}
         {crudRoutes("/rooms", "rooms")}
 
         {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
