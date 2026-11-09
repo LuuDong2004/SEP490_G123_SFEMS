@@ -22,7 +22,8 @@ public class PurchaseReportService {
     }
 
     @Transactional(readOnly = true)
-    public PurchaseReportResponse get(Integer requestedYear, Long requestedSchoolId, String requestedStatus) {
+    public PurchaseReportResponse get(Integer requestedYear, Long requestedSchoolId, Long requestedEquipmentId,
+            String requestedStatus) {
         int year = requestedYear == null ? LocalDate.now().getYear() : requestedYear;
         String status = requestedStatus != null && STATUSES.contains(requestedStatus) ? requestedStatus : null;
         String scope = visible.level();
@@ -33,8 +34,15 @@ public class PurchaseReportService {
         List<Object> args = new java.util.ArrayList<>();
         args.add(year);
         if (requestedSchoolId != null) { where += " AND p.school_id = ?"; args.add(requestedSchoolId); }
+        if (requestedEquipmentId != null) {
+            where += " AND EXISTS (SELECT 1 FROM purchase_proposal_lines f WHERE f.proposal_id = p.id AND f.catalog_id = "
+                    + requestedEquipmentId + ")";
+        }
         if (status == null) where += " AND p.status IN ('PENDING','APPROVED','COMPLETED')";
         else { where += " AND p.status = ?"; args.add(status); }
+
+        String equipmentJoinFilter = requestedEquipmentId == null ? "" : " AND l.catalog_id = " + requestedEquipmentId;
+        String receivedEquipmentFilter = requestedEquipmentId == null ? "" : " AND il.catalog_id = " + requestedEquipmentId;
 
         String proposalTotals = "WITH proposal_totals AS (SELECT p.id, p.school_id, p.status, p.plan_id, "
                 + "COALESCE(SUM(l.quantity),0) AS quantity, "
@@ -42,8 +50,8 @@ public class PurchaseReportService {
                 + "COALESCE((SELECT SUM(il.received_quantity) FROM equipment_intakes i "
                 + "JOIN equipment_intake_lines il ON il.intake_id = i.id "
                 + "WHERE (i.id = p.intake_id OR (i.source_resource = 'purchase_proposals' AND i.source_id = p.id)) "
-                + "AND i.status = 'COMPLETED'),0) AS received_quantity "
-                + "FROM purchase_proposals p LEFT JOIN purchase_proposal_lines l ON l.proposal_id = p.id"
+                + "AND i.status = 'COMPLETED'" + receivedEquipmentFilter + "),0) AS received_quantity "
+                + "FROM purchase_proposals p LEFT JOIN purchase_proposal_lines l ON l.proposal_id = p.id" + equipmentJoinFilter
                 + where + " GROUP BY p.id, p.intake_id) ";
         String select = "SELECT CAST(" + groupKey + " AS text), " + groupName
                 + ", COUNT(DISTINCT p.school_id), COUNT(p.id),"
@@ -75,6 +83,11 @@ public class PurchaseReportService {
         List<PurchaseReportResponse.Option> years = jdbc.query("SELECT DISTINCT p.budget_year FROM purchase_proposals p "
                         + "WHERE p.budget_year IS NOT NULL " + visible.sqlFilter("p.school_id") + " ORDER BY p.budget_year DESC",
                 (rs, n) -> new PurchaseReportResponse.Option(String.valueOf(rs.getInt(1)), String.valueOf(rs.getInt(1))));
+        List<PurchaseReportResponse.Option> equipment = jdbc.query("SELECT DISTINCT c.id, c.name "
+                        + "FROM equipment_catalogs c JOIN purchase_proposal_lines l ON l.catalog_id = c.id "
+                        + "JOIN purchase_proposals p ON p.id = l.proposal_id "
+                        + "WHERE c.active " + visible.sqlFilter("p.school_id") + "ORDER BY c.name",
+                (rs, n) -> new PurchaseReportResponse.Option(String.valueOf(rs.getLong(1)), rs.getString(2)));
         if (years.stream().noneMatch(option -> option.key().equals(String.valueOf(year)))) {
             years = new java.util.ArrayList<>(years);
             years.add(new PurchaseReportResponse.Option(String.valueOf(year), String.valueOf(year)));
@@ -87,7 +100,7 @@ public class PurchaseReportService {
                 new PurchaseReportResponse.Option("DRAFT", "Bản nháp"),
                 new PurchaseReportResponse.Option("REJECTED", "Từ chối"),
                 new PurchaseReportResponse.Option("CANCELLED", "Đã hủy"));
-        return new PurchaseReportResponse(scope, new PurchaseReportResponse.Filters(schools, years, statuses),
+        return new PurchaseReportResponse(scope, new PurchaseReportResponse.Filters(schools, years, equipment, statuses),
                 new PurchaseReportResponse.Summary(proposals, pending, approved, planned, quantity, receivedQuantity, amount, approvedAmount), rows);
     }
 

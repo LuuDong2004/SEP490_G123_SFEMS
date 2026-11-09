@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Banknote, CheckCircle2, FileCheck2, PackageCheck, RefreshCw, ShoppingCart } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
@@ -6,6 +6,8 @@ import type { PurchaseReport } from "@/domains/report/types";
 import { ChartCard, GroupedBars } from "@/shared/components/charts/charts";
 import { kyInstance } from "@/shared/api/data";
 import { usePerspective } from "@/shared/hooks/use-perspective";
+import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
@@ -15,29 +17,63 @@ const ALL = "all";
 const count = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
 const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 const compactMoney = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/đ/g, "d");
 
 export function PurchaseReportPage() {
   const { perspective } = usePerspective();
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [school, setSchool] = useState(ALL);
+  const [equipment, setEquipment] = useState(ALL);
   const [status, setStatus] = useState(ALL);
+  const [search, setSearch] = useState("");
   const query = useQuery({
-    queryKey: ["reports", "purchase", year, school, status],
+    queryKey: ["reports", "purchase", year, school, equipment, status],
     queryFn: () => kyInstance.get("reports/purchase", { searchParams: {
       year,
       ...(school !== ALL ? { schoolId: school } : {}),
+      ...(equipment !== ALL ? { equipmentId: equipment } : {}),
       ...(status !== ALL ? { status } : {}),
     } }).json<PurchaseReport>(),
+    placeholderData: keepPreviousData,
   });
   const report = query.data;
+  const searchTerm = fold(search.trim());
+  const visibleRows = (report?.rows ?? []).filter((row) => !searchTerm || fold(row.name).includes(searchTerm));
   const amountChart = (report?.rows ?? []).slice(0, 12).map((row) => ({
     name: row.name,
     requested: Number(row.amount) / 1_000_000,
     approved: Number(row.approvedAmount) / 1_000_000,
   }));
   const selectedYearLabel = report?.filters.years.find((option) => option.key === year)?.label ?? year;
+  const visibleTotals = visibleRows.reduce((totals, row) => ({
+    schools: totals.schools + row.schools,
+    proposals: totals.proposals + row.proposals,
+    pending: totals.pending + row.pending,
+    approved: totals.approved + row.approved,
+    planned: totals.planned + row.planned,
+    quantity: totals.quantity + row.quantity,
+    receivedQuantity: totals.receivedQuantity + row.receivedQuantity,
+    amount: totals.amount + row.amount,
+    approvedAmount: totals.approvedAmount + row.approvedAmount,
+  }), { schools: 0, proposals: 0, pending: 0, approved: 0, planned: 0, quantity: 0, receivedQuantity: 0, amount: 0, approvedAmount: 0 });
+  const exportData = {
+    filename: "bao-cao-nhu-cau-va-ke-hoach-mua-sam",
+    title: "Nhu cầu và kế hoạch mua sắm",
+    subtitle: `Năm ngân sách ${selectedYearLabel} · ${visibleRows.length} đơn vị`,
+    columns: [
+      { label: "Trường / cơ quan quản lý", type: "text" as const }, { label: "Số trường", type: "number" as const },
+      { label: "Số đề xuất", type: "number" as const }, { label: "Chờ duyệt", type: "number" as const },
+      { label: "Đã duyệt", type: "number" as const }, { label: "Đã vào kế hoạch", type: "number" as const },
+      { label: "Số lượng đề xuất", type: "number" as const }, { label: "Số đã nhập về", type: "number" as const },
+      { label: "Dự toán (đ)", type: "money" as const }, { label: "Dự toán đã duyệt (đ)", type: "money" as const },
+    ],
+    rows: visibleRows.map((row) => [row.name, row.schools, row.proposals, row.pending, row.approved, row.planned,
+      row.quantity, row.receivedQuantity, row.amount, row.approvedAmount]),
+  };
 
   return <main className="space-y-4 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={report.scope === "SCHOOL" ? "Trường của bạn" : report.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><p className="text-muted-foreground text-sm">{report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"}</p>
         <h1 className="text-2xl font-semibold tracking-tight">Nhu cầu và kế hoạch mua sắm</h1>
@@ -46,19 +82,19 @@ export function PurchaseReportPage() {
       <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw className="mr-2 size-4" />Làm mới</Button>
     </header>
 
-    <Card><CardContent className={`grid grid-cols-2 items-end gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:gap-2 ${perspective === "school" ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
-      <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">Năm ngân sách
-        <div className="flex min-w-0 items-center gap-1"><Button variant="outline" size="icon" className="size-9 shrink-0" aria-label="Năm trước" onClick={() => setYear(String(Number(year) - 1))}>‹</Button>
-          <Select value={year} onValueChange={setYear}><SelectTrigger className="h-9 min-w-0 flex-1"><SelectValue placeholder={selectedYearLabel} /></SelectTrigger><SelectContent>{(report?.filters.years ?? [{ key: year, label: year }]).map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent></Select>
-          <Button variant="outline" size="icon" className="size-9 shrink-0" aria-label="Năm sau" onClick={() => setYear(String(Number(year) + 1))}>›</Button>
-        </div>
-      </label>
-      {perspective !== "school" && <OptionFilter label="Trường" value={school} onChange={setSchool} options={report?.filters.schools ?? []} />}
-      <OptionFilter label="Trạng thái duyệt" value={status} onChange={setStatus} options={report?.filters.statuses ?? []} />
-      <Button className="h-9" variant="ghost" onClick={() => { setYear(String(new Date().getFullYear())); setSchool(ALL); setStatus(ALL); }}>Xóa lọc</Button>
-    </CardContent></Card>
+      <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc cơ quan quản lý"
+      exportData={exportData}
+      onReset={() => { setYear(String(new Date().getFullYear())); setSchool(ALL); setEquipment(ALL); setStatus(ALL); setSearch(""); }}
+      filters={<>
+          <Select value={year} onValueChange={setYear}><SelectTrigger aria-label="Năm ngân sách" className="h-9 w-24 rounded-full px-3 text-xs"><SelectValue placeholder={selectedYearLabel} /></SelectTrigger><SelectContent>{(report?.filters.years ?? [{ key: year, label: year }]).map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent></Select>
+          {perspective !== "school" && <OptionFilter label="Mọi trường" value={school} onChange={setSchool} options={report?.filters.schools ?? []} className="w-36" />}
+          <OptionFilter label="Mọi thiết bị" value={equipment} onChange={setEquipment} options={report?.filters.equipment ?? []} className="w-36" />
+          <OptionFilter label="Mọi trạng thái" value={status} onChange={setStatus} options={report?.filters.statuses ?? []} className="w-32" />
+      </>} />
 
-    {query.isError && <Card className="border-destructive/40"><CardContent className="py-5 text-sm text-destructive-text">Không tải được báo cáo nhu cầu mua sắm. Hãy tải lại trang hoặc kiểm tra quyền truy cập.</CardContent></Card>}
+    {query.isError && !report && <Card className="border-destructive/40"><CardContent className="py-5 text-sm text-destructive-text">Không tải được báo cáo nhu cầu mua sắm. Hãy tải lại trang hoặc kiểm tra quyền truy cập.</CardContent></Card>}
+    {query.isError && report && <p className="text-sm text-destructive-text" role="status">Không cập nhật được bộ lọc mới. Đang giữ kết quả trước đó.</p>}
+    {query.isFetching && report && <p className="text-muted-foreground text-xs" role="status">Đang cập nhật số liệu theo bộ lọc…</p>}
     {report && <>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi icon={<ShoppingCart />} label="Đề xuất" value={count.format(report.summary.proposals)} detail={`${count.format(report.summary.pending)} chờ duyệt`} />
@@ -83,25 +119,24 @@ export function PurchaseReportPage() {
         </ChartCard>
       </section>
 
-      <Card><CardHeader><CardTitle className="text-base">Số liệu chi tiết</CardTitle><p className="text-muted-foreground text-xs">{report.rows.length} nhóm · năm ngân sách {selectedYearLabel}</p></CardHeader>
+      <Card><CardHeader><CardTitle className="text-base">Số liệu chi tiết</CardTitle><p className="text-muted-foreground text-xs">{visibleRows.length} nhóm đang hiển thị · năm ngân sách {selectedYearLabel}</p></CardHeader>
         <CardContent className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><TableRow>
           <TableHead>{report.scope === "SCHOOL" ? "Trường" : "Cơ quan quản lý (địa bàn)"}</TableHead><TableHead className="text-right">Số trường</TableHead><TableHead className="text-right">Số đề xuất</TableHead><TableHead className="text-right">Chờ duyệt</TableHead><TableHead className="text-right">Đã duyệt</TableHead><TableHead className="text-right">Đã vào kế hoạch</TableHead><TableHead className="text-right">Số lượng đề xuất</TableHead><TableHead className="text-right">Số đã nhập về</TableHead><TableHead className="text-right">Dự toán (đ)</TableHead><TableHead className="text-right">Dự toán đã duyệt (đ)</TableHead>
         </TableRow></TableHeader><TableBody>
-          {report.rows.length ? <>{report.rows.map((row) => <TableRow key={row.key}>
+          {visibleRows.length ? <>{visibleRows.map((row) => <TableRow key={row.key}>
             <TableCell className="font-medium">{row.name}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.schools)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.proposals)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.pending)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.approved)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.planned)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.quantity)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.receivedQuantity)}</TableCell><TableCell className="text-right tabular-nums">{money.format(row.amount)}</TableCell><TableCell className="text-right tabular-nums">{money.format(row.approvedAmount)}</TableCell>
-          </TableRow>)}<TableRow className="bg-surface-subtle font-semibold"><TableCell>Tổng</TableCell><TableCell className="text-right">{count.format(report.rows.reduce((s, row) => s + row.schools, 0))}</TableCell><TableCell className="text-right">{count.format(report.summary.proposals)}</TableCell><TableCell className="text-right">{count.format(report.summary.pending)}</TableCell><TableCell className="text-right">{count.format(report.summary.approved)}</TableCell><TableCell className="text-right">{count.format(report.summary.planned)}</TableCell><TableCell className="text-right">{count.format(report.summary.quantity)}</TableCell><TableCell className="text-right">{count.format(report.summary.receivedQuantity)}</TableCell><TableCell className="text-right">{money.format(report.summary.amount)}</TableCell><TableCell className="text-right">{money.format(report.summary.approvedAmount)}</TableCell></TableRow></> : <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">Không có đề xuất phù hợp với bộ lọc.</TableCell></TableRow>}
+          </TableRow>)}<TableRow className="bg-surface-subtle font-semibold"><TableCell>Tổng đang hiển thị</TableCell><TableCell className="text-right">{count.format(visibleTotals.schools)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.proposals)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.pending)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.approved)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.planned)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.quantity)}</TableCell><TableCell className="text-right">{count.format(visibleTotals.receivedQuantity)}</TableCell><TableCell className="text-right">{money.format(visibleTotals.amount)}</TableCell><TableCell className="text-right">{money.format(visibleTotals.approvedAmount)}</TableCell></TableRow></> : <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">Không có đề xuất phù hợp với bộ lọc.</TableCell></TableRow>}
         </TableBody></Table></CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }
 
-function OptionFilter({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { key: string; label: string }[] }) {
-  return <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">{label}
-    <Select value={value} onValueChange={onChange}><SelectTrigger className="h-9 min-w-0"><SelectValue /></SelectTrigger><SelectContent>
-      <SelectItem value={ALL}>Tất cả</SelectItem>{options.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
-    </SelectContent></Select>
-  </label>;
+function OptionFilter({ label, value, onChange, options, className = "w-44" }: { label: string; value: string; onChange: (value: string) => void; options: { key: string; label: string }[]; className?: string }) {
+    return <Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label} className={`h-9 min-w-32 rounded-full ${className} px-3 text-xs`}><SelectValue placeholder={label} /></SelectTrigger><SelectContent>
+      <SelectItem value={ALL}>{label}</SelectItem>{options.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
+    </SelectContent></Select>;
 }
 
 function Kpi({ icon, label, value, detail, tone = "text-primary" }: { icon: ReactNode; label: string; value: string; detail?: string; tone?: string }) {
