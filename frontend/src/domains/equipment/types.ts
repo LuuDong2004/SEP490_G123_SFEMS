@@ -153,3 +153,43 @@ export const HISTORY_FIELD_LABELS: Record<string, string> = {
   originalValue: "Nguyên giá",
   warrantyExpiry: "Hết bảo hành",
 };
+
+/**
+ * Một dòng của `/api/equipment/summary` — một nhóm thiết bị (hoặc một nhóm thiết bị trong một kho/phòng)
+ * với số lượng tách theo trạng thái. Chỉ đếm tài sản còn trên sổ. Cột đếm rỗng là 0.
+ */
+export type EquipmentSummaryRow = {
+  catalog_id: number;
+  code: string;
+  name: string;
+  tracking_type: "SERIAL" | "BULK";
+  minimum_required: boolean | null;
+  unit: string | null;
+  subject_id: number | null;
+  subject: string | null;
+  type_id: number | null;
+  type: string | null;
+  /** Chỉ có ở chế độ Theo kho/phòng; `room_id` rỗng là kho (chưa xếp phòng). */
+  school_id?: number;
+  school?: string;
+  room_id?: number | null;
+  room?: string;
+  schools: number;
+  total: number | null;
+  /** Số HỒ SƠ thiết bị — cộng được qua các nhóm khác đơn vị tính, khác với `total` là số lượng. */
+  records: number;
+  usable: number | null;
+  in_use: number | null;
+  in_stock: number | null;
+  broken: number | null;
+  pending: number | null;
+};
+
+export type EquipmentSummaryResponse = {
+  rows: EquipmentSummaryRow[];
+  maxSchools: number;
+  /** Theo kho/phòng: tổng số cặp trường × kho/phòng (phân trang ở máy chủ). */
+  total?: number;
+  /** Theo kho/phòng: số kho/phòng và số hồ sơ của mỗi trường, đếm trên cả danh sách. */
+  schoolTotals?: { schoolId: number; school: string | null; rooms: number; records: number }[];
+};

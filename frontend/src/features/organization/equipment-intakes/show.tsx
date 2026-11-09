@@ -64,7 +64,7 @@ export const EquipmentIntakeShow = () => {
   return (
     <VoucherShowShell
       resource="equipment_intakes"
-      kind="Phiếu nhập thiết bị"
+      kind="Phiếu ghi tăng"
       record={r}
       loading={query.isLoading}
       facts={[

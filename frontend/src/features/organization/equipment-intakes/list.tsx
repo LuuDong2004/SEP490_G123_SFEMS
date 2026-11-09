@@ -45,5 +45,5 @@ const COLUMNS: ColumnDef<EquipmentIntake, any>[] = [
 
 /** Danh sách phiếu nhập thiết bị (PN-01). */
 export const EquipmentIntakeList = () => (
-  <VoucherList<EquipmentIntake> resource="equipment_intakes" columns={COLUMNS} createLabel="Lập phiếu nhập" />
+  <VoucherList<EquipmentIntake> resource="equipment_intakes" columns={COLUMNS} createLabel="Lập phiếu ghi tăng" />
 );

@@ -32,6 +32,7 @@ import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -397,35 +398,73 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Bộ lọc riêng của hồ sơ: trạng thái, tình trạng, loại. Lớp cha chỉ nhận id, mã, tên, ghi chú và
-     * active; trường enum không khai ở đây thì {@code ?status=...} bị bỏ qua lặng lẽ.
+     * Bộ lọc riêng của hồ sơ. Lớp cha chỉ nhận id, mã, tên, ghi chú, active và trường; trường không khai ở
+     * đây thì bị bỏ qua lặng lẽ.
+     *
+     * <ul>
+     *   <li>{@code status}, {@code assetStatus}, {@code condition}: một hoặc nhiều giá trị cách nhau bằng
+     *       dấu phẩy ({@code IN_STOCK,IN_USE}). {@code assetStatus} là bộ lọc nâng cao của màn; {@code status}
+     *       là lối "chỉ xem đã ra khỏi sổ" — hai tên riêng để hai thứ cộng dồn được.</li>
+     *   <li>{@code catalog.id}, {@code room.id}: mở bảng Theo tài sản từ một dòng của bảng tổng hợp.
+     *       {@code room.id=none} là tài sản chưa xếp phòng (đang ở kho).</li>
+     *   <li>{@code type}, {@code subject}: id loại thiết bị / môn học của nhóm thiết bị, hoặc {@code none}
+     *       — cột lọc nhanh bên trái.</li>
+     * </ul>
      */
     @Override
     protected Specification<Equipment> ownedFilters(ListParams params) {
-        Specification<Equipment> spec = Specification.unrestricted();
+        Specification<Equipment> spec = CatalogSpecifications.<Equipment>referenceFilter(params, "catalog")
+                .and(CatalogSpecifications.referenceFilter(params, "room"));
         for (ListParams.Criterion criterion : params.filters()) {
             spec = switch (criterion.field()) {
-                case "status" -> spec.and(enumSpec("status", criterion, AssetStatus.class));
+                case "status", "assetStatus" -> spec.and(enumSpec("status", criterion, AssetStatus.class));
                 case "condition" -> spec.and(enumSpec("condition", criterion, EquipmentCondition.class));
                 case "physicalOrDigital" -> spec.and(enumSpec("physicalOrDigital", criterion, PhysicalDigitalType.class));
+                case "type" -> spec.and(catalogRef("equipmentType", criterion));
+                case "subject" -> spec.and(catalogRef("subject", criterion));
                 default -> spec;
             };
         }
         return spec;
     }
 
-    /** Lọc theo một hằng enum. Giá trị lạ trả về không khớp dòng nào, không phải lỗi 500. */
+    /**
+     * Lọc theo một hoặc nhiều hằng enum (cách nhau bằng dấu phẩy). Giá trị lạ trả về không khớp dòng nào,
+     * không phải lỗi 500.
+     */
     private static <E extends Enum<E>> Specification<Equipment> enumSpec(
             String attribute, ListParams.Criterion criterion, Class<E> type) {
-        E value;
+        List<E> values = new ArrayList<>();
         try {
-            value = Enum.valueOf(type, criterion.value().trim());
+            for (String part : criterion.value().split(",")) {
+                if (!part.isBlank()) {
+                    values.add(Enum.valueOf(type, part.trim()));
+                }
+            }
         } catch (IllegalArgumentException | NullPointerException e) {
             return (root, query, cb) -> cb.disjunction();
         }
+        if (values.isEmpty()) {
+            return Specification.unrestricted();
+        }
         return criterion.operator() == ListParams.Operator.NE
-                ? (root, query, cb) -> cb.notEqual(root.get(attribute), value)
-                : (root, query, cb) -> cb.equal(root.get(attribute), value);
+                ? (root, query, cb) -> cb.not(root.get(attribute).in(values))
+                : (root, query, cb) -> root.get(attribute).in(values);
+    }
+
+    /** Lọc theo một tham chiếu của NHÓM thiết bị (loại, môn): id, hoặc {@code none} là nhóm chưa gắn. */
+    private static Specification<Equipment> catalogRef(String attribute, ListParams.Criterion criterion) {
+        String raw = criterion.value() == null ? "" : criterion.value().trim();
+        if ("none".equals(raw)) {
+            return (root, query, cb) -> cb.isNull(root.get("catalog").get(attribute));
+        }
+        Long id;
+        try {
+            id = Long.valueOf(raw);
+        } catch (NumberFormatException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        return (root, query, cb) -> cb.equal(root.get("catalog").get(attribute).get("id"), id);
     }
 
     /**
