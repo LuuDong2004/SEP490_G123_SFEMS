@@ -55,6 +55,12 @@ export function PurchaseReportPage() {
     amount: totals.amount + row.amount,
     approvedAmount: totals.approvedAmount + row.approvedAmount,
   }), { schools: 0, proposals: 0, pending: 0, approved: 0, planned: 0, quantity: 0, receivedQuantity: 0, amount: 0, approvedAmount: 0 });
+  const exportData = {
+    filename: "bao-cao-nhu-cau-va-ke-hoach-mua-sam",
+    headers: ["Trường / cơ quan quản lý", "Số trường", "Số đề xuất", "Chờ duyệt", "Đã duyệt", "Đã vào kế hoạch", "Số lượng đề xuất", "Số đã nhập về", "Dự toán (đ)", "Dự toán đã duyệt (đ)"],
+    rows: visibleRows.map((row) => [row.name, row.schools, row.proposals, row.pending, row.approved, row.planned,
+      row.quantity, row.receivedQuantity, row.amount, row.approvedAmount]),
+  };
 
   return <main className="space-y-4 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
@@ -66,6 +72,7 @@ export function PurchaseReportPage() {
     </header>
 
       <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc cơ quan quản lý"
+      exportData={exportData}
       onReset={() => { setYear(String(new Date().getFullYear())); setSchool(ALL); setEquipment(ALL); setStatus(ALL); setSearch(""); }}
       filters={<>
           <Select value={year} onValueChange={setYear}><SelectTrigger aria-label="Năm ngân sách" className="h-9 w-24 rounded-full px-3 text-xs"><SelectValue placeholder={selectedYearLabel} /></SelectTrigger><SelectContent>{(report?.filters.years ?? [{ key: year, label: year }]).map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent></Select>

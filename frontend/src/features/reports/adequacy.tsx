@@ -52,6 +52,12 @@ export function AdequacyReportPage() {
   const bands = (report?.distribution ?? []).map((band) => ({ key: band.key, label: band.label, count: band.count }));
   const lowest = [...(report?.rows ?? [])].filter((row) => row.percent != null).sort((a, b) => a.percent! - b.percent!).slice(0, 10)
     .map((row) => ({ school: row.schoolName, percent: row.percent ?? 0 }));
+  const exportData = {
+    filename: "bao-cao-dap-ung-danh-muc-toi-thieu",
+    headers: ["Mã trường", "Trường", "Cấp học", "Số định mức", "Đã đạt", "Chưa tính", "Định mức thiếu", "Thiết bị thiếu", "Định mức thừa", "Thiết bị thừa", "Tỷ lệ đạt (%)"],
+    rows: visibleRows.map((row) => [row.schoolCode, row.schoolName, row.educationLevel, row.norms, row.met,
+      row.unknown, row.shortageNorms, row.shortageTotal, row.surplusNorms, row.surplusTotal, row.percent]),
+  };
 
   return <main className="space-y-4 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
@@ -63,6 +69,7 @@ export function AdequacyReportPage() {
     </header>
 
     <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc mã trường"
+      exportData={exportData}
       onReset={() => { setSchool(ALL); setSubject(ALL); setGrade(ALL); setType(ALL); setSearch(""); }}
       filters={<>
         {perspective !== "school" && <DimensionFilter label="Trường" value={school} onChange={setSchool} options={report?.filters.schools ?? []} />}

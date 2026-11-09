@@ -86,6 +86,12 @@ export function AssetsReport() {
     { label: "Báo mất", value: number.format(report.summary.missing), icon: <PackageSearch />, tone: "text-destructive-text" },
     { label: "Ghi tăng trong kỳ", value: number.format(report.summary.recordedInPeriod), icon: <CalendarPlus />, tone: "text-primary" },
   ] : [];
+  const exportData = {
+    filename: "bao-cao-tai-san-thiet-bi",
+    headers: ["Mã thiết bị", "Tên thiết bị", "Trường", "Môn học", "Loại thiết bị", "Trạng thái", "Nguồn hình thành", "Tình trạng", "Số lượng", "Nguyên giá", "Ngày ghi tăng"],
+    rows: visibleRows.map((row) => [row.code, row.name, row.schoolName, row.subjectName, row.equipmentTypeName,
+      row.statusLabel, row.originName, row.condition, row.quantity, row.originalValue, row.receivedDate]),
+  };
 
   return <main className="space-y-5 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
@@ -100,6 +106,7 @@ export function AssetsReport() {
     </header>
 
     <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm thiết bị, mã hoặc trường"
+      exportData={exportData}
       onReset={() => { setFromDate(defaultFromDate); setToDate(today); setSchoolId(ALL); setSubjectId(ALL); setEquipmentTypeId(ALL); setStatus(ALL); setOriginId(ALL); setSearch(""); }}
       firstRow={<>
         <div className="flex shrink-0 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">Từ</span><Input aria-label="Từ ngày" title="Từ ngày" className="h-9 w-40 rounded-full px-3 text-xs" type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></div>

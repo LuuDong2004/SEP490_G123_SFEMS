@@ -14,13 +14,16 @@ public class ReportController {
     private final AssetReportService assetReportService;
     private final AdequacyReportService adequacyReportService;
     private final PurchaseReportService purchaseReportService;
+    private final InventoryReportService inventoryReportService;
 
     public ReportController(DashboardService dashboardService, AssetReportService assetReportService,
-            AdequacyReportService adequacyReportService, PurchaseReportService purchaseReportService) {
+            AdequacyReportService adequacyReportService, PurchaseReportService purchaseReportService,
+            InventoryReportService inventoryReportService) {
         this.dashboardService = dashboardService;
         this.assetReportService = assetReportService;
         this.adequacyReportService = adequacyReportService;
         this.purchaseReportService = purchaseReportService;
+        this.inventoryReportService = inventoryReportService;
     }
 
     @GetMapping("/dashboard")
@@ -53,5 +56,12 @@ public class ReportController {
             @RequestParam(required = false) Long schoolId, @RequestParam(required = false) Long equipmentId,
             @RequestParam(required = false) String status) {
         return purchaseReportService.get(year, schoolId, equipmentId, status);
+    }
+
+    @GetMapping("/inventory")
+    @PreAuthorize("hasAuthority('reports:read')")
+    public InventoryReportResponse inventory(@RequestParam(required = false) Long campaignId,
+            @RequestParam(required = false) Long schoolId) {
+        return inventoryReportService.get(campaignId, schoolId);
     }
 }

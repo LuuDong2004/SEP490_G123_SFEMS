@@ -53,3 +53,10 @@ export type PurchaseReport = {
   summary: { proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number };
   rows: { key: string; name: string; schools: number; proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number }[];
 };
+
+export type InventoryReport = {
+  scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
+  filters: { campaigns: { id: number; label: string }[]; schools: { id: number; label: string }[] };
+  summary: { sessions: number; bookQuantity: number; matchedQuantity: number; shortageQuantity: number; surplusQuantity: number; damagedQuantity: number; wrongLocationQuantity: number; discrepancyValue: number };
+  rows: { id: number; code: string; campaign: string; school: string; inventoryDate: string; status: string; statusLabel: string; bookQuantity: number; matchedQuantity: number; shortageQuantity: number; surplusQuantity: number; damagedQuantity: number; wrongLocationQuantity: number; discrepancyValue: number }[];
+};
