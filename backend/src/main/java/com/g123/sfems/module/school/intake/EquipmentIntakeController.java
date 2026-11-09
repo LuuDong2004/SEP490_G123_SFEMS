@@ -31,13 +31,9 @@ public class EquipmentIntakeController
         return ((EquipmentIntakeService) service).writtenUpAssets(id);
     }
 
+    /** Danh sách cũng kèm các dòng: cột "Nhà cung cấp / nội dung" đọc nhà cung cấp trên các dòng. */
     @Override
     protected Object toResponse(EquipmentIntake voucher, Map<String, Boolean> can, Set<String> actions) {
-        return EquipmentIntakeResponse.from(voucher, can, actions);
-    }
-
-    @Override
-    protected Object toListResponse(EquipmentIntake voucher, Map<String, Boolean> can, Set<String> actions) {
-        return EquipmentIntakeResponse.summary(voucher, can, actions);
+        return EquipmentIntakeResponse.from(voucher, can, actions, ((EquipmentIntakeService) service).creator(voucher));
     }
 }

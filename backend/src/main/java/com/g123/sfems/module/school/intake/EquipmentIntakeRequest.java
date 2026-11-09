@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Body của lập và sửa phiếu nhập (PN-01). Form gửi lại nguyên phiếu mỗi lần lưu, nên tạo và sửa dùng
@@ -50,5 +51,10 @@ public record EquipmentIntakeRequest(
         @Size(max = 100, message = "Số biên bản tối đa 100 ký tự")
         String handoverNo,
         @Size(max = 500, message = "Một phiếu tối đa 500 dòng")
-        List<@Valid EquipmentIntakeLineInput> lines) implements VoucherRequest {
+        List<@Valid EquipmentIntakeLineInput> lines,
+        /**
+         * Biên bản giao nhận theo khoá của màn hình (deliveredBy, deliveryRepresentative, receiverName,
+         * receiverPosition, inspectionResult, handoverMinutesNo). Có thì đè lên các trường rời cùng nghĩa.
+         */
+        Map<String, Object> details) implements VoucherRequest {
 }
