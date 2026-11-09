@@ -8,7 +8,7 @@ import jakarta.persistence.MappedSuperclass;
  * Hình dạng chung của một danh mục dùng chung: mã, tên, thứ tự, cờ còn dùng,
  * ghi chú.
  *
- * <p>Bản Jmix có khoảng hai chục danh mục, và năm trong số đó — loại thiết bị,
+ * <p>Hệ thống có khoảng hai chục danh mục, và năm trong số đó — loại thiết bị,
  * đơn vị tính, nguồn hình thành, hình thức mua sắm, học kỳ — có ĐÚNG hình dạng
  * này và không thêm gì. Chép khuôn {@code education_levels} năm lần là
  * khoảng bảy mươi lăm file giống nhau gần từng chữ, và mỗi lần sửa một quy tắc

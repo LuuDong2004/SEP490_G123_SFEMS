@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 
 /** Payload tạo mới, dùng chung cho mọi danh mục cùng hình dạng. */
 public record CatalogRequest(
-        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã (QLTB-178); danh mục không có quy tắc thì báo thiếu.
+        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
         @Size(max = 64, message = "Mã tối đa 64 ký tự")
         @Pattern(
                 regexp = "^[A-Za-z0-9._-]*$",

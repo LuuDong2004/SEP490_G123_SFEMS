@@ -15,8 +15,13 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
@@ -57,6 +62,19 @@ public class EquipmentCatalog extends CatalogEntity {
     @JoinColumn(name = "subject_id")
     private Subject subject;
 
+    /**
+     * Các môn THÊM ngoài môn chính: thiết bị dùng cho nhiều môn. Môn chính vẫn quyết định mã dạy học và
+     * mọi phép cộng theo môn; tập này để tra cứu và hiển thị. SUBSELECT: một trang danh sách tốn thêm
+     * đúng một câu truy vấn, không phải một câu mỗi dòng.
+     */
+    @ManyToMany(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinTable(name = "equipment_catalog_subjects",
+            joinColumns = @JoinColumn(name = "catalog_id"),
+            inverseJoinColumns = @JoinColumn(name = "subject_id"))
+    @OrderBy("sortOrder ASC, id ASC")
+    private Set<Subject> extraSubjects = new LinkedHashSet<>();
+
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "education_level_id")
@@ -66,6 +84,15 @@ public class EquipmentCatalog extends CatalogEntity {
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "grade_id")
     private Grade grade;
+
+    /** Các khối lớp THÊM ngoài khối chính: thiết bị dùng cho nhiều khối. */
+    @ManyToMany(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinTable(name = "equipment_catalog_grades",
+            joinColumns = @JoinColumn(name = "catalog_id"),
+            inverseJoinColumns = @JoinColumn(name = "grade_id"))
+    @OrderBy("sortOrder ASC, id ASC")
+    private Set<Grade> extraGrades = new LinkedHashSet<>();
 
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
@@ -89,6 +116,10 @@ public class EquipmentCatalog extends CatalogEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "physical_or_digital", length = 30)
     private PhysicalDigitalType physicalOrDigital;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "depreciation_method", length = 30)
+    private DepreciationMethod depreciationMethod;
 
     @Column(name = "useful_life_years")
     private Integer usefulLifeYears;
@@ -123,6 +154,34 @@ public class EquipmentCatalog extends CatalogEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "origin", length = 30)
     private CatalogOrigin origin;
+
+    /** Giáo viên tự chế tạo — có báo cáo riêng, không nằm trong danh mục mua sắm. */
+    @Column(name = "self_made", nullable = false)
+    private Boolean selfMade = Boolean.FALSE;
+
+    public Set<Subject> getExtraSubjects() {
+        return extraSubjects;
+    }
+
+    public Set<Grade> getExtraGrades() {
+        return extraGrades;
+    }
+
+    public DepreciationMethod getDepreciationMethod() {
+        return depreciationMethod;
+    }
+
+    public void setDepreciationMethod(DepreciationMethod depreciationMethod) {
+        this.depreciationMethod = depreciationMethod;
+    }
+
+    public Boolean getSelfMade() {
+        return selfMade;
+    }
+
+    public void setSelfMade(Boolean selfMade) {
+        this.selfMade = Boolean.TRUE.equals(selfMade);
+    }
 
     public String getTeachingCode() {
         return teachingCode;

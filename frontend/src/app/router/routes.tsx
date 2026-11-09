@@ -13,7 +13,7 @@ import {
   UserShow,
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
-import { catalogScreens, MinimumCatalogPage } from "@/features/catalogs";
+import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { AssetsReport } from "@/features/reports";
 import {
@@ -140,8 +140,8 @@ export function AppRoutes() {
         {crudRoutes("/schools", "schools")}
         {crudRoutes("/rooms", "rooms")}
 
-        {/* Danh mục dùng chung (DM-01 – DM-04). Trang lối vào `/catalogs` không có quyền riêng. */}
-        <Route path="/catalogs" element={<PlaceholderScreen note="Chọn một danh mục ở cột bên trái." />} />
+        {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
+        <Route path="/catalogs" element={<Navigate to="/catalogs/equipment-catalogs" replace />} />
         {crudRoutes("/catalogs/wards", "wards", catalogScreens("wards"))}
         {crudRoutes("/catalogs/education-levels", "education_levels", catalogScreens("education_levels"))}
         {crudRoutes("/catalogs/room-types", "room_types", catalogScreens("room_types"))}
@@ -153,6 +153,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
+        {crudRoutes("/catalogs/equipment-configs", "equipment_configs", catalogScreens("equipment_configs"))}
         {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs", catalogScreens("equipment_catalogs"))}
         {crudRoutes("/catalogs/equipment-standards", "equipment_standards", {
           list: <MinimumCatalogPage />, create: <MinimumCatalogPage />,
@@ -162,7 +163,11 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
-        {crudRoutes("/catalogs/code-rules", "code_rules")}
+        {crudRoutes("/catalogs/code-rules", "code_rules", catalogScreens("code_rules"))}
+        {/* Danh mục cố định, chỉ đọc: chỉ có màn danh sách. */}
+        {ENUM_CATALOGS.map((catalog) => (
+          <Route key={catalog.resource} path={catalog.path} element={<EnumCatalogList config={catalog} />} />
+        ))}
 
         {/* Quản trị hệ thống (HT-04, HT-05) — đã có màn thật. */}
         {crudRoutes("/users", "users", {

@@ -14,6 +14,7 @@ public final class CodeTargets {
     public static final Set<String> ALL = Set.of(
             "education_levels",
             "room_types",
+            "school_types",
             "school_years",
             "semesters",
             "grades",
@@ -28,7 +29,7 @@ public final class CodeTargets {
             "equipment_norms",
             "equipment_catalogs",
             "equipment_configs",
-            // Mã trường — tự cấp khi Sở thêm trường (093).
+            // Mã trường — tự cấp khi Sở thêm trường.
             "schools");
 
     private CodeTargets() {

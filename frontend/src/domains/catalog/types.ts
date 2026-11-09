@@ -33,6 +33,49 @@ export type SchoolType = CatalogItem & {
   shortName: string | null;
 };
 
+export type Unit = CatalogItem & {
+  /** Chia được (kg, g, lít, ml, mét); tắt là chỉ đếm số nguyên. */
+  allowsFraction: boolean;
+};
+
+/** Kiểu dữ liệu của một thông số kỹ thuật. */
+export type AttributeDataType = "text" | "integer" | "decimal" | "boolean" | "date" | "enum";
+
+export const DATA_TYPE_LABELS: Record<AttributeDataType, string> = {
+  text: "Chữ",
+  integer: "Số nguyên",
+  decimal: "Số thập phân",
+  boolean: "Có / Không",
+  date: "Ngày",
+  enum: "Chọn từ danh sách",
+};
+
+/** Một thông số trong bộ thông số kỹ thuật (chỉ là định nghĩa, giá trị nằm ở từng thiết bị). */
+export type ConfigAttribute = {
+  id: number | null;
+  code: string;
+  name: string;
+  dataType: AttributeDataType;
+  measureUnit: string | null;
+  required: boolean;
+  /** Các lựa chọn của kiểu "Chọn từ danh sách". */
+  options: string[];
+};
+
+export type EquipmentConfig = CatalogItem & {
+  description: string | null;
+  /** Bộ được chọn sẵn khi tạo thiết bị mới. */
+  defaultConfig: boolean;
+  /** Rỗng là dùng cho mọi loại thiết bị. */
+  scopeTypes: CatalogRef[];
+  documentNo: string | null;
+  documentName: string | null;
+  issueDate: string | null;
+  startSchoolYear: CatalogRef | null;
+  endSchoolYear: CatalogRef | null;
+  attributes: ConfigAttribute[];
+};
+
 export type RoomType = CatalogItem & {
   /** Phòng thuộc loại này là kho. */
   warehouse: boolean;
