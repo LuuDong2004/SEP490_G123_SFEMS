@@ -292,6 +292,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         lockAndReread(voucher);
         workflow.requireDeletable(voucher);
         initialize(voucher);
+        workflow.forgetEvents(voucher);
         repository.remove(voucher);
         return voucher;
     }
