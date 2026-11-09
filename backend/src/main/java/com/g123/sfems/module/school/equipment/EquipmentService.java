@@ -72,7 +72,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static final String FIELD_SERIAL = "serialNumber";
     private static final String FIELD_MODEL = "model";
     private static final String FIELD_MANUFACTURER = "manufacturer";
-    private static final String FIELD_LEGACY_CODE = "legacyCode";
     private static final String FIELD_ORIGINAL_VALUE = "originalValue";
     private static final String FIELD_WARRANTY_EXPIRY = "warrantyExpiry";
 
@@ -334,10 +333,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.assetCategory() != null) {
             item.setAssetCategory(request.assetCategory());
-        }
-        if (request.legacyCode() != null) {
-            track(item, FIELD_LEGACY_CODE, item.getLegacyCode(), blankToNull(request.legacyCode()),
-                    item::setLegacyCode);
         }
         if (request.serialNumber() != null) {
             String serial = blankToNull(request.serialNumber());
