@@ -57,67 +57,115 @@ export const INSPECTION_RESULT_OPTIONS = (Object.keys(INSPECTION_RESULT_LABELS) 
   label: INSPECTION_RESULT_LABELS[value],
 }));
 
+/**
+ * Cách quản lý của mặt hàng, quyết định một dòng phiếu sẽ sinh ra cái gì. Máy chủ gửi tên hằng (chữ hoa).
+ */
 export type TrackingType = "SERIAL" | "BULK";
 
 export type Ref = { id: number; code: string | null; name: string };
 
-export type EquipmentIntakeLine = {
-  id: number;
+export const TRACKING_LABELS: Record<string, string> = {
+  SERIAL: "Theo từng cái",
+  BULK: "Theo số lượng",
+};
+
+/** Một dòng phiếu sẽ sinh ra gì khi xác nhận — câu để hiện trên màn hình. */
+export function intakeLineOutcome(trackingType: string | null | undefined, quantity: number, unitName?: string): string {
+  if (quantity <= 0) return "Không ghi tăng (không nhận được cái nào)";
+  return trackingType === "BULK"
+    ? `Ghi tăng 1 lô vật tư, số lượng ${quantity.toLocaleString("vi-VN")}${unitName ? ` ${unitName}` : ""}, chung một mã`
+    : `Ghi tăng ${quantity} tài sản, mỗi cái một mã`;
+}
+
+export type IntakeLine = {
+  id: number | null;
   lineNo: number;
-  catalog: Ref;
+  catalog: { id: number; code: string | null; name: string } | null;
   name: string;
   trackingType: TrackingType | null;
-  unit: Ref | null;
-  physicalOrDigital: "PHYSICAL" | "DIGITAL" | "LEARNING_SUPPORT";
-  assetCategory: AssetCategory | null;
+  unit: { id: number; code: string | null; name: string } | null;
+  physicalOrDigital: string;
+  assetCategory: string | null;
   documentQuantity: number;
   receivedQuantity: number;
   varianceReason: string | null;
   unitPrice: number | null;
   amount: number | null;
-  room: Ref | null;
+  room: { id: number; code: string | null; name: string } | null;
   generatedCount: number;
+  /** Khai riêng của dòng — null = theo đầu phiếu. */
   supplier: string | null;
   documentNo: string | null;
   documentDate: string | null;
-  fundingSource: FundingSource | null;
+  fundingSource: string | null;
+  /** Ghi rõ khi nguồn kinh phí là "Nguồn hợp pháp khác". */
   fundingNote: string | null;
-  acquisitionMethod: Ref | null;
-  acquisitionNote: string | null;
+  /** Ghi rõ khi hình thức mua sắm là "Khác". */
+  acquisitionNote?: string | null;
+  acquisitionMethod: { id: number; code?: string | null; name: string } | null;
   warrantyMonths: number | null;
+  /** Model và hãng của LÔ hàng này — khác nhau giữa các lần mua, khai ở dòng. */
   model: string | null;
   manufacturer: string | null;
-  note: string | null;
-  movementReason: Ref | null;
+  /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất; dòng thiết bị từng cái luôn null. */
+  expiryDate: string | null;
+  /**
+   * Quy cách bao bì của vật tư, hoá chất: 1 `packUnit` = `packSize` đơn vị của thiết bị. Có quy cách thì số lượng
+   * của dòng đếm theo bao bì, đơn giá là giá một bao bì, và lô vào sổ mang `stockQuantity` đã quy đổi.
+   */
+  packUnit: { id: number; code?: string | null; name: string } | null;
+  packSize: number | null;
+  stockQuantity: number | null;
+  note?: string | null;
+  movementReason?: Ref | null;
 };
+
+/** Số lượng vào sổ của một dòng: số nhận × quy cách, hoặc số nhận khi không quy đổi. */
+export function stockQuantityOf(received: number, packSize: number | null | undefined): number {
+  return packSize ? Math.round(received * Number(packSize) * 1000) / 1000 : received;
+}
+
+/** Phiếu nghiệp vụ đã sinh ra phiếu ghi tăng (đề xuất mua sắm, biên bản kiểm kê). */
+export type IntakeSource = { resource: string; id: number | null; code: string | null };
 
 export type EquipmentIntake = VoucherBase & {
   intakeDate: string;
   documentNo: string | null;
   documentDate: string | null;
   supplier: string | null;
-  fundingSource: FundingSource | null;
-  originSource: Ref | null;
+  fundingSource: string | null;
+  /** Nguồn hình thành của CẢ PHIẾU — quyết định nguồn kinh phí nào chọn được ở từng dòng. */
+  originSource: { id: number; code?: string | null; name: string } | null;
   originNote: string | null;
-  acquisitionMethod: Ref | null;
-  schoolYear: Ref | null;
+  /** Năm học của lần ghi tăng. */
+  schoolYear: { id: number; code?: string | null; name: string } | null;
+  /** null = phiếu lập tay. */
+  source: IntakeSource | null;
+  acquisitionMethod: { id: number; code?: string | null; name: string } | null;
   warrantyMonths: number | null;
-  deliverer: string | null;
-  delivererRepresentative: string | null;
-  receiver: string | null;
-  receiverPosition: string | null;
-  storekeeper: string | null;
-  inspectionResult: InspectionResult | null;
-  handoverNo: string | null;
-  /** `null` ở danh sách: bảng chỉ cần các con số tổng. */
-  lines: EquipmentIntakeLine[] | null;
+  /** Biên bản giao nhận (người giao, đại diện bên giao, người nhận, chức vụ, kết quả kiểm tra, số biên bản). */
+  details?: Record<string, unknown> | null;
+  deliverer?: string | null;
+  delivererRepresentative?: string | null;
+  receiver?: string | null;
+  receiverPosition?: string | null;
+  storekeeper?: string | null;
+  inspectionResult?: InspectionResult | null;
+  handoverNo?: string | null;
+  /** Lúc lãnh đạo trường duyệt — cũng là lúc ghi tăng. */
+  confirmedAt: string | null;
+  lines: IntakeLine[];
   lineCount: number;
   totalReceived: number;
-  totalAmount: number;
+  totalAmount: number | null;
   /** Số hồ sơ tài sản sẽ sinh khi duyệt. */
-  expectedAssets: number;
-  /** Số hồ sơ đã sinh (phiếu hoàn tất). */
+  expectedAssets?: number;
   generatedCount: number;
+  createdAt: string;
+  updatedAt: string | null;
+  /** Người lập phiếu — `code` tên đăng nhập, `name` họ tên. */
+  createdBy: { id: number; code: string | null; name: string } | null;
+  _can?: Record<string, boolean>;
 };
 
 /** Một tài sản phiếu đã sinh (`GET /equipment_intakes/{id}/assets`). */
@@ -130,54 +178,3 @@ export type WrittenUpAsset = {
   room: string | null;
   status: string;
 };
-
-/** Số hồ sơ một dòng sinh khi duyệt — cùng phép với `EquipmentIntakeResponse.expectedAssets` ở máy chủ. */
-export function expectedAssets(trackingType: TrackingType | null | undefined, received: number): number {
-  if (!received || received <= 0) return 0;
-  return trackingType === "BULK" ? 1 : received;
-}
-
-/** Câu "khi duyệt sẽ sinh gì" của một dòng. */
-export function lineOutcome(trackingType: TrackingType | null | undefined, received: number, unitName?: string | null): string {
-  if (!received || received <= 0) return "Không ghi tăng (không nhận được cái nào)";
-  return trackingType === "BULK"
-    ? `Ghi tăng 1 hồ sơ theo lô, số lượng ${received.toLocaleString("vi-VN")}${unitName ? ` ${unitName}` : ""}, chung một mã`
-    : `Ghi tăng ${received.toLocaleString("vi-VN")} hồ sơ tài sản, mỗi cái một mã`;
-}
-
-/** Thông tin danh mục của một dòng mà luật trình cần (cách quản lý, đơn vị tính). */
-export type LineCatalogInfo = { trackingType?: TrackingType | null; unit?: { id: number } | null };
-
-type LineValues = {
-  catalog?: { id?: number | null } | null;
-  documentQuantity?: number | string | null;
-  receivedQuantity?: number | string | null;
-  varianceReason?: string | null;
-  unitPrice?: number | null;
-  fundingSource?: string | null;
-  movementReason?: { id?: number | null } | null;
-};
-
-const filled = (v: unknown) => v != null && v !== "";
-const num = (v: unknown) => (v === "" || v == null ? 0 : Number(v));
-
-/**
- * Những gì MỘT dòng còn thiếu trước khi trình — cùng luật với `validateLineForSubmit` ở máy chủ (GBR-09).
- * Bảng dòng hiện số mục thiếu ở cột "Đủ"; hộp chi tiết dòng liệt kê ra.
- */
-export function lineIssues(line: LineValues, info: LineCatalogInfo | undefined, headFunding?: string | null): string[] {
-  if (!line.catalog?.id) return ["Chưa chọn thiết bị"];
-  const out: string[] = [];
-  if (!line.movementReason?.id) out.push("Chưa chọn lý do tăng");
-  if (num(line.documentQuantity) !== num(line.receivedQuantity) && !filled(line.varianceReason?.trim())) {
-    out.push("Lệch số lượng, chưa ghi lý do");
-  }
-  if (num(line.receivedQuantity) > 0) {
-    if (info && !info.unit) out.push("Thiết bị chưa có đơn vị tính (sửa ở danh mục)");
-    if (info?.trackingType !== "BULK") {
-      if (line.unitPrice == null) out.push("Chưa có đơn giá");
-      if (!filled(line.fundingSource) && !filled(headFunding)) out.push("Chưa có nguồn kinh phí");
-    }
-  }
-  return out;
-}

@@ -91,3 +91,20 @@ export function voucherStatusText(status: VoucherStatus, step: ApprovalStep | nu
   if (status === "DRAFT" && returned) return "Bị trả về";
   return VOUCHER_STATUS_LABELS[status];
 }
+
+/** Một tệp đính kèm của bản ghi (`GET /attachments?resource=&recordId=`). */
+export type AttachmentInfo = {
+  id: number;
+  resource: string;
+  recordId: number;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  note: string | null;
+  createdById: number | null;
+  createdAt: string;
+  /** Ảnh đại diện của bản ghi (mỗi bản ghi tối đa một). */
+  cover?: boolean;
+  /** Cách đóng khung vuông của ảnh đại diện: "x,y,zoom". */
+  coverCrop?: string | null;
+};

@@ -78,51 +78,61 @@ export function SideFact({ label, children }: { label: string; children: ReactNo
 export type ChecklistItem = { key: string; label: string; ok: boolean; hint?: string; onClick?: () => void };
 
 /**
- * "Cần hoàn thiện" — chỉ những mục CÒN THIẾU, mỗi mục bấm được để mở đúng chỗ phải sửa. Đủ hết
- * thì một dòng "Đủ để trình".
+ * "Cần hoàn thiện". Mặc định chỉ những mục CÒN THIẾU, đủ hết thì một dòng "Đủ để trình". `showDone`: hiện MỌI mục
+ * bắt buộc theo thứ tự trên form — mục đã điền có dấu tích xanh và mờ đi, mục còn thiếu bấm được để mở đúng chỗ sửa.
  */
-export function CompletionList({ items, doneText = "Đủ để trình" }: {
+export function CompletionList({ items, doneText = "Đủ để trình", showDone = false }: {
   items: ChecklistItem[];
   /** Câu khi đã đủ hết — form không có bước trình (kế hoạch bảo trì) thì "Đủ để lưu". */
   doneText?: string;
+  showDone?: boolean;
 }) {
   const missing = items.filter((i) => !i.ok);
-  if (!missing.length) {
-    return (
-      <p className="text-success-text flex items-center gap-2 text-sm font-medium">
-        <span className="bg-success text-success-foreground flex size-4 items-center justify-center rounded-full">
-          <Check className="size-3" strokeWidth={3} />
-        </span>
-        {doneText}
-      </p>
-    );
-  }
+  const doneLine = (
+    <p className="text-success-text flex items-center gap-2 text-sm font-medium">
+      <span className="bg-success text-success-foreground flex size-4 items-center justify-center rounded-full">
+        <Check className="size-3" strokeWidth={3} />
+      </span>
+      {doneText}
+    </p>
+  );
+  if (!missing.length && !showDone) return doneLine;
+  const shown = showDone ? items : missing;
   return (
-    <ul className="-mx-2 space-y-0.5">
-      {missing.map((i) => {
-        const body = (
-          <>
-            <CircleAlert className="text-warning-text mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{i.label}</span>
-              {i.hint ? <span className="text-muted-foreground block text-xs">{i.hint}</span> : null}
-            </span>
-            {i.onClick ? <ChevronRight className="text-muted-foreground mt-0.5 size-4 shrink-0" /> : null}
-          </>
-        );
-        return (
-          <li key={i.key}>
-            {i.onClick ? (
-              <button type="button" onClick={i.onClick} className="hover:bg-muted flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-start">
-                {body}
-              </button>
-            ) : (
-              <div className="flex items-start gap-2 px-2 py-1.5">{body}</div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {showDone && !missing.length ? <div className="mb-2">{doneLine}</div> : null}
+      <ul className="-mx-2 space-y-0.5">
+        {shown.map((i) => {
+          const body = (
+            <>
+              {i.ok ? (
+                <span className="bg-success text-success-foreground mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full">
+                  <Check className="size-3" strokeWidth={3} />
+                </span>
+              ) : (
+                <CircleAlert className="text-warning-text mt-0.5 size-4 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className={cn("block text-sm", i.ok ? "text-success-text" : "font-medium")}>{i.label}</span>
+                {i.hint && !i.ok ? <span className="text-muted-foreground block text-xs">{i.hint}</span> : null}
+              </span>
+              {i.onClick && !i.ok ? <ChevronRight className="text-muted-foreground mt-0.5 size-4 shrink-0" /> : null}
+            </>
+          );
+          return (
+            <li key={i.key} className={cn(i.ok && "opacity-60")}>
+              {i.onClick && !i.ok ? (
+                <button type="button" onClick={i.onClick} className="hover:bg-muted flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-start">
+                  {body}
+                </button>
+              ) : (
+                <div className="flex items-start gap-2 px-2 py-1.5">{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

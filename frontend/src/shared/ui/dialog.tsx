@@ -45,13 +45,30 @@ function DialogOverlay({
   );
 }
 
+/**
+ * Cỡ hộp thoại, không đổi theo lượng dữ liệu: ít thì còn chỗ trống, nhiều thì cuộn bên trong, hàng nút luôn ở đáy
+ * (`.dialog-fixed` trong `styles/index.css`). `sm` cho hộp vài ô, `form` cho form và hộp xem, `formFit` cùng bề rộng
+ * nhưng cao vừa nội dung, `picker` cho hộp chọn, `wide` cho phiếu và hộp xem nhiều cột. Không truyền `size` thì hộp
+ * giữ dáng mặc định (`auto`).
+ */
+const DIALOG_SIZES = {
+  sm: "dialog-fixed max-h-[92dvh] sm:max-w-lg",
+  form: "dialog-fixed h-[min(40rem,92dvh)] sm:max-w-3xl",
+  formFit: "dialog-fixed max-h-[92dvh] sm:max-w-3xl",
+  picker: "dialog-fixed h-[min(35rem,92dvh)] sm:max-w-[min(56rem,calc(100vw-4rem))]",
+  wide: "dialog-fixed h-[min(50rem,92dvh)] sm:max-w-[min(80rem,calc(100vw-4rem))]",
+  auto: "",
+};
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = "auto",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  size?: keyof typeof DIALOG_SIZES;
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -64,6 +81,7 @@ function DialogContent({
           "shadow-[0_24px_60px_-16px_rgb(0_0_0/.35),0_0_0_1px_rgb(0_0_0/.03)]",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.94] data-[state=open]:slide-in-from-bottom-3 data-[state=open]:duration-300 data-[state=open]:ease-[cubic-bezier(.2,.9,.3,1.15)]",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[0.97] data-[state=closed]:duration-150",
+          DIALOG_SIZES[size],
           className
         )}
         {...props}

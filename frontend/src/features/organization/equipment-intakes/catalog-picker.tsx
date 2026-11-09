@@ -1,276 +1,625 @@
-import { useList, useNotification } from "@refinedev/core";
-import { Loader2, Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCan, useCreate, useInfiniteList, useList, useOne } from "@refinedev/core";
+import { Plus, Search, GraduationCap, Boxes, BookOpen } from "lucide-react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { kyInstance } from "@/shared/api/data";
-import { AsyncCombobox } from "@/shared/components/form/async-combobox";
-import { errorMessage } from "@/shared/lib/api-error";
+import { HelpHint } from "@/shared/components/form/help-hint";
+import { IconFilter } from "@/shared/components/data-table/icon-filter";
+import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
-import type { RefValue } from "@/features/organization/equipment-intakes/fields";
 import {
-  ASSET_CATEGORY_LABELS,
-  CATALOG_ORIGIN_LABELS,
-  TRACKING_LABELS,
-  type EquipmentCatalog,
-} from "@/domains/equipment-catalog/types";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/ui/table";
+import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
+import { ASSET_CATEGORY_LABELS } from "@/domains/equipment/types";
+import { CATALOG_ORIGIN_LABELS } from "@/domains/equipment-catalog/types";
+import { SchoolItemDialog } from "@/shared/components/catalog/school-item-dialog";
+import type { PickedCatalog } from "@/domains/equipment-catalog/types";
+import { errorMessage } from "@/shared/lib/api-error";
+import { maxLengthOf, textError } from "@/shared/lib/field-rules";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { cn } from "@/shared/lib/utils";
 
-/** Thiết bị được chọn, đủ cho một dòng phiếu mới. */
-export type PickedCatalog = {
-  id: number;
-  code: string | null;
-  name: string;
-  trackingType: "SERIAL" | "BULK";
-  unit: { id: number; name: string } | null;
-  physicalOrDigital: string | null;
-};
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-const toPicked = (c: EquipmentCatalog): PickedCatalog => ({
-  id: c.id,
-  code: c.code,
-  name: c.name,
-  trackingType: c.trackingType,
-  unit: c.unit ? { id: c.unit.id, name: c.unit.name } : null,
-  physicalOrDigital: c.physicalOrDigital,
-});
+const ALL = "__all__";
+/** Một trang của hộp chọn — vừa đúng chiều cao bảng, không phải cuộn trong cuộn. */
+const PAGE_SIZE = 20;
+
 
 /**
- * "Chọn thiết bị từ danh mục" (PN-01 bước 3): tìm, tick nhiều thiết bị, chọn phòng nhận chung, bấm Thêm.
- * Danh mục máy chủ trả về đã gồm thiết bị của Sở và thiết bị riêng của trường mình. Không thấy thì
- * "Thêm thiết bị ngoài danh mục" (luồng 3a).
+ * Chọn NHIỀU thiết bị một lượt. Mọi dòng thêm vào đều nhận về kho thiết bị của trường —
+ * ghi tăng không chọn nơi nhận (QLTB-382); đưa về phòng là việc của phiếu cấp phát.
+ *
+ * <p>Hộp này chọn MẶT HÀNG trong danh mục, khác hộp chọn tài sản của các phiếu
+ * cấp phát / điều chuyển: lúc ghi tăng thì tài sản chưa tồn tại, đó chính là
+ * thứ phiếu sắp sinh ra.
  */
-export function CatalogPicker({ open, onOpenChange, onAdd }: {
+export function CatalogPickerDialog({
+  open,
+  onOpenChange,
+  schoolId,
+  exclude,
+  onPick,
+  mode = "multi",
+  title = "Chọn thiết bị từ danh mục",
+  description = "Chọn thiết bị trong danh mục để thêm vào phiếu ghi tăng.",
+  header,
+  body,
+}: {
+  title?: string;
+  description?: string;
+  /** Dải trên đầu hộp, dưới tiêu đề (vd. tab "Theo định mức" / "Toàn bộ danh mục" của đề xuất mua sắm). */
+  header?: ReactNode;
+  /** Có thì thay CẢ phần chọn từ danh mục (lọc, bảng, phân trang, nút) — một tab khác của cùng hộp. */
+  body?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd: (items: PickedCatalog[], room: RefValue) => void;
+  schoolId: number | null;
+  /** Mặt hàng đã có dòng trong phiếu — vẫn hiện nhưng không tick lại được. */
+  exclude: Set<number>;
+  onPick: (rows: PickedCatalog[], roomId: number | null) => void;
+  /**
+   * `single` cho ô Thiết bị của một dòng đã có: chọn một là đóng ngay.
+   */
+  mode?: "single" | "multi";
 }) {
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<Map<number, PickedCatalog>>(new Map());
-  const [room, setRoom] = useState<RefValue>({ id: null });
-  const [offCatalog, setOffCatalog] = useState(false);
-
+  const single = mode === "single";
+  const [term, setTerm] = useState("");
+  const [applied, setApplied] = useState("");
+  // Gõ là lọc: áp từ khoá sau 300 ms ngừng gõ — khỏi bấm "Tìm", và không gửi một request mỗi phím.
   useEffect(() => {
-    const t = setTimeout(() => setQuery(search.trim()), 300);
+    const t = setTimeout(() => setApplied(term.trim()), 300);
     return () => clearTimeout(t);
-  }, [search]);
-  useEffect(() => {
-    if (!open) {
-      setSearch("");
-      setPicked(new Map());
-      setRoom({ id: null });
-    }
-  }, [open]);
+  }, [term]);
+  const [typeId, setTypeId] = useState<string>(ALL);
+  const [subjectId, setSubjectId] = useState<string>(ALL);
+  // Cấp học: mặc định đúng cấp của trường — danh mục có 1.700 thiết bị của cả ba cấp, và một trường
+  // THCS chọn nhầm thiết bị "TH-…" thì định mức của nó không bao giờ được tính. Trường đã có cấp học
+  // thì KHÔNG đổi được (cấp của trường thắng mọi lựa chọn); chỉ trường chưa khai cấp mới được chọn.
+  const { result: school } = useOne<any>({ resource: "schools", id: schoolId ?? "", queryOptions: { enabled: open && !!schoolId } });
+  const schoolLevel = school?.educationLevel?.id ? String(school.educationLevel.id) : null;
+  const [levelPick, setLevelPick] = useState<string | null>(null);
+  const levelId = schoolLevel ?? levelPick ?? ALL;
+  // Hàng ghi tăng luôn về KHO THIẾT BỊ của trường (QLTB-382: mỗi trường một kho; đưa về phòng là việc của
+  // phiếu cấp phát) — không có ô "Nhận vào" để chọn. Không tìm thấy kho thì để trống: máy chủ coi là trong kho.
+  const [roomId, setRoomId] = useState<string>("");
+  const [selected, setSelected] = useState<Map<number, PickedCatalog>>(new Map());
+  const [creating, setCreating] = useState(false);
+  const [addingOwn, setAddingOwn] = useState(false);
 
-  const { result, query: list } = useList<EquipmentCatalog>({
-    resource: "equipment_catalogs",
-    pagination: { pageSize: 30 },
-    filters: query ? [{ field: "q", operator: "eq", value: query }] : [],
-    sorters: [{ field: "name", order: "asc" }],
-    queryOptions: { enabled: open },
-  });
-  const rows = (result?.data ?? []).filter((c) => c.active !== false);
+  // Thêm mặt hàng mới ngay tại đây thay vì bắt rời phiếu đi mở màn danh mục:
+  // người nhận hàng phát hiện thiếu mặt hàng đúng lúc đang gõ phiếu, và bỏ
+  // phiếu đang dở để đi nơi khác là lúc dữ liệu bị nhập sai cho xong.
+  //
+  // Danh mục do SỞ sở hữu, trường chỉ đọc — nên nút này chỉ hiện với tài khoản
+  // thật sự có `equipment_catalogs:write`. Không gác thì cán bộ trường bấm vào
+  // rồi ăn 403, tệ hơn là không thấy nút.
+  const mayCreate = useCan({ resource: "equipment_catalogs", action: "create" }).data?.can ?? false;
 
-  const toggle = (c: EquipmentCatalog) =>
-    setPicked((prev) => {
-      const next = new Map(prev);
-      if (next.has(c.id)) next.delete(c.id);
-      else next.set(c.id, toPicked(c));
-      return next;
-    });
-
-  const add = (items: PickedCatalog[]) => {
-    onAdd(items, room);
-    onOpenChange(false);
+  const reset = () => {
+    setSelected(new Map());
+    setTerm("");
+    setApplied("");
+    setTypeId(ALL);
+    setSubjectId(ALL);
+    setLevelPick(null);
+    setRoomId("");
   };
 
+  const { result: levels } = useList<any>({
+    resource: "education_levels",
+    pagination: { pageSize: 20 },
+    sorters: [{ field: "sortOrder", order: "asc" }],
+    queryOptions: { enabled: open },
+  });
+  const { result: types } = useList<any>({
+    resource: "equipment_types",
+    pagination: { pageSize: 200 },
+    sorters: [{ field: "sortOrder", order: "asc" }],
+    queryOptions: { enabled: open },
+  });
+  const { result: subjects } = useList<any>({
+    resource: "subjects",
+    pagination: { pageSize: 200 },
+    sorters: [{ field: "sortOrder", order: "asc" }],
+    queryOptions: { enabled: open },
+  });
+  const { result: rooms } = useList<any>({
+    resource: "rooms",
+    pagination: { pageSize: 200 },
+    // Phòng ngừng sử dụng không nhận hàng mới.
+    filters: schoolId ? [{ field: "school.id", operator: "eq", value: schoolId }, { field: "active", operator: "eq", value: true }] : [],
+    sorters: [{ field: "name", order: "asc" }],
+    queryOptions: { enabled: open && !!schoolId },
+  });
+  // Kho của trường: phòng loại KHO — cùng quy tắc `isStoreroom` ở máy chủ; không có mã loại thì theo tên.
+  useEffect(() => {
+    if (!open || roomId) return;
+    const list: any[] = rooms?.data ?? [];
+    const store =
+      list.find((r) => r.roomType?.code === "KHO") ?? list.find((r) => /(^|\s)kho(\s|$)/i.test(r.name ?? ""));
+    if (store) {
+      setRoomId(String(store.id));
+    }
+  }, [open, roomId, rooms]);
+
+  const { result, query } = useInfiniteList<PickedCatalog>({
+    resource: "equipment_catalogs",
+    filters: [
+      { field: "active", operator: "eq", value: true },
+      ...(applied ? [{ field: "q", operator: "eq" as const, value: applied }] : []),
+      ...(typeId !== ALL ? [{ field: "equipmentType.id", operator: "eq" as const, value: typeId }] : []),
+      ...(subjectId !== ALL ? [{ field: "subject.id", operator: "eq" as const, value: subjectId }] : []),
+      ...(levelId !== ALL ? [{ field: "educationLevel.id", operator: "eq" as const, value: levelId }] : []),
+    ],
+    pagination: { pageSize: PAGE_SIZE },
+    sorters: [{ field: "name", order: "asc" }],
+    // Giữ kết quả cũ trong lúc chờ kết quả mới: bảng không nháy trống, hộp không co giật khi gõ.
+    queryOptions: { enabled: open && !body, placeholderData: keepPreviousData },
+  });
+
+  // Cuộn tới cuối bảng là tải thêm — danh mục hơn 1.700 thiết bị, không bắt bấm "Sau" từng trang.
+  const rows = useMemo(() => (result.data?.pages ?? []).flatMap((p) => (p.data ?? []) as PickedCatalog[]), [result.data]);
+  const total = result.data?.pages?.[0]?.total ?? 0;
+  const loadMoreRef = useInfiniteScroll({
+    hasMore: result.hasNextPage ?? false,
+    isFetching: query.isFetchingNextPage,
+    onLoadMore: () => void query.fetchNextPage(),
+  });
+  const pickable = rows.filter((r) => !exclude.has(r.id));
+
+  function toggle(row: PickedCatalog) {
+    if (exclude.has(row.id)) return;
+    // Chọn một: bấm vào dòng là xong, không bắt bấm thêm nút xác nhận.
+    if (single) {
+      onPick([row], null);
+      reset();
+      return;
+    }
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.set(row.id, row);
+      return next;
+    });
+  }
+
   return (
-    <>
-      <Dialog open={open && !offCatalog} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Chọn thiết bị từ danh mục</DialogTitle>
-            <DialogDescription>Tick một hoặc nhiều thiết bị; mỗi thiết bị thành một dòng của phiếu.</DialogDescription>
-          </DialogHeader>
-          <div className="relative">
-            <Search className="text-muted-foreground absolute top-2.5 left-2.5 size-4" />
-            <Input autoFocus className="pl-8" placeholder="Tìm theo mã, tên thiết bị" value={search}
-              onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div className="max-h-80 min-h-40 overflow-y-auto rounded-md border">
-            {list.isLoading ? (
-              <div className="text-muted-foreground flex h-40 items-center justify-center gap-2 text-sm">
-                <Loader2 className="size-4 animate-spin" /> Đang tải
-              </div>
-            ) : rows.length === 0 ? (
-              <p className="text-muted-foreground px-4 py-10 text-center text-sm">
-                Không thấy thiết bị nào. Có thể thêm thiết bị ngoài danh mục.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {rows.map((c) => (
-                  <li key={c.id}>
-                    <label className="hover:bg-muted/60 flex cursor-pointer items-start gap-3 px-3 py-2">
-                      <Checkbox className="mt-0.5" checked={picked.has(c.id)} onCheckedChange={() => toggle(c)} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                          {c.name}
-                          {c.ownerSchool ? <Badge variant="outline">Của trường</Badge> : null}
-                        </span>
-                        <span className="text-muted-foreground block text-xs">
-                          {[c.code, c.unit?.name, TRACKING_LABELS[c.trackingType]?.split(",")[0], c.subject?.name]
-                            .filter(Boolean).join(" · ")}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Phòng nhận cho các dòng này</Label>
-            <AsyncCombobox<{ id: number; code?: string | null; name: string }>
-              resource="rooms"
-              value={room.id}
-              fallbackLabel={room.name}
-              clearable
-              clearLabel="Kho"
-              onChange={(id) => setRoom(id == null ? { id: null } : { ...room, id })}
-              onPick={(item) => setRoom({ id: item.id, name: item.name, code: item.code ?? null })}
-              labelOf={(item) => (item.code ? `${item.code} · ${item.name}` : item.name)}
-              placeholder="Trống = nhập kho"
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) reset();
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent size="picker">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {/* Giữ cho trình đọc màn hình (Radix cần một mô tả), ẩn khỏi mắt: bốn dòng chữ giải thích
+              chiếm mất chỗ của chính cái bảng người ta mở hộp này để nhìn. */}
+          <DialogDescription className="sr-only">{description}</DialogDescription>
+        </DialogHeader>
+        {header}
+        {body ?? (
+        <>
+
+        {/* Một hàng lọc: ô tìm (gõ là lọc), hai ô chọn loại / môn; "Thêm mới" đứng cuối hàng vì
+            người ta chỉ cần nó đúng lúc tìm không ra.
+            Ô tìm là <div> chứ không phải <form>: hộp này mở TRONG form phiếu
+            nhập, và một form lồng trong form thì Enter ở đây submit cả phiếu. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-80 max-w-full">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Input
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter ở đây không được submit form phiếu bên ngoài; áp ngay khỏi chờ.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  setApplied(term.trim());
+                }
+              }}
+              placeholder="Mã hoặc tên thiết bị…"
+              className="rounded-full pl-8"
+              aria-label="Tìm thiết bị"
             />
           </div>
-          <DialogFooter className="sm:justify-between">
-            <Button type="button" variant="ghost" onClick={() => setOffCatalog(true)}>
+          {/* Trường đã có cấp học thì KHÔNG có ô chọn cấp: thiết bị của cấp khác không ghi tăng được cho
+              trường này (máy chủ cũng không trả về và từ chối khi lưu). Ô chọn chỉ còn với trường chưa
+              khai cấp học. */}
+          {schoolLevel ? null : (
+            <IconFilter icon={<GraduationCap />} label="cấp học" allLabel="Mọi cấp học" value={levelId === ALL ? null : levelId}
+              onChange={(v) => setLevelPick(v ?? ALL)}
+              groups={[{ items: (levels?.data ?? []).map((l: any) => ({ key: String(l.id), label: l.name })) }]} />
+          )}
+          <IconFilter icon={<Boxes />} label="loại thiết bị" allLabel="Tất cả loại" value={typeId === ALL ? null : typeId}
+            onChange={(v) => setTypeId(v ?? ALL)}
+            groups={[{ items: (types?.data ?? []).map((t: any) => ({ key: String(t.id), label: t.name })) }]} />
+          <IconFilter icon={<BookOpen />} label="môn học" allLabel="Tất cả môn" value={subjectId === ALL ? null : subjectId}
+            onChange={(v) => setSubjectId(v ?? ALL)}
+            groups={[{ items: (subjects?.data ?? []).map((x: any) => ({ key: String(x.id), label: x.name })) }]} />
+          {mayCreate ? (
+            <Button type="button" variant="outline" className="ms-auto" onClick={() => setCreating(true)}>
               <Plus />
-              Thêm thiết bị ngoài danh mục
+              Thêm mới
             </Button>
-            <Button type="button" disabled={picked.size === 0} onClick={() => add([...picked.values()])}>
-              {picked.size ? `Thêm ${picked.size} thiết bị` : "Thêm"}
+          ) : (
+            // Trường không ghi danh mục của Sở, nhưng thêm được thiết bị NGOÀI danh mục của riêng mình.
+            // Nhãn ngắn: hàng này còn ô tìm và các ô lọc. Lời giải thích nằm sau dấu "?" cạnh nút — không
+            // dùng chú thích tự bật khi rê chuột qua nút (nó che mất ô lọc bên cạnh mỗi lần lướt qua).
+            <span className="ms-auto flex items-center gap-1.5">
+              <Button type="button" variant="outline" onClick={() => setAddingOwn(true)}>
+                <Plus />
+                Ngoài danh mục
+              </Button>
+              <HelpHint>
+                Dùng khi thiết bị không có trong danh mục của Sở.
+              </HelpHint>
+            </span>
+          )}
+        </div>
+
+        {/* Chiều cao CỐ ĐỊNH, không max-h: lọc ra ít dòng thì bảng chừa trống chứ hộp không co lại. */}
+        <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
+                  {/* Chỉ cộng / trừ các dòng của TRANG NÀY. Thay cả Map bằng trang hiện tại thì
+                      tích ở trang 2 xoá sạch thứ đã chọn ở trang 1 — người dùng không thấy, vì
+                      những dòng ấy không nằm trên màn. */}
+                  <Checkbox
+                    checked={pickable.length > 0 && pickable.every((r) => selected.has(r.id))}
+                    onCheckedChange={(v) =>
+                      setSelected((prev) => {
+                        const next = new Map(prev);
+                        if (v) pickable.forEach((r) => next.set(r.id, r));
+                        else pickable.forEach((r) => next.delete(r.id));
+                        return next;
+                      })
+                    }
+                  />
+                </TableHead>
+                <TableHead>Mã thiết bị</TableHead>
+                <TableHead>Thiết bị</TableHead>
+                {/* Không có cột Loại thiết bị và Môn học: hai ô lọc ngay trên bảng đã là hai cột đó,
+                    và chúng đẩy cột Thiết bị — thứ người ta thực sự đọc để chọn — bị cắt mất chữ. */}
+                <TableHead className="w-20">ĐVT</TableHead>
+                <TableHead className="w-28">Quản lý</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {query.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
+                    Đang tải…
+                  </TableCell>
+                </TableRow>
+              ) : rows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
+                    Không có thiết bị nào phù hợp.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row) => {
+                  const already = exclude.has(row.id);
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className={cn("group/row", LIFT_ROW, already ? "text-muted-foreground" : "cursor-pointer")}
+                      onClick={() => toggle(row)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          disabled={already}
+                          checked={selected.has(row.id)}
+                          onCheckedChange={() => toggle(row)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{row.code}</TableCell>
+                      <TableCell>
+                        {row.name}
+                        {row.ownerSchool ? (
+                          <Badge variant="warning" className="ms-2" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
+                            Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin as keyof typeof CATALOG_ORIGIN_LABELS] ?? row.origin}` : ""}
+                          </Badge>
+                        ) : null}
+                        {already ? (
+                          <div className="text-xs">Phiếu đã có dòng cho thiết bị này</div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{row.unit?.name ?? "—"}</TableCell>
+                      <TableCell>
+                        {row.trackingType ? (
+                          <Badge variant={row.trackingType === "BULK" ? "info" : "neutral"}>
+                            {TRACKING_LABELS[row.trackingType] ?? row.trackingType}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+          {result.hasNextPage ? (
+            <div ref={loadMoreRef} className="text-muted-foreground py-3 text-center text-xs">
+              {query.isFetchingNextPage ? "Đang tải thêm…" : "Cuộn để tải thêm"}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Tìm KHÔNG RA thì chỉ ngay lối thêm thiết bị ngoài danh mục, tên điền sẵn từ khoá vừa gõ —
+            hiện thường trực thì thành một dòng chữ không ai đọc. */}
+        {mayCreate || !applied || rows.length > 0 || query.isFetching ? null : (
+          <p className="text-muted-foreground -mt-1 flex flex-wrap items-center gap-x-2 text-xs">
+            Không có “{applied}” trong danh mục. Bạn có thể
+            <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setAddingOwn(true)}>
+              thêm làm thiết bị ngoài danh mục
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <OffCatalogDialog
-        open={open && offCatalog}
-        onOpenChange={(o) => setOffCatalog(o)}
-        onCreated={(c) => {
-          setOffCatalog(false);
-          add([...picked.values(), toPicked(c)]);
-        }}
-      />
-    </>
+          </p>
+        )}
+
+        {/* Một thanh dưới: số đã tải bên trái; số đã chọn và hai nút bên phải. */}
+        <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+          {total > 0 ? (
+            <span className="text-muted-foreground text-sm">
+              <span className="tabular-nums">{rows.length}</span> / <span className="text-foreground font-medium tabular-nums">{total}</span> thiết bị
+            </span>
+          ) : null}
+          <div className="ms-auto flex items-center gap-3">
+            {single ? null : (
+              <span className="text-muted-foreground text-sm">
+                Đã chọn <span className="text-foreground font-semibold tabular-nums">{selected.size}</span>
+              </span>
+            )}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Đóng
+            </Button>
+            {single ? null : (
+              <Button
+                type="button"
+                className="min-w-28"
+                disabled={selected.size === 0}
+                onClick={() => {
+                  onPick([...selected.values()], roomId ? Number(roomId) : null);
+                  reset();
+                }}
+              >
+                Thêm {selected.size > 0 ? selected.size : ""} dòng
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <SchoolItemDialog
+          open={addingOwn}
+          onOpenChange={setAddingOwn}
+          initialName={applied}
+          onCreated={(row) => {
+            setAddingOwn(false);
+            // Vừa thêm xong thì chọn luôn — không ai mở hộp này để thêm rồi thôi.
+            if (single) { onPick([row], null); reset(); }
+            else setSelected((prev) => new Map(prev).set(row.id, row));
+            query.refetch?.();
+          }}
+        />
+        <NewCatalogDialog
+          open={creating}
+          onOpenChange={setCreating}
+          types={types?.data ?? []}
+          onCreated={(row) => {
+            setCreating(false);
+            // Vừa tạo xong thì chọn luôn — không ai mở hộp này để tạo rồi thôi.
+            if (single) { onPick([row], null); reset(); }
+            else setSelected((prev) => new Map(prev).set(row.id, row));
+            query.refetch?.();
+          }}
+        />
+        </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
-type Ref = { id: number | null; name?: string | null };
-
 /**
- * Thêm thiết bị ngoài danh mục (PN-01 luồng 3a): thiết bị riêng của trường, lưu vào danh mục của trường
- * (`POST /equipment_catalogs/school-items`) rồi thành một dòng của phiếu. Trùng tên với danh mục của Sở
- * hoặc của trường thì máy chủ từ chối (MSG30).
+ * Tạo nhanh một mặt hàng ngay trong lúc lập phiếu.
+ *
+ * <p>Chỉ hỏi những gì KHÔNG suy ra được và những gì phiếu cần ngay: mã, tên,
+ * đơn vị tính, cách quản lý, loại tài sản. Phần còn lại của hồ sơ mặt hàng —
+ * môn học, khối lớp, căn cứ thông tư, định mức — để màn danh mục làm cho tử
+ * tế; nhét cả hai mươi ô vào đây thì người ta bấm bừa cho xong để quay lại
+ * phiếu đang dở.
+ *
+ * <p>Ba ô có dấu sao là vì phiếu sẽ hỏi lại chúng ở bước trình: đơn vị tính
+ * nằm trong {@code Equipment.missingProfile()}, và cách quản lý quyết định
+ * dòng sinh ra tài sản hay cộng tồn kho.
  */
-function OffCatalogDialog({ open, onOpenChange, onCreated }: {
+function NewCatalogDialog({
+  open,
+  onOpenChange,
+  types,
+  onCreated,
+}: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (item: EquipmentCatalog) => void;
+  types: any[];
+  onCreated: (row: PickedCatalog) => void;
 }) {
-  const { open: notify } = useNotification();
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<Ref>({ id: null });
-  const [unit, setUnit] = useState<Ref>({ id: null });
-  const [subject, setSubject] = useState<Ref>({ id: null });
-  const [category, setCategory] = useState("");
-  const [origin, setOrigin] = useState("");
+  const [unitId, setUnitId] = useState<string>("");
+  const [typeId, setTypeId] = useState<string>(ALL);
   const [tracking, setTracking] = useState("SERIAL");
-  const [busy, setBusy] = useState(false);
+  const [category, setCategory] = useState<string>(ALL);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setName(""); setType({ id: null }); setUnit({ id: null }); setSubject({ id: null });
-      setCategory(""); setOrigin(""); setTracking("SERIAL"); setError(null);
-    }
-  }, [open]);
+  const [busy, setBusy] = useState(false);
+  const { mutateAsync } = useCreate();
+  const { result: units } = useList<any>({
+    resource: "units",
+    pagination: { pageSize: 200 },
+    queryOptions: { enabled: open },
+  });
 
-  const ready = name.trim() && type.id && unit.id && category && origin;
-  const save = async () => {
-    setBusy(true);
+  const codeError = textError("CODE", "Mã", code);
+  const nameError = textError("NAME", "Tên", name);
+
+  const reset = () => {
+    setCode(""); setName(""); setUnitId(""); setTypeId(ALL);
+    setTracking("SERIAL"); setCategory(ALL); setError(null);
+  };
+
+  async function submit() {
     setError(null);
+    setBusy(true);
     try {
-      const created = await kyInstance.post("equipment_catalogs/school-items", {
-        json: {
+      const created: any = await mutateAsync({
+        resource: "equipment_catalogs",
+        values: {
+          code: code.trim(),
           name: name.trim(),
-          equipmentType: { id: type.id },
-          unit: { id: unit.id },
-          subject: subject.id ? { id: subject.id } : null,
-          assetCategory: category,
-          origin,
+          unit: unitId ? { id: Number(unitId) } : undefined,
+          equipmentType: typeId !== ALL ? { id: Number(typeId) } : undefined,
           trackingType: tracking,
+          assetCategory: category !== ALL ? category : undefined,
+          physicalOrDigital: "PHYSICAL",
+          active: true,
         },
-      }).json<EquipmentCatalog>();
-      notify?.({ type: "success", message: `Đã thêm "${created.name}" vào danh mục của trường` });
-      onCreated(created);
+        successNotification: false,
+      });
+      const row = created?.data ?? created;
+      reset();
+      onCreated({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        trackingType: row.trackingType,
+        assetCategory: row.assetCategory ?? null,
+        physicalOrDigital: row.physicalOrDigital ?? null,
+        unit: row.unit ?? null,
+        equipmentType: row.equipmentType ?? null,
+        subject: row.subject ?? null,
+      });
     } catch (e) {
       setError(await errorMessage(e));
     } finally {
       setBusy(false);
     }
-  };
-
-  const combo = (resource: string, value: Ref, set: (r: Ref) => void, placeholder: string, clearable = false) => (
-    <AsyncCombobox<{ id: number; code?: string | null; name: string }>
-      resource={resource}
-      value={value.id}
-      fallbackLabel={value.name}
-      clearable={clearable}
-      onChange={(id) => set(id == null ? { id: null } : { ...value, id })}
-      onPick={(item) => set({ id: item.id, name: item.name })}
-      labelOf={(item) => item.name}
-      placeholder={placeholder}
-    />
-  );
-  const select = (value: string, set: (v: string) => void, labels: Record<string, string>, placeholder: string) => (
-    <Select value={value} onValueChange={(v) => v && set(v)}>
-      <SelectTrigger className="w-full"><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        {Object.entries(labels).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-      </SelectContent>
-    </Select>
-  );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+      <DialogContent size="form">
         <DialogHeader>
-          <DialogTitle>Thêm thiết bị ngoài danh mục</DialogTitle>
-          <DialogDescription>Thiết bị riêng của trường; sau này chọn lại được ở các phiếu khác.</DialogDescription>
+          <DialogTitle>Thêm thiết bị vào danh mục</DialogTitle>
+          <DialogDescription>
+            Thiết bị này sẽ dùng chung cho mọi trường. Thông tin còn lại bổ sung sau ở màn Danh mục thiết bị.
+          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5 sm:col-span-2">
-            <Label>Tên thiết bị</Label>
-            <Input value={name} maxLength={255} onChange={(e) => setName(e.target.value)} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Mã <span className="text-destructive">*</span></Label>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="VD: TB-MAYCHIEU" maxLength={maxLengthOf("CODE")} />
+            {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
           </div>
-          <div className="grid gap-1.5"><Label>Loại thiết bị</Label>{combo("equipment_types", type, setType, "Chọn loại")}</div>
-          <div className="grid gap-1.5"><Label>Đơn vị tính</Label>{combo("units", unit, setUnit, "Chọn đơn vị")}</div>
-          <div className="grid gap-1.5"><Label>Nguồn gốc</Label>{select(origin, setOrigin, CATALOG_ORIGIN_LABELS, "Chọn nguồn gốc")}</div>
-          <div className="grid gap-1.5"><Label>Phân loại tài sản</Label>{select(category, setCategory, ASSET_CATEGORY_LABELS, "Chọn phân loại")}</div>
-          <div className="grid gap-1.5"><Label>Cách quản lý</Label>{select(tracking, setTracking, TRACKING_LABELS, "Chọn")}</div>
-          <div className="grid gap-1.5"><Label>Môn học</Label>{combo("subjects", subject, setSubject, "Trống = dùng chung", true)}</div>
+          <div className="space-y-1.5">
+            <Label>Tên <span className="text-destructive">*</span></Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Máy chiếu đa năng" maxLength={maxLengthOf("NAME")} />
+            {nameError ? <p className="text-destructive text-sm">{nameError}</p> : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Đơn vị tính <span className="text-destructive">*</span></Label>
+            <Select value={unitId} onValueChange={setUnitId}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn đơn vị tính" /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                {(units?.data ?? []).map((u: any) => (
+                  <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Loại thiết bị</Label>
+            <Select value={typeId === ALL ? "" : typeId} onValueChange={setTypeId}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn loại thiết bị" /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                {typeId === ALL ? null : <SelectItem value={ALL} className="text-muted-foreground">Bỏ chọn</SelectItem>}
+                {types.map((t: any) => (
+                  <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Cách quản lý <span className="text-destructive">*</span></Label>
+            <Select value={tracking} onValueChange={setTracking}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                {Object.entries(TRACKING_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Loại tài sản</Label>
+            <Select value={category === ALL ? "" : category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn loại tài sản" /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                {category === ALL ? null : <SelectItem value={ALL} className="text-muted-foreground">Bỏ chọn</SelectItem>}
+                {Object.entries(ASSET_CATEGORY_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        <p className="text-muted-foreground text-xs">
+          Chọn đúng cách quản lý ngay từ đầu. Đã nhập hàng rồi thì không đổi được.
+        </p>
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
+
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Quay lại</Button>
-          <Button type="button" disabled={!ready || busy} onClick={() => void save()}>
-            {busy ? <Loader2 className="animate-spin" /> : null}
-            Thêm vào phiếu
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Huỷ</Button>
+          <Button
+            type="button"
+            disabled={busy || !code.trim() || !name.trim() || !unitId || !!codeError || !!nameError}
+            onClick={submit}
+          >
+            Tạo và chọn
           </Button>
         </DialogFooter>
       </DialogContent>
