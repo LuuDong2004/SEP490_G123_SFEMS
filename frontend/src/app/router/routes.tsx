@@ -16,6 +16,7 @@ import { Login, Profile } from "@/features/identity";
 import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { AdequacyReportPage, AssetsReport, PurchaseReportPage } from "@/features/reports";
+import { CampaignPage, CampaignShow } from "@/features/organization/inventory-campaigns";
 import {
   EquipmentIntakeCreate,
   EquipmentIntakeEdit,
@@ -139,7 +140,9 @@ export function AppRoutes() {
         })}
 
         {/* Kiểm kê (KK-01 – KK-07) */}
-        {crudRoutes("/inventory-campaigns", "inventory_campaigns")}
+        {crudRoutes("/inventory-campaigns", "inventory_campaigns", {
+          list: <CampaignPage />, create: <CampaignPage />, edit: <CampaignPage />, show: <CampaignShow />,
+        })}
         {crudRoutes("/inventory-sessions", "inventory_sessions")}
 
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
