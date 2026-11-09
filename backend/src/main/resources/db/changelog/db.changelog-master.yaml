@@ -35,6 +35,8 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/051-loai-hinh-cua-truong.sql
   - include:
+      file: db/changelog/changes/052-quyen-co-quan-quan-ly.sql
+  - include:
       file: db/changelog/changes/011-khung-du-lieu-nghiep-vu.sql
   - include:
       file: db/changelog/changes/012-seed-du-lieu-mau.sql
