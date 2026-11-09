@@ -16,6 +16,12 @@ import { Login, Profile } from "@/features/identity";
 import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { CampaignPage, CampaignShow } from "@/features/organization/inventory-campaigns";
+import {
+  InventorySessionCreate,
+  InventorySessionEdit,
+  InventorySessionList,
+  InventorySessionShow,
+} from "@/features/organization/inventory-sessions";
 import { AssetsReport } from "@/features/reports";
 import {
   EquipmentIntakeCreate,
@@ -136,7 +142,10 @@ export function AppRoutes() {
         {crudRoutes("/inventory-campaigns", "inventory_campaigns", {
           list: <CampaignPage />, create: <CampaignPage />, edit: <CampaignPage />, show: <CampaignShow />,
         })}
-        {crudRoutes("/inventory-sessions", "inventory_sessions")}
+        {crudRoutes("/inventory-sessions", "inventory_sessions", {
+          list: <InventorySessionList />, create: <InventorySessionCreate />,
+          edit: <InventorySessionEdit />, show: <InventorySessionShow />,
+        })}
 
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
         {crudRoutes("/schools", "schools")}
