@@ -5,6 +5,7 @@ import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.catalog.movementreason.MovementReason;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.facility.Room;
 import jakarta.persistence.Column;
@@ -124,6 +125,12 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     @Column(length = 255)
     private String note;
+
+    /** Lý do tăng (danh mục lý do biến động, chiều tăng) — bắt buộc khi trình. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SELECT)
+    @JoinColumn(name = "movement_reason_id")
+    private MovementReason movementReason;
 
     public String effectiveSupplier() {
         return supplier != null ? supplier : intake.getSupplier();
@@ -331,5 +338,13 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public MovementReason getMovementReason() {
+        return movementReason;
+    }
+
+    public void setMovementReason(MovementReason movementReason) {
+        this.movementReason = movementReason;
     }
 }

@@ -78,6 +78,36 @@ public class EquipmentIntake extends SchoolVoucher {
     @Column(name = "warranty_months")
     private Integer warrantyMonths;
 
+    /** Biên bản giao nhận (PN-01). Người giao bắt buộc khi trình. */
+    @Column(length = 255)
+    private String deliverer;
+
+    @Column(name = "deliverer_representative", length = 255)
+    private String delivererRepresentative;
+
+    @Column(length = 255)
+    private String receiver;
+
+    @Column(name = "receiver_position", length = 255)
+    private String receiverPosition;
+
+    @Column(length = 255)
+    private String storekeeper;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "inspection_result", length = 20)
+    private InspectionResult inspectionResult;
+
+    @Column(name = "handover_no", length = 100)
+    private String handoverNo;
+
+    /** Kết quả kiểm tra hàng lúc giao nhận. */
+    public enum InspectionResult {
+        PASSED,
+        PARTIAL,
+        FAILED
+    }
+
     /**
      * Phiếu nghiệp vụ đã sinh ra phiếu này (đề xuất mua sắm, biên bản kiểm kê thừa); cả ba trống là phiếu
      * lập tay.
@@ -236,5 +266,61 @@ public class EquipmentIntake extends SchoolVoucher {
                 lines.add(line);
             }
         }
+    }
+
+    public String getDeliverer() {
+        return deliverer;
+    }
+
+    public void setDeliverer(String deliverer) {
+        this.deliverer = deliverer;
+    }
+
+    public String getDelivererRepresentative() {
+        return delivererRepresentative;
+    }
+
+    public void setDelivererRepresentative(String delivererRepresentative) {
+        this.delivererRepresentative = delivererRepresentative;
+    }
+
+    public String getReceiver() {
+        return receiver;
+    }
+
+    public void setReceiver(String receiver) {
+        this.receiver = receiver;
+    }
+
+    public String getReceiverPosition() {
+        return receiverPosition;
+    }
+
+    public void setReceiverPosition(String receiverPosition) {
+        this.receiverPosition = receiverPosition;
+    }
+
+    public String getStorekeeper() {
+        return storekeeper;
+    }
+
+    public void setStorekeeper(String storekeeper) {
+        this.storekeeper = storekeeper;
+    }
+
+    public InspectionResult getInspectionResult() {
+        return inspectionResult;
+    }
+
+    public void setInspectionResult(InspectionResult inspectionResult) {
+        this.inspectionResult = inspectionResult;
+    }
+
+    public String getHandoverNo() {
+        return handoverNo;
+    }
+
+    public void setHandoverNo(String handoverNo) {
+        this.handoverNo = handoverNo;
     }
 }
