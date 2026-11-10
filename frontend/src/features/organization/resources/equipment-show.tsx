@@ -9,6 +9,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { ASSET_CATEGORY_LABELS, FUNDING_SOURCE_LABELS } from "@/domains/equipment-intake/types";
 import { ASSET_STATUS_LABELS, PHYSICAL_DIGITAL_LABELS, type Equipment } from "@/domains/equipment/types";
+import { EquipmentCodesButton } from "./equipment-codes";
 import { EquipmentHistoryCard } from "./equipment-history";
 import { offBook } from "./equipment-items";
 import { UsageTiles } from "./usage-tiles";
@@ -59,6 +60,7 @@ export const EquipmentShow = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="bg-muted rounded-md px-2 py-0.5 font-mono text-xs font-medium">{r.code}</span>
                     <Badge variant={ASSET_STATUS_VARIANTS[r.status] ?? "secondary"}>{ASSET_STATUS_LABELS[r.status]}</Badge>
+                    <EquipmentCodesButton equipmentId={r.id} code={r.code} />
                   </div>
                 </div>
                 <div className="grid gap-x-8 gap-y-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
