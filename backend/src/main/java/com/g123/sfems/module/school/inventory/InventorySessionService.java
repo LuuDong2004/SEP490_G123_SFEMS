@@ -1,25 +1,33 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
 import com.g123.sfems.domain.school.inventory.InventoryLine;
 import com.g123.sfems.domain.school.inventory.InventorySession;
+import com.g123.sfems.domain.school.inventory.InventorySurplus;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.hibernate.Hibernate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Phiếu kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
@@ -59,7 +67,7 @@ public class InventorySessionService
         voucher.setNote(trimToNull(request.note()));
         InventoryCampaign campaign = request.campaign() == null || request.campaign().id() == null
                 ? null : campaigns.get(request.campaign().id());
-        Room room = roomOf(voucher, request.room() == null ? null : request.room().id());
+        Room room = roomOf(voucher, request.room(), "room");
         if (campaign != null) {
             requireFitsCampaign(voucher, campaign, room);
         }
@@ -97,6 +105,52 @@ public class InventorySessionService
         if (request.note() != null) {
             voucher.setNote(trimToNull(request.note()));
         }
+        if (request.surplus() != null) {
+            voucher.replaceSurplus(surplusOf(voucher, request.surplus()));
+        }
+    }
+
+    /**
+     * Ghi kết quả kiểm đếm (KK-04), một hay nhiều dòng một lần. Chỉ khi phiếu còn nháp: biên bản đã trình
+     * thì kết quả đã chốt. Thấy mà không nói phòng, tình trạng thì lấy đúng như sổ.
+     */
+    @Transactional
+    public InventorySession count(Long id, InventorySessionApi.Count request) {
+        InventorySession voucher = writable(id);
+        lockAndReread(voucher);
+        requireDraft(voucher);
+        Map<Long, InventoryLine> lines = voucher.getLines().stream()
+                .collect(Collectors.toMap(InventoryLine::getId, Function.identity()));
+        for (InventorySessionApi.CountLine input : request.lines()) {
+            InventoryLine line = lines.get(input.lineId());
+            if (line == null) {
+                throw new FieldValidationException("lines", "Dòng không thuộc phiếu này");
+            }
+            line.setFound(input.found());
+            if (Boolean.TRUE.equals(input.found())) {
+                Room room = roomOf(voucher, input.foundRoom(), "lines");
+                line.setFoundRoom(room == null ? line.getExpectedRoom() : room);
+                line.setFoundCondition(input.foundCondition() == null
+                        ? line.getExpectedCondition() : input.foundCondition());
+            } else {
+                line.setFoundRoom(null);
+                line.setFoundCondition(null);
+            }
+            line.setNote(trimToNull(input.note()));
+        }
+        rowLevel.checkWritable(voucher);
+        return initialize(repository.persist(voucher));
+    }
+
+    /** Phiếu nháp có thêm nút "Ghi kết quả kiểm đếm" cho người có quyền ghi. */
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public Set<String> actions(InventorySession voucher, Map<String, Boolean> can, boolean canApprove) {
+        Set<String> actions = new LinkedHashSet<>(super.actions(voucher, can, canApprove));
+        if (voucher.getStatus() == VoucherStatus.DRAFT && Boolean.TRUE.equals(can.get("write"))) {
+            actions.add("count");
+        }
+        return actions;
     }
 
     /** Màn chi tiết đọc cả dòng và tài sản thừa — hai tập LAZY trên thực thể. */
@@ -158,15 +212,38 @@ public class InventorySessionService
                 .getResultList();
     }
 
-    private Room roomOf(InventorySession voucher, Long roomId) {
-        if (roomId == null) {
+    /** Phòng theo tham chiếu, phải thuộc trường của phiếu. Trống là không nói phòng. */
+    private Room roomOf(InventorySession voucher, IdRef ref, String field) {
+        if (ref == null || ref.id() == null) {
             return null;
         }
-        Room room = entityManager.find(Room.class, roomId);
+        Room room = entityManager.find(Room.class, ref.id());
         if (room == null || !room.getSchool().getId().equals(voucher.getSchool().getId())) {
-            throw new FieldValidationException("room", "Phòng không thuộc trường của phiếu");
+            throw new FieldValidationException(field, "Phòng không thuộc trường của phiếu");
         }
         return room;
+    }
+
+    /** Dựng lại danh sách tài sản thừa theo thứ tự gửi lên. Tên trống thì lấy tên thiết bị trong danh mục. */
+    private List<InventorySurplus> surplusOf(InventorySession voucher, List<InventorySessionApi.SurplusInput> inputs) {
+        List<InventorySurplus> items = new ArrayList<>();
+        int lineNo = 1;
+        for (InventorySessionApi.SurplusInput input : inputs) {
+            EquipmentCatalog catalog = entityManager.find(EquipmentCatalog.class, input.catalog().id());
+            if (catalog == null) {
+                throw new FieldValidationException("surplus", "Thiết bị không có trong danh mục");
+            }
+            InventorySurplus item = new InventorySurplus();
+            item.setLineNo(lineNo++);
+            item.setCatalog(catalog);
+            String name = trimToNull(input.name());
+            item.setName(name == null ? catalog.getName() : name);
+            item.setQuantity(input.quantity() == null ? 1 : input.quantity());
+            item.setRoom(roomOf(voucher, input.room(), "surplus"));
+            item.setNote(trimToNull(input.note()));
+            items.add(item);
+        }
+        return items;
     }
 
     /**
