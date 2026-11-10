@@ -12,6 +12,7 @@ import { ASSET_STATUS_LABELS, PHYSICAL_DIGITAL_LABELS, type Equipment } from "@/
 import { EquipmentAttachmentsCard } from "./equipment-attachments";
 import { EquipmentCodesButton } from "./equipment-codes";
 import { EquipmentHistoryCard } from "./equipment-history";
+import { EquipmentPhoto } from "./equipment-photo";
 import { offBook } from "./equipment-items";
 import { UsageTiles } from "./usage-tiles";
 
@@ -55,7 +56,9 @@ export const EquipmentShow = () => {
         {r ? (
           <div className="grid w-full gap-4">
             <Card>
-              <CardContent className="flex flex-col gap-5">
+              <CardContent className="flex flex-col gap-6 sm:flex-row">
+                <EquipmentPhoto equipmentId={r.id} canWrite={false} />
+                <div className="flex min-w-0 flex-1 flex-col gap-5">
                 <div className="min-w-0 space-y-2">
                   <h2 className="text-2xl font-semibold tracking-tight">{r.name}</h2>
                   <div className="flex flex-wrap items-center gap-2">
@@ -90,6 +93,7 @@ export const EquipmentShow = () => {
                 <div className="flex flex-col gap-2">
                   <span className="text-overline text-muted-foreground">Sử dụng</span>
                   <UsageTiles record={r} />
+                </div>
                 </div>
               </CardContent>
             </Card>
