@@ -39,7 +39,7 @@ function Facts({ items }: { items: Fact[] }) {
 
 /**
  * Hồ sơ một thiết bị (TS-01): thẻ đầu là tên, mã, trạng thái, trường, hồ sơ đã chuẩn chưa, và dải "Sử dụng"
- * (vị trí, tình trạng, trạng thái, giá trị còn lại); dưới là hai nhóm trường "Định danh & phân loại" và "Nguồn
+ * (vị trí, tình trạng, trạng thái); dưới là hai nhóm trường "Định danh & phân loại" và "Nguồn
  * gốc & giá trị"; cuối là lịch sử (TS-04).
  *
  * Hồ sơ đã ra khỏi sổ (thanh lý, mất) chỉ còn để tra: không có nút Sửa, chỉ có Xoá.
