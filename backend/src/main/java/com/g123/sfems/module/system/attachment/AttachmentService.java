@@ -54,6 +54,13 @@ public class AttachmentService {
         this.readTx.setReadOnly(true);
     }
 
+    /**
+     * Mục nhận tệp trên hồ sơ thiết bị (TS-03): {@code photo} chỉ nhận ảnh, {@code document} không nhận ảnh.
+     * Trống thì nhận mọi loại được phép (phiếu nhập, văn bản định mức…).
+     */
+    public static final String PURPOSE_PHOTO = "photo";
+    public static final String PURPOSE_DOCUMENT = "document";
+
     /** Một tệp đem tải về: thông tin để dựng header và luồng nội dung (người nhận phải đóng). */
     public record Content(String fileName, String contentType, long sizeBytes, InputStream stream) {
     }
@@ -72,6 +79,11 @@ public class AttachmentService {
      * đối tượng vừa đẩy — bù trừ thay cho lùi giao dịch.
      */
     public AttachmentInfo upload(String resource, Long recordId, MultipartFile file, String note) throws IOException {
+        return upload(resource, recordId, file, note, null);
+    }
+
+    public AttachmentInfo upload(String resource, Long recordId, MultipartFile file, String note, String purpose)
+            throws IOException {
         // Kiểm trước khi đẩy: người không có quyền không đẩy được byte nào lên kho.
         readTx.executeWithoutResult(status -> records.checkWritable(resource, recordId));
         if (file == null || file.isEmpty()) {
@@ -85,6 +97,13 @@ public class AttachmentService {
         String contentType = FileSignature.CONTENT_TYPES.get(extension);
         if (contentType == null) {
             throw new FieldValidationException("file", "Chỉ nhận PDF, ảnh, tài liệu văn phòng, CSV hoặc ZIP");
+        }
+        boolean image = contentType.startsWith("image/");
+        if (PURPOSE_PHOTO.equals(purpose) && !image) {
+            throw new FieldValidationException("file", "Mục ảnh thiết bị chỉ nhận tệp ảnh");
+        }
+        if (PURPOSE_DOCUMENT.equals(purpose) && image) {
+            throw new FieldValidationException("file", "Tệp đính kèm không nhận ảnh; thêm ảnh ở mục Ảnh thiết bị");
         }
         // Đuôi do người gửi đặt; nội dung thì không giả được bằng cách đổi tên.
         byte[] head;

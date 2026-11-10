@@ -42,8 +42,6 @@ public record EquipmentPatchRequest(
 
         AssetCategory assetCategory,
 
-        @Size(max = 64) String legacyCode,
-
         @Size(max = 100) String serialNumber,
 
         @Size(max = 255) String model,
