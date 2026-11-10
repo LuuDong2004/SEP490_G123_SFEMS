@@ -20,13 +20,17 @@ export type SegmentedOption<V extends string> = {
  *
  * Nằm trong thanh công cụ cạnh ô tìm nên gọn hơn thanh tab điều hướng: `md` nút 30px, cả khung 36px bằng ô tìm;
  * `sm` 28px cho ô lọc nhỏ.
+ *
+ * - `brand`: viên màu chính (thanh lọc của bảng).
+ * - `card`: viên trắng nổi, chữ màu chính (công tắc nhỏ trên đầu thẻ).
  */
-export function Segmented<V extends string>({ options, value, onChange, label, size = "md", className }: {
+export function Segmented<V extends string>({ options, value, onChange, label, variant = "brand", size = "md", className }: {
   options: SegmentedOption<V>[];
   value: V;
   onChange: (value: V) => void;
   /** Tên của cả nhóm cho trình đọc màn hình, vd. "Lọc theo kết quả". */
   label: string;
+  variant?: "brand" | "card";
   size?: "sm" | "md";
   className?: string;
 }) {
@@ -35,7 +39,8 @@ export function Segmented<V extends string>({ options, value, onChange, label, s
   const [boxRef, indRef] = useLiquid<HTMLDivElement>(value, { selector: '[aria-selected="true"]', memory: `seg:${pathname}:${label}` });
   return (
     <div ref={boxRef} role="tablist" aria-label={label} className={cn(TAB_STRIP, "shrink-0 gap-0.5 p-0.5", className)}>
-      <span ref={indRef} aria-hidden className="pill-on pointer-events-none absolute rounded-full opacity-0" />
+      <span ref={indRef} aria-hidden
+        className={cn("pointer-events-none absolute rounded-full opacity-0", variant === "brand" ? "pill-on" : "bg-card shadow-sm")} />
       {options.map((o) => {
         const active = o.value === value;
         const button = (
@@ -50,7 +55,7 @@ export function Segmented<V extends string>({ options, value, onChange, label, s
             className={cn(
               TAB_ITEM,
               size === "md" ? "h-[30px] gap-1.5 px-3.5" : "h-7 gap-1.5 px-2.5 text-xs [&_svg:not([class*='size-'])]:size-3.5",
-              active ? TAB_ACTIVE : TAB_IDLE,
+              active ? (variant === "brand" ? TAB_ACTIVE : "text-primary delay-75") : TAB_IDLE,
             )}
           >
             {o.icon}
