@@ -29,16 +29,20 @@ public class LoginGuard {
         this.repository = repository;
     }
 
-    /** Tài khoản đang bị khoá tạm thì từ chối ngay, trước khi so mật khẩu — kể cả mật khẩu đúng. */
-    public void requireNotLocked(User user, Instant now) {
+    /**
+     * Tài khoản đang bị khoá tạm thì từ chối, kể cả mật khẩu đúng.
+     *
+     * <p>Câu báo là {@code message} — đúng câu của lần sai mật khẩu (GBR-01, MSG02). Báo riêng "tài khoản tạm khoá"
+     * thì người ngoài biết tên đăng nhập đó có thật. Người gọi phải so mật khẩu TRƯỚC khi gọi hàm này, để tài khoản
+     * đang khoá không trả lời nhanh hơn tài khoản thường.
+     */
+    public void requireNotLocked(User user, Instant now, String message) {
         if (user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(now)) {
-            long minutes = Math.max(1, (Duration.between(now, user.getLoginLockedUntil()).toSeconds() + 59) / 60);
-            throw new BadCredentialsException(
-                    "Tài khoản tạm khoá do sai mật khẩu nhiều lần — thử lại sau " + minutes + " phút");
+            throw new BadCredentialsException(message);
         }
     }
 
-    /** Ghi một lần sai mật khẩu; lần thứ {@value #MAX_FAILURES} thì khoá. Luôn ném lỗi đăng nhập. */
+    /** Ghi một lần sai mật khẩu; lần thứ {@value #MAX_FAILURES} thì khoá. Luôn ném lỗi đăng nhập với {@code message}. */
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void recordFailure(Long userId, String message) {
         Instant now = Instant.now();
@@ -49,8 +53,7 @@ public class LoginGuard {
                 user.setFailedLoginCount(0);
                 user.setLoginLockedUntil(now.plus(LOCK));
                 repository.save(user);
-                throw new BadCredentialsException("Sai mật khẩu " + MAX_FAILURES
-                        + " lần liên tiếp — tài khoản tạm khoá " + LOCK.toMinutes() + " phút");
+                throw new BadCredentialsException(message);
             }
             user.setFailedLoginCount(failures);
             repository.save(user);

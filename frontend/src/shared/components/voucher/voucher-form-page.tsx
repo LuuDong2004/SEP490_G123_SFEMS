@@ -73,6 +73,7 @@ export function VoucherFormPage({
   required = [],
   linesOptional,
   notice,
+  checks,
 }: {
   mode: "create" | "edit";
   defaults: Record<string, any>;
@@ -86,6 +87,11 @@ export function VoucherFormPage({
   required?: { name: string; label: string; when?: (values: Record<string, unknown>) => boolean }[];
   /** Bảng dòng là tuỳ chọn — phiếu không dòng vẫn trình được. */
   linesOptional?: boolean;
+  /**
+   * Mục "cần hoàn thiện" riêng của loại phiếu (từng dòng thiếu gì...) — CHẶN nút Trình như các ô bắt buộc.
+   * Nhận nguyên giá trị form; `onClick` của mục mở đúng chỗ phải sửa.
+   */
+  checks?: (values: Record<string, any>) => ChecklistItem[];
   /** Lời nhắc KHÔNG CHẶN dưới "Cần hoàn thiện" — không làm tắt nút Trình. */
   notice?: (props: { control: Control<any>; record?: any }) => ReactNode;
 }) {
@@ -166,6 +172,7 @@ export function VoucherFormPage({
     ...(hasLines && !linesOptional
       ? [{ key: "lines", label: "Chưa có dòng nào trên phiếu", ok: lineCount > 0, onClick: goTo("voucher-lines") }]
       : []),
+    ...(checks ? checks(formValues) : []),
   ];
   const missing = items.filter((i) => !i.ok);
   const submitRequired = new Set(required.filter(({ when }) => !when || when(formValues)).map(({ name }) => name));

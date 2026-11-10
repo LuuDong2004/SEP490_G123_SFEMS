@@ -169,10 +169,17 @@ public class VoucherWorkflow {
         if (voucher.getStatus() != VoucherStatus.DRAFT && voucher.getStatus() != VoucherStatus.CANCELLED) {
             throw new FieldValidationException("status", "Chỉ xoá được phiếu nháp hoặc phiếu đã huỷ");
         }
-        if (voucher.getCode() != null || events.existsByResourceAndVoucherId(voucher.resource(), voucher.getId())) {
+        // Huỷ một phiếu nháp cũng ghi một dòng CANCEL; dòng đó không có nghĩa là phiếu từng được trình.
+        if (voucher.getCode() != null
+                || events.existsByResourceAndVoucherIdAndActionNot(voucher.resource(), voucher.getId(), Action.CANCEL)) {
             throw new FieldValidationException("status",
                     "Phiếu đã từng được trình, không xoá được — nó đã có số và nhật ký duyệt. Hãy huỷ phiếu");
         }
+    }
+
+    /** Xoá nhật ký của phiếu sắp bị xoá (chỉ còn dòng CANCEL); bảng nhật ký không có khoá ngoại nên phải tự dọn. */
+    public void forgetEvents(SchoolVoucher voucher) {
+        events.deleteByResourceAndVoucherId(voucher.resource(), voucher.getId());
     }
 
     // ------------------------------------------------------------------ ai làm được gì

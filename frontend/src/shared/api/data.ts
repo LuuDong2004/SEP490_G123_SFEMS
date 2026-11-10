@@ -153,3 +153,6 @@ export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
     },
   },
 });
+
+/** Thời hạn cho một lần tải tệp (tệp đính kèm, xuất Excel) — dài hơn mặc định của ky. */
+export const DOWNLOAD_TIMEOUT = 180_000;

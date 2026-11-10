@@ -136,6 +136,10 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(name = "warranty_expiry")
     private LocalDate warrantyExpiry;
 
+    /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất (từ dòng phiếu nhập). */
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
     /** Nơi đặt. {@code null} = chưa giao về phòng nào (kho). */
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
@@ -344,6 +348,14 @@ public class Equipment extends SchoolOwnedEntity {
 
     public void setWarrantyExpiry(LocalDate warrantyExpiry) {
         this.warrantyExpiry = warrantyExpiry;
+    }
+
+    public LocalDate getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setExpiryDate(LocalDate expiryDate) {
+        this.expiryDate = expiryDate;
     }
 
     public Room getRoom() {

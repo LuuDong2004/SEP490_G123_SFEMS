@@ -5,6 +5,8 @@ import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.catalog.movementreason.MovementReason;
+import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.facility.Room;
 import jakarta.persistence.Column;
@@ -124,6 +126,55 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     @Column(length = 255)
     private String note;
+
+    /** Lý do tăng (danh mục lý do biến động, chiều tăng) — bắt buộc khi trình. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SELECT)
+    @JoinColumn(name = "movement_reason_id")
+    private MovementReason movementReason;
+
+    /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất; dòng quản lý từng cái luôn trống. */
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
+    /** Quy cách bao bì: 1 {@code packUnit} = {@code packSize} đơn vị của thiết bị. Chỉ dòng quản lý theo số lượng. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SELECT)
+    @JoinColumn(name = "pack_unit_id")
+    private Unit packUnit;
+
+    @Column(name = "pack_size", precision = 14, scale = 3)
+    private BigDecimal packSize;
+
+    public LocalDate getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setExpiryDate(LocalDate expiryDate) {
+        this.expiryDate = expiryDate;
+    }
+
+    public Unit getPackUnit() {
+        return packUnit;
+    }
+
+    public void setPackUnit(Unit packUnit) {
+        this.packUnit = packUnit;
+    }
+
+    public BigDecimal getPackSize() {
+        return packSize;
+    }
+
+    public void setPackSize(BigDecimal packSize) {
+        this.packSize = packSize;
+    }
+
+    /** Số lượng vào sổ: số thực nhận × quy cách, hoặc số thực nhận khi không quy đổi. */
+    public BigDecimal stockQuantity() {
+        BigDecimal received = BigDecimal.valueOf(receivedQuantity == null ? 0 : receivedQuantity);
+        return packSize == null ? received : received.multiply(packSize).stripTrailingZeros();
+    }
 
     public String effectiveSupplier() {
         return supplier != null ? supplier : intake.getSupplier();
@@ -331,5 +382,13 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public MovementReason getMovementReason() {
+        return movementReason;
+    }
+
+    public void setMovementReason(MovementReason movementReason) {
+        this.movementReason = movementReason;
     }
 }

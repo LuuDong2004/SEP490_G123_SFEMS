@@ -3,6 +3,8 @@ package com.g123.sfems.module.organization.school.api;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.Permissions;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -67,13 +69,14 @@ public class SchoolLogoController {
                 .body((byte[]) row.get("data"));
     }
 
-    public record LogoRequest(String dataUrl) {
+    /** 300 KB ảnh là khoảng 410 nghìn ký tự base64, cộng phần đầu "data:image/…;base64,". */
+    public record LogoRequest(@Size(max = 450_000, message = "Logo tối đa 300 KB") String dataUrl) {
     }
 
     @PutMapping
     @PreAuthorize("hasAuthority('" + Permissions.SCHOOLS_WRITE + "')")
     @Transactional
-    public ResponseEntity<Void> put(@PathVariable Long id, @RequestBody LogoRequest request) {
+    public ResponseEntity<Void> put(@PathVariable Long id, @Valid @RequestBody LogoRequest request) {
         schools.getWritable(id);
         Matcher m = DATA_URL.matcher(request.dataUrl() == null ? "" : request.dataUrl().trim());
         if (!m.matches()) {

@@ -91,9 +91,12 @@ export const resources: ResourceProps[] = [
   // ── Thiết bị (TS-01 – TS-07, NghiaNV)
   { name: "equipment_mgmt", meta: { label: "Thiết bị", icon: icon(Boxes), module: true, home: "equipment" } },
   { ...crud("equipment", "/equipment"), meta: { label: "Thiết bị", tabLabel: "Danh sách thiết bị", icon: icon(Boxes), parent: "equipment_mgmt", tabOrder: 1 } },
+  // Ghi tăng (PN-01 – PN-03, DongLV) là một tab của phân hệ Thiết bị, không đứng riêng trên menu:
+  // thiết bị mới vào sổ bằng phiếu ghi tăng, nên lối vào nằm cạnh danh sách thiết bị.
+  { ...crud("equipment_intakes", "/equipment-intakes"), meta: { label: "Ghi tăng", icon: icon(FileInput), parent: "equipment_mgmt", tabOrder: 2 } },
   // Tra cứu theo mã (TS-02) mượn quyền equipment:read (xem `PERMISSION_ALIASES`).
-  { name: "equipment_lookup", list: "/equipment-lookup", meta: { label: "Tra cứu theo mã", icon: icon(ScanLine), parent: "equipment_mgmt", tabOrder: 2 } },
-  { name: "data_imports", list: "/data-imports", show: "/data-imports/show/:id", meta: { label: "Nhập từ tệp", icon: icon(FileSpreadsheet), parent: "equipment_mgmt", tabOrder: 3 } },
+  { name: "equipment_lookup", list: "/equipment-lookup", meta: { label: "Tra cứu theo mã", icon: icon(ScanLine), parent: "equipment_mgmt", tabOrder: 3 } },
+  { name: "data_imports", list: "/data-imports", show: "/data-imports/show/:id", meta: { label: "Nhập từ tệp", icon: icon(FileSpreadsheet), parent: "equipment_mgmt", tabOrder: 4 } },
 
   // ── Mua sắm (NC-01 – NC-07, HoangPND)
   { name: "procurement", meta: { label: "Mua sắm", icon: icon(ShoppingCart), module: true, home: "purchase_proposals" } },
@@ -101,10 +104,6 @@ export const resources: ResourceProps[] = [
   { name: "equipment_adequacy", list: "/equipment-adequacy", meta: { label: "Mức đáp ứng định mức", icon: icon(Gauge), parent: "procurement", tabOrder: 1 } },
   { ...crud("purchase_proposals", "/purchase-proposals"), meta: { label: "Đề xuất mua sắm", icon: icon(ClipboardList), parent: "procurement", tabOrder: 2 } },
   { ...crud("procurement_plans", "/procurement-plans"), meta: { label: "Kế hoạch mua sắm", icon: icon(ClipboardCheck), parent: "procurement", tabOrder: 3 } },
-
-  // ── Nhập thiết bị – ghi tăng tài sản (PN-01 – PN-03, DongLV). Phân hệ một tab: thanh tab tự ẩn.
-  { name: "intake", meta: { label: "Nhập thiết bị", icon: icon(FileInput), module: true, home: "equipment_intakes" } },
-  { ...crud("equipment_intakes", "/equipment-intakes"), meta: { label: "Phiếu nhập thiết bị", icon: icon(FileInput), parent: "intake", tabOrder: 1 } },
 
   // ── Kiểm kê (KK-01 – KK-07, TuTN)
   { name: "inventory", meta: { label: "Kiểm kê", icon: icon(ClipboardList), module: true, home: "inventory_sessions" } },

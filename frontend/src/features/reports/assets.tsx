@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Boxes, CalendarPlus, CircleDollarSign, PackageCheck, PackageSearch, Warehouse } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { ReportFilterToolbar } from "./report-filter-toolbar";
+import { ReportPrintSheet } from "./report-print-sheet";
 
 const ALL = "__all__";
 const today = new Date().toISOString().slice(0, 10);
@@ -20,20 +22,30 @@ const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND
 function FilterSelect({ label, value, options, onChange, useKey = false }: {
   label: string; value: string; options: ReportOption[]; onChange: (value: string) => void; useKey?: boolean;
 }) {
-  return <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
-    {label}
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9 w-full min-w-0 px-2 text-xs"><SelectValue placeholder={label} /></SelectTrigger>
+  const allLabel = label === "Trường" ? "Mọi trường"
+    : label === "Môn học" ? "Mọi môn học"
+    : label === "Loại thiết bị" ? "Mọi loại thiết bị"
+    : label === "Trạng thái" ? "Mọi trạng thái"
+    : "Mọi nguồn hình thành";
+  const width = label === "Nguồn hình thành"
+    ? "min-w-[175px]"
+    : label === "Trường"
+      ? "min-w-[150px]"
+      : "min-w-[135px]";
+
+  return <Select value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label={label} className={`h-9 rounded-full ${width} px-3 text-xs`}><SelectValue placeholder={allLabel} /></SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>Tất cả</SelectItem>
+        <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((option) => {
           const optionValue = useKey ? option.key : option.id == null ? null : String(option.id);
           return optionValue ? <SelectItem key={optionValue} value={optionValue}>{option.label}</SelectItem> : null;
         })}
       </SelectContent>
-    </Select>
-  </label>;
+    </Select>;
 }
+
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/đ/g, "d");
 
 export function AssetsReport() {
   const { perspective } = usePerspective();
@@ -41,6 +53,7 @@ export function AssetsReport() {
   const [defaultFromDate, setDefaultFromDate] = useState("");
   const [toDate, setToDate] = useState(today);
   const [schoolId, setSchoolId] = useState(ALL);
+  const [search, setSearch] = useState("");
   const [subjectId, setSubjectId] = useState(ALL);
   const [equipmentTypeId, setEquipmentTypeId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
@@ -55,12 +68,15 @@ export function AssetsReport() {
       ...(status !== ALL ? { status } : {}),
       ...(originId !== ALL ? { originId } : {}),
     } }).json<AssetReport>(),
+    placeholderData: keepPreviousData,
   });
   useEffect(() => {
     if (!defaultFromDate && query.data?.fromDate) setDefaultFromDate(query.data.fromDate);
     if (!fromDate && query.data?.fromDate) setFromDate(query.data.fromDate);
   }, [defaultFromDate, fromDate, query.data?.fromDate]);
   const report = query.data;
+  const searchTerm = fold(search.trim());
+  const visibleRows = (report?.rows ?? []).filter((row) => !searchTerm || fold(`${row.code} ${row.name} ${row.schoolName}`).includes(searchTerm));
   const scopeName = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
   const stats = report ? [
     { label: "Số lượng thiết bị", value: number.format(report.summary.quantity), icon: <Boxes />, tone: "text-primary" },
@@ -71,8 +87,25 @@ export function AssetsReport() {
     { label: "Báo mất", value: number.format(report.summary.missing), icon: <PackageSearch />, tone: "text-destructive-text" },
     { label: "Ghi tăng trong kỳ", value: number.format(report.summary.recordedInPeriod), icon: <CalendarPlus />, tone: "text-primary" },
   ] : [];
+  const exportData = {
+    filename: "bao-cao-tai-san-thiet-bi",
+    title: "Báo cáo tài sản thiết bị",
+    subtitle: `${report ? `${report.fromDate} — ${report.toDate}` : ""} · ${visibleRows.length} thiết bị`,
+    columns: [
+      { label: "Mã thiết bị", type: "text" as const }, { label: "Tên thiết bị", type: "text" as const },
+      { label: "Trường", type: "text" as const }, { label: "Môn học", type: "text" as const },
+      { label: "Loại thiết bị", type: "text" as const }, { label: "Trạng thái", type: "text" as const },
+      { label: "Nguồn hình thành", type: "text" as const }, { label: "Tình trạng", type: "text" as const },
+      { label: "Số lượng", type: "number" as const }, { label: "Nguyên giá", type: "money" as const },
+      { label: "Ngày ghi tăng", type: "date" as const },
+    ],
+    rows: visibleRows.map((row) => [row.code, row.name, row.schoolName, row.subjectName, row.equipmentTypeName,
+      row.statusLabel, row.originName, row.condition, row.quantity, row.originalValue, row.receivedDate]),
+  };
 
   return <main className="space-y-5 p-4 md:p-6">
+    {report && <ReportPrintSheet title={exportData.title} scope={scopeName} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    <div className="space-y-5 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-muted-foreground text-sm">{scopeName}</p>
@@ -84,21 +117,23 @@ export function AssetsReport() {
       </Button>
     </header>
 
-    <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-base">Bộ lọc báo cáo</CardTitle></CardHeader>
-      <CardContent className={`grid grid-cols-2 items-end gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:gap-2 ${perspective === "school" ? "xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]" : "xl:grid-cols-[repeat(7,minmax(0,1fr))_auto]"}`}>
-        <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">Từ ngày<Input className="h-9 min-w-0 px-2 text-xs" type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></label>
-        <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">Đến ngày<Input className="h-9 min-w-0 px-2 text-xs" type="date" value={toDate} min={fromDate} onChange={(event) => setToDate(event.target.value)} /></label>
+    <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm thiết bị, mã hoặc trường"
+      exportData={exportData}
+      onReset={() => { setFromDate(defaultFromDate); setToDate(today); setSchoolId(ALL); setSubjectId(ALL); setEquipmentTypeId(ALL); setStatus(ALL); setOriginId(ALL); setSearch(""); }}
+      firstRow={<>
+        <div className="flex shrink-0 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">Từ</span><Input aria-label="Từ ngày" title="Từ ngày" className="h-9 w-40 rounded-full px-3 text-xs" type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></div>
+        <div className="flex shrink-0 items-center gap-2"><span className="text-muted-foreground shrink-0 text-xs">Đến</span><Input aria-label="Đến ngày" title="Đến ngày" className="h-9 w-40 rounded-full px-3 text-xs" type="date" value={toDate} min={fromDate} onChange={(event) => setToDate(event.target.value)} /></div>
+      </>}
+      secondRow={<>
         {perspective !== "school" && <FilterSelect label="Trường" value={schoolId} options={report?.filters.schools ?? []} onChange={setSchoolId} />}
         <FilterSelect label="Môn học" value={subjectId} options={report?.filters.subjects ?? []} onChange={setSubjectId} />
         <FilterSelect label="Loại thiết bị" value={equipmentTypeId} options={report?.filters.equipmentTypes ?? []} onChange={setEquipmentTypeId} />
         <FilterSelect label="Trạng thái" value={status} options={report?.filters.statuses ?? []} onChange={setStatus} useKey />
         <FilterSelect label="Nguồn hình thành" value={originId} options={report?.filters.origins ?? []} onChange={setOriginId} />
-        <Button className="h-9 px-2 text-xs" variant="ghost" onClick={() => { setFromDate(defaultFromDate); setToDate(today); setSchoolId(ALL); setSubjectId(ALL); setEquipmentTypeId(ALL); setStatus(ALL); setOriginId(ALL); }}>Xóa lọc</Button>
-      </CardContent>
-    </Card>
+      </>} />
 
-    {query.isError && <Card className="border-destructive/40"><CardContent className="py-5 text-sm text-destructive-text">Không tải được báo cáo. Hãy thử tải lại hoặc kiểm tra quyền truy cập.</CardContent></Card>}
+    {query.isError && !report && <Card className="border-destructive/40"><CardContent className="py-5 text-sm text-destructive-text">Không tải được báo cáo. Hãy thử tải lại hoặc kiểm tra quyền truy cập.</CardContent></Card>}
+    {query.isFetching && report && <p className="text-muted-foreground text-xs" role="status">Đang cập nhật số liệu theo bộ lọc…</p>}
     {report && <>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => <Card key={item.label}><CardContent className="flex items-center gap-3 p-4">
@@ -108,7 +143,7 @@ export function AssetsReport() {
       </section>
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
-          <div><CardTitle className="text-base">Danh sách tài sản</CardTitle><p className="text-muted-foreground mt-1 text-xs">{number.format(report.totalRows)} thiết bị phù hợp · {report.fromDate} — {report.toDate}</p></div>
+          <div><CardTitle className="text-base">Danh sách tài sản</CardTitle><p className="text-muted-foreground mt-1 text-xs">{number.format(visibleRows.length)} thiết bị đang hiển thị · {report.fromDate} — {report.toDate}</p></div>
           {report.truncated && <Badge variant="secondary">Đang hiển thị 1.000 dòng đầu</Badge>}
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -121,7 +156,7 @@ export function AssetsReport() {
               <TableHead className="text-right">Nguyên giá</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {report.rows.length ? report.rows.map((row) => <TableRow key={row.id}>
+              {visibleRows.length ? visibleRows.map((row) => <TableRow key={row.id}>
                 <TableCell className="font-medium">{row.code}</TableCell><TableCell>{row.name}</TableCell><TableCell className="whitespace-nowrap">{row.receivedDate ?? "—"}</TableCell>
                 {report.scope !== "SCHOOL" && <TableCell>{row.schoolName}</TableCell>}
                 <TableCell>{row.subjectName ?? "—"}</TableCell><TableCell>{row.equipmentTypeName ?? "—"}</TableCell>
@@ -134,5 +169,6 @@ export function AssetsReport() {
         </CardContent>
       </Card>
     </>}
+    </div>
   </main>;
 }

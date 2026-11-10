@@ -5,11 +5,13 @@ import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.intake.EquipmentIntake.InspectionResult;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.school.voucher.VoucherHeader;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -34,10 +36,33 @@ public record EquipmentIntakeResponse(
         RefSummary acquisitionMethod,
         RefSummary schoolYear,
         Integer warrantyMonths,
+        String deliverer,
+        String delivererRepresentative,
+        String receiver,
+        String receiverPosition,
+        String storekeeper,
+        InspectionResult inspectionResult,
+        String handoverNo,
         List<Line> lines,
         int lineCount,
         int totalReceived,
-        BigDecimal totalAmount) {
+        BigDecimal totalAmount,
+        /** Số hồ sơ tài sản sẽ sinh khi duyệt: từng cái thì mỗi cái một hồ sơ, theo lô thì một hồ sơ một dòng. */
+        int expectedAssets,
+        /** Số hồ sơ đã sinh (phiếu hoàn tất). */
+        int generatedCount,
+        /** Biên bản giao nhận theo khoá của màn hình — cùng dữ liệu với các trường rời ở trên. */
+        Map<String, Object> details,
+        /** Người lập phiếu: {@code code} là tên đăng nhập, {@code name} là họ tên. */
+        RefSummary createdBy,
+        /** Lúc ghi tăng (phiếu hoàn tất). */
+        Instant confirmedAt,
+        /** Phiếu nghiệp vụ đã sinh ra phiếu này; {@code null} là phiếu lập tay. */
+        Source source) {
+
+    /** Phiếu nguồn: đề xuất mua sắm, biên bản kiểm kê thừa. */
+    public record Source(String resource, Long id, String code) {
+    }
 
     /** Một dòng phiếu. {@code trackingType} và {@code unit} là của nhóm thiết bị, đi kèm để màn hình khỏi hỏi lại. */
     public record Line(
@@ -66,7 +91,13 @@ public record EquipmentIntakeResponse(
             Integer warrantyMonths,
             String model,
             String manufacturer,
-            String note) {
+            String note,
+            RefSummary movementReason,
+            LocalDate expiryDate,
+            RefSummary packUnit,
+            BigDecimal packSize,
+            /** Số lượng vào sổ sau quy đổi bao bì, theo đơn vị của thiết bị. */
+            BigDecimal stockQuantity) {
 
         static Line from(EquipmentIntakeLine line) {
             BigDecimal price = line.getUnitPrice();
@@ -81,21 +112,20 @@ public record EquipmentIntakeResponse(
                     line.getSupplier(), line.getDocumentNo(), line.getDocumentDate(),
                     line.getFundingSource(), line.getFundingNote(),
                     RefSummary.of(line.getAcquisitionMethod()), line.getAcquisitionNote(),
-                    line.getWarrantyMonths(), line.getModel(), line.getManufacturer(), line.getNote());
+                    line.getWarrantyMonths(), line.getModel(), line.getManufacturer(), line.getNote(),
+                    RefSummary.of(line.getMovementReason()),
+                    line.getExpiryDate(), RefSummary.of(line.getPackUnit()), line.getPackSize(),
+                    line.stockQuantity());
         }
     }
 
-    public static EquipmentIntakeResponse from(EquipmentIntake item, Map<String, Boolean> can, Set<String> actions) {
-        return build(item, can, actions, true);
-    }
-
-    /** Bản gọn cho một dòng danh sách: không kèm mảng dòng. */
-    public static EquipmentIntakeResponse summary(EquipmentIntake item, Map<String, Boolean> can, Set<String> actions) {
-        return build(item, can, actions, false);
+    public static EquipmentIntakeResponse from(EquipmentIntake item, Map<String, Boolean> can, Set<String> actions,
+            RefSummary createdBy) {
+        return build(item, can, actions, true, createdBy);
     }
 
     private static EquipmentIntakeResponse build(EquipmentIntake item, Map<String, Boolean> can, Set<String> actions,
-            boolean withLines) {
+            boolean withLines, RefSummary createdBy) {
         List<EquipmentIntakeLine> lines = item.getLines();
         int received = lines.stream().mapToInt(l -> l.getReceivedQuantity() == null ? 0 : l.getReceivedQuantity()).sum();
         BigDecimal total = lines.stream().map(EquipmentIntakeResponse::amount)
@@ -107,8 +137,24 @@ public record EquipmentIntakeResponse(
                 RefSummary.of(item.getOriginSource()), item.getOriginNote(),
                 RefSummary.of(item.getAcquisitionMethod()), RefSummary.of(item.getSchoolYear()),
                 item.getWarrantyMonths(),
+                item.getDeliverer(), item.getDelivererRepresentative(), item.getReceiver(), item.getReceiverPosition(),
+                item.getStorekeeper(), item.getInspectionResult(), item.getHandoverNo(),
                 withLines ? lines.stream().map(Line::from).toList() : null,
-                lines.size(), received, total);
+                lines.size(), received, total,
+                lines.stream().mapToInt(EquipmentIntakeResponse::expectedAssets).sum(),
+                lines.stream().mapToInt(l -> l.getGeneratedCount() == null ? 0 : l.getGeneratedCount()).sum(),
+                EquipmentIntakeService.details(item), createdBy, item.getCompletedAt(),
+                item.getSourceResource() == null ? null
+                        : new Source(item.getSourceResource(), item.getSourceId(), item.getSourceCode()));
+    }
+
+    /** Số hồ sơ một dòng sẽ sinh khi duyệt — cùng phép với phần ghi tăng của service. */
+    static int expectedAssets(EquipmentIntakeLine line) {
+        int received = line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
+        if (received == 0) {
+            return 0;
+        }
+        return line.getCatalog().getTrackingType() == TrackingType.BULK ? 1 : received;
     }
 
     private static BigDecimal amount(EquipmentIntakeLine line) {

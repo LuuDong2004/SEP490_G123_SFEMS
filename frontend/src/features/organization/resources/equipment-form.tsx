@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { useForm } from "@refinedev/react-hook-form";
 import { useNavigate } from "react-router";
+import { useWatch } from "react-hook-form";
 
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { FormPanel, FormActions } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
 import { MoneyInput } from "@/shared/components/form/money-input";
+import { ReadField } from "@/shared/components/form/read-field";
 import { DateField, SelectField, TextField } from "@/shared/components/form/simple-fields";
 import { CodeField, CodeSuggestion } from "./equipment-code";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
@@ -15,8 +17,8 @@ import { Button } from "@/shared/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { ASSET_CATEGORY_OPTIONS, FUNDING_SOURCE_OPTIONS, type Ref } from "@/domains/equipment-intake/types";
 import {
-  ASSET_STATUS_OPTIONS,
-  CONDITION_OPTIONS,
+  ASSET_STATUS_LABELS,
+  CONDITION_LABELS,
   PHYSICAL_DIGITAL_OPTIONS,
   type AssetStatus,
   type Equipment,
@@ -216,6 +218,21 @@ function RefField({ control, name, label, resource, placeholder }: {
 
 const GRID = "grid items-start gap-5 @md:grid-cols-2 @3xl:grid-cols-3";
 
+/**
+ * Ô chỉ xem cho trường chỉ đổi qua phiếu (trạng thái, tình trạng, số lượng). Hiện nhãn tiếng Việt nếu có,
+ * không thì hiện giá trị thô.
+ */
+function LockedValue({ control, name, label, labels }: {
+  control: any;
+  name: string;
+  label: string;
+  labels?: Record<string, string>;
+}) {
+  const value = useWatch({ control, name }) as string | number | null | undefined;
+  const shown = value == null || value === "" ? undefined : String(labels?.[String(value)] ?? value);
+  return <ReadField label={label}>{shown}</ReadField>;
+}
+
 /** Phần khung form dùng chung cho tạo và sửa. */
 function EquipmentFields({
   control,
@@ -250,7 +267,11 @@ function EquipmentFields({
 
       <FormSection title="Số lượng và nguồn gốc" compact>
         <div className={GRID}>
-          <TextField control={control} name="quantity" label="Số lượng" type="number" step="0.001" />
+          {mode === "edit" ? (
+            <LockedValue control={control} name="quantity" label="Số lượng" />
+          ) : (
+            <TextField control={control} name="quantity" label="Số lượng" type="number" step="0.001" />
+          )}
           <RefField control={control} name="unit" label="Đơn vị tính" resource="units" />
           <RefField control={control} name="originSource" label="Nguồn hình thành" resource="origin_sources" />
           <RefField control={control} name="acquisitionMethod" label="Phương thức hình thành" resource="acquisition_methods" />
@@ -287,11 +308,12 @@ function EquipmentFields({
       {mode === "edit" ? (
         <FormSection title="Trạng thái" compact>
           <div className={GRID}>
-            <SelectField control={control} name="status" label="Trạng thái" options={ASSET_STATUS_OPTIONS} />
-            <SelectField control={control} name="condition" label="Tình trạng" options={CONDITION_OPTIONS} placeholder="Chưa đánh giá" />
+            <LockedValue control={control} name="status" label="Trạng thái" labels={ASSET_STATUS_LABELS} />
+            <LockedValue control={control} name="condition" label="Tình trạng" labels={CONDITION_LABELS} />
           </div>
           <p className="text-muted-foreground text-xs">
-            Đổi trạng thái hoặc tình trạng sẽ được ghi vào lịch sử của thiết bị.
+            Trạng thái, tình trạng và số lượng chỉ đổi qua phiếu đã duyệt, không sửa thẳng trên hồ sơ. Mọi thay đổi
+            đều được ghi vào lịch sử của thiết bị.
           </p>
         </FormSection>
       ) : null}

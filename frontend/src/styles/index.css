@@ -579,6 +579,34 @@
   }
 }
 
+@page reports {
+  size: A4 landscape;
+  margin: 13mm 12mm;
+}
+
+@media print {
+  .report-print-sheet {
+    page: reports;
+    break-inside: auto !important;
+  }
+
+  .report-print-table {
+    break-inside: auto !important;
+  }
+
+  .report-print-table tr {
+    break-inside: avoid !important;
+  }
+
+  .report-print-table thead {
+    display: table-header-group;
+  }
+
+  .report-print-signatures {
+    break-inside: avoid;
+  }
+}
+
 /* Đường nối của trang Quy trình: nét đứt chạy dọc đường theo hướng luồng. */
 @keyframes flow-dash {
   to {
@@ -764,4 +792,73 @@
 }
 :root[data-reduce-motion] .animate-float-soft {
   animation: none;
+}
+
+
+/* --------------------------------------------------------------------------
+   Khu ô đầu phiếu ("Thông tin phiếu"): ô XẾP NỐI TIẾP, rộng theo loại ô — không phải lưới cột cố định, nơi một ô ngày
+   ngắn để lại cả khoảng trống bên cạnh. Ô thường 14rem (bốn ô một hàng), ô ngày 10rem, ô nhiều dòng (ghi chú, lý do) và ô đánh dấu
+   `col-span-2` rộng gấp đôi; dòng chữ giải thích chiếm trọn hàng. Màn hẹp: ô chiếm trọn hàng.
+   -------------------------------------------------------------------------- */
+.form-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: calc(var(--spacing) * 4);
+  row-gap: calc(var(--spacing) * 5);
+}
+.form-flow > *,
+.form-flow > .contents > * {
+  flex: 0 0 auto;
+  width: 14rem;
+  max-width: 100%;
+  min-width: 0;
+}
+.form-flow > .contents {
+  width: auto;
+}
+.form-flow > *:has([data-date-input]),
+.form-flow > .contents > *:has([data-date-input]) {
+  width: 10rem;
+}
+.form-flow > *:has(textarea),
+.form-flow > [class*="col-span-2"],
+.form-flow > .contents > *:has(textarea) {
+  width: calc(28rem + var(--spacing) * 4);
+}
+.form-flow > p,
+.form-flow > [class*="col-span-full"] {
+  width: 100%;
+}
+.form-flow > :empty {
+  display: none;
+}
+@media (max-width: 40rem) {
+  .form-flow > *,
+  .form-flow > .contents > * {
+    width: 100% !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Hộp thoại cỡ cố định (`DialogContent size`). Không nằm trong @layer: phải thắng `grid` của chính hộp và của form bên trong.
+   Thân dài thì cuộn; hàng nút luôn ở đáy dù form ít ô. Khối có `flex-1` / `min-h-0` là phần thân tự cuộn, được phép co; còn lại
+   giữ nguyên cao để không bị ép bẹp (bảng trong hộp).
+   -------------------------------------------------------------------------- */
+.dialog-fixed {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.dialog-fixed > :not([class*="flex-1"], [class*="min-h-0"]) {
+  flex-shrink: 0;
+}
+.dialog-fixed > form:has(> [data-slot="dialog-footer"]) {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+.dialog-fixed > [data-slot="dialog-footer"],
+.dialog-fixed > form > [data-slot="dialog-footer"] {
+  margin-top: auto;
 }

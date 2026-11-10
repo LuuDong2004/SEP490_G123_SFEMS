@@ -58,3 +58,19 @@ export const CATALOG_ORIGIN_LABELS = {
   DONATED: "Được tài trợ, tặng",
   OUTSIDE_PURCHASE: "Mua ngoài danh mục",
 } as const;
+
+/** Một thiết bị được chọn trong ô chọn danh mục (phiếu ghi tăng, đề xuất mua sắm) — đủ để vẽ dòng phiếu. */
+export type PickedCatalog = {
+  id: number;
+  code: string;
+  name: string;
+  trackingType?: string;
+  assetCategory?: string | null;
+  physicalOrDigital?: string | null;
+  unit?: { id: number; name: string } | null;
+  equipmentType?: { id: number; name: string } | null;
+  subject?: { id: number; name: string } | null;
+  /** Có giá trị: thiết bị NGOÀI danh mục của Sở, riêng của trường này. */
+  ownerSchool?: { id: number; name: string } | null;
+  origin?: string | null;
+};
