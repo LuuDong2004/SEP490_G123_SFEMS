@@ -39,7 +39,9 @@ export type VoucherAction =
   | "approve"
   | "return"
   | "reject"
-  | "complete";
+  | "complete"
+  /** Phiếu kiểm kê còn nháp: ghi kết quả kiểm đếm. */
+  | "count";
 
 /** Phần chung mọi phiếu trả về. */
 export type VoucherBase = {

@@ -1,31 +1,45 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
+import com.g123.sfems.domain.school.equipment.EquipmentHistory.Action;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
 import com.g123.sfems.domain.school.inventory.InventoryLine;
+import com.g123.sfems.domain.school.inventory.InventoryLine.Discrepancy;
 import com.g123.sfems.domain.school.inventory.InventorySession;
+import com.g123.sfems.domain.school.inventory.InventorySurplus;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
+import com.g123.sfems.module.school.equipment.EquipmentLifecycle;
+import com.g123.sfems.module.school.equipment.EquipmentLifecycle.VoucherRef;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.hibernate.Hibernate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Phiếu kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
  *
  * <p>Lập phiếu (KK-03) là CHỤP sổ tài sản ngay lúc đó, cả trường hoặc một phòng: mỗi tài sản một dòng,
- * ghi sổ nói nó ở phòng nào, tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật (KK-04).
+ * ghi sổ nói nó ở phòng nào, tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật (KK-04), rồi trình
+ * biên bản lên lãnh đạo trường (KK-05); duyệt xong thì kết quả vào lịch sử từng tài sản (KK-06).
  */
 @Service
 public class InventorySessionService
@@ -38,15 +52,19 @@ public class InventorySessionService
     /** Phiếu đã huỷ hoặc bị từ chối không còn giữ phạm vi kiểm kê: lập lại được. */
     private static final List<VoucherStatus> DEAD = List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED);
 
+    private static final String RESOURCE = "inventory_sessions";
+
     private final InventorySessionRepository sessions;
     private final InventoryCampaignService campaigns;
+    private final EquipmentLifecycle lifecycle;
     private final NamedParameterJdbcTemplate jdbc;
 
     public InventorySessionService(VoucherServiceDeps deps, InventorySessionRepository repository,
-            InventoryCampaignService campaigns, NamedParameterJdbcTemplate jdbc) {
+            InventoryCampaignService campaigns, EquipmentLifecycle lifecycle, NamedParameterJdbcTemplate jdbc) {
         super(deps, repository, InventorySession.class, InventorySession::new);
         this.sessions = repository;
         this.campaigns = campaigns;
+        this.lifecycle = lifecycle;
         this.jdbc = jdbc;
     }
 
@@ -59,7 +77,7 @@ public class InventorySessionService
         voucher.setNote(trimToNull(request.note()));
         InventoryCampaign campaign = request.campaign() == null || request.campaign().id() == null
                 ? null : campaigns.get(request.campaign().id());
-        Room room = roomOf(voucher, request.room() == null ? null : request.room().id());
+        Room room = roomOf(voucher, request.room(), "room");
         if (campaign != null) {
             requireFitsCampaign(voucher, campaign, room);
         }
@@ -97,6 +115,106 @@ public class InventorySessionService
         if (request.note() != null) {
             voucher.setNote(trimToNull(request.note()));
         }
+        if (request.surplus() != null) {
+            voucher.replaceSurplus(surplusOf(voucher, request.surplus()));
+        }
+    }
+
+    /**
+     * Ghi kết quả kiểm đếm (KK-04), một hay nhiều dòng một lần. Chỉ khi phiếu còn nháp: biên bản đã trình
+     * thì kết quả đã chốt. Thấy mà không nói phòng, tình trạng thì lấy đúng như sổ.
+     */
+    @Transactional
+    public InventorySession count(Long id, InventorySessionApi.Count request) {
+        InventorySession voucher = writable(id);
+        lockAndReread(voucher);
+        requireDraft(voucher);
+        Map<Long, InventoryLine> lines = voucher.getLines().stream()
+                .collect(Collectors.toMap(InventoryLine::getId, Function.identity()));
+        for (InventorySessionApi.CountLine input : request.lines()) {
+            InventoryLine line = lines.get(input.lineId());
+            if (line == null) {
+                throw new FieldValidationException("lines", "Dòng không thuộc phiếu này");
+            }
+            line.setFound(input.found());
+            if (Boolean.TRUE.equals(input.found())) {
+                Room room = roomOf(voucher, input.foundRoom(), "lines");
+                line.setFoundRoom(room == null ? line.getExpectedRoom() : room);
+                line.setFoundCondition(input.foundCondition() == null
+                        ? line.getExpectedCondition() : input.foundCondition());
+            } else {
+                line.setFoundRoom(null);
+                line.setFoundCondition(null);
+            }
+            line.setNote(trimToNull(input.note()));
+        }
+        rowLevel.checkWritable(voucher);
+        return initialize(repository.persist(voucher));
+    }
+
+    /**
+     * Trình biên bản (KK-05): mọi dòng phải đã kiểm (có hay không thấy) và phải có tổ kiểm kê — biên bản không có
+     * người ký thì không ai chịu trách nhiệm về số liệu. Trình xong, kết quả kiểm đếm được chốt.
+     */
+    @Override
+    protected void validateSubmit(InventorySession voucher) {
+        long unchecked = voucher.getLines().stream().filter(l -> l.getFound() == null).count();
+        if (unchecked > 0) {
+            throw new FieldValidationException("lines",
+                    "Còn %d tài sản chưa kiểm — ghi \"có\" hoặc \"không thấy\" cho mọi dòng trước khi trình biên bản"
+                            .formatted(unchecked));
+        }
+        if (voucher.getCouncil() == null || voucher.getCouncil().isBlank()) {
+            throw new FieldValidationException("council",
+                    "Chưa khai tổ kiểm kê — sửa phiếu, chọn người trong tổ rồi trình lại biên bản");
+        }
+    }
+
+    /**
+     * Biên bản được duyệt (KK-06): ghi lịch sử kiểm kê cho mọi tài sản trên phiếu; tài sản phát hiện hỏng thì tình
+     * trạng thành "hỏng". Biên bản CHỈ GHI NHẬN — không đổi trạng thái tài sản nào, không tự sinh phiếu nào; xử lý
+     * chênh lệch (ghi giảm, điều chuyển, ghi tăng tài sản thừa) là việc người dùng làm bằng phiếu riêng. Ghi xong là
+     * biên bản hoàn tất, không còn bước "hoàn tất" bấm tay.
+     */
+    @Override
+    protected void onApproved(InventorySession voucher) {
+        VoucherRef ref = new VoucherRef(RESOURCE, voucher.getId(), voucher.getCode());
+        for (InventoryLine line : voucher.getLines()) {
+            Set<Discrepancy> found = line.discrepancies();
+            Equipment item = line.getEquipment();
+            if (found.isEmpty()) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: khớp sổ");
+                continue;
+            }
+            if (found.contains(Discrepancy.MISSING)) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: không tìm thấy");
+                continue;
+            }
+            if (found.contains(Discrepancy.DAMAGED)) {
+                lifecycle.condition(item, EquipmentCondition.HONG, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
+            }
+            if (found.contains(Discrepancy.WRONG_ROOM)) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: thấy ở "
+                        + (line.getFoundRoom() == null ? "kho" : line.getFoundRoom().getName()) + ", sổ ghi "
+                        + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName()));
+            }
+        }
+        workflow.complete(voucher, "Đã ghi nhận kết quả kiểm kê");
+    }
+
+    /**
+     * Phiếu nháp có thêm nút "Ghi kết quả kiểm đếm" cho người có quyền ghi. Duyệt xong là hoàn tất ngay
+     * ({@link #onApproved}), nên không có nút "Hoàn tất".
+     */
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public Set<String> actions(InventorySession voucher, Map<String, Boolean> can, boolean canApprove) {
+        Set<String> actions = new LinkedHashSet<>(super.actions(voucher, can, canApprove));
+        actions.remove("complete");
+        if (voucher.getStatus() == VoucherStatus.DRAFT && Boolean.TRUE.equals(can.get("write"))) {
+            actions.add("count");
+        }
+        return actions;
     }
 
     /** Màn chi tiết đọc cả dòng và tài sản thừa — hai tập LAZY trên thực thể. */
@@ -158,15 +276,38 @@ public class InventorySessionService
                 .getResultList();
     }
 
-    private Room roomOf(InventorySession voucher, Long roomId) {
-        if (roomId == null) {
+    /** Phòng theo tham chiếu, phải thuộc trường của phiếu. Trống là không nói phòng. */
+    private Room roomOf(InventorySession voucher, IdRef ref, String field) {
+        if (ref == null || ref.id() == null) {
             return null;
         }
-        Room room = entityManager.find(Room.class, roomId);
+        Room room = entityManager.find(Room.class, ref.id());
         if (room == null || !room.getSchool().getId().equals(voucher.getSchool().getId())) {
-            throw new FieldValidationException("room", "Phòng không thuộc trường của phiếu");
+            throw new FieldValidationException(field, "Phòng không thuộc trường của phiếu");
         }
         return room;
+    }
+
+    /** Dựng lại danh sách tài sản thừa theo thứ tự gửi lên. Tên trống thì lấy tên thiết bị trong danh mục. */
+    private List<InventorySurplus> surplusOf(InventorySession voucher, List<InventorySessionApi.SurplusInput> inputs) {
+        List<InventorySurplus> items = new ArrayList<>();
+        int lineNo = 1;
+        for (InventorySessionApi.SurplusInput input : inputs) {
+            EquipmentCatalog catalog = entityManager.find(EquipmentCatalog.class, input.catalog().id());
+            if (catalog == null) {
+                throw new FieldValidationException("surplus", "Thiết bị không có trong danh mục");
+            }
+            InventorySurplus item = new InventorySurplus();
+            item.setLineNo(lineNo++);
+            item.setCatalog(catalog);
+            String name = trimToNull(input.name());
+            item.setName(name == null ? catalog.getName() : name);
+            item.setQuantity(input.quantity() == null ? 1 : input.quantity());
+            item.setRoom(roomOf(voucher, input.room(), "surplus"));
+            item.setNote(trimToNull(input.note()));
+            items.add(item);
+        }
+        return items;
     }
 
     /**

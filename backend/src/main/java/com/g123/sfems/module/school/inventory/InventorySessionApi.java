@@ -10,6 +10,9 @@ import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.school.voucher.VoucherHeader;
 import com.g123.sfems.module.school.voucher.VoucherRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -36,14 +39,47 @@ public final class InventorySessionApi {
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) implements VoucherRequest {
     }
 
-    /** Sửa đầu phiếu. Danh sách tài sản trên sổ không sửa ở đây; {@code null} là để nguyên. */
+    /**
+     * Sửa đầu phiếu và danh sách tài sản thừa. Danh sách tài sản trên sổ không sửa ở đây; {@code null} là
+     * để nguyên.
+     */
     public record Patch(
             IdRef school,
             @Size(max = 255, message = "Tên đợt kiểm kê tối đa 255 ký tự") String title,
             LocalDate inventoryDate,
             @Size(max = 1000, message = "Tổ kiểm kê tối đa 1000 ký tự") String council,
             @Size(max = 2000, message = "Kết luận tối đa 2000 ký tự") String conclusion,
-            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) implements VoucherRequest {
+            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,
+            @Size(max = 1000, message = "Một phiếu tối đa 1.000 dòng") List<@Valid SurplusInput> surplus)
+            implements VoucherRequest {
+    }
+
+    /** Một dòng tài sản thừa: thiết bị trong danh mục, tên thực tế (trống là tên danh mục), số lượng. */
+    public record SurplusInput(
+            @NotNull(message = "Chọn thiết bị trong danh mục") IdRef catalog,
+            @Size(max = 255, message = "Tên tài sản thừa tối đa 255 ký tự") String name,
+            @Min(value = 1, message = "Số lượng phải từ 1")
+            @Max(value = 10000, message = "Số lượng tối đa 10.000") Integer quantity,
+            IdRef room,
+            @Size(max = 255, message = "Ghi chú tối đa 255 ký tự") String note) {
+    }
+
+    /** Ghi kết quả kiểm đếm cho một hoặc nhiều dòng. */
+    public record Count(
+            @NotNull(message = "Chưa có dòng kiểm đếm nào")
+            @Size(max = 20000, message = "Một lần ghi tối đa 20.000 dòng kiểm đếm") List<@Valid CountLine> lines) {
+    }
+
+    /**
+     * Kết quả một dòng: {@code found} là có thấy không. Thấy mà {@code foundRoom}, {@code foundCondition}
+     * để trống là đúng như sổ.
+     */
+    public record CountLine(
+            @NotNull(message = "Thiếu dòng kiểm đếm") Long lineId,
+            Boolean found,
+            IdRef foundRoom,
+            EquipmentCondition foundCondition,
+            @Size(max = 255, message = "Ghi chú tối đa 255 ký tự") String note) {
     }
 
     /** Số tóm tắt của biên bản: tổng dòng, đã kiểm, khớp, mất, sai phòng, hỏng, tài sản thừa. */

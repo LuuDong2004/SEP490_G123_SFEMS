@@ -32,11 +32,32 @@ export type InventoryCampaign = {
   _can?: { write?: boolean; delete?: boolean };
 };
 
+/** Một trường trong đợt và phiếu kiểm kê mới nhất của nó — `GET /inventory_campaigns/{id}/progress`. */
+export type CampaignProgressRow = {
+  schoolId: number;
+  schoolCode: string;
+  schoolName: string;
+  sessionId: number | null;
+  sessionCode: string | null;
+  status: string | null;
+  /** Người xem mở được biên bản — Sở không đọc biên bản còn ở bàn hiệu trưởng. */
+  canOpen: boolean;
+};
+
+export type CampaignProgress = {
+  total: number;
+  notStarted: number;
+  drafting: number;
+  pending: number;
+  completed: number;
+  schools: CampaignProgressRow[];
+};
+
 /** Loại chênh lệch của một dòng: mất, sai phòng, hỏng. Một dòng có thể vừa sai phòng vừa hỏng. */
 export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
-  MISSING: "Không thấy",
+  MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
   DAMAGED: "Hỏng",
 };
@@ -51,6 +72,51 @@ export type InventorySummary = {
   damaged: number;
   surplus: number;
 };
+
+/** Số chênh lệch của một nhóm (phòng hoặc môn) — `GET /inventory_sessions/{id}/breakdown`. */
+export type DiscrepancyCounts = {
+  id: number | null;
+  name: string | null;
+  /** Nhóm theo phòng: phòng loại kho, hoặc tài sản chưa xếp phòng. */
+  storeroom: boolean;
+  total: number;
+  checked: number;
+  matched: number;
+  missing: number;
+  wrongRoom: number;
+  damaged: number;
+};
+
+export type SessionBreakdown = { rooms: DiscrepancyCounts[]; subjects: DiscrepancyCounts[] };
+
+/** `GET /inventory_campaigns/{id}/discrepancies` — `counts` trống khi người xem chưa mở được biên bản. */
+export type CampaignDiscrepancyRow = {
+  schoolId: number;
+  schoolCode: string;
+  schoolName: string;
+  sessionId: number | null;
+  sessionCode: string | null;
+  status: string | null;
+  counts: DiscrepancyCounts | null;
+  surplus: number;
+};
+
+/** Tiêu đề các cột số của bảng chênh lệch. */
+export const COUNT_HEADS = ["Theo sổ", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
+
+/** Cộng các nhóm thành một hàng tổng. */
+export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
+  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0, damaged: 0 };
+  for (const r of rows) {
+    total.total += r.total;
+    total.checked += r.checked;
+    total.matched += r.matched;
+    total.missing += r.missing;
+    total.wrongRoom += r.wrongRoom;
+    total.damaged += r.damaged;
+  }
+  return total;
+}
 
 /** Một tài sản trên sổ: sổ ghi ở đâu, tình trạng gì; tổ kiểm kê thấy gì. */
 export type InventoryLine = {

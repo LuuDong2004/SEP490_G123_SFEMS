@@ -3,11 +3,13 @@ package com.g123.sfems.module.school.inventory;
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
 import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
+import com.g123.sfems.domain.school.inventory.InventorySession;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
 import java.time.LocalDate;
@@ -15,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -24,7 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Đợt kiểm kê (KK-01). Ai thấy đợt nào được quyết định ở đây, không qua phạm vi dòng — đợt không phải
+ * Đợt kiểm kê (KK-01) và tiến độ các trường trong đợt (KK-02). Ai thấy đợt nào được quyết định ở đây, không qua phạm vi dòng — đợt không phải
  * dữ liệu của một trường:
  * <ul>
  *   <li>Sở và quản trị viên thấy mọi đợt;</li>
@@ -40,16 +43,18 @@ public class InventoryCampaignService {
     private static final Set<String> SORTABLE = Set.of("id", "title", "cutoffDate", "deadline", "createdAt");
 
     private final InventoryCampaignRepository repository;
+    private final InventorySessionRepository sessions;
     private final RowLevelPrincipalResolver principals;
     private final DepartmentOfEducationService bodies;
     private final RowLevelSecurity rowLevel;
     private final JdbcTemplate jdbc;
     private final ApplicationEventPublisher publisher;
 
-    public InventoryCampaignService(InventoryCampaignRepository repository, RowLevelPrincipalResolver principals,
-            DepartmentOfEducationService bodies, RowLevelSecurity rowLevel, JdbcTemplate jdbc,
-            ApplicationEventPublisher publisher) {
+    public InventoryCampaignService(InventoryCampaignRepository repository, InventorySessionRepository sessions,
+            RowLevelPrincipalResolver principals, DepartmentOfEducationService bodies, RowLevelSecurity rowLevel,
+            JdbcTemplate jdbc, ApplicationEventPublisher publisher) {
         this.repository = repository;
+        this.sessions = sessions;
         this.principals = principals;
         this.bodies = bodies;
         this.rowLevel = rowLevel;
@@ -105,6 +110,78 @@ public class InventoryCampaignService {
         }
         repository.delete(campaign);
         return campaign;
+    }
+
+    /**
+     * Một trường trong đợt và phiếu kiểm kê mới nhất của nó cho đợt (nếu có). {@code canOpen}: người xem mở được
+     * biên bản — Sở không đọc biên bản còn ở trường (nháp, chờ hiệu trưởng), nên màn tiến độ chỉ gắn đường dẫn khi
+     * mở được, thay vì để người bấm gặp "Không tìm thấy".
+     */
+    public record ProgressRow(Long schoolId, String schoolCode, String schoolName, Long sessionId,
+            String sessionCode, String status, boolean canOpen) {
+
+        ProgressRow withCanOpen(boolean open) {
+            return new ProgressRow(schoolId, schoolCode, schoolName, sessionId, sessionCode, status, open);
+        }
+    }
+
+    public record Progress(int total, int notStarted, int drafting, int pending, int completed,
+            List<ProgressRow> schools) {
+    }
+
+    /**
+     * Tiến độ (KK-02): mỗi trường do cơ quan phát động quản lý, với phiếu kiểm kê mới nhất của nó trong đợt (phiếu
+     * đã huỷ, bị từ chối không tính). Tài khoản trường chỉ thấy dòng của trường mình.
+     */
+    public Progress progress(Long id) {
+        InventoryCampaign campaign = get(id);
+        RowLevelPrincipal principal = principals.current().orElseThrow();
+        Long ownSchool = isAdmin(principal) || principal.managingBodyId() != null ? null : principal.schoolId();
+
+        List<ProgressRow> rows = jdbc.query("""
+                SELECT s.id, s.code, s.name, x.id AS session_id, x.code AS session_code, x.status
+                FROM schools s
+                LEFT JOIN LATERAL (
+                    SELECT i.id, i.code, i.status FROM inventory_sessions i
+                    WHERE i.school_id = s.id AND i.campaign_id = ? AND i.status NOT IN ('CANCELLED', 'REJECTED')
+                    ORDER BY i.id DESC LIMIT 1) x ON TRUE
+                WHERE s.department_of_education_id = ? AND (CAST(? AS bigint) IS NULL OR s.id = ?)
+                ORDER BY s.name""",
+                (rs, n) -> new ProgressRow(rs.getLong(1), rs.getString(2), rs.getString(3),
+                        (Long) rs.getObject(4), rs.getString(5), rs.getString(6), false),
+                id, campaign.getManagingBody().getId(), ownSchool, ownSchool);
+        // Hỏi lại đúng phạm vi đọc của phiếu kiểm kê thay vì chép luật của nó sang đây.
+        Set<Long> readable = readableSessions(rows);
+        rows = rows.stream()
+                .map(r -> r.withCanOpen(r.sessionId() != null && readable.contains(r.sessionId())))
+                .toList();
+        int notStarted = 0;
+        int drafting = 0;
+        int pending = 0;
+        int completed = 0;
+        for (ProgressRow row : rows) {
+            if (row.status() == null) {
+                notStarted++;
+            } else {
+                switch (row.status()) {
+                    case "DRAFT" -> drafting++;
+                    case "PENDING", "APPROVED" -> pending++;
+                    default -> completed++;
+                }
+            }
+        }
+        return new Progress(rows.size(), notStarted, drafting, pending, completed, rows);
+    }
+
+    /** Biên bản trong danh sách mà người xem đọc được, theo phạm vi đọc của phiếu kiểm kê. */
+    private Set<Long> readableSessions(List<ProgressRow> rows) {
+        List<Long> ids = rows.stream().map(ProgressRow::sessionId).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        Specification<InventorySession> spec = rowLevel.<InventorySession>scope(InventorySession.class, Action.READ)
+                .and((root, q, cb) -> root.get("id").in(ids));
+        return sessions.findAll(spec).stream().map(InventorySession::getId).collect(Collectors.toSet());
     }
 
     /** Người đang đăng nhập được sửa, xoá, đóng đợt này không. */

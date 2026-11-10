@@ -27,7 +27,10 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** {@code /api/inventory_campaigns} — đợt kiểm kê do Sở phát động (KK-01). */
+/**
+ * {@code /api/inventory_campaigns} — đợt kiểm kê do Sở phát động (KK-01); thêm {@code GET /{id}/progress} tiến độ
+ * theo trường và {@code GET /{id}/discrepancies} chênh lệch theo trường (KK-02).
+ */
 @RestController
 @RequestMapping("/api/inventory_campaigns")
 public class InventoryCampaignController {
@@ -51,9 +54,25 @@ public class InventoryCampaignController {
     }
 
     private final InventoryCampaignService service;
+    private final InventoryDiscrepancies discrepancies;
 
-    public InventoryCampaignController(InventoryCampaignService service) {
+    public InventoryCampaignController(InventoryCampaignService service, InventoryDiscrepancies discrepancies) {
         this.service = service;
+        this.discrepancies = discrepancies;
+    }
+
+    /** Tiến độ: mỗi trường trong đợt và phiếu kiểm kê của nó đang ở bước nào. */
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("hasAuthority('inventory_campaigns:read')")
+    public InventoryCampaignService.Progress progress(@PathVariable Long id) {
+        return service.progress(id);
+    }
+
+    /** Chênh lệch theo trường — số của biên bản người xem mở được (cần cả quyền đọc phiếu kiểm kê). */
+    @GetMapping("/{id}/discrepancies")
+    @PreAuthorize("hasAuthority('inventory_campaigns:read') and hasAuthority('inventory_sessions:read')")
+    public List<InventoryDiscrepancies.SchoolRow> discrepancies(@PathVariable Long id) {
+        return discrepancies.campaign(id);
     }
 
     @GetMapping
