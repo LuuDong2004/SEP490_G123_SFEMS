@@ -10,6 +10,8 @@ import { MoneyInput } from "@/shared/components/form/money-input";
 import { ReadField } from "@/shared/components/form/read-field";
 import { DateField, SelectField, TextField } from "@/shared/components/form/simple-fields";
 import { CodeField, CodeSuggestion } from "./equipment-code";
+import { EquipmentAttachmentsCard } from "./equipment-attachments";
+import { EquipmentPhoto } from "./equipment-photo";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { RecordNotFound, isRecordMissing } from "@/shared/components/views/record-not-found";
@@ -400,12 +402,16 @@ export const EquipmentEdit = () => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormPanel contentClassName="@container space-y-6">
+            {record ? <EquipmentPhoto equipmentId={record.id} canWrite={record._can?.write !== false} /> : null}
             <EquipmentFields
               control={form.control}
               mode="edit"
               recordId={record?.id}
               onCodeChanged={() => query?.refetch?.()}
             />
+            {record ? (
+              <EquipmentAttachmentsCard equipmentId={record.id} canWrite={record._can?.write !== false} />
+            ) : null}
             <FormActions>
               <Button type="submit">Lưu thay đổi</Button>
               <Button type="button" variant="outline" onClick={() => navigate(`/equipment/show/${record?.id ?? ""}`)}>
