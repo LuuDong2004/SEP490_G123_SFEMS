@@ -9,6 +9,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { ASSET_CATEGORY_LABELS, FUNDING_SOURCE_LABELS } from "@/domains/equipment-intake/types";
 import { ASSET_STATUS_LABELS, PHYSICAL_DIGITAL_LABELS, type Equipment } from "@/domains/equipment/types";
+import { EquipmentAttachmentsCard } from "./equipment-attachments";
 import { EquipmentCodesButton } from "./equipment-codes";
 import { EquipmentHistoryCard } from "./equipment-history";
 import { offBook } from "./equipment-items";
@@ -132,6 +133,8 @@ export const EquipmentShow = () => {
                 />
               </CardContent>
             </Card>
+
+            <EquipmentAttachmentsCard equipmentId={r.id} canWrite={!!r._can?.write} />
 
             <EquipmentHistoryCard equipmentId={r.id} />
 
