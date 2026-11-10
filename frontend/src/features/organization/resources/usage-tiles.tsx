@@ -1,4 +1,4 @@
-import { Activity, CircleDot, Lock, MapPin, Wallet } from "lucide-react";
+import { Activity, CircleDot, Lock, MapPin } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { ASSET_STATUS_LABELS, CONDITION_LABELS, type Equipment } from "@/domains/equipment/types";
 
 /**
- * "Sử dụng" của một tài sản dạng dải ô nhỏ: vị trí · tình trạng · trạng thái · giá trị còn lại — điều người
+ * "Sử dụng" của một tài sản dạng dải ô nhỏ: vị trí · tình trạng · trạng thái — điều người
  * mở hồ sơ muốn biết ngay. Ô nào chỉ đổi được qua phiếu thì có ổ khoá nhỏ, rê chuột ra phiếu nào đổi nó.
  */
 export function UsageTiles({ record }: { record: Equipment }) {
@@ -32,7 +32,7 @@ export function UsageTiles({ record }: { record: Equipment }) {
   );
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {tile(
         <MapPin />,
         "Vị trí",
@@ -45,12 +45,6 @@ export function UsageTiles({ record }: { record: Equipment }) {
         "Trạng thái",
         "phiếu ghi tăng, kiểm kê",
         <Badge variant={ASSET_STATUS_VARIANTS[record.status] ?? "secondary"}>{ASSET_STATUS_LABELS[record.status]}</Badge>,
-      )}
-      {tile(
-        <Wallet />,
-        "Giá trị còn lại",
-        null,
-        record.remainingValue != null ? `${record.remainingValue.toLocaleString("vi-VN")} đ` : "—",
       )}
     </div>
   );

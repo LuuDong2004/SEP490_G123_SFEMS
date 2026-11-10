@@ -9,7 +9,10 @@ import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { ASSET_CATEGORY_LABELS, FUNDING_SOURCE_LABELS } from "@/domains/equipment-intake/types";
 import { ASSET_STATUS_LABELS, PHYSICAL_DIGITAL_LABELS, type Equipment } from "@/domains/equipment/types";
+import { EquipmentAttachmentsCard } from "./equipment-attachments";
+import { EquipmentCodesButton } from "./equipment-codes";
 import { EquipmentHistoryCard } from "./equipment-history";
+import { EquipmentPhoto } from "./equipment-photo";
 import { offBook } from "./equipment-items";
 import { UsageTiles } from "./usage-tiles";
 
@@ -36,7 +39,7 @@ function Facts({ items }: { items: Fact[] }) {
 
 /**
  * Hồ sơ một thiết bị (TS-01): thẻ đầu là tên, mã, trạng thái, trường, hồ sơ đã chuẩn chưa, và dải "Sử dụng"
- * (vị trí, tình trạng, trạng thái, giá trị còn lại); dưới là hai nhóm trường "Định danh & phân loại" và "Nguồn
+ * (vị trí, tình trạng, trạng thái); dưới là hai nhóm trường "Định danh & phân loại" và "Nguồn
  * gốc & giá trị"; cuối là lịch sử (TS-04).
  *
  * Hồ sơ đã ra khỏi sổ (thanh lý, mất) chỉ còn để tra: không có nút Sửa, chỉ có Xoá.
@@ -53,12 +56,15 @@ export const EquipmentShow = () => {
         {r ? (
           <div className="grid w-full gap-4">
             <Card>
-              <CardContent className="flex flex-col gap-5">
+              <CardContent className="flex flex-col gap-6 sm:flex-row">
+                <EquipmentPhoto equipmentId={r.id} canWrite={false} />
+                <div className="flex min-w-0 flex-1 flex-col gap-5">
                 <div className="min-w-0 space-y-2">
                   <h2 className="text-2xl font-semibold tracking-tight">{r.name}</h2>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="bg-muted rounded-md px-2 py-0.5 font-mono text-xs font-medium">{r.code}</span>
                     <Badge variant={ASSET_STATUS_VARIANTS[r.status] ?? "secondary"}>{ASSET_STATUS_LABELS[r.status]}</Badge>
+                    <EquipmentCodesButton equipmentId={r.id} code={r.code} />
                   </div>
                 </div>
                 <div className="grid gap-x-8 gap-y-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
@@ -87,6 +93,7 @@ export const EquipmentShow = () => {
                 <div className="flex flex-col gap-2">
                   <span className="text-overline text-muted-foreground">Sử dụng</span>
                   <UsageTiles record={r} />
+                </div>
                 </div>
               </CardContent>
             </Card>
@@ -130,6 +137,8 @@ export const EquipmentShow = () => {
                 />
               </CardContent>
             </Card>
+
+            <EquipmentAttachmentsCard equipmentId={r.id} canWrite={!!r._can?.write} />
 
             <EquipmentHistoryCard equipmentId={r.id} />
 

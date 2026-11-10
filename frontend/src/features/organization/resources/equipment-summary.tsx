@@ -1,10 +1,11 @@
 import type { CrudFilter } from "@refinedev/core";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
   CircleDashed,
   DoorOpen,
   FoldVertical,
+  RefreshCw,
   School as SchoolIcon,
   Search,
   Settings,
@@ -105,6 +106,7 @@ export function EquipmentSummary({
   const query = serverPaged
     ? { ...search, _start: String((page - 1) * pageSize), _end: String(page * pageSize) }
     : search;
+  const queryClient = useQueryClient();
   const { data, isFetching } = useQuery({
     queryKey: ["equipment", "summary", query],
     placeholderData: keepPreviousData,
@@ -187,6 +189,13 @@ export function EquipmentSummary({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onSelect={() => queryClient.invalidateQueries({ queryKey: ["equipment", "summary"] })}
+              >
+                <RefreshCw />
+                Tải lại
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {menu ? (
                 <>
                   {menu}
