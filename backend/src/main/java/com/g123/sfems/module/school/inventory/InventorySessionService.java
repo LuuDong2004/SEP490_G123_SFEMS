@@ -3,13 +3,18 @@ package com.g123.sfems.module.school.inventory;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
+import com.g123.sfems.domain.school.equipment.EquipmentHistory.Action;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
 import com.g123.sfems.domain.school.inventory.InventoryLine;
+import com.g123.sfems.domain.school.inventory.InventoryLine.Discrepancy;
 import com.g123.sfems.domain.school.inventory.InventorySession;
 import com.g123.sfems.domain.school.inventory.InventorySurplus;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import com.g123.sfems.module.school.equipment.EquipmentLifecycle;
+import com.g123.sfems.module.school.equipment.EquipmentLifecycle.VoucherRef;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -34,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Lập phiếu (KK-03) là CHỤP sổ tài sản ngay lúc đó, cả trường hoặc một phòng: mỗi tài sản một dòng,
  * ghi sổ nói nó ở phòng nào, tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật (KK-04), rồi trình
- * biên bản lên lãnh đạo trường (KK-05).
+ * biên bản lên lãnh đạo trường (KK-05); duyệt xong thì kết quả vào lịch sử từng tài sản (KK-06).
  */
 @Service
 public class InventorySessionService
@@ -47,15 +52,19 @@ public class InventorySessionService
     /** Phiếu đã huỷ hoặc bị từ chối không còn giữ phạm vi kiểm kê: lập lại được. */
     private static final List<VoucherStatus> DEAD = List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED);
 
+    private static final String RESOURCE = "inventory_sessions";
+
     private final InventorySessionRepository sessions;
     private final InventoryCampaignService campaigns;
+    private final EquipmentLifecycle lifecycle;
     private final NamedParameterJdbcTemplate jdbc;
 
     public InventorySessionService(VoucherServiceDeps deps, InventorySessionRepository repository,
-            InventoryCampaignService campaigns, NamedParameterJdbcTemplate jdbc) {
+            InventoryCampaignService campaigns, EquipmentLifecycle lifecycle, NamedParameterJdbcTemplate jdbc) {
         super(deps, repository, InventorySession.class, InventorySession::new);
         this.sessions = repository;
         this.campaigns = campaigns;
+        this.lifecycle = lifecycle;
         this.jdbc = jdbc;
     }
 
@@ -161,11 +170,47 @@ public class InventorySessionService
         }
     }
 
-    /** Phiếu nháp có thêm nút "Ghi kết quả kiểm đếm" cho người có quyền ghi. */
+    /**
+     * Biên bản được duyệt (KK-06): ghi lịch sử kiểm kê cho mọi tài sản trên phiếu; tài sản phát hiện hỏng thì tình
+     * trạng thành "hỏng". Biên bản CHỈ GHI NHẬN — không đổi trạng thái tài sản nào, không tự sinh phiếu nào; xử lý
+     * chênh lệch (ghi giảm, điều chuyển, ghi tăng tài sản thừa) là việc người dùng làm bằng phiếu riêng. Ghi xong là
+     * biên bản hoàn tất, không còn bước "hoàn tất" bấm tay.
+     */
+    @Override
+    protected void onApproved(InventorySession voucher) {
+        VoucherRef ref = new VoucherRef(RESOURCE, voucher.getId(), voucher.getCode());
+        for (InventoryLine line : voucher.getLines()) {
+            Set<Discrepancy> found = line.discrepancies();
+            Equipment item = line.getEquipment();
+            if (found.isEmpty()) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: khớp sổ");
+                continue;
+            }
+            if (found.contains(Discrepancy.MISSING)) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: không tìm thấy");
+                continue;
+            }
+            if (found.contains(Discrepancy.DAMAGED)) {
+                lifecycle.condition(item, EquipmentCondition.HONG, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
+            }
+            if (found.contains(Discrepancy.WRONG_ROOM)) {
+                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: thấy ở "
+                        + (line.getFoundRoom() == null ? "kho" : line.getFoundRoom().getName()) + ", sổ ghi "
+                        + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName()));
+            }
+        }
+        workflow.complete(voucher, "Đã ghi nhận kết quả kiểm kê");
+    }
+
+    /**
+     * Phiếu nháp có thêm nút "Ghi kết quả kiểm đếm" cho người có quyền ghi. Duyệt xong là hoàn tất ngay
+     * ({@link #onApproved}), nên không có nút "Hoàn tất".
+     */
     @Override
     @Transactional(propagation = Propagation.SUPPORTS)
     public Set<String> actions(InventorySession voucher, Map<String, Boolean> can, boolean canApprove) {
         Set<String> actions = new LinkedHashSet<>(super.actions(voucher, can, canApprove));
+        actions.remove("complete");
         if (voucher.getStatus() == VoucherStatus.DRAFT && Boolean.TRUE.equals(can.get("write"))) {
             actions.add("count");
         }
