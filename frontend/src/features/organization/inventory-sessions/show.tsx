@@ -1,85 +1,47 @@
 import { useShow } from "@refinedev/core";
 
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
-import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
+import { SideFact, SideSection } from "@/shared/components/voucher/voucher-layout";
 import { formatPlainDate } from "@/shared/lib/format";
-import { Badge } from "@/shared/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { CONDITION_LABELS } from "@/domains/equipment/types";
-import { DISCREPANCY_LABELS, type InventoryLine, type InventorySession } from "@/domains/inventory/types";
+import { cn } from "@/shared/lib/utils";
+import { Card } from "@/shared/ui/card";
+import type { InventorySession, InventorySummary } from "@/domains/inventory/types";
+import { CountingPanel } from "./counting-panel";
+import { SurplusPanel } from "./surplus-panel";
 
-/** Sổ ghi tài sản ở đâu, tình trạng gì. */
-function RegisterCell({ line }: { line: InventoryLine }) {
-  const room = line.expectedRoom?.name ?? "Kho (chưa xếp phòng)";
-  const condition = line.expectedCondition ? CONDITION_LABELS[line.expectedCondition] : null;
+/** Thẻ "Kiểm đếm" ở cột phải: đã kiểm bao nhiêu, bao nhiêu chênh lệch, bao nhiêu tài sản thừa. */
+function CountingSummary({ s }: { s: InventorySummary }) {
+  const pct = s.total ? Math.round((s.checked / s.total) * 100) : 0;
+  const lineDiffs = s.missing + s.wrongRoom + s.damaged;
   return (
-    <span>
-      {room}
-      {condition ? <span className="text-muted-foreground"> · {condition}</span> : null}
-    </span>
+    <Card className="gap-0 py-0">
+      <SideSection title="Kiểm đếm">
+        <SideFact label="Đã kiểm"><span className="tabular-nums">{s.checked}/{s.total} · {pct}%</span></SideFact>
+        <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+          <div className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-success" : "bg-primary")} style={{ width: `${pct}%` }} />
+        </div>
+        {/* Đếm dòng lệch như nút "Chênh lệch" của bảng; tài sản thừa không nằm trên dòng nào nên tách riêng. */}
+        <SideFact label="Chênh lệch">
+          {lineDiffs > 0
+            ? <span className="text-destructive-text tabular-nums">{lineDiffs}</span>
+            : s.checked === s.total && s.total > 0
+              ? <span className="text-success-text">Không có</span>
+              : <span className="text-muted-foreground font-normal">Chưa có</span>}
+        </SideFact>
+        {s.surplus > 0 ? <SideFact label="Tài sản thừa"><span className="text-warning-text tabular-nums">{s.surplus}</span></SideFact> : null}
+      </SideSection>
+    </Card>
   );
 }
 
-/** Kết quả kiểm của một dòng: chưa kiểm, khớp sổ, hoặc các loại chênh lệch. */
-function ResultCell({ line }: { line: InventoryLine }) {
-  if (line.found == null) return <span className="text-muted-foreground">Chưa kiểm</span>;
-  if (line.discrepancies.length === 0) return <Badge variant="success">Khớp</Badge>;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {line.discrepancies.map((d) => (
-        <Badge key={d} variant={d === "MISSING" ? "destructive" : "warning"}>{DISCREPANCY_LABELS[d]}</Badge>
-      ))}
-    </div>
-  );
-}
-
-function LinesTable({ session }: { session: InventorySession }) {
-  const { checked, total } = session.summary;
-  return (
-    <VoucherLinesCard>
-      <div className="px-4 py-3">
-        <StepTitle title="Tài sản cần kiểm" aside={`Đã kiểm ${checked}/${total}`} />
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10 text-right">#</TableHead>
-            <TableHead>Mã tài sản</TableHead>
-            <TableHead>Tên tài sản</TableHead>
-            <TableHead>Sổ ghi</TableHead>
-            <TableHead>Kết quả kiểm</TableHead>
-            <TableHead>Ghi chú</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {session.lines.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground py-6 text-center">
-                Không có tài sản nào trên sổ trong phạm vi kiểm kê
-              </TableCell>
-            </TableRow>
-          ) : (
-            session.lines.map((line) => (
-              <TableRow key={line.id}>
-                <TableCell className="text-muted-foreground text-right tabular-nums">{line.lineNo}</TableCell>
-                <TableCell className="font-mono text-xs">{line.equipment.code}</TableCell>
-                <TableCell className="font-medium">{line.equipment.name}</TableCell>
-                <TableCell><RegisterCell line={line} /></TableCell>
-                <TableCell><ResultCell line={line} /></TableCell>
-                <TableCell className="text-muted-foreground">{line.note}</TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </VoucherLinesCard>
-  );
-}
-
-/** Chi tiết phiếu kiểm kê (KK-03): thông tin phiếu, các tài sản chụp từ sổ, và các nút của vòng duyệt. */
+/**
+ * Chi tiết phiếu kiểm kê: thông tin phiếu, bảng kiểm đếm các tài sản chụp từ sổ (KK-04), tài sản thừa, và các nút
+ * của vòng duyệt. Phiếu còn nháp và người xem có quyền ghi thì bảng thành ô nhập.
+ */
 export const InventorySessionShow = () => {
   const { query } = useShow<InventorySession>();
   const r = query.data?.data;
+  const editable = !!r?._actions?.includes("count");
   return (
     <VoucherShowShell
       resource="inventory_sessions"
@@ -94,8 +56,10 @@ export const InventorySessionShow = () => {
         { label: "Tổ kiểm kê", value: r?.council },
         { label: "Kết luận", value: r?.conclusion },
       ]}
+      side={r ? <CountingSummary s={r.summary} /> : null}
     >
-      {r ? <LinesTable session={r} /> : null}
+      {r ? <CountingPanel key={r.id} record={r} editable={editable} /> : null}
+      {r ? <SurplusPanel record={r} editable={editable} /> : null}
     </VoucherShowShell>
   );
 };
