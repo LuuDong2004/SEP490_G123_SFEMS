@@ -33,7 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Phiếu kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
  *
  * <p>Lập phiếu (KK-03) là CHỤP sổ tài sản ngay lúc đó, cả trường hoặc một phòng: mỗi tài sản một dòng,
- * ghi sổ nói nó ở phòng nào, tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật (KK-04).
+ * ghi sổ nói nó ở phòng nào, tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật (KK-04), rồi trình
+ * biên bản lên lãnh đạo trường (KK-05).
  */
 @Service
 public class InventorySessionService
@@ -140,6 +141,24 @@ public class InventorySessionService
         }
         rowLevel.checkWritable(voucher);
         return initialize(repository.persist(voucher));
+    }
+
+    /**
+     * Trình biên bản (KK-05): mọi dòng phải đã kiểm (có hay không thấy) và phải có tổ kiểm kê — biên bản không có
+     * người ký thì không ai chịu trách nhiệm về số liệu. Trình xong, kết quả kiểm đếm được chốt.
+     */
+    @Override
+    protected void validateSubmit(InventorySession voucher) {
+        long unchecked = voucher.getLines().stream().filter(l -> l.getFound() == null).count();
+        if (unchecked > 0) {
+            throw new FieldValidationException("lines",
+                    "Còn %d tài sản chưa kiểm — ghi \"có\" hoặc \"không thấy\" cho mọi dòng trước khi trình biên bản"
+                            .formatted(unchecked));
+        }
+        if (voucher.getCouncil() == null || voucher.getCouncil().isBlank()) {
+            throw new FieldValidationException("council",
+                    "Chưa khai tổ kiểm kê — sửa phiếu, chọn người trong tổ rồi trình lại biên bản");
+        }
     }
 
     /** Phiếu nháp có thêm nút "Ghi kết quả kiểm đếm" cho người có quyền ghi. */
