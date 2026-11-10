@@ -10,6 +10,7 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import type { InventorySession } from "@/domains/inventory/types";
+import type { SurplusSeed } from "./counting-panel";
 
 const RESOURCE = "inventory_sessions";
 
@@ -30,11 +31,21 @@ function rowError(r: Row): string | null {
 }
 
 /** Tài sản thừa (KK-04): thấy thực tế mà sổ không có. Lưu cả danh sách một lần; dòng chưa chọn thiết bị bị bỏ. */
-export function SurplusPanel({ record, editable }: { record: InventorySession; editable: boolean }) {
+export function SurplusPanel({ record, editable, seed }: {
+  record: InventorySession;
+  editable: boolean;
+  /** Tài sản quét được mà không có trên phiếu: thêm một dòng chưa lưu. */
+  seed: SurplusSeed | null;
+}) {
   const { open } = useNotification();
   const invalidate = useInvalidate();
   const [rows, setRows] = useState<Row[]>(() => toRows(record));
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!seed) return;
+    setRows((all) => [...all, { catalog: String(seed.catalog), catalogName: seed.catalogName, name: seed.name, quantity: 1, note: seed.note }]);
+    document.getElementById("inventory-surplus")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [seed]);
   useEffect(() => {
     setRows(toRows(record));
     // eslint-disable-next-line react-hooks/exhaustive-deps

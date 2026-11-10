@@ -36,7 +36,7 @@ export type InventoryCampaign = {
 export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
-  MISSING: "Không thấy",
+  MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
   DAMAGED: "Hỏng",
 };
@@ -51,6 +51,39 @@ export type InventorySummary = {
   damaged: number;
   surplus: number;
 };
+
+/** Số chênh lệch của một nhóm (phòng hoặc môn) — `GET /inventory_sessions/{id}/breakdown`. */
+export type DiscrepancyCounts = {
+  id: number | null;
+  name: string | null;
+  /** Nhóm theo phòng: phòng loại kho, hoặc tài sản chưa xếp phòng. */
+  storeroom: boolean;
+  total: number;
+  checked: number;
+  matched: number;
+  missing: number;
+  wrongRoom: number;
+  damaged: number;
+};
+
+export type SessionBreakdown = { rooms: DiscrepancyCounts[]; subjects: DiscrepancyCounts[] };
+
+/** Tiêu đề các cột số của bảng chênh lệch. */
+export const COUNT_HEADS = ["Theo sổ", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
+
+/** Cộng các nhóm thành một hàng tổng. */
+export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
+  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0, damaged: 0 };
+  for (const r of rows) {
+    total.total += r.total;
+    total.checked += r.checked;
+    total.matched += r.matched;
+    total.missing += r.missing;
+    total.wrongRoom += r.wrongRoom;
+    total.damaged += r.damaged;
+  }
+  return total;
+}
 
 /** Một tài sản trên sổ: sổ ghi ở đâu, tình trạng gì; tổ kiểm kê thấy gì. */
 export type InventoryLine = {

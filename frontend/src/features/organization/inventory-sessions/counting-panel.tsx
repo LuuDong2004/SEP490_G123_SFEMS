@@ -1,8 +1,9 @@
 import { useInvalidate, useNotification } from "@refinedev/core";
-import { CheckCheck, Save, Search, Undo2 } from "lucide-react";
+import { CheckCheck, DoorOpen, Save, ScanLine, Search, TriangleAlert, Undo2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { Segmented } from "@/shared/components/segmented";
 import { errorMessage } from "@/shared/lib/api-error";
 import { cn } from "@/shared/lib/utils";
@@ -19,6 +20,7 @@ import {
   type InventoryRef,
   type InventorySession,
 } from "@/domains/inventory/types";
+import { ScanDialog, type ScanResult } from "./scan-dialog";
 
 const RESOURCE = "inventory_sessions";
 
@@ -29,7 +31,10 @@ const NO_ROOM = "Kho (chưa xếp phòng)";
 const PAGE = 50;
 
 type Draft = { found: string; room: string; condition: string; note: string };
-type Filter = "all" | "unchecked" | "matched" | "diff";
+type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM" | "DAMAGED";
+
+/** Một dòng tài sản thừa đề xuất từ lần quét mã — khối tài sản thừa thêm vào danh sách, người kiểm bấm Lưu. */
+export type SurplusSeed = { key: number; catalog: number; catalogName: string; name: string; note: string };
 
 function draftOf(line: InventoryLine): Draft {
   return {
@@ -116,16 +121,22 @@ function ResultCell({ line }: { line: InventoryLine }) {
 
 /**
  * Bảng kiểm đếm (KK-04). Mỗi dòng: có thấy không, thấy ở đâu, tình trạng thế nào. Mặc định "như sổ" để cán bộ chỉ
- * sửa những dòng lệch. Bảng cuộn trong khung, lọc được theo kết quả, theo phòng trên sổ và theo mã / tên; thanh lưu
- * nằm ngay dưới.
+ * sửa những dòng lệch. Bảng cuộn trong khung, lọc được theo kết quả, theo loại chênh lệch, theo phòng trên sổ và
+ * theo mã / tên; quét tem để đánh dấu "Có"; thanh lưu nằm ngay dưới.
  */
-export function CountingPanel({ record, editable }: { record: InventorySession; editable: boolean }) {
+export function CountingPanel({ record, editable, onSurplus }: {
+  record: InventorySession;
+  editable: boolean;
+  /** Mã quét được không có trên phiếu mà có trên sổ: gợi ý thêm vào tài sản thừa. */
+  onSurplus: (seed: SurplusSeed) => void;
+}) {
   const { open } = useNotification();
   const invalidate = useInvalidate();
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [busy, setBusy] = useState(false);
   const [term, setTerm] = useState("");
-  const [roomFilter, setRoomFilter] = useState<string>("all");
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   // Biên bản đã chốt mà có chênh lệch: mở sẵn nhóm "Chênh lệch" — người duyệt cần thấy vài dòng lệch.
   const lineDiffs = record.summary.missing + record.summary.wrongRoom + record.summary.damaged;
   const [filter, setFilter] = useState<Filter>(!editable && lineDiffs > 0 ? "diff" : "all");
@@ -165,7 +176,7 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
   const { visible, roomTotals } = useMemo(() => {
     const visible = record.lines.filter((l) => {
       if (needle && !fold(`${l.equipment.code} ${l.equipment.name}`).includes(needle)) return false;
-      if (roomFilter !== "all" && (l.expectedRoom ? String(l.expectedRoom.id) : "none") !== roomFilter) return false;
+      if (roomFilter && (l.expectedRoom ? String(l.expectedRoom.id) : "none") !== roomFilter) return false;
       switch (filter) {
         case "unchecked":
           return l.found == null;
@@ -173,8 +184,10 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
           return l.found != null && l.discrepancies.length === 0;
         case "diff":
           return l.discrepancies.length > 0;
-        default:
+        case "all":
           return true;
+        default:
+          return l.discrepancies.includes(filter);
       }
     });
     // Xếp theo PHÒNG TRÊN SỔ rồi theo số thứ tự: tổ kiểm kê đi từng phòng; dòng tiêu đề phòng chen vào khi phòng đổi.
@@ -244,9 +257,49 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
     });
   }
 
+  /**
+   * Một mã quét được: tài sản trên phiếu thì đánh dấu "Có" (như bấm tay — vẫn phải Lưu kết quả); không trên phiếu
+   * thì tra sổ, có thì gợi ý thêm vào tài sản thừa.
+   */
+  async function scan(code: string): Promise<ScanResult> {
+    const key = code.toLowerCase();
+    const line = record.lines.find((l) => l.equipment.code.toLowerCase() === key);
+    if (line) {
+      if (drafts[line.id]?.found === "yes") return { tone: "info", text: `Đã đánh dấu có: ${line.equipment.name}` };
+      setDrafts((prev) => ({ ...prev, [line.id]: { ...(prev[line.id] ?? draftOf(line)), found: "yes" } }));
+      return { tone: "success", text: `Có: ${line.equipment.name}` };
+    }
+    try {
+      const rows = await kyInstance
+        .get("equipment", { searchParams: { q: code, _start: 0, _end: 5 } })
+        .json<{ id: number; code: string; name: string; catalog?: { id: number; name: string } | null }[]>();
+      const hit = rows.find((r) => r.code.toLowerCase() === key);
+      if (!hit) return { tone: "warning", text: "Không có tài sản mang mã này" };
+      const catalog = hit.catalog;
+      return {
+        tone: "warning",
+        text: `${hit.name} — không có trên phiếu này`,
+        action: catalog
+          ? {
+              label: "Thêm vào tài sản thừa",
+              run: () => onSurplus({ key: Date.now(), catalog: catalog.id, catalogName: catalog.name, name: hit.name, note: `Mã ${hit.code}` }),
+            }
+          : undefined,
+      };
+    } catch (error) {
+      return { tone: "warning", text: await errorMessage(error) };
+    }
+  }
+
   const uncheckedVisible = visible.filter((l) => drafts[l.id]?.found === UNSET).length;
   const diffCount = record.lines.filter((l) => l.discrepancies.length > 0).length;
   const unchecked = record.summary.total - record.summary.checked;
+  const inDiff = filter === "diff" || filter === "MISSING" || filter === "WRONG_ROOM" || filter === "DAMAGED";
+  const kinds = ([
+    ["MISSING", record.summary.missing],
+    ["WRONG_ROOM", record.summary.wrongRoom],
+    ["DAMAGED", record.summary.damaged],
+  ] as const).filter(([, n]) => n > 0);
   const grouped = roomTotals.size > 1;
   const cols = editable ? COLS_EDIT : COLS_VIEW;
 
@@ -255,6 +308,9 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
     unchecked: "Chưa kiểm",
     matched: "Khớp",
     diff: "Có chênh lệch",
+    MISSING: "Thiếu",
+    WRONG_ROOM: "Sai vị trí",
+    DAMAGED: "Hỏng",
   };
 
   return (
@@ -266,19 +322,18 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
             <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Tìm mã, tên tài sản…" className="pl-8" aria-label="Tìm tài sản" />
           </div>
           {rooms.length > 1 ? (
-            <Select value={roomFilter} onValueChange={setRoomFilter}>
-              <SelectTrigger className="w-52" aria-label="Lọc theo phòng trên sổ"><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-64">
-                <SelectItem value="all">Mọi phòng ({record.lines.length})</SelectItem>
-                {rooms.map((r) => (
-                  <SelectItem key={r.key} value={r.key}>{r.label} ({r.count})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <IconFilter icon={<DoorOpen />} label="phòng trên sổ" allLabel="Mọi phòng" total={record.lines.length}
+              groups={[{ items: rooms.map(({ key, label, count }) => ({ key, label, count })) }]} value={roomFilter} onChange={setRoomFilter} />
           ) : null}
-          <Segmented<Filter>
+          {kinds.length > 1 ? (
+            <IconFilter icon={<TriangleAlert />} label="loại chênh lệch" allLabel="Mọi chênh lệch" total={diffCount}
+              groups={[{ items: kinds.map(([k, n]) => ({ key: k, label: DISCREPANCY_LABELS[k], count: n })) }]}
+              value={filter === "MISSING" || filter === "WRONG_ROOM" || filter === "DAMAGED" ? filter : null}
+              onChange={(v) => setFilter((v as Filter | null) ?? "diff")} />
+          ) : null}
+          <Segmented<"all" | "unchecked" | "matched" | "diff">
             label="Lọc theo kết quả"
-            value={filter}
+            value={inDiff ? "diff" : (filter as "all" | "unchecked" | "matched")}
             onChange={setFilter}
             options={[
               { value: "all", hint: "Mọi tài sản của phiên kiểm kê", label: <FilterLabel label="Tất cả" count={record.summary.total} active={filter === "all"} /> },
@@ -286,9 +341,15 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
                 ? [{ value: "unchecked" as const, hint: "Tài sản chưa được kiểm", label: <FilterLabel label="Chưa kiểm" count={unchecked} tone="warning" active={filter === "unchecked"} /> }]
                 : []),
               { value: "matched", hint: "Thực tế khớp sổ sách", label: <FilterLabel label="Khớp" count={record.summary.matched} tone="success" active={filter === "matched"} /> },
-              { value: "diff", hint: "Thiếu, thừa, sai vị trí hoặc sai tình trạng", label: <FilterLabel label="Chênh lệch" count={diffCount} tone="destructive" active={filter === "diff"} /> },
+              { value: "diff", hint: "Thiếu, thừa, sai vị trí hoặc sai tình trạng", label: <FilterLabel label="Chênh lệch" count={diffCount} tone="destructive" active={inDiff} /> },
             ]}
           />
+          {editable ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setScanning(true)}>
+              <ScanLine />
+              Quét mã
+            </Button>
+          ) : null}
           {editable && uncheckedVisible > 0 ? (
             <Button type="button" variant="outline" size="sm" onClick={markVisibleFound}
               title="Đánh dấu “Có, như sổ” cho mọi dòng chưa kiểm đang hiện — lọc theo một phòng rồi bấm là cả phòng đó đủ.">
@@ -435,6 +496,7 @@ export function CountingPanel({ record, editable }: { record: InventorySession; 
           ) : null}
         </div>
       ) : null}
+      {editable ? <ScanDialog open={scanning} onOpenChange={setScanning} onScan={scan} /> : null}
     </Card>
   );
 }

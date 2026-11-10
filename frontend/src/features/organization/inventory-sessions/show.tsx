@@ -1,4 +1,5 @@
 import { useShow } from "@refinedev/core";
+import { useState } from "react";
 
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
 import { SideFact, SideSection } from "@/shared/components/voucher/voucher-layout";
@@ -6,7 +7,8 @@ import { formatPlainDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/ui/card";
 import type { InventorySession, InventorySummary } from "@/domains/inventory/types";
-import { CountingPanel } from "./counting-panel";
+import { InventoryBreakdown } from "./breakdown";
+import { CountingPanel, type SurplusSeed } from "./counting-panel";
 import { SurplusPanel } from "./surplus-panel";
 
 /** Thẻ "Kiểm đếm" ở cột phải: đã kiểm bao nhiêu, bao nhiêu chênh lệch, bao nhiêu tài sản thừa. */
@@ -42,6 +44,7 @@ export const InventorySessionShow = () => {
   const { query } = useShow<InventorySession>();
   const r = query.data?.data;
   const editable = !!r?._actions?.includes("count");
+  const [surplusSeed, setSurplusSeed] = useState<SurplusSeed | null>(null);
   return (
     <VoucherShowShell
       resource="inventory_sessions"
@@ -58,8 +61,9 @@ export const InventorySessionShow = () => {
       ]}
       side={r ? <CountingSummary s={r.summary} /> : null}
     >
-      {r ? <CountingPanel key={r.id} record={r} editable={editable} /> : null}
-      {r ? <SurplusPanel record={r} editable={editable} /> : null}
+      {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
+      {r ? <InventoryBreakdown record={r} /> : null}
+      {r ? <SurplusPanel record={r} editable={editable} seed={surplusSeed} /> : null}
     </VoucherShowShell>
   );
 };
