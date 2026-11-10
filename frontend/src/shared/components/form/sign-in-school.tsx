@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 export type SignInSchool = { id: number; name: string; area?: string | null; prefix: string };
 
 const STORAGE_KEY = "signin.school";
-/** Cùng số dòng một lần tải với máy chủ (`SchoolSignInLookupController.PAGE`). */
+/** Cùng số dòng một lần tải với máy chủ (`SignInSchoolLookup.PAGE`). */
 const PAGE = 30;
 
 /** Trường đã chọn lần trước trên máy này — người của một trường đăng nhập lại thì khỏi chọn lại. */

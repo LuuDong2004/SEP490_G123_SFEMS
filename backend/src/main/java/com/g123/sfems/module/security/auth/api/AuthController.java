@@ -7,6 +7,7 @@ import com.g123.sfems.module.security.auth.api.dto.LoginRequest;
 import com.g123.sfems.module.security.auth.api.dto.RefreshRequest;
 import com.g123.sfems.module.security.auth.api.dto.TokenResponse;
 import com.g123.sfems.module.security.auth.service.AuthService;
+import com.g123.sfems.module.security.auth.service.SignInSchoolLookup;
 import com.g123.sfems.module.security.token.service.RefreshTokenService.Client;
 import com.g123.sfems.module.security.user.service.PasswordResetService;
 import com.g123.sfems.shared.security.PasswordPolicy;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -44,10 +46,19 @@ public class AuthController {
 
     private final AuthService service;
     private final PasswordResetService passwordReset;
+    private final SignInSchoolLookup schoolLookup;
 
-    public AuthController(AuthService service, PasswordResetService passwordReset) {
+    public AuthController(AuthService service, PasswordResetService passwordReset, SignInSchoolLookup schools) {
         this.service = service;
         this.passwordReset = passwordReset;
+        this.schoolLookup = schools;
+    }
+
+    /** Ô "Trường" của màn đăng nhập (HT-01) — MỞ, vì lúc này chưa có phiên. */
+    @GetMapping("/schools")
+    public List<SignInSchoolLookup.Option> schools(@RequestParam(required = false) String q,
+            @RequestParam(name = "_start", defaultValue = "0") int start) {
+        return schoolLookup.find(q, start);
     }
 
     public record ForgotPasswordRequest(String login) {
