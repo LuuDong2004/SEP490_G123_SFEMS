@@ -90,6 +90,8 @@ export const InventorySessionShow = () => {
           approve: {
             label: "Duyệt biên bản",
             title: "Duyệt biên bản kiểm kê?",
+            // Dự án chưa có phiếu ghi giảm, điều chuyển, báo hỏng: duyệt chỉ ghi nhận, không lập phiếu xử lý nào.
+            description: "Kết quả kiểm kê được ghi vào lịch sử từng tài sản; tài sản phát hiện hỏng chuyển tình trạng thành Hỏng.",
             confirm: "Duyệt biên bản",
             done: "Đã duyệt biên bản",
           },
