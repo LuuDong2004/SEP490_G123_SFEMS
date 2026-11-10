@@ -11,6 +11,7 @@ import type { InventorySession } from "@/domains/inventory/types";
 import type { VoucherStatus } from "@/domains/voucher/types";
 import { InventoryBreakdown } from "./breakdown";
 import { CountingPanel, type SurplusSeed } from "./counting-panel";
+import { InventoryPrint, PrintMenuItem } from "./print";
 import { SurplusPanel } from "./surplus-panel";
 
 /** Câu "đang ở đâu, việc kế tiếp là gì" trong thẻ kiểm đếm. */
@@ -58,7 +59,8 @@ function CountingSummary({ record }: { record: InventorySession }) {
 
 /**
  * Chi tiết phiếu kiểm kê: thông tin phiếu, bảng kiểm đếm các tài sản chụp từ sổ (KK-04), tài sản thừa, và các nút
- * của vòng duyệt. Phiếu còn nháp và người xem có quyền ghi thì bảng thành ô nhập.
+ * của vòng duyệt. Phiếu còn nháp và người xem có quyền ghi thì bảng thành ô nhập. Menu ⚙ có "In biên bản" (KK-07):
+ * in giấy hoặc lưu PDF từ hộp in của trình duyệt.
  */
 export const InventorySessionShow = () => {
   const { query } = useShow<InventorySession>();
@@ -66,42 +68,49 @@ export const InventorySessionShow = () => {
   const editable = !!r?._actions?.includes("count");
   const [surplusSeed, setSurplusSeed] = useState<SurplusSeed | null>(null);
   return (
-    <VoucherShowShell
-      resource="inventory_sessions"
-      kind="Phiếu kiểm kê"
-      record={r}
-      loading={query.isLoading}
-      facts={[
-        { label: "Tên đợt", value: r?.title },
-        { label: "Ngày kiểm kê", value: formatPlainDate(r?.inventoryDate) },
-        { label: "Phạm vi", value: r ? (r.room?.name ?? "Cả trường") : null },
-        { label: "Đợt kiểm kê", value: r?.campaign?.name },
-        { label: "Tổ kiểm kê", value: r?.council },
-        { label: "Kết luận", value: r?.conclusion },
-      ]}
-      actions={{
-        text: {
-          submit: {
-            label: "Trình biên bản",
-            title: "Trình biên bản kiểm kê?",
-            description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử tài sản.",
-            confirm: "Trình biên bản",
-          },
-          approve: {
-            label: "Duyệt biên bản",
-            title: "Duyệt biên bản kiểm kê?",
-            // Dự án chưa có phiếu ghi giảm, điều chuyển, báo hỏng: duyệt chỉ ghi nhận, không lập phiếu xử lý nào.
-            description: "Kết quả kiểm kê được ghi vào lịch sử từng tài sản; tài sản phát hiện hỏng chuyển tình trạng thành Hỏng.",
-            confirm: "Duyệt biên bản",
-            done: "Đã duyệt biên bản",
-          },
-        },
-      }}
-      side={r ? <CountingSummary record={r} /> : null}
-    >
-      {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
-      {r ? <InventoryBreakdown record={r} /> : null}
-      {r ? <SurplusPanel record={r} editable={editable} seed={surplusSeed} /> : null}
-    </VoucherShowShell>
+    <>
+      {/* Màn làm việc không lên giấy; bản in là một bố cục riêng (quốc hiệu, chữ ký). */}
+      <div className="print:hidden">
+        <VoucherShowShell
+          resource="inventory_sessions"
+          kind="Phiếu kiểm kê"
+          record={r}
+          loading={query.isLoading}
+          menuItems={<PrintMenuItem />}
+          facts={[
+            { label: "Tên đợt", value: r?.title },
+            { label: "Ngày kiểm kê", value: formatPlainDate(r?.inventoryDate) },
+            { label: "Phạm vi", value: r ? (r.room?.name ?? "Cả trường") : null },
+            { label: "Đợt kiểm kê", value: r?.campaign?.name },
+            { label: "Tổ kiểm kê", value: r?.council },
+            { label: "Kết luận", value: r?.conclusion },
+          ]}
+          actions={{
+            text: {
+              submit: {
+                label: "Trình biên bản",
+                title: "Trình biên bản kiểm kê?",
+                description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử tài sản.",
+                confirm: "Trình biên bản",
+              },
+              approve: {
+                label: "Duyệt biên bản",
+                title: "Duyệt biên bản kiểm kê?",
+                // Dự án chưa có phiếu ghi giảm, điều chuyển, báo hỏng: duyệt chỉ ghi nhận, không lập phiếu xử lý nào.
+                description: "Kết quả kiểm kê được ghi vào lịch sử từng tài sản; tài sản phát hiện hỏng chuyển tình trạng thành Hỏng.",
+                confirm: "Duyệt biên bản",
+                done: "Đã duyệt biên bản",
+              },
+            },
+          }}
+          side={r ? <CountingSummary record={r} /> : null}
+        >
+          {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
+          {r ? <InventoryBreakdown record={r} /> : null}
+          {r ? <SurplusPanel record={r} editable={editable} seed={surplusSeed} /> : null}
+        </VoucherShowShell>
+      </div>
+      {r ? <InventoryPrint record={r} /> : null}
+    </>
   );
 };
