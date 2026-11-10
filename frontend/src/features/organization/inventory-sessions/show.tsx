@@ -2,8 +2,12 @@ import { useShow } from "@refinedev/core";
 import { AlertCircle, CheckCircle2, Clock, FilePen } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
+import { VoucherActions } from "@/shared/components/voucher/voucher-actions";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
 import { SideFact, SideSection } from "@/shared/components/voucher/voucher-layout";
+import { VoucherViewSwitch } from "@/shared/components/voucher/voucher-view-switch";
+import { useVoucherView } from "@/shared/hooks/use-voucher-view";
 import { formatPlainDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/ui/card";
@@ -11,8 +15,27 @@ import type { InventorySession } from "@/domains/inventory/types";
 import type { VoucherStatus } from "@/domains/voucher/types";
 import { InventoryBreakdown } from "./breakdown";
 import { CountingPanel, type SurplusSeed } from "./counting-panel";
+import { InventoryDocument } from "./document";
 import { InventoryPrint, PrintMenuItem } from "./print";
 import { SurplusPanel } from "./surplus-panel";
+
+/** Câu chữ của các nút vòng duyệt — dùng chung cho hai dạng xem. */
+const ACTION_TEXT = {
+  submit: {
+    label: "Trình biên bản",
+    title: "Trình biên bản kiểm kê?",
+    description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử tài sản.",
+    confirm: "Trình biên bản",
+  },
+  approve: {
+    label: "Duyệt biên bản",
+    title: "Duyệt biên bản kiểm kê?",
+    // Dự án chưa có phiếu ghi giảm, điều chuyển, báo hỏng: duyệt chỉ ghi nhận, không lập phiếu xử lý nào.
+    description: "Kết quả kiểm kê được ghi vào lịch sử từng tài sản; tài sản phát hiện hỏng chuyển tình trạng thành Hỏng.",
+    confirm: "Duyệt biên bản",
+    done: "Đã duyệt biên bản",
+  },
+};
 
 /** Câu "đang ở đâu, việc kế tiếp là gì" trong thẻ kiểm đếm. */
 const STAGE: Record<VoucherStatus, { icon: ReactNode; tone: string; text: string }> = {
@@ -60,13 +83,33 @@ function CountingSummary({ record }: { record: InventorySession }) {
 /**
  * Chi tiết phiếu kiểm kê: thông tin phiếu, bảng kiểm đếm các tài sản chụp từ sổ (KK-04), tài sản thừa, và các nút
  * của vòng duyệt. Phiếu còn nháp và người xem có quyền ghi thì bảng thành ô nhập. Menu ⚙ có "In biên bản" (KK-07):
- * in giấy hoặc lưu PDF từ hộp in của trình duyệt.
+ * in giấy hoặc lưu PDF từ hộp in của trình duyệt. Hai dạng xem như phiếu nhập: "Làm việc" (bảng kiểm đếm) và
+ * "Văn bản" (tờ A4, KK-07).
  */
 export const InventorySessionShow = () => {
   const { query } = useShow<InventorySession>();
   const r = query.data?.data;
   const editable = !!r?._actions?.includes("count");
   const [surplusSeed, setSurplusSeed] = useState<SurplusSeed | null>(null);
+  const [view, setView] = useVoucherView("inventory");
+  const viewSwitch = r ? <VoucherViewSwitch view={view} onChange={setView} /> : null;
+
+  if (r && view === "document") {
+    return (
+      <ShowView>
+        <ShowViewHeader
+          actions={
+            <>
+              {viewSwitch}
+              <VoucherActions resource="inventory_sessions" record={r} text={ACTION_TEXT} />
+            </>
+          }
+        />
+        <InventoryDocument record={r} />
+      </ShowView>
+    );
+  }
+
   return (
     <>
       {/* Màn làm việc không lên giấy; bản in là một bố cục riêng (quốc hiệu, chữ ký). */}
@@ -76,6 +119,7 @@ export const InventorySessionShow = () => {
           kind="Phiếu kiểm kê"
           record={r}
           loading={query.isLoading}
+          extraActions={viewSwitch}
           menuItems={<PrintMenuItem />}
           facts={[
             { label: "Tên đợt", value: r?.title },
@@ -85,24 +129,7 @@ export const InventorySessionShow = () => {
             { label: "Tổ kiểm kê", value: r?.council },
             { label: "Kết luận", value: r?.conclusion },
           ]}
-          actions={{
-            text: {
-              submit: {
-                label: "Trình biên bản",
-                title: "Trình biên bản kiểm kê?",
-                description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử tài sản.",
-                confirm: "Trình biên bản",
-              },
-              approve: {
-                label: "Duyệt biên bản",
-                title: "Duyệt biên bản kiểm kê?",
-                // Dự án chưa có phiếu ghi giảm, điều chuyển, báo hỏng: duyệt chỉ ghi nhận, không lập phiếu xử lý nào.
-                description: "Kết quả kiểm kê được ghi vào lịch sử từng tài sản; tài sản phát hiện hỏng chuyển tình trạng thành Hỏng.",
-                confirm: "Duyệt biên bản",
-                done: "Đã duyệt biên bản",
-              },
-            },
-          }}
+          actions={{ text: ACTION_TEXT }}
           side={r ? <CountingSummary record={r} /> : null}
         >
           {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
