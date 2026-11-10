@@ -32,6 +32,27 @@ export type InventoryCampaign = {
   _can?: { write?: boolean; delete?: boolean };
 };
 
+/** Một trường trong đợt và phiếu kiểm kê mới nhất của nó — `GET /inventory_campaigns/{id}/progress`. */
+export type CampaignProgressRow = {
+  schoolId: number;
+  schoolCode: string;
+  schoolName: string;
+  sessionId: number | null;
+  sessionCode: string | null;
+  status: string | null;
+  /** Người xem mở được biên bản — Sở không đọc biên bản còn ở bàn hiệu trưởng. */
+  canOpen: boolean;
+};
+
+export type CampaignProgress = {
+  total: number;
+  notStarted: number;
+  drafting: number;
+  pending: number;
+  completed: number;
+  schools: CampaignProgressRow[];
+};
+
 /** Loại chênh lệch của một dòng: mất, sai phòng, hỏng. Một dòng có thể vừa sai phòng vừa hỏng. */
 export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED";
 
@@ -67,6 +88,18 @@ export type DiscrepancyCounts = {
 };
 
 export type SessionBreakdown = { rooms: DiscrepancyCounts[]; subjects: DiscrepancyCounts[] };
+
+/** `GET /inventory_campaigns/{id}/discrepancies` — `counts` trống khi người xem chưa mở được biên bản. */
+export type CampaignDiscrepancyRow = {
+  schoolId: number;
+  schoolCode: string;
+  schoolName: string;
+  sessionId: number | null;
+  sessionCode: string | null;
+  status: string | null;
+  counts: DiscrepancyCounts | null;
+  surplus: number;
+};
 
 /** Tiêu đề các cột số của bảng chênh lệch. */
 export const COUNT_HEADS = ["Theo sổ", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
