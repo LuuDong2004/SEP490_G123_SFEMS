@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -49,8 +50,9 @@ public class AttachmentController {
             @RequestParam String resource,
             @RequestParam Long recordId,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(required = false) String note) throws IOException {
-        return service.upload(resource, recordId, file, note);
+            @RequestParam(required = false) String note,
+            @RequestParam(required = false) String purpose) throws IOException {
+        return service.upload(resource, recordId, file, note, purpose);
     }
 
     @GetMapping("/{id}/content")
@@ -67,6 +69,12 @@ public class AttachmentController {
     public record CoverRequest(
             @Size(max = 100, message = "Vùng cắt không hợp lệ")
             String crop) {
+    }
+
+    /** Màn hồ sơ thiết bị (TS-03) gọi PUT, không kèm vùng cắt; cùng phép với POST bên dưới. */
+    @PutMapping("/{id}/cover")
+    public AttachmentInfo setCover(@PathVariable Long id) {
+        return service.cover(id, null);
     }
 
     @PostMapping("/{id}/cover")

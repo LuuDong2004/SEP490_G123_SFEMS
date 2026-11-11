@@ -72,7 +72,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static final String FIELD_SERIAL = "serialNumber";
     private static final String FIELD_MODEL = "model";
     private static final String FIELD_MANUFACTURER = "manufacturer";
-    private static final String FIELD_LEGACY_CODE = "legacyCode";
     private static final String FIELD_ORIGINAL_VALUE = "originalValue";
     private static final String FIELD_WARRANTY_EXPIRY = "warrantyExpiry";
 
@@ -335,10 +334,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (request.assetCategory() != null) {
             item.setAssetCategory(request.assetCategory());
         }
-        if (request.legacyCode() != null) {
-            track(item, FIELD_LEGACY_CODE, item.getLegacyCode(), blankToNull(request.legacyCode()),
-                    item::setLegacyCode);
-        }
         if (request.serialNumber() != null) {
             String serial = blankToNull(request.serialNumber());
             requireSerialFree(item, serial);
@@ -495,9 +490,14 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (term.isEmpty()) {
             return List.of();
         }
-        Specification<Equipment> exact = (root, query, cb) -> cb.or(
-                cb.equal(cb.lower(root.get("code")), term),
-                cb.equal(cb.lower(root.get("legacyCode")), term));
+        // Mã đã bị thay (TS-05) chỉ còn trong lịch sử; tra theo đó để tem cũ vẫn tìm được thiết bị.
+        List<Long> byPastCode = historyRows.findEquipmentIdsByPastCode(term);
+        Specification<Equipment> exact = (root, query, cb) -> {
+            var current = cb.or(
+                    cb.equal(cb.lower(root.get("code")), term),
+                    cb.equal(cb.lower(root.get("legacyCode")), term));
+            return byPastCode.isEmpty() ? current : cb.or(current, root.get("id").in(byPastCode));
+        };
         return items.findAll(
                 scopes.<Equipment>scope(Equipment.class, com.g123.sfems.shared.security.rowlevel.Action.READ)
                         .and(exact));
