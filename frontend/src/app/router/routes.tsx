@@ -13,16 +13,23 @@ import {
   UserShow,
 } from "@/features/administration";
 import { Login, Profile } from "@/features/identity";
-import { catalogScreens, MinimumCatalogPage } from "@/features/catalogs";
+import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
-import { AssetsReport } from "@/features/reports";
+import { AdequacyReportPage, AssetsReport, InventoryReportPage, PurchaseReportPage } from "@/features/reports";
+import { CampaignPage, CampaignShow } from "@/features/organization/inventory-campaigns";
+import {
+  InventorySessionCreate,
+  InventorySessionEdit,
+  InventorySessionList,
+  InventorySessionShow,
+} from "@/features/organization/inventory-sessions";
 import {
   EquipmentIntakeCreate,
   EquipmentIntakeEdit,
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentCreate, EquipmentEdit, EquipmentList, EquipmentShow } from "@/features/organization/resources";
+import { EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
@@ -101,19 +108,20 @@ export function AppRoutes() {
 
         {/* Báo cáo (BC-02 – BC-06): bốn tab cùng quyền reports:read. */}
         {listRoute("/reports/assets", "report_assets", <AssetsReport />)}
-        {listRoute("/reports/adequacy", "report_adequacy")}
-        {listRoute("/reports/purchase", "report_purchase")}
-        {listRoute("/reports/inventory", "report_inventory")}
+        {listRoute("/reports/adequacy", "report_adequacy", <AdequacyReportPage />)}
+        {listRoute("/reports/purchase", "report_purchase", <PurchaseReportPage />)}
+        {listRoute("/reports/inventory", "report_inventory", <InventoryReportPage />)}
         <Route path="/reports" element={<Navigate to="/reports/assets" replace />} />
 
         {/* Thiết bị (TS-01 – TS-07) */}
         {crudRoutes("/equipment", "equipment", {
           list: <EquipmentList />,
-          create: <EquipmentCreate />,
+          // Thiết bị mới vào sổ bằng phiếu ghi tăng, không tạo thẳng (PN-01..03).
+          create: <Navigate to="/equipment-intakes/create" replace />,
           edit: <EquipmentEdit />,
           show: <EquipmentShow />,
         })}
-        {listRoute("/equipment-lookup", "equipment_lookup")}
+        {listRoute("/equipment-lookup", "equipment_lookup", <EquipmentLookup />)}
         <Route path="/data-imports" element={guarded("data_imports")}>
           <Route index element={<PlaceholderScreen />} />
           <Route path="show/:id" element={<PlaceholderScreen />} />
@@ -133,8 +141,13 @@ export function AppRoutes() {
         })}
 
         {/* Kiểm kê (KK-01 – KK-07) */}
-        {crudRoutes("/inventory-campaigns", "inventory_campaigns")}
-        {crudRoutes("/inventory-sessions", "inventory_sessions")}
+        {crudRoutes("/inventory-campaigns", "inventory_campaigns", {
+          list: <CampaignPage />, create: <CampaignPage />, edit: <CampaignPage />, show: <CampaignShow />,
+        })}
+        {crudRoutes("/inventory-sessions", "inventory_sessions", {
+          list: <InventorySessionList />, create: <InventorySessionCreate />,
+          edit: <InventorySessionEdit />, show: <InventorySessionShow />,
+        })}
 
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
         {crudRoutes("/schools", "schools", {
@@ -142,8 +155,8 @@ export function AppRoutes() {
         })}
         {crudRoutes("/rooms", "rooms")}
 
-        {/* Danh mục dùng chung (DM-01 – DM-04). Trang lối vào `/catalogs` không có quyền riêng. */}
-        <Route path="/catalogs" element={<PlaceholderScreen note="Chọn một danh mục ở cột bên trái." />} />
+        {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
+        <Route path="/catalogs" element={<Navigate to="/catalogs/equipment-catalogs" replace />} />
         {crudRoutes("/catalogs/wards", "wards", catalogScreens("wards"))}
         {crudRoutes("/catalogs/education-levels", "education_levels", catalogScreens("education_levels"))}
         {crudRoutes("/catalogs/room-types", "room_types", catalogScreens("room_types"))}
@@ -155,6 +168,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/subjects", "subjects", catalogScreens("subjects"))}
         {crudRoutes("/catalogs/equipment-types", "equipment_types", catalogScreens("equipment_types"))}
         {crudRoutes("/catalogs/units", "units", catalogScreens("units"))}
+        {crudRoutes("/catalogs/equipment-configs", "equipment_configs", catalogScreens("equipment_configs"))}
         {crudRoutes("/catalogs/equipment-catalogs", "equipment_catalogs", catalogScreens("equipment_catalogs"))}
         {crudRoutes("/catalogs/equipment-standards", "equipment_standards", {
           list: <MinimumCatalogPage />, create: <MinimumCatalogPage />,
@@ -164,7 +178,11 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/origin-sources", "origin_sources", catalogScreens("origin_sources"))}
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
-        {crudRoutes("/catalogs/code-rules", "code_rules")}
+        {crudRoutes("/catalogs/code-rules", "code_rules", catalogScreens("code_rules"))}
+        {/* Danh mục cố định, chỉ đọc: chỉ có màn danh sách. */}
+        {ENUM_CATALOGS.map((catalog) => (
+          <Route key={catalog.resource} path={catalog.path} element={<EnumCatalogList config={catalog} />} />
+        ))}
 
         {/* Quản trị hệ thống (HT-04, HT-05) — đã có màn thật. */}
         {crudRoutes("/users", "users", {

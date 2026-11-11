@@ -6,7 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 /**
- * Quy tắc sinh mã tự động cho một danh mục — "Tùy chỉnh mã tự động" của bản Jmix.
+ * Quy tắc sinh mã tự động cho một danh mục (DM-04).
  *
  * <p>Mã kế tiếp = {@code prefix + đệm0(currentNumber + 1, numberLength) + suffix}.
  * {@code numberLength} là độ rộng của RIÊNG phần số, không phải cả mã. Bộ đếm

@@ -43,8 +43,26 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/013-pham-vi-quan-tri-va-khoa-ngoai-phong.sql
   - include:
+      file: db/changelog/changes/014-phieu-nhap-bien-ban-giao-nhan.sql
+  - include:
       file: db/changelog/changes/037-dinh-muc-thpt.sql
   - include:
       file: db/changelog/changes/038-van-ban-dinh-muc-thpt.sql
   - include:
       file: db/changelog/changes/053-ma-hai-ky-tu-truong.sql
+  - include:
+      file: db/changelog/changes/039-don-vi-tinh-so-le.sql
+  - include:
+      file: db/changelog/changes/040-nguon-hinh-thanh-co-dinh.sql
+  - include:
+      file: db/changelog/changes/041-bo-thong-so-ky-thuat.sql
+  - include:
+      file: db/changelog/changes/042-danh-muc-thiet-bi-bo-sung.sql
+  - include:
+      file: db/changelog/changes/043-quy-tac-ma-danh-muc.sql
+  - include:
+      file: db/changelog/changes/070-ma-day-hoc-cua-mon.sql
+  - include:
+      file: db/changelog/changes/015-anh-dai-dien-vung-cat.sql
+  - include:
+      file: db/changelog/changes/016-phieu-nhap-han-dung-quy-cach.sql

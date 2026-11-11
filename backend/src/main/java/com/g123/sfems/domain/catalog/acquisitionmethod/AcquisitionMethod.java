@@ -4,7 +4,10 @@ import com.g123.sfems.domain.catalog.base.CatalogEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
-/** Phương thức hình thành (DM-01): mua sắm, được cấp, được tài trợ… Phiếu nhập ghi tài sản có được bằng cách nào. */
+/**
+ * Hình thức mua sắm (DM-01): mua sắm tập trung, đấu thầu, chỉ định thầu, mua trực tiếp… Chỉ khai khi
+ * nguồn hình thành là Mua sắm; tài sản về trường bằng cách nào là nguồn hình thành.
+ */
 @Entity
 @Table(name = "acquisition_methods")
 public class AcquisitionMethod extends CatalogEntity {

@@ -10,11 +10,14 @@ export function SwitchField({
   control,
   name,
   label,
+  description,
   className,
 }: {
   control: Control<CatalogFormValues>;
   name: string;
   label: string;
+  /** Dòng giải thích nhỏ dưới nhãn. */
+  description?: string;
   className?: string;
 }) {
   return (
@@ -26,7 +29,10 @@ export function SwitchField({
           <FormControl>
             <Switch checked={field.value === true} onCheckedChange={field.onChange} />
           </FormControl>
-          <FormLabel className="font-normal">{label}</FormLabel>
+          <div className="grid gap-0.5">
+            <FormLabel className="font-normal">{label}</FormLabel>
+            {description ? <p className="text-muted-foreground text-xs leading-snug">{description}</p> : null}
+          </div>
         </FormItem>
       )}
     />

@@ -1,13 +1,17 @@
 import { useEffect } from "react";
 import { useForm } from "@refinedev/react-hook-form";
 import { useNavigate } from "react-router";
+import { useWatch } from "react-hook-form";
 
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { FormPanel, FormActions } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
 import { MoneyInput } from "@/shared/components/form/money-input";
+import { ReadField } from "@/shared/components/form/read-field";
 import { DateField, SelectField, TextField } from "@/shared/components/form/simple-fields";
 import { CodeField, CodeSuggestion } from "./equipment-code";
+import { EquipmentAttachmentsCard } from "./equipment-attachments";
+import { EquipmentPhoto } from "./equipment-photo";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { RecordNotFound, isRecordMissing } from "@/shared/components/views/record-not-found";
@@ -15,8 +19,8 @@ import { Button } from "@/shared/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { ASSET_CATEGORY_OPTIONS, FUNDING_SOURCE_OPTIONS, type Ref } from "@/domains/equipment-intake/types";
 import {
-  ASSET_STATUS_OPTIONS,
-  CONDITION_OPTIONS,
+  ASSET_STATUS_LABELS,
+  CONDITION_LABELS,
   PHYSICAL_DIGITAL_OPTIONS,
   type AssetStatus,
   type Equipment,
@@ -127,30 +131,35 @@ function toForm(r: Equipment): FormValues {
   };
 }
 
+/** Chuỗi đã cắt khoảng trắng; `null`/`undefined` (ô chưa có giá trị) thành chuỗi rỗng thay vì lỗi. */
+function txt(value: string | null | undefined): string {
+  return (value ?? "").trim();
+}
+
 /**
  * Payload tạo: chuỗi rỗng là "không khai" (gửi null). Mã để trống là để máy cấp (TS-06); hiện chưa có,
  * nên form bắt buộc nhập mã.
  */
 function toCreatePayload(v: FormValues) {
   return {
-    code: v.code.trim(),
-    name: v.name.trim(),
-    note: v.note.trim() || null,
+    code: txt(v.code),
+    name: txt(v.name),
+    note: txt(v.note) || null,
     catalog: idOf(v.catalog),
     physicalOrDigital: v.physicalOrDigital || null,
     assetCategory: v.assetCategory || null,
-    legacyCode: v.legacyCode.trim() || null,
-    serialNumber: v.serialNumber.trim() || null,
-    model: v.model.trim() || null,
-    manufacturer: v.manufacturer.trim() || null,
+    legacyCode: txt(v.legacyCode) || null,
+    serialNumber: txt(v.serialNumber) || null,
+    model: txt(v.model) || null,
+    manufacturer: txt(v.manufacturer) || null,
     unit: idOf(v.unit),
     quantity: numOrNull(v.quantity),
     originSource: idOf(v.originSource),
     acquisitionMethod: idOf(v.acquisitionMethod),
     fundingSource: v.fundingSource || null,
-    originNote: v.originNote.trim() || null,
-    fundingNote: v.fundingNote.trim() || null,
-    acquisitionNote: v.acquisitionNote.trim() || null,
+    originNote: txt(v.originNote) || null,
+    fundingNote: txt(v.fundingNote) || null,
+    acquisitionNote: txt(v.acquisitionNote) || null,
     productionYear: numOrNull(v.productionYear),
     usageStartYear: numOrNull(v.usageStartYear),
     receivedDate: dateOrNull(v.receivedDate),
@@ -167,15 +176,14 @@ function toCreatePayload(v: FormValues) {
 function toPatchPayload(v: FormValues) {
   return {
     ...toCreatePayload(v),
-    code: v.code.trim() || undefined,
-    legacyCode: v.legacyCode.trim(),
-    serialNumber: v.serialNumber.trim(),
-    model: v.model.trim(),
-    manufacturer: v.manufacturer.trim(),
-    originNote: v.originNote.trim(),
-    fundingNote: v.fundingNote.trim(),
-    acquisitionNote: v.acquisitionNote.trim(),
-    note: v.note.trim(),
+    code: txt(v.code) || undefined,
+    serialNumber: txt(v.serialNumber),
+    model: txt(v.model),
+    manufacturer: txt(v.manufacturer),
+    originNote: txt(v.originNote),
+    fundingNote: txt(v.fundingNote),
+    acquisitionNote: txt(v.acquisitionNote),
+    note: txt(v.note),
     status: (v.status || undefined) as AssetStatus | undefined,
     condition: (v.condition || undefined) as EquipmentCondition | undefined,
   };
@@ -216,6 +224,21 @@ function RefField({ control, name, label, resource, placeholder }: {
 
 const GRID = "grid items-start gap-5 @md:grid-cols-2 @3xl:grid-cols-3";
 
+/**
+ * Ô chỉ xem cho trường chỉ đổi qua phiếu (trạng thái, tình trạng, số lượng). Hiện nhãn tiếng Việt nếu có,
+ * không thì hiện giá trị thô.
+ */
+function LockedValue({ control, name, label, labels }: {
+  control: any;
+  name: string;
+  label: string;
+  labels?: Record<string, string>;
+}) {
+  const value = useWatch({ control, name }) as string | number | null | undefined;
+  const shown = value == null || value === "" ? undefined : String(labels?.[String(value)] ?? value);
+  return <ReadField label={label}>{shown}</ReadField>;
+}
+
 /** Phần khung form dùng chung cho tạo và sửa. */
 function EquipmentFields({
   control,
@@ -241,7 +264,8 @@ function EquipmentFields({
           <RefField control={control} name="catalog" label="Danh mục thiết bị" resource="equipment_catalogs" />
           <SelectField control={control} name="physicalOrDigital" label="Loại" options={PHYSICAL_DIGITAL_OPTIONS} />
           <SelectField control={control} name="assetCategory" label="Phân loại tài sản" options={ASSET_CATEGORY_OPTIONS} placeholder="Chọn" />
-          <TextField control={control} name="legacyCode" label="Mã cũ" />
+          {/* Mã cũ do máy điền (cấp mã chuẩn, nhập từ tệp), không sửa tay trên form sửa. */}
+          {mode === "create" ? <TextField control={control} name="legacyCode" label="Mã cũ" /> : null}
           <TextField control={control} name="serialNumber" label="Số serial" />
           <TextField control={control} name="model" label="Model" />
           <TextField control={control} name="manufacturer" label="Hãng sản xuất" />
@@ -250,7 +274,11 @@ function EquipmentFields({
 
       <FormSection title="Số lượng và nguồn gốc" compact>
         <div className={GRID}>
-          <TextField control={control} name="quantity" label="Số lượng" type="number" step="0.001" />
+          {mode === "edit" ? (
+            <LockedValue control={control} name="quantity" label="Số lượng" />
+          ) : (
+            <TextField control={control} name="quantity" label="Số lượng" type="number" step="0.001" />
+          )}
           <RefField control={control} name="unit" label="Đơn vị tính" resource="units" />
           <RefField control={control} name="originSource" label="Nguồn hình thành" resource="origin_sources" />
           <RefField control={control} name="acquisitionMethod" label="Phương thức hình thành" resource="acquisition_methods" />
@@ -287,11 +315,12 @@ function EquipmentFields({
       {mode === "edit" ? (
         <FormSection title="Trạng thái" compact>
           <div className={GRID}>
-            <SelectField control={control} name="status" label="Trạng thái" options={ASSET_STATUS_OPTIONS} />
-            <SelectField control={control} name="condition" label="Tình trạng" options={CONDITION_OPTIONS} placeholder="Chưa đánh giá" />
+            <LockedValue control={control} name="status" label="Trạng thái" labels={ASSET_STATUS_LABELS} />
+            <LockedValue control={control} name="condition" label="Tình trạng" labels={CONDITION_LABELS} />
           </div>
           <p className="text-muted-foreground text-xs">
-            Đổi trạng thái hoặc tình trạng sẽ được ghi vào lịch sử của thiết bị.
+            Trạng thái, tình trạng và số lượng chỉ đổi qua phiếu đã duyệt, không sửa thẳng trên hồ sơ. Mọi thay đổi
+            đều được ghi vào lịch sử của thiết bị.
           </p>
         </FormSection>
       ) : null}
@@ -373,12 +402,16 @@ export const EquipmentEdit = () => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormPanel contentClassName="@container space-y-6">
+            {record ? <EquipmentPhoto equipmentId={record.id} canWrite={record._can?.write !== false} /> : null}
             <EquipmentFields
               control={form.control}
               mode="edit"
               recordId={record?.id}
               onCodeChanged={() => query?.refetch?.()}
             />
+            {record ? (
+              <EquipmentAttachmentsCard equipmentId={record.id} canWrite={record._can?.write !== false} />
+            ) : null}
             <FormActions>
               <Button type="submit">Lưu thay đổi</Button>
               <Button type="button" variant="outline" onClick={() => navigate(`/equipment/show/${record?.id ?? ""}`)}>
