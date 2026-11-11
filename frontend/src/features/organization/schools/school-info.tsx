@@ -1,3 +1,6 @@
+import { CalendarDays, DoorOpen, GraduationCap, LayoutGrid, MapPin, School as SchoolIcon, UserRound, Users, UsersRound } from "lucide-react";
+
+import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { ORG_STATUS_VARIANTS as STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import type { School } from "@/domains/school/types";
@@ -7,14 +10,14 @@ export type SchoolPerson = { id: number; name: string; phone?: string | null };
 
 /** Người giữ một chức vụ; quá hai người thì gộp "+N người khác" — đủ danh sách ở tab Cán bộ. */
 function People({ people }: { people?: SchoolPerson[] }) {
-  if (!people?.length) return <span className="text-muted-foreground">Chưa khai báo</span>;
+  if (!people?.length) return <span className="text-muted-foreground font-normal">Chưa khai báo</span>;
   const shown = people.slice(0, 2);
   return (
     <ul className="space-y-0.5">
       {shown.map((p) => (
         <li key={p.id}>
           {p.name}
-          {p.phone ? <span className="text-muted-foreground ms-1.5 text-xs font-normal">{p.phone}</span> : null}
+          {p.phone ? <span className="text-muted-foreground ms-1.5 text-xs font-normal tabular-nums">{p.phone}</span> : null}
         </li>
       ))}
       {people.length > shown.length ? (
@@ -26,29 +29,41 @@ function People({ people }: { people?: SchoolPerson[] }) {
 
 const count = new Intl.NumberFormat("vi-VN");
 
-/** Một dòng "nhãn — giá trị" của danh sách hồ sơ. */
-function Row({ label, children }: { label: string; children?: React.ReactNode }) {
+/** Một ô "nhãn nhỏ — giá trị" — cùng dáng với màn xem danh mục (`CatalogDetailSections`). */
+function Fact({ label, children, className }: { label: string; children?: React.ReactNode; className?: string }) {
   return (
-    <div className="grid grid-cols-[9.5rem_minmax(0,1fr)] gap-3 border-b py-2.5 text-sm last:border-b-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium break-words">
+        {children ?? <span className="text-muted-foreground font-normal">—</span>}
+      </dd>
     </div>
   );
 }
 
-function Block({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+/** Một khối hồ sơ: thẻ viền mảnh, tiêu đề có biểu tượng, thân là lưới các ô `Fact`. */
+function Block({ icon, title, children, className, cols = "sm:grid-cols-2" }: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+  cols?: string;
+}) {
   return (
-    <section className={className}>
-      <h3 className="text-overline text-muted-foreground mb-1">{title}</h3>
-      <dl>{children}</dl>
+    <section className={cn("bg-card shadow-e1 rounded-lg border", className)}>
+      <h3 className="[&_svg]:text-primary flex items-center gap-2 border-b px-4 py-2.5 text-sm font-semibold [&_svg]:size-4">
+        {icon}
+        {title}
+      </h3>
+      <dl className={cn("grid gap-x-6 gap-y-4 px-4 py-3.5", cols)}>{children}</dl>
     </section>
   );
 }
 
 /**
  * Hồ sơ trường trong hộp thoại "Hồ sơ trường" — dạng HỒ SƠ chứ không phải form: đầu là ảnh, tên và
- * nhãn; một dải bốn con số quy mô; rồi các nhóm "nhãn — giá trị" chia hai cột. Thông tin chỉ để
- * đọc thì vẽ như văn bản, không vẽ như ô nhập — ô nhập là lời mời gõ vào.
+ * nhãn; dải bốn con số quy mô (cùng `StatStrip` với màn Tổng quan); rồi các khối "nhãn nhỏ — giá trị"
+ * như màn xem danh mục. Thông tin chỉ để đọc thì vẽ như văn bản, không vẽ như ô nhập.
  */
 export function SchoolInfoSections({
   record,
@@ -64,72 +79,75 @@ export function SchoolInfoSections({
   photo?: React.ReactNode;
   year?: string;
 }) {
-  const figures = scale
-    ? [
-        { label: "Lớp học", value: scale.classes },
-        { label: "Học sinh", value: scale.students },
-        { label: "Cán bộ, giáo viên", value: scale.staff },
-        { label: "Phòng", value: scale.rooms },
-      ]
-    : [];
+  const ward = record?.ward?.name ?? record?.wardText;
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start gap-5">
-        {photo ? <div className="w-32 shrink-0">{photo}</div> : null}
-        <div className="min-w-0 flex-1 space-y-2 pt-1">
-          <h2 className="text-2xl font-semibold tracking-tight">{record?.name ?? "—"}</h2>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-5">
+        {photo ? <div className="w-28 shrink-0">{photo}</div> : null}
+        <div className="min-w-0 flex-1 space-y-2">
+          <h2 className="text-2xl leading-tight font-semibold tracking-tight break-words">{record?.name ?? "—"}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <span className="bg-muted rounded-md px-2 py-0.5 font-mono text-xs font-medium">{record?.code ?? "—"}</span>
             <SchoolStatusBadge record={record} />
           </div>
-          <p className="text-muted-foreground text-sm">
-            {[record?.educationLevel?.name, year, record?.ward?.name ?? record?.wardText].filter(Boolean).join(" · ")}
+          <p className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-sm [&_svg]:size-3.5 [&_svg]:shrink-0">
+            {record?.educationLevel?.name ? (
+              <span className="flex items-center gap-1.5"><GraduationCap />{record.educationLevel.name}</span>
+            ) : null}
+            {year ? <span className="flex items-center gap-1.5"><CalendarDays />{year}</span> : null}
+            {ward ? <span className="flex items-center gap-1.5"><MapPin />{ward}</span> : null}
           </p>
         </div>
       </div>
 
-      {figures.length ? (
-        <div className="grid grid-cols-2 divide-y rounded-lg border sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {figures.map((f) => (
-            <div key={f.label} className="px-4 py-3">
-              <div className="text-muted-foreground text-xs">{f.label}</div>
-              <div className="text-xl font-semibold tabular-nums">{count.format(f.value)}</div>
-            </div>
-          ))}
+      {/* Cùng dáng `StatStrip` của màn Tổng quan, nhưng chia cột theo bề rộng KHUNG (container query): trong hộp
+          thoại, `lg:` theo màn hình làm bốn số gập thành 2×2 trên laptop. */}
+      {scale ? (
+        <div className="@container bg-card shadow-e1 rounded-lg border">
+          <div className="grid grid-cols-2 @2xl:grid-cols-4 @2xl:divide-x">
+            {[
+              { icon: <LayoutGrid />, label: "Lớp học", value: scale.classes },
+              { icon: <Users />, label: "Học sinh", value: scale.students },
+              { icon: <UserRound />, label: "Cán bộ, giáo viên", value: scale.staff },
+              { icon: <DoorOpen />, label: "Phòng", value: scale.rooms },
+            ].map((f) => (
+              <div key={f.label} className="flex items-center gap-3 px-5 py-3.5">
+                <span className="text-primary flex shrink-0 [&_svg]:size-6">{f.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-muted-foreground truncate text-xs">{f.label}</p>
+                  <p className="text-xl leading-tight font-bold tabular-nums">{count.format(f.value)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
-      <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
-        <Block title="Thông tin trường">
-          <Row label="Mã trường">{record?.code}</Row>
-          <Row label="Mã trường của Bộ">{record?.moetCode || null}</Row>
-          <Row label="Mã hai ký tự">{record?.shortCode || null}</Row>
-          <Row label="Cấp học">{record?.educationLevel?.name}</Row>
-          <Row label="Loại hình trường">{record?.schoolType?.name}</Row>
-          <Row label="Năm học hiện hành">{year}</Row>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Block icon={<SchoolIcon />} title="Thông tin trường">
+          <Fact label="Mã trường"><span className="font-mono">{record?.code}</span></Fact>
+          <Fact label="Mã trường của Bộ">{record?.moetCode || null}</Fact>
+          <Fact label="Mã hai ký tự">{record?.shortCode || null}</Fact>
+          <Fact label="Cấp học">{record?.educationLevel?.name}</Fact>
+          <Fact label="Loại hình trường">{record?.schoolType?.name}</Fact>
+          <Fact label="Năm học hiện hành">{year}</Fact>
         </Block>
-        <Block title="Địa bàn">
-          <Row label="Phường/Xã">
+        <Block icon={<MapPin />} title="Địa bàn" cols="grid-cols-1">
+          <Fact label="Phường/Xã">
             {record?.ward ? (
               record.ward.name
             ) : record?.wardText ? (
               <span className="text-warning-text">{record.wardText} · chưa chuẩn hoá</span>
             ) : null}
-          </Row>
-          <Row label="Cơ quan quản lý">{record?.departmentOfEducation?.name}</Row>
-          <Row label="Địa chỉ">{record?.address || null}</Row>
+          </Fact>
+          <Fact label="Cơ quan quản lý">{record?.departmentOfEducation?.name}</Fact>
+          <Fact label="Địa chỉ">{record?.address || null}</Fact>
         </Block>
         {leaders ? (
-          <Block title="Ban giám hiệu" className="md:col-span-2">
-            <div className="grid gap-x-10 md:grid-cols-2">
-              <div>
-                <Row label="Hiệu trưởng"><People people={leaders.principal} /></Row>
-                <Row label="Phó hiệu trưởng"><People people={leaders.vice} /></Row>
-              </div>
-              <div>
-                <Row label="Cán bộ thiết bị"><People people={leaders.equipment} /></Row>
-              </div>
-            </div>
+          <Block icon={<UsersRound />} title="Ban giám hiệu" className="md:col-span-2" cols="sm:grid-cols-3">
+            <Fact label="Hiệu trưởng"><People people={leaders.principal} /></Fact>
+            <Fact label="Phó hiệu trưởng"><People people={leaders.vice} /></Fact>
+            <Fact label="Cán bộ thiết bị"><People people={leaders.equipment} /></Fact>
           </Block>
         ) : null}
       </div>
