@@ -59,6 +59,8 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/043-quy-tac-ma-danh-muc.sql
   - include:
+      file: db/changelog/changes/044-so-chi-xem-bien-ban-da-duyet.sql
+  - include:
       file: db/changelog/changes/070-ma-day-hoc-cua-mon.sql
   - include:
       file: db/changelog/changes/015-anh-dai-dien-vung-cat.sql
