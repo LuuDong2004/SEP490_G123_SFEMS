@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
+import { InventoryFreezeNotice } from "@/shared/components/voucher/inventory-freeze-notice";
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { IntakeFormBody } from "./form-body";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
@@ -137,6 +138,7 @@ export const EquipmentIntakeEdit = () => {
       <EditViewHeader
         meta={<VoucherStatusBadge status="DRAFT" />}
       />
+      <InventoryFreezeNotice resource="equipment_intakes" />
       <Form {...form}>
         <IntakeFormBody record={record} onFinish={onFinish} />
       </Form>
