@@ -64,3 +64,5 @@ databaseChangeLog:
       file: db/changelog/changes/015-anh-dai-dien-vung-cat.sql
   - include:
       file: db/changelog/changes/016-phieu-nhap-han-dung-quy-cach.sql
+  - include:
+      file: db/changelog/changes/053-ma-hai-ky-tu-truong.sql

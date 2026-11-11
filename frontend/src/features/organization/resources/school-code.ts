@@ -8,7 +8,7 @@ import { customResult } from "@/shared/hooks/use-custom-result";
 
 /** Quy tắc mã đang áp cho một loại của trường (`GET /school_code_rules`). */
 export type SchoolCodeRule = {
-  target: "rooms" | "buildings" | "campuses" | "staff" | "subject_teams" | "facility_works";
+  target: "rooms" | "buildings" | "campuses" | "staff" | "subject_teams" | "facility_works" | "maintenance_plans";
   label: string;
   prefix: string | null;
   numberLength: number;

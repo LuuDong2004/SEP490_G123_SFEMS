@@ -36,4 +36,8 @@ public interface SchoolRepository extends SecuredRepository<School, Long> {
      */
     @Query("SELECT upper(s.shortCode) FROM School s WHERE s.shortCode IS NOT NULL")
     List<String> findAllShortCodes();
+
+    /** Trường đang giữ mã hai ký tự này (không phân biệt hoa thường) — kiểm trùng trước khi gán. Không phạm vi, như trên. */
+    @Query("SELECT s FROM School s WHERE upper(s.shortCode) = upper(:shortCode)")
+    List<School> findByShortCode(String shortCode);
 }

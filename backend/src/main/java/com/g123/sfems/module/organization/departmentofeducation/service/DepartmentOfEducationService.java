@@ -5,6 +5,7 @@ import com.g123.sfems.module.organization.departmentofeducation.api.dto.Departme
 import com.g123.sfems.module.organization.departmentofeducation.api.dto.DepartmentOfEducationRequest;
 import com.g123.sfems.module.organization.departmentofeducation.repo.DepartmentOfEducationRepository;
 import com.g123.sfems.module.organization.departmentofeducation.repo.DepartmentOfEducationSpecifications;
+import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
@@ -32,16 +33,16 @@ public class DepartmentOfEducationService {
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id"));
 
-    /** Mã của Sở GD&ĐT TP.HCM trong seed 015. */
-    public static final String DEFAULT_CODE = "SGD-HCM";
-
     private final DepartmentOfEducationRepository repository;
     private final RowLevelSecurity rowLevel;
+    private final ManagedSchoolsCache managedSchools;
 
     public DepartmentOfEducationService(
-            DepartmentOfEducationRepository repository, RowLevelSecurity rowLevel) {
+            DepartmentOfEducationRepository repository, RowLevelSecurity rowLevel,
+            ManagedSchoolsCache managedSchools) {
         this.repository = repository;
         this.rowLevel = rowLevel;
+        this.managedSchools = managedSchools;
     }
 
     public Page<DepartmentOfEducation> list(ListParams params) {
@@ -56,16 +57,6 @@ public class DepartmentOfEducationService {
     public DepartmentOfEducation get(Long id) {
         return repository.findOne(rowLevel.byId(DepartmentOfEducation.class, Action.READ, id))
                 .orElseThrow(() -> new ResourceNotFoundException("DepartmentOfEducation", id));
-    }
-
-    /**
-     * Sở mặc định của hệ thống — app phục vụ riêng Sở GD&ĐT TP.HCM, nên mọi
-     * trường đều thuộc Sở này. Không qua phạm vi dòng: đây là hằng của hệ
-     * thống, không phải dữ liệu người gọi đang đọc.
-     */
-    public DepartmentOfEducation getDefault() {
-        return repository.findByCodeIgnoreCase(DEFAULT_CODE)
-                .orElseThrow(() -> new ResourceNotFoundException("DepartmentOfEducation", DEFAULT_CODE));
     }
 
     public List<DepartmentOfEducation> getMany(List<Long> ids) {
@@ -89,6 +80,8 @@ public class DepartmentOfEducationService {
         // trường hợp.
         repository.flush();
         rowLevel.checkWritable(saved);
+        // Loại cơ quan (Sở / UBND) nằm trong bộ nhớ đệm của VisibleSchools.
+        managedSchools.invalidateAfterCommit();
         return saved;
     }
 
@@ -118,6 +111,7 @@ public class DepartmentOfEducationService {
 
         if (request.type() != null) {
             department.setType(request.type());
+            managedSchools.invalidateAfterCommit();
         }
 
         rowLevel.checkWritable(department);
@@ -138,6 +132,7 @@ public class DepartmentOfEducationService {
                 .findOne(rowLevel.byId(DepartmentOfEducation.class, Action.DELETE, id))
                 .orElseThrow(() -> new ResourceNotFoundException("DepartmentOfEducation", id));
         repository.remove(department);
+        managedSchools.invalidateAfterCommit();
         return department;
     }
 
