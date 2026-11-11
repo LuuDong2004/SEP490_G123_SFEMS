@@ -1,7 +1,8 @@
 import { useShow } from "@refinedev/core";
-import { AlertCircle, CheckCircle2, Clock, FilePen } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, FilePen, Lock } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { HelpHint } from "@/shared/components/form/help-hint";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { VoucherActions } from "@/shared/components/voucher/voucher-actions";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
@@ -37,6 +38,9 @@ const ACTION_TEXT = {
   },
 };
 
+/** Phiếu kiểm kê ở các trạng thái này khoá số liệu (máy chủ: `InventoryFreeze.COUNTING`). */
+const FROZEN: VoucherStatus[] = ["DRAFT", "PENDING"];
+
 /** Câu "đang ở đâu, việc kế tiếp là gì" trong thẻ kiểm đếm. */
 const STAGE: Record<VoucherStatus, { icon: ReactNode; tone: string; text: string }> = {
   DRAFT: { icon: <FilePen />, tone: "bg-neutral-subtle text-neutral-text", text: "Đang kiểm đếm. Kiểm xong thì trình biên bản." },
@@ -61,6 +65,13 @@ function CountingSummary({ record }: { record: InventorySession }) {
             {stage.icon}
             {stage.text}
           </p>
+        ) : null}
+        {FROZEN.includes(record.status) ? (
+          <div className="text-muted-foreground flex items-center gap-2 px-2.5 text-xs [&>svg]:size-3.5 [&>svg]:shrink-0">
+            <Lock />
+            <span>Khoá số liệu: {record.room?.name ?? "cả trường"}</span>
+            <HelpHint>Tài sản trong phạm vi này không trình, duyệt phiếu khác được tới khi biên bản được duyệt.</HelpHint>
+          </div>
         ) : null}
         <SideFact label="Đã kiểm"><span className="tabular-nums">{s.checked}/{s.total} · {pct}%</span></SideFact>
         <div className="bg-muted h-1.5 overflow-hidden rounded-full">
