@@ -15,6 +15,7 @@ import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle.VoucherRef;
+import com.g123.sfems.module.school.voucher.InventoryFreeze;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -259,6 +260,36 @@ public class InventorySessionService
                     rs.getInt("surplus")));
         });
         return result;
+    }
+
+    // ------------------------------------------------------------------ phiếu đang khoá số liệu (KK-05)
+
+    /**
+     * Một phiếu kiểm kê đang khoá số liệu của trường. {@code canOpen}: người gọi đọc được phiếu — phiếu nháp của
+     * người khác vẫn khoá số liệu dù người gọi không mở được, nên vẫn phải báo.
+     */
+    public record ActiveInventory(Long id, String code, String title, VoucherStatus status, String roomName,
+            boolean canOpen) {
+    }
+
+    /** Các phiếu kiểm kê đang khoá số liệu của trường người gọi (KK-05) — để màn phiếu khác báo trước. */
+    public List<ActiveInventory> activeForMySchool() {
+        Long schoolId = currentSchoolId();
+        if (schoolId == null) {
+            return List.of();
+        }
+        List<InventorySession> active = sessions.findCounting(schoolId, InventoryFreeze.COUNTING);
+        if (active.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> readable = sessions.findAll(rowLevel.byIds(InventorySession.class,
+                        com.g123.sfems.shared.security.rowlevel.Action.READ,
+                        active.stream().map(InventorySession::getId).toList()))
+                .stream().map(InventorySession::getId).collect(Collectors.toSet());
+        return active.stream()
+                .map(s -> new ActiveInventory(s.getId(), s.getCode(), s.getTitle(), s.getStatus(),
+                        s.getRoom() == null ? null : s.getRoom().getName(), readable.contains(s.getId())))
+                .toList();
     }
 
     // ------------------------------------------------------------------ nội bộ

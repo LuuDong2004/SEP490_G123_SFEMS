@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * {@code /api/inventory_sessions} — phiếu kiểm kê. Năm endpoint của danh sách / xem / lập / sửa / xoá và
  * các bước của vòng duyệt có sẵn từ {@link VoucherController}; thêm {@code POST /{id}/count} ghi kết quả
- * kiểm đếm và {@code GET /{id}/breakdown} chênh lệch theo phòng / môn.
+ * kiểm đếm, {@code GET /{id}/breakdown} chênh lệch theo phòng / môn và {@code GET /active} các phiếu đang khoá
+ * số liệu của trường.
  */
 @RestController
 @RequestMapping("/api/inventory_sessions")
@@ -32,6 +33,13 @@ public class InventorySessionController
         super(service, rowLevel);
         this.sessions = service;
         this.discrepancies = discrepancies;
+    }
+
+    /** Phiếu kiểm kê đang khoá số liệu của trường mình — không gắn đường dẫn tới phiếu nháp không đọc được. */
+    @GetMapping("/active")
+    public List<InventorySessionService.ActiveInventory> active() {
+        require("read");
+        return sessions.activeForMySchool();
     }
 
     /** Chênh lệch của biên bản theo phòng và theo môn học của thiết bị. */
