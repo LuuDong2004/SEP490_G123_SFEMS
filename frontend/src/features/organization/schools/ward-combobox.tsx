@@ -1,5 +1,5 @@
 import { useCan, useList } from "@refinedev/core";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/shared/ui/button";
@@ -60,7 +60,7 @@ export function WardCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between font-normal", !label && "text-muted-foreground")}
+          className={cn("bg-field w-full justify-between rounded-md px-3 font-normal", !label && "text-muted-foreground")}
         >
           <span className="truncate">
             {label ?? "Chọn phường/xã"}
@@ -68,7 +68,7 @@ export function WardCombobox({
               <span className="text-warning-text ms-1 text-xs">(chưa chuẩn hoá)</span>
             ) : null}
           </span>
-          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
