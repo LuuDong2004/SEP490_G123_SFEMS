@@ -17,6 +17,7 @@ import type { VoucherStatus } from "@/domains/voucher/types";
 import { InventoryBreakdown } from "./breakdown";
 import { CountingPanel, type SurplusSeed } from "./counting-panel";
 import { InventoryDocument } from "./document";
+import { InventoryFollowUps } from "./follow-ups";
 import { InventoryPrint, PrintMenuItem } from "./print";
 import { SurplusPanel } from "./surplus-panel";
 
@@ -146,6 +147,8 @@ export const InventorySessionShow = () => {
           {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
           {r ? <InventoryBreakdown record={r} /> : null}
           {r ? <SurplusPanel record={r} editable={editable} seed={surplusSeed} /> : null}
+          {/* Biên bản chỉ ghi nhận — phiếu xử lý chênh lệch do người dùng lập nhanh từ đây. */}
+          <InventoryFollowUps sessionId={r?.id} approved={r?.status === "COMPLETED"} />
         </VoucherShowShell>
       </div>
       {r ? <InventoryPrint record={r} /> : null}
