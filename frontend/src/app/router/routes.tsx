@@ -31,6 +31,8 @@ import {
 } from "@/features/organization/equipment-intakes";
 import { EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
+import { SchoolCreate } from "@/features/organization/schools/create";
+import { SchoolEdit } from "@/features/organization/schools/edit";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -152,6 +154,8 @@ export function AppRoutes() {
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
         {crudRoutes("/schools", "schools", {
           list: <SchoolList />,
+          create: <SchoolCreate />,
+          edit: <SchoolEdit />,
         })}
         {crudRoutes("/rooms", "rooms")}
 
