@@ -15,6 +15,8 @@ import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle.VoucherRef;
+import com.g123.sfems.module.school.voucher.InventoryFindings;
+import com.g123.sfems.module.school.voucher.InventoryFreeze;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -28,6 +30,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hibernate.Hibernate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -57,14 +60,17 @@ public class InventorySessionService
     private final InventorySessionRepository sessions;
     private final InventoryCampaignService campaigns;
     private final EquipmentLifecycle lifecycle;
+    private final ApplicationEventPublisher events;
     private final NamedParameterJdbcTemplate jdbc;
 
     public InventorySessionService(VoucherServiceDeps deps, InventorySessionRepository repository,
-            InventoryCampaignService campaigns, EquipmentLifecycle lifecycle, NamedParameterJdbcTemplate jdbc) {
+            InventoryCampaignService campaigns, EquipmentLifecycle lifecycle, ApplicationEventPublisher events,
+            NamedParameterJdbcTemplate jdbc) {
         super(deps, repository, InventorySession.class, InventorySession::new);
         this.sessions = repository;
         this.campaigns = campaigns;
         this.lifecycle = lifecycle;
+        this.events = events;
         this.jdbc = jdbc;
     }
 
@@ -259,6 +265,117 @@ public class InventorySessionService
                     rs.getInt("surplus")));
         });
         return result;
+    }
+
+    // ------------------------------------------------------------------ lập nhanh phiếu xử lý chênh lệch (KK-06)
+
+    /**
+     * Một nhóm chênh lệch và loại phiếu lập nhanh cho nó. Dự án chỉ có phiếu nhập, nên chỉ có tài sản thừa; thiếu,
+     * hỏng, sai vị trí đã nằm trong lịch sử tài sản lúc duyệt biên bản.
+     */
+    public enum FollowUp {
+        /** Thừa → phiếu nhập nháp (nguồn "Kiểm kê thừa"). */
+        SURPLUS("equipment_intakes");
+
+        private final String resource;
+
+        FollowUp(String resource) {
+            this.resource = resource;
+        }
+
+        public String resource() {
+            return resource;
+        }
+    }
+
+    /** Tình hình một nhóm: {@code total} — số dòng biên bản ghi; {@code pending} — số còn lập phiếu được. */
+    public record FollowUpState(FollowUp kind, String resource, int total, int pending) {
+    }
+
+    /** Kết quả một lần lập nhanh: loại phiếu và id các phiếu nháp vừa lập. */
+    public record FollowUpResult(String resource, List<Long> ids) {
+    }
+
+    /** Biên bản đã duyệt: mỗi nhóm chênh lệch còn bao nhiêu dòng chưa có phiếu xử lý. */
+    public List<FollowUpState> followUps(Long id) {
+        InventorySession session = get(id);
+        if (session.getStatus() != VoucherStatus.COMPLETED || session.getSurplus().isEmpty()) {
+            return List.of();
+        }
+        int total = session.getSurplus().size();
+        return List.of(new FollowUpState(FollowUp.SURPLUS, FollowUp.SURPLUS.resource(), total,
+                hasLiveIntake(session) ? 0 : total));
+    }
+
+    /**
+     * Lập nhanh phiếu nhập nháp cho tài sản thừa của biên bản ĐÃ DUYỆT. Phiếu nhập nhận sự kiện và tự lập phiếu,
+     * mang nguồn là biên bản này; người dùng sửa, bớt dòng rồi tự trình.
+     */
+    @Transactional
+    public FollowUpResult followUp(Long id, FollowUp kind) {
+        InventorySession session = get(id);
+        if (session.getStatus() != VoucherStatus.COMPLETED) {
+            throw new FieldValidationException("status", "Biên bản chưa được duyệt — chưa lập phiếu xử lý được");
+        }
+        if (session.getSurplus().isEmpty() || hasLiveIntake(session)) {
+            throw new FieldValidationException("kind",
+                    "Không còn tài sản thừa nào chưa có phiếu — xem phiếu nhập lập từ biên bản này");
+        }
+        List<InventoryFindings.Item> items = session.getSurplus().stream()
+                .map(s -> new InventoryFindings.Item(s.getCatalog().getId(), s.getName(), s.getQuantity(),
+                        s.getRoom() == null ? null : s.getRoom().getId()))
+                .toList();
+        events.publishEvent(new InventoryFindings.Surplus(session.getSchool().getId(), items, session.getId(),
+                session.getCode()));
+        entityManager.flush();
+        return new FollowUpResult(kind.resource(), intakesFrom(session));
+    }
+
+    /** Đã có phiếu nhập còn hiệu lực (không huỷ, không bị từ chối) lập từ biên bản này chưa. */
+    private boolean hasLiveIntake(InventorySession session) {
+        Integer live = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM equipment_intakes
+                WHERE source_resource = :resource AND source_id = :id AND status NOT IN ('CANCELLED', 'REJECTED')""",
+                new MapSqlParameterSource("resource", RESOURCE).addValue("id", session.getId()), Integer.class);
+        return live != null && live > 0;
+    }
+
+    /** Id các phiếu nhập nháp lập từ biên bản này. */
+    private List<Long> intakesFrom(InventorySession session) {
+        return jdbc.queryForList("""
+                SELECT id FROM equipment_intakes
+                WHERE source_resource = :resource AND source_id = :id AND status = 'DRAFT' ORDER BY id""",
+                new MapSqlParameterSource("resource", RESOURCE).addValue("id", session.getId()), Long.class);
+    }
+
+    // ------------------------------------------------------------------ phiếu đang khoá số liệu (KK-05)
+
+    /**
+     * Một phiếu kiểm kê đang khoá số liệu của trường. {@code canOpen}: người gọi đọc được phiếu — phiếu nháp của
+     * người khác vẫn khoá số liệu dù người gọi không mở được, nên vẫn phải báo.
+     */
+    public record ActiveInventory(Long id, String code, String title, VoucherStatus status, String roomName,
+            boolean canOpen) {
+    }
+
+    /** Các phiếu kiểm kê đang khoá số liệu của trường người gọi (KK-05) — để màn phiếu khác báo trước. */
+    public List<ActiveInventory> activeForMySchool() {
+        Long schoolId = currentSchoolId();
+        if (schoolId == null) {
+            return List.of();
+        }
+        List<InventorySession> active = sessions.findCounting(schoolId, InventoryFreeze.COUNTING);
+        if (active.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> readable = sessions.findAll(rowLevel.byIds(InventorySession.class,
+                        com.g123.sfems.shared.security.rowlevel.Action.READ,
+                        active.stream().map(InventorySession::getId).toList()))
+                .stream().map(InventorySession::getId).collect(Collectors.toSet());
+        return active.stream()
+                .map(s -> new ActiveInventory(s.getId(), s.getCode(), s.getTitle(), s.getStatus(),
+                        s.getRoom() == null ? null : s.getRoom().getName(), readable.contains(s.getId())))
+                .toList();
     }
 
     // ------------------------------------------------------------------ nội bộ

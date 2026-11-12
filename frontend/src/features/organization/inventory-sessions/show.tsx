@@ -1,7 +1,8 @@
 import { useShow } from "@refinedev/core";
-import { AlertCircle, CheckCircle2, Clock, FilePen } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, FilePen, Lock } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { HelpHint } from "@/shared/components/form/help-hint";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { VoucherActions } from "@/shared/components/voucher/voucher-actions";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
@@ -16,6 +17,7 @@ import type { VoucherStatus } from "@/domains/voucher/types";
 import { InventoryBreakdown } from "./breakdown";
 import { CountingPanel, type SurplusSeed } from "./counting-panel";
 import { InventoryDocument } from "./document";
+import { InventoryFollowUps } from "./follow-ups";
 import { InventoryPrint, PrintMenuItem } from "./print";
 import { SurplusPanel } from "./surplus-panel";
 
@@ -36,6 +38,9 @@ const ACTION_TEXT = {
     done: "Đã duyệt biên bản",
   },
 };
+
+/** Phiếu kiểm kê ở các trạng thái này khoá số liệu (máy chủ: `InventoryFreeze.COUNTING`). */
+const FROZEN: VoucherStatus[] = ["DRAFT", "PENDING"];
 
 /** Câu "đang ở đâu, việc kế tiếp là gì" trong thẻ kiểm đếm. */
 const STAGE: Record<VoucherStatus, { icon: ReactNode; tone: string; text: string }> = {
@@ -61,6 +66,13 @@ function CountingSummary({ record }: { record: InventorySession }) {
             {stage.icon}
             {stage.text}
           </p>
+        ) : null}
+        {FROZEN.includes(record.status) ? (
+          <div className="text-muted-foreground flex items-center gap-2 px-2.5 text-xs [&>svg]:size-3.5 [&>svg]:shrink-0">
+            <Lock />
+            <span>Khoá số liệu: {record.room?.name ?? "cả trường"}</span>
+            <HelpHint>Tài sản trong phạm vi này không trình, duyệt phiếu khác được tới khi biên bản được duyệt.</HelpHint>
+          </div>
         ) : null}
         <SideFact label="Đã kiểm"><span className="tabular-nums">{s.checked}/{s.total} · {pct}%</span></SideFact>
         <div className="bg-muted h-1.5 overflow-hidden rounded-full">
@@ -135,6 +147,8 @@ export const InventorySessionShow = () => {
           {r ? <CountingPanel key={r.id} record={r} editable={editable} onSurplus={setSurplusSeed} /> : null}
           {r ? <InventoryBreakdown record={r} /> : null}
           {r ? <SurplusPanel record={r} editable={editable} seed={surplusSeed} /> : null}
+          {/* Biên bản chỉ ghi nhận — phiếu xử lý chênh lệch do người dùng lập nhanh từ đây. */}
+          <InventoryFollowUps sessionId={r?.id} approved={r?.status === "COMPLETED"} />
         </VoucherShowShell>
       </div>
       {r ? <InventoryPrint record={r} /> : null}
