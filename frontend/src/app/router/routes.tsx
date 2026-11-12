@@ -16,6 +16,7 @@ import { Login, Profile } from "@/features/identity";
 import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { AdequacyReportPage, AssetsReport, InventoryReportPage, PurchaseReportPage } from "@/features/reports";
+import { NotificationList } from "@/features/notifications";
 import { CampaignPage, CampaignShow } from "@/features/organization/inventory-campaigns";
 import {
   InventorySessionCreate,
@@ -199,7 +200,7 @@ export function AppRoutes() {
         })}
 
         {/* Thông báo (HT-06) */}
-        {listRoute("/notifications", "notifications")}
+        {listRoute("/notifications", "notifications", <NotificationList />)}
 
         <Route path="*" element={<ErrorComponent />} />
       </Route>
