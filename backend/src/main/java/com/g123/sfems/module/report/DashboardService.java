@@ -1,20 +1,16 @@
 package com.g123.sfems.module.report;
 
 import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
-import com.g123.sfems.module.catalog.schoolyear.SchoolYearRepository;
+import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
-import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
-import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,18 +18,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class DashboardService {
 
-    private final SchoolYearRepository schoolYears;
-    private final RowLevelSecurity rowLevel;
+    private final SchoolYearService schoolYears;
     private final RowLevelPrincipalResolver principals;
     private final VisibleSchools visible;
     private final JdbcTemplate jdbc;
     private final AdequacyReportService adequacyReports;
 
-    public DashboardService(SchoolYearRepository schoolYears, RowLevelSecurity rowLevel,
+    public DashboardService(SchoolYearService schoolYears,
             RowLevelPrincipalResolver principals, VisibleSchools visible, JdbcTemplate jdbc,
             AdequacyReportService adequacyReports) {
         this.schoolYears = schoolYears;
-        this.rowLevel = rowLevel;
         this.principals = principals;
         this.visible = visible;
         this.jdbc = jdbc;
@@ -42,11 +36,7 @@ public class DashboardService {
 
     /** Mỗi truy vấn tự trả kết nối; việc tổng hợp hàng trăm trường không giữ một connection suốt vòng lặp. */
     public DashboardResponse get(Long requestedSchoolYearId, String requestedPeriod) {
-        List<SchoolYear> years = schoolYears.findAll(rowLevel.scope(SchoolYear.class, Action.READ),
-                Sort.by(Sort.Direction.ASC, "sortOrder").and(Sort.by("name"))).stream()
-                .filter(year -> Boolean.TRUE.equals(year.getActive()))
-                .sorted(Comparator.comparing(SchoolYear::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
-                .toList();
+        List<SchoolYear> years = schoolYears.activeForDashboard();
         SchoolYear selected = years.stream().filter(year -> requestedSchoolYearId != null
                         && requestedSchoolYearId.equals(year.getId()))
                 .findFirst()

@@ -78,6 +78,8 @@ export function AssetsReport() {
   const searchTerm = fold(search.trim());
   const visibleRows = (report?.rows ?? []).filter((row) => !searchTerm || fold(`${row.code} ${row.name} ${row.schoolName}`).includes(searchTerm));
   const scopeName = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
+  const issuingUnit = report?.scope === "CITY" ? "Sở Giáo dục và Đào tạo Thành phố Hồ Chí Minh"
+    : report?.scope === "SCHOOL" ? report.rows[0]?.schoolName ?? "Trường của bạn" : "Cơ quan quản lý của bạn";
   const stats = report ? [
     { label: "Số lượng thiết bị", value: number.format(report.summary.quantity), icon: <Boxes />, tone: "text-primary" },
     { label: "Nguyên giá", value: money.format(report.summary.originalValue), icon: <CircleDollarSign />, tone: "text-success-text" },
@@ -104,7 +106,7 @@ export function AssetsReport() {
   };
 
   return <main className="space-y-5 p-4 md:p-6">
-    {report && <ReportPrintSheet title={exportData.title} scope={scopeName} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    {report && <ReportPrintSheet title={exportData.title} scope={scopeName} issuingUnit={issuingUnit} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
     <div className="space-y-5 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>

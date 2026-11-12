@@ -85,7 +85,7 @@ public class ReportController {
             return ResponseEntity.badRequest().build();
         }
         if (request == null || request.columns() == null || request.columns().isEmpty()
-                || request.columns().size() > 40 || request.rows() == null || request.rows().size() > 5000
+                || request.columns().size() > 40 || request.rows() == null
                 || request.columns().stream().anyMatch(column -> column == null || column.label() == null
                         || column.type() == null
                         || !java.util.Set.of("text", "number", "money", "date").contains(column.type()))

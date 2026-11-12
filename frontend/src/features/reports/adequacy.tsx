@@ -57,6 +57,9 @@ export function AdequacyReportPage() {
   const lowest = [...(report?.rows ?? [])].filter((row) => row.percent != null).sort((a, b) => a.percent! - b.percent!).slice(0, 10)
     .map((row) => ({ school: row.schoolName, percent: row.percent ?? 0 }));
   const scope = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
+  const issuingUnit = report?.scope === "CITY" ? "Sở Giáo dục và Đào tạo Thành phố Hồ Chí Minh"
+    : report?.scope === "SCHOOL" ? report.rows[0]?.schoolName ?? report.details[0]?.schoolName ?? "Trường của bạn"
+      : "Cơ quan quản lý của bạn";
   const exportData = {
     filename: "bao-cao-dap-ung-danh-muc-toi-thieu",
     title: "Đáp ứng danh mục thiết bị tối thiểu",
@@ -74,7 +77,7 @@ export function AdequacyReportPage() {
   };
 
   return <main className="space-y-4 p-4 md:p-6">
-    {report && <ReportPrintSheet title={exportData.title} scope={scope} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    {report && <ReportPrintSheet title={exportData.title} scope={scope} issuingUnit={issuingUnit} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
     <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><p className="text-muted-foreground text-sm">{report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"}</p>

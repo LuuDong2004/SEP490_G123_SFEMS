@@ -38,8 +38,7 @@ public class ReportExportService {
         List<AssetReportResponse.Row> rows = report.rows().stream().filter(r -> matches(search,
                 r.code(), r.name(), r.schoolName())).toList();
         return request("bao-cao-tai-san-thiet-bi", "Báo cáo tài sản thiết bị",
-                report.fromDate() + " — " + report.toDate() + " · " + rows.size() + " thiết bị"
-                        + (report.truncated() ? " · tệp giới hạn 5.000/" + report.totalRows() + " dòng; hãy thu hẹp bộ lọc để xuất hết" : ""),
+                report.fromDate() + " — " + report.toDate() + " · " + rows.size() + " thiết bị",
                 List.of(col("Mã thiết bị", "text"), col("Tên thiết bị", "text"), col("Trường", "text"),
                         col("Môn học", "text"), col("Loại thiết bị", "text"), col("Trạng thái", "text"),
                         col("Nguồn hình thành", "text"), col("Tình trạng", "text"), col("Số lượng", "number"),

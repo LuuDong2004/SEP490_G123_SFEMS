@@ -128,10 +128,10 @@ public class AdequacyReportService {
         String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
                 + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
                 + "WHERE s.status = 'ACTIVE' " + visible.sqlFilter("s.id")
-                + (requestedSchoolId == null ? "" : " AND s.id = " + requestedSchoolId) + " ORDER BY s.name";
+                + (requestedSchoolId == null ? "" : " AND s.id = ?") + " ORDER BY s.name";
         return jdbc.query(schoolSql, (rs, n) -> new SchoolInfo(rs.getLong(1), rs.getString(2), rs.getString(3),
                 rs.getString(4), rs.getObject(5, Long.class), rs.getObject(6, Integer.class),
-                rs.getObject(7, Integer.class)));
+                rs.getObject(7, Integer.class)), requestedSchoolId == null ? new Object[0] : new Object[] { requestedSchoolId });
     }
 
     private Integer currentYearOrder() {
@@ -188,7 +188,8 @@ public class AdequacyReportService {
 
     private java.util.Map<Long, List<Availability>> fetchAvailability(List<SchoolInfo> schools) {
         if (schools.isEmpty()) return java.util.Map.of();
-        String schoolIds = schools.stream().map(school -> String.valueOf(school.id())).collect(java.util.stream.Collectors.joining(","));
+        String schoolIds = placeholders(schools.size());
+        Object[] schoolIdsArg = schools.stream().map(SchoolInfo::id).toArray();
         String sql = "SELECT e.school_id, c.id, c.equipment_type_id, c.subject_id, c.grade_id, COALESCE(SUM(e.quantity), 0) "
                 + "FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id "
                 + "WHERE e.school_id IN (" + schoolIds + ") " + visible.sqlFilter("e.school_id")
@@ -196,8 +197,9 @@ public class AdequacyReportService {
                 + "AND COALESCE(e.condition, 'TOT') NOT IN ('HONG', 'KHONG_SU_DUNG') "
                 + "GROUP BY e.school_id, c.id, c.equipment_type_id, c.subject_id, c.grade_id";
         return jdbc.query(sql, (rs, n) -> new Availability(rs.getLong(1), rs.getLong(2), rs.getObject(3, Long.class),
-                rs.getObject(4, Long.class), rs.getObject(5, Long.class), rs.getBigDecimal(6)))
-                .stream().collect(java.util.stream.Collectors.groupingBy(Availability::schoolId));
+                rs.getObject(4, Long.class), rs.getObject(5, Long.class), rs.getBigDecimal(6)), schoolIdsArg)
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(Availability::schoolId));
     }
 
     private BigDecimal available(List<Availability> equipment, Norm norm) {
@@ -211,12 +213,18 @@ public class AdequacyReportService {
 
     private java.util.Map<Long, List<RoomCount>> roomCounts(List<SchoolInfo> schools) {
         if (schools.isEmpty()) return java.util.Map.of();
-        String schoolIds = schools.stream().map(school -> String.valueOf(school.id())).collect(java.util.stream.Collectors.joining(","));
+        String schoolIds = placeholders(schools.size());
+        Object[] schoolIdsArg = schools.stream().map(SchoolInfo::id).toArray();
         return jdbc.query("SELECT r.school_id, r.room_type_id, r.subject_id, COUNT(*) FROM rooms r "
                         + "WHERE r.school_id IN (" + schoolIds + ") " + visible.sqlFilter("r.school_id")
                         + "AND r.active GROUP BY r.school_id, r.room_type_id, r.subject_id",
-                (rs, n) -> new RoomCount(rs.getLong(1), rs.getObject(2, Long.class), rs.getObject(3, Long.class), rs.getInt(4)))
+                (rs, n) -> new RoomCount(rs.getLong(1), rs.getObject(2, Long.class), rs.getObject(3, Long.class), rs.getInt(4)),
+                schoolIdsArg)
                 .stream().collect(java.util.stream.Collectors.groupingBy(RoomCount::schoolId));
+    }
+
+    private static String placeholders(int count) {
+        return java.util.Collections.nCopies(count, "?").stream().collect(java.util.stream.Collectors.joining(","));
     }
 
     private List<AdequacyReportResponse.Option> schoolOptions() {
