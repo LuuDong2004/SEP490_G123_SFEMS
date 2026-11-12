@@ -25,6 +25,8 @@ public class AdequacyReportService {
         String scope = visible.level();
         List<SchoolInfo> schools = loadSchools(requestedSchoolId);
         List<AdequacyReportResponse.Row> rows = calculateRows(schools, subjectId, gradeId, typeId, currentYearOrder());
+        List<AdequacyReportResponse.DetailRow> details = schools.size() == 1
+                ? calculateDetails(schools.get(0), subjectId, gradeId, typeId, currentYearOrder()) : List.of();
 
         int knownSchools = (int) rows.stream().filter(r -> r.percent() != null).count();
         int average = knownSchools == 0 ? 0 : (int) Math.round(rows.stream().filter(r -> r.percent() != null)
@@ -43,7 +45,7 @@ public class AdequacyReportService {
         return new AdequacyReportResponse(scope, new AdequacyReportResponse.Filters(
                 "SCHOOL".equals(scope) ? List.of() : schoolOptions(), subjectOptions(), gradeOptions(), typeOptions()),
                 new AdequacyReportResponse.Summary(rows.size(), knownSchools, average, shortage, surplus, unknown),
-                bands, rows);
+                bands, rows, details);
     }
 
     /** BC-01 dùng cùng phép tính định mức với BC-03, nhưng theo năm học được chọn. */
@@ -92,6 +94,36 @@ public class AdequacyReportService {
         return rows;
     }
 
+    /** Detailed norm rows are returned only for a single visible/selected school to keep the city report compact. */
+    private List<AdequacyReportResponse.DetailRow> calculateDetails(SchoolInfo school, Long subjectId, Long gradeId,
+            Long typeId, Integer yearOrder) {
+        List<Norm> norms = norms(subjectId, gradeId, typeId, yearOrder).stream()
+                .filter(norm -> school.educationLevelId() != null
+                        && school.educationLevelId().equals(norm.educationLevelId()))
+                .toList();
+        List<Availability> equipment = fetchAvailability(List.of(school)).getOrDefault(school.id(), List.of());
+        List<RoomCount> rooms = roomCounts(List.of(school)).getOrDefault(school.id(), List.of());
+        List<AdequacyReportResponse.DetailRow> details = new ArrayList<>(norms.size());
+        for (Norm norm : norms) {
+            Integer base = base(school, norm, rooms);
+            Integer required = base == null ? null : norm.quantity().multiply(BigDecimal.valueOf(base))
+                    .divide(BigDecimal.valueOf(Math.max(norm.basisSize(), 1)), 0, RoundingMode.CEILING).intValue();
+            BigDecimal available = available(equipment, norm);
+            BigDecimal shortage = required == null ? null
+                    : BigDecimal.valueOf(required).subtract(available).max(BigDecimal.ZERO);
+            BigDecimal surplus = required == null ? null
+                    : available.subtract(BigDecimal.valueOf(required)).max(BigDecimal.ZERO);
+            Integer percent = required == null || required == 0 ? null
+                    : available.multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(required), 0,
+                            RoundingMode.HALF_UP).min(BigDecimal.valueOf(100)).intValue();
+            details.add(new AdequacyReportResponse.DetailRow(school.id(), school.code(), school.name(), norm.code(),
+                    norm.name(), norm.itemNo(), norm.catalogCode(), norm.catalogName(), norm.subjectName(),
+                    norm.gradeName(), norm.gradeLevels(), norm.typeName(), required, available, shortage, surplus,
+                    percent));
+        }
+        return details;
+    }
+
     private List<SchoolInfo> loadSchools(Long requestedSchoolId) {
         String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
                 + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
@@ -116,13 +148,17 @@ public class AdequacyReportService {
         return jdbc.query("""
                 SELECT st.education_level_id, n.catalog_id, COALESCE(n.equipment_type_id, c.equipment_type_id),
                        COALESCE(n.subject_id, c.subject_id), COALESCE(n.grade_id, c.grade_id), n.room_type_id,
-                       n.min_quantity, COALESCE(n.basis_size, 1), n.norm_basis
+                       n.min_quantity, COALESCE(n.basis_size, 1), n.norm_basis, n.code, n.name, n.item_no,
+                       c.code, c.name, sub.name, g.name, n.grade_levels, et.name
                 FROM equipment_standards st
                 JOIN school_years sy_start ON sy_start.id = st.start_school_year_id
                 LEFT JOIN school_years sy_end ON sy_end.id = st.end_school_year_id
                 JOIN equipment_norms n ON n.standard_id = st.id AND n.active AND NOT n.optional
                     AND n.min_quantity IS NOT NULL
                 LEFT JOIN equipment_catalogs c ON c.id = n.catalog_id
+                LEFT JOIN subjects sub ON sub.id = COALESCE(n.subject_id, c.subject_id)
+                LEFT JOIN grades g ON g.id = COALESCE(n.grade_id, c.grade_id)
+                LEFT JOIN equipment_types et ON et.id = COALESCE(n.equipment_type_id, c.equipment_type_id)
                 WHERE st.active AND st.status = 'ACTIVE'
                   AND sy_start.sort_order <= ? AND (sy_end.id IS NULL OR sy_end.sort_order >= ?)
                   AND (CAST(? AS BIGINT) IS NULL OR COALESCE(n.subject_id, c.subject_id) = CAST(? AS BIGINT))
@@ -131,7 +167,9 @@ public class AdequacyReportService {
                 ORDER BY st.education_level_id, n.sort_order, n.name
                 """, (rs, n) -> new Norm(rs.getObject(1, Long.class), rs.getObject(2, Long.class),
                 rs.getObject(3, Long.class), rs.getObject(4, Long.class), rs.getObject(5, Long.class),
-                rs.getObject(6, Long.class), rs.getBigDecimal(7), rs.getInt(8), rs.getString(9)), yearOrder,
+                rs.getObject(6, Long.class), rs.getBigDecimal(7), rs.getInt(8), rs.getString(9), rs.getString(10),
+                rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14), rs.getString(15),
+                rs.getString(16), rs.getString(17), rs.getString(18)), yearOrder,
                 yearOrder, subjectId, subjectId, gradeId, gradeId, typeId, typeId);
     }
 
@@ -200,8 +238,10 @@ public class AdequacyReportService {
 
     private record SchoolInfo(Long id, String code, String name, String level, Long educationLevelId,
             Integer classCount, Integer studentCount) {}
-    private record Norm(Long educationLevelId, Long catalogId, Long typeId, Long subjectId, Long gradeId, Long roomTypeId,
-            BigDecimal quantity, int basisSize, String basis) {}
+    private record Norm(Long educationLevelId, Long catalogId, Long typeId, Long subjectId, Long gradeId,
+            Long roomTypeId, BigDecimal quantity, int basisSize, String basis, String code, String name,
+            String itemNo, String catalogCode, String catalogName, String subjectName, String gradeName,
+            String gradeLevels, String typeName) {}
     private record Availability(Long schoolId, Long catalogId, Long typeId, Long subjectId, Long gradeId, BigDecimal quantity) {}
     private record RoomCount(Long schoolId, Long roomTypeId, Long subjectId, int count) {}
 }
