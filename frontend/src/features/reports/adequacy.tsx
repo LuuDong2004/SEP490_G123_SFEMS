@@ -85,7 +85,9 @@ export function AdequacyReportPage() {
     </header>
 
     <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc mã trường"
-      exportData={exportData}
+      exportQuery={{ report: "ADEQUACY", search, ...(school !== ALL ? { schoolId: school } : {}),
+        ...(subject !== ALL ? { subjectId: subject } : {}), ...(grade !== ALL ? { gradeId: grade } : {}),
+        ...(type !== ALL ? { equipmentTypeId: type } : {}) }}
       onReset={() => { setSchool(ALL); setSubject(ALL); setGrade(ALL); setType(ALL); setSearch(""); }}
       filters={<>
         {perspective !== "school" && <DimensionFilter label="Trường" value={school} onChange={setSchool} options={report?.filters.schools ?? []} />}

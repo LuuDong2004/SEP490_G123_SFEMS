@@ -65,7 +65,8 @@ export function InventoryReportPage() {
     </header>
 
     <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm số phiếu, đợt hoặc trường"
-      exportData={exportData}
+      exportQuery={{ report: "INVENTORY", search, ...(campaign !== ALL ? { campaignId: campaign } : {}),
+        ...(school !== ALL ? { schoolId: school } : {}) }}
       onReset={() => { setCampaign(ALL); setSchool(ALL); setSearch(""); }}
       filters={<>
         <Select value={campaign} onValueChange={setCampaign}><SelectTrigger aria-label="Đợt kiểm kê" className="h-9 w-48 rounded-full px-3 text-xs"><SelectValue placeholder="Mọi đợt kiểm kê" /></SelectTrigger>

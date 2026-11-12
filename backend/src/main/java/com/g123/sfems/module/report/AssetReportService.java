@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AssetReportService {
     private static final int ROW_LIMIT = 1000;
+    private static final int EXPORT_ROW_LIMIT = 5000;
     private static final Set<String> STATUSES = Set.of("IN_USE", "IN_STOCK", "BROKEN", "REPAIRING",
             "MISSING", "PENDING_LIQUIDATION", "LIQUIDATED", "LOST");
 
@@ -29,6 +30,18 @@ public class AssetReportService {
     @Transactional(readOnly = true)
     public AssetReportResponse get(String fromValue, String toValue, Long schoolId, Long subjectId,
             Long equipmentTypeId, String requestedStatus, Long originId) {
+        return get(fromValue, toValue, schoolId, subjectId, equipmentTypeId, requestedStatus, originId, ROW_LIMIT, null);
+    }
+
+    @Transactional(readOnly = true)
+    public AssetReportResponse getForExport(String fromValue, String toValue, Long schoolId, Long subjectId,
+            Long equipmentTypeId, String requestedStatus, Long originId, String search) {
+        return get(fromValue, toValue, schoolId, subjectId, equipmentTypeId, requestedStatus, originId,
+                EXPORT_ROW_LIMIT, search);
+    }
+
+    private AssetReportResponse get(String fromValue, String toValue, Long schoolId, Long subjectId,
+            Long equipmentTypeId, String requestedStatus, Long originId, int rowLimit, String search) {
         LocalDate today = LocalDate.now();
         LocalDate to = parseOr(toValue, today);
         LocalDate earliest = jdbc.query("SELECT MIN(e.received_date) FROM equipment e WHERE e.active "
@@ -52,6 +65,11 @@ public class AssetReportService {
         if (equipmentTypeId != null) { where += " AND c.equipment_type_id = ?"; args.add(equipmentTypeId); }
         if (status != null) { where += " AND e.status = ?"; args.add(status); }
         if (originId != null) { where += " AND e.origin_source_id = ?"; args.add(originId); }
+        if (search != null && !search.isBlank()) {
+            where += " AND (e.code ILIKE ? OR e.name ILIKE ? OR s.name ILIKE ?)";
+            String pattern = "%" + search.trim() + "%";
+            args.add(pattern); args.add(pattern); args.add(pattern);
+        }
         String joins = " FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id "
                 + "JOIN schools s ON s.id = e.school_id "
                 + "LEFT JOIN subjects sub ON sub.id = c.subject_id "
@@ -81,7 +99,7 @@ public class AssetReportService {
 
         Long total = jdbc.queryForObject("SELECT COUNT(*)" + joins + where, Long.class, args.toArray());
         List<Object> rowArgs = new ArrayList<>(args);
-        rowArgs.add(ROW_LIMIT);
+        rowArgs.add(rowLimit);
         List<AssetReportResponse.Row> rows = jdbc.query("""
                 SELECT e.id, e.code, e.name, s.name, sub.name, et.name, e.status, os.name,
                        e.condition, e.quantity, e.original_value, e.received_date
@@ -114,7 +132,7 @@ public class AssetReportService {
                 new AssetReportResponse.Option(null, "LOST", "Đã mất"));
         return new AssetReportResponse(scope, from.toString(), to.toString(),
                 new AssetReportResponse.Filters(schools, subjects, equipmentTypes, origins, statuses), summary,
-                total == null ? 0 : total, total != null && total > ROW_LIMIT, rows);
+                total == null ? 0 : total, total != null && total > rowLimit, rows);
     }
 
     private List<AssetReportResponse.Option> options(String sql, List<Object> args) {
