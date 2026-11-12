@@ -2,7 +2,7 @@ import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Link } from "react-router";
+
 import { LayoutGrid, Rows3 } from "lucide-react";
 import React from "react";
 
@@ -60,14 +60,9 @@ export const SchoolList = () => {
         cell: ({ row }) => {
           const department = row.original.departmentOfEducation;
           if (!department) return <span className="text-muted-foreground">—</span>;
-          return (
-            <Link
-              to={`/departments-of-education/show/${department.id}`}
-              className="text-sm hover:underline"
-            >
-              {department.name}
-            </Link>
-          );
+          // Resource departments_of_education không có route show → hiển thị plain text,
+          // không link (link sẽ 404).
+          return <span className="text-sm">{department.name}</span>;
         },
       }),
       columnHelper.display({
