@@ -15,9 +15,11 @@ function formatCell(value: string | number | null | undefined, column: ReportExp
   return String(value);
 }
 
-export function ReportPrintSheet({ title, scope, subtitle, columns, rows }: {
+export function ReportPrintSheet({ title, scope, issuingUnit, subtitle, columns, rows }: {
   title: string;
   scope: string;
+  /** Đơn vị ban hành in ở góc trái đầu bản in; vắng thì là Sở. */
+  issuingUnit?: string;
   subtitle: string;
   columns: ReportExportColumn[];
   rows: (string | number | null | undefined)[][];
@@ -87,7 +89,9 @@ export function ReportPrintSheet({ title, scope, subtitle, columns, rows }: {
   return (
     <article className="report-print-sheet hidden text-[9pt] leading-snug text-black print:block">
       <header className="grid grid-cols-2 gap-4 text-center">
-        <div className="pt-2 font-semibold uppercase">Sở Giáo dục và Đào tạo<br />Thành phố Hồ Chí Minh</div>
+        <div className="pt-2 font-semibold uppercase">
+          {issuingUnit ?? <>Sở Giáo dục và Đào tạo<br />Thành phố Hồ Chí Minh</>}
+        </div>
         <div>
           <p className="font-bold uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
           <p className="font-semibold">Độc lập - Tự do - Hạnh phúc</p>
