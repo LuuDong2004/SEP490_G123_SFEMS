@@ -23,20 +23,36 @@ public class AdequacyReportService {
     @Transactional(readOnly = true)
     public AdequacyReportResponse get(Long requestedSchoolId, Long subjectId, Long gradeId, Long typeId) {
         String scope = visible.level();
-        String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
-                + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
-                + "WHERE s.status = 'ACTIVE' " + visible.sqlFilter("s.id")
-                + (requestedSchoolId == null ? "" : " AND s.id = " + requestedSchoolId) + " ORDER BY s.name";
-        List<SchoolInfo> schools = jdbc.query(schoolSql, (rs, n) -> new SchoolInfo(rs.getLong(1), rs.getString(2),
-                rs.getString(3), rs.getString(4), rs.getObject(5, Long.class), rs.getObject(6, Integer.class),
-                rs.getObject(7, Integer.class)));
-        Integer yearOrder = jdbc.query("SELECT sort_order FROM school_years WHERE start_date <= CURRENT_DATE "
-                        + "AND end_date >= CURRENT_DATE ORDER BY sort_order DESC LIMIT 1",
-                rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
-        if (yearOrder == null) {
-            yearOrder = jdbc.query("SELECT MAX(sort_order) FROM school_years", rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
-        }
+        List<SchoolInfo> schools = loadSchools(requestedSchoolId);
+        List<AdequacyReportResponse.Row> rows = calculateRows(schools, subjectId, gradeId, typeId, currentYearOrder());
 
+        int knownSchools = (int) rows.stream().filter(r -> r.percent() != null).count();
+        int average = knownSchools == 0 ? 0 : (int) Math.round(rows.stream().filter(r -> r.percent() != null)
+                .mapToInt(AdequacyReportResponse.Row::percent).average().orElse(0));
+        BigDecimal shortage = rows.stream().map(AdequacyReportResponse.Row::shortageTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal surplus = rows.stream().map(AdequacyReportResponse.Row::surplusTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int unknown = rows.stream().mapToInt(AdequacyReportResponse.Row::unknown).sum();
+        List<AdequacyReportResponse.Band> bands = List.of(
+                new AdequacyReportResponse.Band("high", "Đạt từ 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 80).count()),
+                new AdequacyReportResponse.Band("middle", "50% – dưới 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 50 && r.percent() < 80).count()),
+                new AdequacyReportResponse.Band("low", "Dưới 50%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() < 50).count()),
+                new AdequacyReportResponse.Band("unknown", "Chưa tính được", (int) rows.stream().filter(r -> r.percent() == null).count()));
+
+        return new AdequacyReportResponse(scope, new AdequacyReportResponse.Filters(
+                "SCHOOL".equals(scope) ? List.of() : schoolOptions(), subjectOptions(), gradeOptions(), typeOptions()),
+                new AdequacyReportResponse.Summary(rows.size(), knownSchools, average, shortage, surplus, unknown),
+                bands, rows);
+    }
+
+    /** BC-01 dùng cùng phép tính định mức với BC-03, nhưng theo năm học được chọn. */
+    public List<AdequacyReportResponse.Row> rowsForVisibleSchools(Integer yearOrder) {
+        return calculateRows(loadSchools(null), null, null, null, yearOrder);
+    }
+
+    private List<AdequacyReportResponse.Row> calculateRows(List<SchoolInfo> schools, Long subjectId, Long gradeId,
+            Long typeId, Integer yearOrder) {
         List<Norm> allNorms = norms(subjectId, gradeId, typeId, yearOrder);
         java.util.Map<Long, List<Norm>> normsByLevel = allNorms.stream().filter(norm -> norm.educationLevelId() != null)
                 .collect(java.util.stream.Collectors.groupingBy(Norm::educationLevelId));
@@ -73,24 +89,26 @@ public class AdequacyReportService {
                     shortageTotal, surplusNorms, surplusTotal, percent));
         }
 
-        int knownSchools = (int) rows.stream().filter(r -> r.percent() != null).count();
-        int average = knownSchools == 0 ? 0 : (int) Math.round(rows.stream().filter(r -> r.percent() != null)
-                .mapToInt(AdequacyReportResponse.Row::percent).average().orElse(0));
-        BigDecimal shortage = rows.stream().map(AdequacyReportResponse.Row::shortageTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal surplus = rows.stream().map(AdequacyReportResponse.Row::surplusTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        int unknown = rows.stream().mapToInt(AdequacyReportResponse.Row::unknown).sum();
-        List<AdequacyReportResponse.Band> bands = List.of(
-                new AdequacyReportResponse.Band("high", "Đạt từ 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 80).count()),
-                new AdequacyReportResponse.Band("middle", "50% – dưới 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 50 && r.percent() < 80).count()),
-                new AdequacyReportResponse.Band("low", "Dưới 50%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() < 50).count()),
-                new AdequacyReportResponse.Band("unknown", "Chưa tính được", (int) rows.stream().filter(r -> r.percent() == null).count()));
+        return rows;
+    }
 
-        return new AdequacyReportResponse(scope, new AdequacyReportResponse.Filters(
-                "SCHOOL".equals(scope) ? List.of() : schoolOptions(), subjectOptions(), gradeOptions(), typeOptions()),
-                new AdequacyReportResponse.Summary(rows.size(), knownSchools, average, shortage, surplus, unknown),
-                bands, rows);
+    private List<SchoolInfo> loadSchools(Long requestedSchoolId) {
+        String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
+                + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
+                + "WHERE s.status = 'ACTIVE' " + visible.sqlFilter("s.id")
+                + (requestedSchoolId == null ? "" : " AND s.id = " + requestedSchoolId) + " ORDER BY s.name";
+        return jdbc.query(schoolSql, (rs, n) -> new SchoolInfo(rs.getLong(1), rs.getString(2), rs.getString(3),
+                rs.getString(4), rs.getObject(5, Long.class), rs.getObject(6, Integer.class),
+                rs.getObject(7, Integer.class)));
+    }
+
+    private Integer currentYearOrder() {
+        Integer yearOrder = jdbc.query("SELECT sort_order FROM school_years WHERE start_date <= CURRENT_DATE "
+                        + "AND end_date >= CURRENT_DATE ORDER BY sort_order DESC LIMIT 1",
+                rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
+        return yearOrder == null
+                ? jdbc.query("SELECT MAX(sort_order) FROM school_years", rs -> rs.next() ? rs.getObject(1, Integer.class) : null)
+                : yearOrder;
     }
 
     private List<Norm> norms(Long subjectId, Long gradeId, Long typeId, Integer yearOrder) {
