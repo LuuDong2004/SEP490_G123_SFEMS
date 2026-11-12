@@ -101,6 +101,7 @@ public class VoucherWorkflow {
         voucher.setApprovalStep(first);
         voucher.setStatus(first == null ? VoucherStatus.APPROVED : VoucherStatus.PENDING);
         record(voucher, Action.SUBMIT, from, null, null);
+        if (first != null) publishAwaitingApproval(voucher, first);
         return first == null;
     }
 
@@ -119,6 +120,7 @@ public class VoucherWorkflow {
         if (next != null) {
             voucher.setApprovalStep(next);
             record(voucher, Action.APPROVE, VoucherStatus.PENDING, step, trimToNull(note));
+            publishAwaitingApproval(voucher, next);
             return false;
         }
         voucher.setApprovalStep(null);
@@ -334,6 +336,13 @@ public class VoucherWorkflow {
         Long recipient = voucher.getSubmittedById() != null ? voucher.getSubmittedById() : voucher.getCreatedById();
         publisher.publishEvent(new VoucherDecided(voucher.resource(), voucher.getId(), voucher.getCode(), decision,
                 message, recipient));
+    }
+
+    private void publishAwaitingApproval(SchoolVoucher voucher, ApprovalStep step) {
+        Long schoolId = voucher.getSchool() == null ? null : voucher.getSchool().getId();
+        Long managingBodyId = voucher.getSchool() == null ? null : bodyId(voucher.getSchool());
+        publisher.publishEvent(new VoucherAwaitingApproval(voucher.resource(), voucher.getId(), voucher.getCode(),
+                schoolId, managingBodyId, step));
     }
 
     private void requireTier(SchoolVoucher voucher) {

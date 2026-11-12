@@ -4,7 +4,7 @@ import { ListToolbar } from "@/shared/components/views/list-view";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
-import { ReportExportMenu, type ReportExportData } from "./report-export-menu";
+import { ReportExportMenu, type ReportExportQuery } from "./report-export-menu";
 
 /** Thanh tìm kiếm và bộ lọc theo cùng bố cục với các danh sách nghiệp vụ. */
 export function ReportFilterToolbar({
@@ -16,7 +16,7 @@ export function ReportFilterToolbar({
   searchClassName,
   firstRow,
   secondRow,
-  exportData,
+  exportQuery,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
@@ -26,7 +26,7 @@ export function ReportFilterToolbar({
   searchClassName?: string;
   firstRow?: React.ReactNode;
   secondRow?: React.ReactNode;
-  exportData?: ReportExportData;
+  exportQuery?: ReportExportQuery;
 }) {
   const searchInput = (
     <div className="relative min-w-0">
@@ -57,7 +57,7 @@ export function ReportFilterToolbar({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {secondRow}
-            {exportData ? <ReportExportMenu data={exportData} /> : null}
+            {exportQuery ? <ReportExportMenu query={exportQuery} /> : null}
             {resetButton}
           </div>
         </div>
@@ -70,7 +70,7 @@ export function ReportFilterToolbar({
       <ListToolbar
         search={searchInput}
         filters={filters}
-        actions={<div className="flex items-center gap-2">{exportData ? <ReportExportMenu data={exportData} /> : null}{resetButton}</div>}
+        actions={<div className="flex items-center gap-2">{exportQuery ? <ReportExportMenu query={exportQuery} /> : null}{resetButton}</div>}
         searchClassName={searchClassName ?? "min-w-[200px] sm:min-w-[260px]"}
       />
     </Card>

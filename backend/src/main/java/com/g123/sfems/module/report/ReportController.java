@@ -23,15 +23,17 @@ public class ReportController {
     private final AdequacyReportService adequacyReportService;
     private final PurchaseReportService purchaseReportService;
     private final InventoryReportService inventoryReportService;
+    private final ReportExportService reportExportService;
 
     public ReportController(DashboardService dashboardService, AssetReportService assetReportService,
             AdequacyReportService adequacyReportService, PurchaseReportService purchaseReportService,
-            InventoryReportService inventoryReportService) {
+            InventoryReportService inventoryReportService, ReportExportService reportExportService) {
         this.dashboardService = dashboardService;
         this.assetReportService = assetReportService;
         this.adequacyReportService = adequacyReportService;
         this.purchaseReportService = purchaseReportService;
         this.inventoryReportService = inventoryReportService;
+        this.reportExportService = reportExportService;
     }
 
     @GetMapping("/dashboard")
@@ -75,9 +77,15 @@ public class ReportController {
 
     @PostMapping("/export-xlsx")
     @PreAuthorize("hasAuthority('reports:export')")
-    public ResponseEntity<byte[]> exportXlsx(@RequestBody ReportExportRequest request) {
+    public ResponseEntity<byte[]> exportXlsx(@RequestBody ReportExportQuery query) {
+        ReportExportRequest request;
+        try {
+            request = reportExportService.build(query);
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().build();
+        }
         if (request == null || request.columns() == null || request.columns().isEmpty()
-                || request.columns().size() > 40 || request.rows() == null || request.rows().size() > 5000
+                || request.columns().size() > 40 || request.rows() == null
                 || request.columns().stream().anyMatch(column -> column == null || column.label() == null
                         || column.type() == null
                         || !java.util.Set.of("text", "number", "money", "date").contains(column.type()))
@@ -95,5 +103,53 @@ public class ReportController {
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(body);
+    }
+
+    @PostMapping("/export-csv")
+    @PreAuthorize("hasAuthority('reports:export')")
+    public ResponseEntity<byte[]> exportCsv(@RequestBody ReportExportQuery query) {
+        ReportExportRequest request;
+        try {
+            request = reportExportService.build(query);
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().build();
+        }
+        String base = request.filename() == null ? "bao-cao" : request.filename();
+        byte[] body = csv(request).getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(base + ".csv", StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(body);
+    }
+
+    private static String csv(ReportExportRequest request) {
+        StringBuilder output = new StringBuilder("\uFEFF");
+        appendCsvRow(output, java.util.List.of(request.title()));
+        appendCsvRow(output, java.util.List.of(request.subtitle()));
+        appendCsvRow(output, java.util.List.of());
+        appendCsvRow(output, request.columns().stream().map(ReportExportRequest.Column::label).toList());
+        for (java.util.List<Object> row : request.rows()) {
+            java.util.List<String> values = new java.util.ArrayList<>(request.columns().size());
+            for (int i = 0; i < request.columns().size(); i++) {
+                Object value = i < row.size() ? row.get(i) : null;
+                String text = value == null ? "" : String.valueOf(value);
+                if (request.columns().get(i).type().equals("text") && text.matches("^[\\s]*[=+@\\-].*")) {
+                    text = "'" + text;
+                }
+                values.add(text);
+            }
+            appendCsvRow(output, values);
+        }
+        return output.toString();
+    }
+
+    private static void appendCsvRow(StringBuilder output, java.util.List<String> values) {
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) output.append(',');
+            String value = values.get(i) == null ? "" : values.get(i);
+            output.append('"').append(value.replace("\"", "\"\"")).append('"');
+        }
+        output.append("\r\n");
     }
 }
