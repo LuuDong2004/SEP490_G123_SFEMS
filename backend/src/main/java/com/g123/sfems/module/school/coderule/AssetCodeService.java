@@ -9,6 +9,7 @@ import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType
 import com.g123.sfems.shared.exception.FieldValidationException;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,18 +33,19 @@ public class AssetCodeService {
     /** Tên {@code target} của quy tắc mã tài sản trong {@code school_code_rules}. */
     public static final String TARGET = "equipment";
 
-    /** TT. Chưa có cột nào lưu mã tỉnh; mọi trường trong đồ án thuộc TP.HCM. */
-    private static final String PROVINCE = "79";
-
     /** ST có đúng 3 chữ số: tối đa 999 mã trong một bộ. */
     public static final int MAX_NUMBER = 999;
 
     private final EntityManager entityManager;
     private final SchoolCodeRuleRepository rules;
+    /** TT, mã tỉnh 2 chữ số. Chưa có cột nào trong schema lưu mã tỉnh, nên lấy từ cấu hình (mặc định 79, TP.HCM). */
+    private final String province;
 
-    public AssetCodeService(EntityManager entityManager, SchoolCodeRuleRepository rules) {
+    public AssetCodeService(EntityManager entityManager, SchoolCodeRuleRepository rules,
+            @Value("${app.asset-code.province:79}") String province) {
         this.entityManager = entityManager;
         this.rules = rules;
+        this.province = province;
     }
 
     /**
@@ -62,7 +64,7 @@ public class AssetCodeService {
         entityManager.createNativeQuery("SELECT id FROM schools WHERE id = :id FOR NO KEY UPDATE")
                 .setParameter("id", school.getId())
                 .getSingleResult();
-        Bo bo = new Bo(school, catalog, type, year);
+        Bo bo = new Bo(province, school, catalog, type, year);
         return new Batch(school, bo, nextNumber(school.getId(), bo));
     }
 
@@ -74,7 +76,7 @@ public class AssetCodeService {
         if (missing(school, catalog).isPresent()) {
             return 0;
         }
-        Bo bo = new Bo(school, catalog, type, year);
+        Bo bo = new Bo(province, school, catalog, type, year);
         return Math.max(0, MAX_NUMBER - nextNumber(school.getId(), bo) + 1);
     }
 
@@ -111,7 +113,7 @@ public class AssetCodeService {
         if (missing(school, catalog).isPresent()) {
             return Optional.empty();
         }
-        Bo bo = new Bo(school, catalog, type, year);
+        Bo bo = new Bo(province, school, catalog, type, year);
         int next = nextNumber(school.getId(), bo);
         return next > MAX_NUMBER ? Optional.empty() : Optional.of(bo.format(next));
     }
@@ -172,8 +174,8 @@ public class AssetCodeService {
     /** Bộ đếm {@code TT.TR.MH.LT.NC}: các thành phần của mã trừ ST. */
     private record Bo(String province, String school, String subject, String type, String year) {
 
-        Bo(School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
-            this(PROVINCE,
+        Bo(String province, School school, EquipmentCatalog catalog, PhysicalDigitalType type, int year) {
+            this(province,
                     school.getShortCode().toUpperCase(),
                     catalog.getSubject().getTeachingCode(),
                     kind(type),
