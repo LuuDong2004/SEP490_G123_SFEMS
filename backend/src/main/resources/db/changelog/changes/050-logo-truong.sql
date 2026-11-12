@@ -9,3 +9,5 @@ CREATE TABLE school_logos (
     data          BYTEA       NOT NULL,
     updated_at    TIMESTAMP WITH TIME ZONE NOT NULL
 );
+
+--rollback DROP TABLE IF EXISTS school_logos;
