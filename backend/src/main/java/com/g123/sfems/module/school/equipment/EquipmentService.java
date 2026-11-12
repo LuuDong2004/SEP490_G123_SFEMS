@@ -322,6 +322,32 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
     }
 
+    /**
+     * Mã tài sản không đổi qua hồ sơ (SRS TS-05, GBR-10/14): mã chuẩn chỉ cấp qua "Cấp mã chuẩn", mã
+     * do máy cấp không sửa tay. Phải kiểm TRƯỚC {@code super.update}, vì lớp cha gán {@code code} ngay
+     * đầu hàm. Gửi lại đúng mã đang có thì vẫn cho qua, vì form sửa gửi lại cả ô mã.
+     */
+    @Override
+    @Transactional
+    public Equipment update(Long id, EquipmentPatchRequest request) {
+        if (request.code() != null && !request.code().trim().equals(get(id).getCode())) {
+            throw new FieldValidationException("code",
+                    "Không sửa mã tài sản trên hồ sơ được. Mã chuẩn cấp qua \"Cấp mã chuẩn\" (TS-05).");
+        }
+        // Tên và ghi chú do lớp cha gán (CatalogService), nên ghi lịch sử ở đây bằng ảnh chụp trước/sau.
+        Equipment current = get(id);
+        String oldName = current.getName();
+        String oldNote = current.getNote();
+        Equipment saved = super.update(id, request);
+        if (!Objects.equals(oldName, saved.getName())) {
+            lifecycle.change(saved, Action.CAP_NHAT, "name", oldName, saved.getName(), null, null);
+        }
+        if (!Objects.equals(oldNote, saved.getNote())) {
+            lifecycle.change(saved, Action.CAP_NHAT, "note", oldNote, saved.getNote(), null, null);
+        }
+        return saved;
+    }
+
     @Override
     protected void applyUpdateOwned(Equipment item, EquipmentPatchRequest request) {
         rejectDirectChanges(item, request);
