@@ -29,7 +29,7 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import { EquipmentEdit, EquipmentImport, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
@@ -123,7 +123,7 @@ export function AppRoutes() {
         })}
         {listRoute("/equipment-lookup", "equipment_lookup", <EquipmentLookup />)}
         <Route path="/data-imports" element={guarded("data_imports")}>
-          <Route index element={<PlaceholderScreen />} />
+          <Route index element={<EquipmentImport />} />
           <Route path="show/:id" element={<PlaceholderScreen />} />
         </Route>
 
