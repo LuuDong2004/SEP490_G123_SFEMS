@@ -115,13 +115,15 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Mã sẽ cấp cho form tạo mới (không tăng bộ đếm). Trường vắng thì lấy trường của tài khoản đăng nhập.
+     * Mã sẽ cấp cho form tạo mới (không tăng bộ đếm). Tài khoản gắn trường thì LUÔN lấy trường của chính
+     * tài khoản, bỏ qua {@code schoolId} gửi lên, để không lộ số đếm của trường khác. Tài khoản không gắn
+     * trường (Sở) thì dùng {@code schoolId} gửi lên.
      */
     @Transactional(readOnly = true)
     public NextCode nextCode(Long schoolId, Long catalogId, PhysicalDigitalType type,
             LocalDate receivedDate, LocalDate purchaseDate) {
-        Long sid = schoolId != null ? schoolId
-                : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        Long own = principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        Long sid = own != null ? own : schoolId;
         if (sid == null) {
             return new NextCode(null, "Chọn trường để sinh mã");
         }
@@ -140,14 +142,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Mã để trống thì máy cấp theo quy tắc của trường (TS-06). Mã gõ tay giữ nguyên và vẫn đi qua kiểm
-     * trùng như trước.
+     * Máy LUÔN tự cấp mã theo quy tắc của trường (TS-06, GBR-10); mã client gửi lên bị bỏ qua. Lý do: mã
+     * là định danh, không cho gõ tay khi tạo (GBR-14). Mã cũ của sổ cũ đi qua "Cấp mã chuẩn", không qua đây.
+     * Cấp qua {@code assetCodes.begin} khoá hàng trường, nên hai lần tạo đồng thời xếp hàng, không trùng.
      */
     @Override
     protected String resolveCode(Equipment item, String code) {
-        if (code != null && !code.isBlank()) {
-            return code;
-        }
         EquipmentCatalog catalog = item.getCatalog();
         if (catalog == null) {
             throw new FieldValidationException("catalog", "Chọn nhóm thiết bị để máy cấp mã tài sản");
