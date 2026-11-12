@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
+import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 
 const ROLES = {
   MAIN: "Văn bản chính", AMENDMENT: "Sửa đổi, bổ sung", GUIDANCE: "Hướng dẫn",
@@ -110,6 +111,15 @@ export function StandardDocuments({ standardId, status, documents }: {
       <p>{document.documentName}</p>
       <p className="text-muted-foreground">{document.issuingAuthority}{document.issueDate ? ` · Ban hành ${document.issueDate}` : ""}{document.effectiveDate ? ` · Hiệu lực ${document.effectiveDate}` : ""}</p>
       {document.url ? <a className="text-primary underline" href={document.url} target="_blank" rel="noreferrer">Mở văn bản</a> : null}
+      {/* Bản PDF của văn bản: mở ngay trên màn, không phụ thuộc đường dẫn ngoài còn sống hay không. */}
+      <AttachmentsPanel
+        resource="equipment_standard_documents"
+        recordId={document.id}
+        canWrite={mayWrite}
+        compact
+        title="Tệp văn bản"
+        description="Tệp PDF của văn bản. Bấm biểu tượng con mắt để xem."
+      />
     </div>)}
 
     <Dialog open={editing !== null} onOpenChange={(value) => { if (!value && !mutation.isPending) setEditing(null); }}>

@@ -3,8 +3,11 @@ package com.g123.sfems.module.school.intake;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.module.school.voucher.VoucherController;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,13 +24,16 @@ public class EquipmentIntakeController
         super(service, rowLevel);
     }
 
-    @Override
-    protected Object toResponse(EquipmentIntake voucher, Map<String, Boolean> can, Set<String> actions) {
-        return EquipmentIntakeResponse.from(voucher, can, actions);
+    /** Tài sản phiếu đã sinh khi ghi tăng (PN-03), theo mã. Ai xem được phiếu thì xem được danh sách này. */
+    @GetMapping("/{id}/assets")
+    public List<EquipmentIntakeService.WrittenUpAsset> assets(@PathVariable Long id) {
+        require("read");
+        return ((EquipmentIntakeService) service).writtenUpAssets(id);
     }
 
+    /** Danh sách cũng kèm các dòng: cột "Nhà cung cấp / nội dung" đọc nhà cung cấp trên các dòng. */
     @Override
-    protected Object toListResponse(EquipmentIntake voucher, Map<String, Boolean> can, Set<String> actions) {
-        return EquipmentIntakeResponse.summary(voucher, can, actions);
+    protected Object toResponse(EquipmentIntake voucher, Map<String, Boolean> can, Set<String> actions) {
+        return EquipmentIntakeResponse.from(voucher, can, actions, ((EquipmentIntakeService) service).creator(voucher));
     }
 }

@@ -5,6 +5,8 @@ import { Link } from "react-router";
 import { API_URL } from "@/shared/api/constants";
 import { kyInstance } from "@/shared/api/data";
 import { errorMessage } from "@/shared/lib/api-error";
+import { TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
+import { cn } from "@/shared/lib/utils";
 import { ReadField } from "@/shared/components/form/read-field";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { Badge } from "@/shared/ui/badge";
@@ -17,6 +19,7 @@ import { CatalogFormDialog } from "@/features/catalogs/catalog-form-dialog";
 import { CatalogShowDialog } from "@/features/catalogs/catalog-show-dialog";
 import { equipmentStandardConfig } from "@/features/catalogs/extras/equipment-standard";
 import type { StandardDocument } from "@/features/catalogs/extras/standard-documents";
+import { OutsideCatalog } from "@/features/catalogs/outside-catalog";
 
 type Standard = {
   id: number; code: string; name: string; status: "DRAFT" | "ACTIVE" | "RETIRED";
@@ -65,6 +68,8 @@ export function MinimumCatalogPage() {
   const [topic, setTopic] = useState(ALL);
   const [page, setPage] = useState(1);
   const [viewing, setViewing] = useState<Norm | null>(null);
+  // Tab "Ngoài danh mục": thiết bị không thuộc danh mục tối thiểu — Sở thêm ngoài thông tư, trường tự thêm.
+  const [outside, setOutside] = useState(false);
   const [busy, setBusy] = useState<"xlsx" | "pdf" | "import" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const { open } = useNotification();
@@ -174,7 +179,20 @@ export function MinimumCatalogPage() {
 
   return <>
     <ListView>
-      <ListViewHeader actions={standard ? <Button variant="outline" asChild><Link to={`/catalogs/equipment-standards/show/${standard.id}`}>Hồ sơ bộ tiêu chuẩn</Link></Button> : null} />
+      <ListViewHeader actions={standard && !outside ? <Button variant="outline" asChild><Link to={`/catalogs/equipment-standards/show/${standard.id}`}>Hồ sơ bộ tiêu chuẩn</Link></Button> : null} />
+      <div role="tablist" aria-label="Cấp học" className={TAB_STRIP}>
+        {[
+          { value: false, label: "THPT", hint: "Danh mục thiết bị tối thiểu cấp THPT" },
+          { value: true, label: "Ngoài danh mục", hint: "Thiết bị trường có nhưng không nằm trong danh mục tối thiểu" },
+        ].map((tab) => (
+          <button key={tab.label} type="button" role="tab" title={tab.hint} aria-selected={outside === tab.value}
+            className={cn(TAB_ITEM, outside === tab.value ? "bg-primary text-primary-foreground" : TAB_IDLE)}
+            onClick={() => setOutside(tab.value)}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {outside ? <OutsideCatalog /> : <>
       {standard ? <section className="space-y-4 rounded-xl border p-4">
         <div className="flex flex-wrap items-center gap-3">
           <Select value={String(standard.id)} onValueChange={(value) => setSelectedId(Number(value))}>
@@ -236,6 +254,7 @@ export function MinimumCatalogPage() {
           <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((current) => current + 1)}>Sau</Button>
         </div></div>
       </section> : null}
+      </>}
     </ListView>
 
     <Dialog open={viewing !== null} onOpenChange={(value) => { if (!value) setViewing(null); }}>

@@ -33,12 +33,38 @@ databaseChangeLog:
       file: db/changelog/changes/050-logo-truong.sql
   # 011/012 trỏ FK và seed theo mã vào danh mục của 030–031, nên phải chạy SAU các changelog 030–050.
   - include:
+      file: db/changelog/changes/051-loai-hinh-cua-truong.sql
+  - include:
+      file: db/changelog/changes/052-quyen-co-quan-quan-ly.sql
+  - include:
       file: db/changelog/changes/011-khung-du-lieu-nghiep-vu.sql
   - include:
       file: db/changelog/changes/012-seed-du-lieu-mau.sql
   - include:
       file: db/changelog/changes/013-pham-vi-quan-tri-va-khoa-ngoai-phong.sql
   - include:
+      file: db/changelog/changes/014-phieu-nhap-bien-ban-giao-nhan.sql
+  - include:
       file: db/changelog/changes/037-dinh-muc-thpt.sql
   - include:
       file: db/changelog/changes/038-van-ban-dinh-muc-thpt.sql
+  - include:
+      file: db/changelog/changes/053-ma-hai-ky-tu-truong.sql
+  - include:
+      file: db/changelog/changes/039-don-vi-tinh-so-le.sql
+  - include:
+      file: db/changelog/changes/040-nguon-hinh-thanh-co-dinh.sql
+  - include:
+      file: db/changelog/changes/041-bo-thong-so-ky-thuat.sql
+  - include:
+      file: db/changelog/changes/042-danh-muc-thiet-bi-bo-sung.sql
+  - include:
+      file: db/changelog/changes/043-quy-tac-ma-danh-muc.sql
+  - include:
+      file: db/changelog/changes/044-so-chi-xem-bien-ban-da-duyet.sql
+  - include:
+      file: db/changelog/changes/070-ma-day-hoc-cua-mon.sql
+  - include:
+      file: db/changelog/changes/015-anh-dai-dien-vung-cat.sql
+  - include:
+      file: db/changelog/changes/016-phieu-nhap-han-dung-quy-cach.sql

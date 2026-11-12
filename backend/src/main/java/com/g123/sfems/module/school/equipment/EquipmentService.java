@@ -32,9 +32,13 @@ import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.data.jpa.domain.Specification;
@@ -70,11 +74,11 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static final String FIELD_SERIAL = "serialNumber";
     private static final String FIELD_MODEL = "model";
     private static final String FIELD_MANUFACTURER = "manufacturer";
-    private static final String FIELD_LEGACY_CODE = "legacyCode";
     private static final String FIELD_ORIGINAL_VALUE = "originalValue";
     private static final String FIELD_WARRANTY_EXPIRY = "warrantyExpiry";
 
     private final EquipmentRepository items;
+    private final RowLevelSecurity scopes;
     private final EquipmentHistoryRepository historyRows;
     private final EquipmentLifecycle lifecycle;
     private final UnitService units;
@@ -97,6 +101,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             AssetCodeService assetCodes) {
         super(repository, rowLevel, Equipment.class, Equipment::new, "Thiết bị", schools, principals);
         this.items = repository;
+        this.scopes = rowLevel;
         this.historyRows = historyRows;
         this.lifecycle = lifecycle;
         this.units = units;
@@ -112,13 +117,15 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Mã sẽ cấp cho form tạo mới (không tăng bộ đếm). Trường vắng thì lấy trường của tài khoản đăng nhập.
+     * Mã sẽ cấp cho form tạo mới (không tăng bộ đếm). Tài khoản gắn trường thì LUÔN lấy trường của chính
+     * tài khoản, bỏ qua {@code schoolId} gửi lên, để không lộ số đếm của trường khác. Tài khoản không gắn
+     * trường (Sở) thì dùng {@code schoolId} gửi lên.
      */
     @Transactional(readOnly = true)
     public NextCode nextCode(Long schoolId, Long catalogId, PhysicalDigitalType type,
             LocalDate receivedDate, LocalDate purchaseDate) {
-        Long sid = schoolId != null ? schoolId
-                : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        Long own = principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        Long sid = own != null ? own : schoolId;
         if (sid == null) {
             return new NextCode(null, "Chọn trường để sinh mã");
         }
@@ -137,14 +144,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Mã để trống thì máy cấp theo quy tắc của trường (TS-06). Mã gõ tay giữ nguyên và vẫn đi qua kiểm
-     * trùng như trước.
+     * Máy LUÔN tự cấp mã theo quy tắc của trường (TS-06, GBR-10); mã client gửi lên bị bỏ qua. Lý do: mã
+     * là định danh, không cho gõ tay khi tạo (GBR-14). Mã cũ của sổ cũ đi qua "Cấp mã chuẩn", không qua đây.
+     * Cấp qua {@code assetCodes.begin} khoá hàng trường, nên hai lần tạo đồng thời xếp hàng, không trùng.
      */
     @Override
     protected String resolveCode(Equipment item, String code) {
-        if (code != null && !code.isBlank()) {
-            return code;
-        }
         EquipmentCatalog catalog = item.getCatalog();
         if (catalog == null) {
             throw new FieldValidationException("catalog", "Chọn nhóm thiết bị để máy cấp mã tài sản");
@@ -297,14 +302,60 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
     }
 
-    @Override
-    protected void applyUpdateOwned(Equipment item, EquipmentPatchRequest request) {
+    /**
+     * Trạng thái, tình trạng và số lượng chỉ đổi qua phiếu đã duyệt (SRS TS-01, GBR-14), không sửa thẳng
+     * trên hồ sơ. Gửi lại đúng giá trị hiện có thì không tính là đổi, vì form sửa gửi lại cả ba trường.
+     */
+    private static void rejectDirectChanges(Equipment item, EquipmentPatchRequest request) {
+        List<String> changed = new ArrayList<>();
         if (request.status() != null && request.status() != item.getStatus()) {
-            lifecycle.status(item, request.status(), Action.CAP_NHAT, null, null);
+            changed.add("trạng thái (phiếu tương ứng)");
         }
         if (request.condition() != null && request.condition() != item.getCondition()) {
-            lifecycle.condition(item, request.condition(), Action.CAP_NHAT, null, null);
+            changed.add("tình trạng (phiếu báo hỏng / sửa chữa / kiểm kê)");
         }
+        if (request.quantity() != null
+                && (item.getQuantity() == null || request.quantity().compareTo(item.getQuantity()) != 0)) {
+            changed.add("số lượng (phiếu ghi tăng / xuất kho)");
+        }
+        if (!changed.isEmpty()) {
+            throw new FieldValidationException("status", "Không sửa thẳng trên hồ sơ được: "
+                    + String.join(", ", changed) + ". Những thứ này chỉ đổi qua phiếu, để có người duyệt và để lại chứng từ.");
+        }
+    }
+
+    /**
+     * Mã tài sản không đổi qua hồ sơ (SRS TS-05, GBR-10/14): mã chuẩn chỉ cấp qua "Cấp mã chuẩn", mã
+     * do máy cấp không sửa tay. Phải kiểm TRƯỚC {@code super.update}, vì lớp cha gán {@code code} ngay
+     * đầu hàm. Gửi lại đúng mã đang có thì vẫn cho qua, vì form sửa gửi lại cả ô mã.
+     */
+    @Override
+    @Transactional
+    public Equipment update(Long id, EquipmentPatchRequest request) {
+        if (request.code() != null && !request.code().trim().equals(get(id).getCode())) {
+            throw new FieldValidationException("code",
+                    "Không sửa mã tài sản trên hồ sơ được. Mã chuẩn cấp qua \"Cấp mã chuẩn\" (TS-05).");
+        }
+        // Tên và ghi chú do lớp cha gán (CatalogService), nên ghi lịch sử ở đây bằng ảnh chụp trước/sau.
+        Equipment current = get(id);
+        String oldName = current.getName();
+        String oldNote = current.getNote();
+        Equipment saved = super.update(id, request);
+        if (!Objects.equals(oldName, saved.getName())) {
+            lifecycle.change(saved, Action.CAP_NHAT, "name", oldName, saved.getName(), null, null);
+        }
+        if (!Objects.equals(oldNote, saved.getNote())) {
+            lifecycle.change(saved, Action.CAP_NHAT, "note", oldNote, saved.getNote(), null, null);
+        }
+        return saved;
+    }
+
+    @Override
+    protected void applyUpdateOwned(Equipment item, EquipmentPatchRequest request) {
+        rejectDirectChanges(item, request);
+        Long oldCatalogId = item.getCatalog() == null ? null : item.getCatalog().getId();
+        PhysicalDigitalType oldType = item.getPhysicalOrDigital();
+        Map<String, Object> before = snapshotHistoryFields(item);
         if (request.catalog() != null) {
             item.setCatalog(catalogOf(request.catalog()));
         }
@@ -313,10 +364,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.assetCategory() != null) {
             item.setAssetCategory(request.assetCategory());
-        }
-        if (request.legacyCode() != null) {
-            track(item, FIELD_LEGACY_CODE, item.getLegacyCode(), blankToNull(request.legacyCode()),
-                    item::setLegacyCode);
         }
         if (request.serialNumber() != null) {
             String serial = blankToNull(request.serialNumber());
@@ -332,9 +379,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.unit() != null) {
             item.setUnit(unitOf(request.unit()));
-        }
-        if (request.quantity() != null) {
-            item.setQuantity(request.quantity());
         }
         if (request.originSource() != null) {
             item.setOriginSource(originSourceOf(request.originSource()));
@@ -377,38 +421,99 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (request.specs() != null) {
             item.setSpecs(request.specs());
         }
+        recordHistoryFields(item, before);
+        // Nhóm hoặc loại vật lý/số đổi thì phần MH / LT của mã đổi theo: cấp lại mã để mã khớp với hồ sơ.
+        Long newCatalogId = item.getCatalog() == null ? null : item.getCatalog().getId();
+        if (!Objects.equals(oldCatalogId, newCatalogId) || oldType != item.getPhysicalOrDigital()) {
+            reissueCode(item);
+        }
     }
 
     /**
-     * Bộ lọc riêng của hồ sơ: trạng thái, tình trạng, loại. Lớp cha chỉ nhận id, mã, tên, ghi chú và
-     * active; trường enum không khai ở đây thì {@code ?status=...} bị bỏ qua lặng lẽ.
+     * Cấp lại mã theo nhóm và loại hiện tại. Mã cũ chuyển sang {@code legacyCode} (nếu chưa có) để tem cũ
+     * vẫn tra được, và lịch sử ghi lại lần đổi.
+     */
+    private void reissueCode(Equipment item) {
+        String old = item.getCode();
+        int year = yearOf(item.getReceivedDate(), item.getPurchaseDate());
+        String code = assetCodes.begin(item.getSchool(), item.getCatalog(), item.getPhysicalOrDigital(), year).next();
+        requireCodeFree(item.getSchool(), code);
+        if (item.getLegacyCode() == null) {
+            item.setLegacyCode(old);
+        }
+        item.setCode(code);
+        lifecycle.change(item, Action.CAP_NHAT, "code", old, code, null,
+                "Cấp lại mã do đổi nhóm hoặc loại thiết bị, thay mã cũ " + old);
+    }
+
+    /**
+     * Bộ lọc riêng của hồ sơ. Lớp cha chỉ nhận id, mã, tên, ghi chú, active và trường; trường không khai ở
+     * đây thì bị bỏ qua lặng lẽ.
+     *
+     * <ul>
+     *   <li>{@code status}, {@code assetStatus}, {@code condition}: một hoặc nhiều giá trị cách nhau bằng
+     *       dấu phẩy ({@code IN_STOCK,IN_USE}). {@code assetStatus} là bộ lọc nâng cao của màn; {@code status}
+     *       là lối "chỉ xem đã ra khỏi sổ" — hai tên riêng để hai thứ cộng dồn được.</li>
+     *   <li>{@code catalog.id}, {@code room.id}: mở bảng Theo tài sản từ một dòng của bảng tổng hợp.
+     *       {@code room.id=none} là tài sản chưa xếp phòng (đang ở kho).</li>
+     *   <li>{@code type}, {@code subject}: id loại thiết bị / môn học của nhóm thiết bị, hoặc {@code none}
+     *       — cột lọc nhanh bên trái.</li>
+     * </ul>
      */
     @Override
     protected Specification<Equipment> ownedFilters(ListParams params) {
-        Specification<Equipment> spec = Specification.unrestricted();
+        Specification<Equipment> spec = CatalogSpecifications.<Equipment>referenceFilter(params, "catalog")
+                .and(CatalogSpecifications.referenceFilter(params, "room"));
         for (ListParams.Criterion criterion : params.filters()) {
             spec = switch (criterion.field()) {
-                case "status" -> spec.and(enumSpec("status", criterion, AssetStatus.class));
+                case "status", "assetStatus" -> spec.and(enumSpec("status", criterion, AssetStatus.class));
                 case "condition" -> spec.and(enumSpec("condition", criterion, EquipmentCondition.class));
                 case "physicalOrDigital" -> spec.and(enumSpec("physicalOrDigital", criterion, PhysicalDigitalType.class));
+                case "type" -> spec.and(catalogRef("equipmentType", criterion));
+                case "subject" -> spec.and(catalogRef("subject", criterion));
                 default -> spec;
             };
         }
         return spec;
     }
 
-    /** Lọc theo một hằng enum. Giá trị lạ trả về không khớp dòng nào, không phải lỗi 500. */
+    /**
+     * Lọc theo một hoặc nhiều hằng enum (cách nhau bằng dấu phẩy). Giá trị lạ trả về không khớp dòng nào,
+     * không phải lỗi 500.
+     */
     private static <E extends Enum<E>> Specification<Equipment> enumSpec(
             String attribute, ListParams.Criterion criterion, Class<E> type) {
-        E value;
+        List<E> values = new ArrayList<>();
         try {
-            value = Enum.valueOf(type, criterion.value().trim());
+            for (String part : criterion.value().split(",")) {
+                if (!part.isBlank()) {
+                    values.add(Enum.valueOf(type, part.trim()));
+                }
+            }
         } catch (IllegalArgumentException | NullPointerException e) {
             return (root, query, cb) -> cb.disjunction();
         }
+        if (values.isEmpty()) {
+            return Specification.unrestricted();
+        }
         return criterion.operator() == ListParams.Operator.NE
-                ? (root, query, cb) -> cb.notEqual(root.get(attribute), value)
-                : (root, query, cb) -> cb.equal(root.get(attribute), value);
+                ? (root, query, cb) -> cb.not(root.get(attribute).in(values))
+                : (root, query, cb) -> root.get(attribute).in(values);
+    }
+
+    /** Lọc theo một tham chiếu của NHÓM thiết bị (loại, môn): id, hoặc {@code none} là nhóm chưa gắn. */
+    private static Specification<Equipment> catalogRef(String attribute, ListParams.Criterion criterion) {
+        String raw = criterion.value() == null ? "" : criterion.value().trim();
+        if ("none".equals(raw)) {
+            return (root, query, cb) -> cb.isNull(root.get("catalog").get(attribute));
+        }
+        Long id;
+        try {
+            id = Long.valueOf(raw);
+        } catch (NumberFormatException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        return (root, query, cb) -> cb.equal(root.get("catalog").get(attribute).get("id"), id);
     }
 
     /**
@@ -427,6 +532,29 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     public List<EquipmentHistory> history(Long id) {
         Equipment item = get(id);
         return historyRows.findByEquipmentIdOrderByCreatedAtDescIdDesc(item.getId());
+    }
+
+    /**
+     * Tra cứu theo mã (TS-02): khớp đúng mã chuẩn hoặc mã cũ, không phân biệt hoa thường. Chỉ trả hồ sơ trong
+     * phạm vi đọc của người gọi; ngoài phạm vi coi như không có, nên danh sách rỗng chứ không lỗi 403/404.
+     */
+    @Transactional(readOnly = true)
+    public List<Equipment> lookupByCode(String code) {
+        String term = code == null ? "" : code.trim().toLowerCase(Locale.ROOT);
+        if (term.isEmpty()) {
+            return List.of();
+        }
+        // Mã đã bị thay (TS-05) chỉ còn trong lịch sử; tra theo đó để tem cũ vẫn tìm được thiết bị.
+        List<Long> byPastCode = historyRows.findEquipmentIdsByPastCode(term);
+        Specification<Equipment> exact = (root, query, cb) -> {
+            var current = cb.or(
+                    cb.equal(cb.lower(root.get("code")), term),
+                    cb.equal(cb.lower(root.get("legacyCode")), term));
+            return byPastCode.isEmpty() ? current : cb.or(current, root.get("id").in(byPastCode));
+        };
+        return items.findAll(
+                scopes.<Equipment>scope(Equipment.class, com.g123.sfems.shared.security.rowlevel.Action.READ)
+                        .and(exact));
     }
 
     /** Ghi một trường hồ sơ nếu giá trị thật sự đổi. {@code setter} áp giá trị mới. */
@@ -492,6 +620,41 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             return null;
         }
         return intakeDate.plusMonths(warrantyMonths);
+    }
+
+    /**
+     * Ảnh chụp các trường hồ sơ chưa có ghi lịch sử riêng (nhóm, đơn vị, nguồn gốc, các ngày, ghi chú...).
+     * Tham chiếu lấy tên hiển thị để lịch sử đọc được; trường nào có {@code track} riêng thì không nằm ở đây.
+     */
+    private static Map<String, Object> snapshotHistoryFields(Equipment item) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("catalog", item.getCatalog() == null ? null : item.getCatalog().getName());
+        m.put("physicalOrDigital", item.getPhysicalOrDigital());
+        m.put("assetCategory", item.getAssetCategory());
+        m.put("unit", item.getUnit() == null ? null : item.getUnit().getName());
+        m.put("originSource", item.getOriginSource() == null ? null : item.getOriginSource().getName());
+        m.put("acquisitionMethod", item.getAcquisitionMethod() == null ? null : item.getAcquisitionMethod().getName());
+        m.put("fundingSource", item.getFundingSource());
+        m.put("originNote", item.getOriginNote());
+        m.put("fundingNote", item.getFundingNote());
+        m.put("acquisitionNote", item.getAcquisitionNote());
+        m.put("productionYear", item.getProductionYear());
+        m.put("usageStartYear", item.getUsageStartYear());
+        m.put("receivedDate", item.getReceivedDate());
+        m.put("purchaseDate", item.getPurchaseDate());
+        m.put("specs", item.getSpecs());
+        return m;
+    }
+
+    /** Ghi một dòng lịch sử cho mỗi trường đã đổi so với ảnh chụp trước khi sửa. */
+    private void recordHistoryFields(Equipment item, Map<String, Object> before) {
+        Map<String, Object> after = snapshotHistoryFields(item);
+        for (Map.Entry<String, Object> e : before.entrySet()) {
+            Object now = after.get(e.getKey());
+            if (!Objects.equals(e.getValue(), now)) {
+                lifecycle.change(item, Action.CAP_NHAT, e.getKey(), valueText(e.getValue()), valueText(now), null, null);
+            }
+        }
     }
 
     private static String valueText(Object value) {

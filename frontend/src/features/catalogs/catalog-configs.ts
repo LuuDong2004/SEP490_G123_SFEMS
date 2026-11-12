@@ -1,15 +1,19 @@
 import type { CatalogConfig } from "@/features/catalogs/catalog-config";
+import { codeRuleConfig } from "@/features/catalogs/extras/code-rule";
 import { educationLevelConfig } from "@/features/catalogs/extras/education-level";
 import { equipmentCatalogConfig } from "@/features/catalogs/extras/equipment-catalog";
+import { equipmentConfigConfig } from "@/features/catalogs/extras/equipment-config";
 import { equipmentNormConfig } from "@/features/catalogs/extras/equipment-norm";
 import { equipmentStandardConfig } from "@/features/catalogs/extras/equipment-standard";
 import { gradeConfig } from "@/features/catalogs/extras/grade";
 import { movementReasonConfig } from "@/features/catalogs/extras/movement-reason";
+import { originSourceConfig } from "@/features/catalogs/extras/origin-source";
 import { roomTypeConfig } from "@/features/catalogs/extras/room-type";
 import { schoolTypeConfig } from "@/features/catalogs/extras/school-type";
 import { schoolYearConfig } from "@/features/catalogs/extras/school-year";
 import { subjectConfig } from "@/features/catalogs/extras/subject";
 import { subjectGroupConfig } from "@/features/catalogs/extras/subject-group";
+import { unitConfig } from "@/features/catalogs/extras/unit";
 
 /**
  * Cấu hình của từng danh mục dùng chung (DM-01). Thêm một danh mục = thêm một mục ở đây rồi gắn vào
@@ -31,6 +35,7 @@ export const CATALOG_CONFIGS = {
   subject_groups: subjectGroupConfig,
   subjects: subjectConfig,
   movement_reasons: movementReasonConfig,
+  code_rules: codeRuleConfig,
   wards: {
     resource: "wards",
     noun: "phường/xã",
@@ -49,26 +54,15 @@ export const CATALOG_CONFIGS = {
   equipment_catalogs: equipmentCatalogConfig,
   equipment_standards: equipmentStandardConfig,
   equipment_norms: equipmentNormConfig,
-  units: {
-    resource: "units",
-    noun: "đơn vị tính",
-    description: "Đơn vị đếm thiết bị trên phiếu và trong sổ tài sản.",
-    codePlaceholder: "CAI",
-    namePlaceholder: "Cái",
-  },
-  origin_sources: {
-    resource: "origin_sources",
-    noun: "nguồn hình thành",
-    description: "Nguồn kinh phí hình thành tài sản: ngân sách, xã hội hoá, tài trợ…",
-    codePlaceholder: "NSNN",
-    namePlaceholder: "Ngân sách nhà nước",
-  },
+  units: unitConfig,
+  equipment_configs: equipmentConfigConfig,
+  origin_sources: originSourceConfig,
   acquisition_methods: {
     resource: "acquisition_methods",
-    noun: "phương thức hình thành",
-    description: "Tài sản về trường bằng cách nào: mua sắm, được cấp, được tài trợ…",
-    codePlaceholder: "MUASAM",
-    namePlaceholder: "Mua sắm",
+    noun: "hình thức mua sắm",
+    description: "Cách trường mua hoặc nhận thiết bị.",
+    codePlaceholder: "DAU_THAU",
+    namePlaceholder: "Đấu thầu",
   },
 } satisfies Record<string, CatalogConfig>;
 

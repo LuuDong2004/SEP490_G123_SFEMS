@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>{@link #reserve} là MỘT lệnh {@code UPDATE ... RETURNING}: database khoá
  * dòng quy tắc trong lúc tăng, nên hai người lưu cùng lúc nhận hai số khác
- * nhau mà không cần optimistic lock + thử lại như bản Jmix. Lệnh chạy trong
+ * nhau mà không cần optimistic lock rồi thử lại. Lệnh chạy trong
  * transaction của người gọi — lưu thất bại thì bộ đếm cũng lùi lại.
  *
- * <p>Bộ đếm BỎ QUA mã đã có trong bảng (QLTB-178): ai đó gõ tay DVT005 thì tới lượt số 5 máy cấp DVT006 thay vì
+ * <p>Bộ đếm BỎ QUA mã đã có trong bảng: ai đó gõ tay DVT005 thì tới lượt số 5 máy cấp DVT006 thay vì
  * vấp trùng mã ở lần lưu đó — và mãi mãi về sau, vì bộ đếm cứ dừng ở 5.
  */
 @Component
@@ -88,7 +88,7 @@ public class CodeGenerator {
     @Transactional
     public String resolveOnCreate(String target, String requestedCode) {
         String code = requestedCode == null ? "" : requestedCode.trim();
-        // Để trống là để máy cấp (QLTB-178) — như một client API bỏ hẳn khoá `code`.
+        // Để trống là để máy cấp — như một client API bỏ hẳn khoá `code`.
         if (code.isEmpty()) {
             return reserveFree(target).orElse(code);
         }

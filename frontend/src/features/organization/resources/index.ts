@@ -2,3 +2,5 @@
 export * from "@/features/organization/resources/equipment-list";
 export * from "@/features/organization/resources/equipment-show";
 export * from "@/features/organization/resources/equipment-form";
+export * from "@/features/organization/resources/equipment-lookup";
+export * from "@/features/organization/resources/equipment-import";

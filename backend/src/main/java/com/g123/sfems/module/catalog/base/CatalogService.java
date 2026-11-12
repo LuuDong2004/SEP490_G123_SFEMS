@@ -103,6 +103,11 @@ public abstract class CatalogService<
         return repository.findAll(listSpecification(params), params.pageable(SORTABLE, DEFAULT_SORT));
     }
 
+    /** Returns rows visible to the caller without paging, for bounded reference-data consumers. */
+    protected List<T> listAllScoped(Sort sort) {
+        return repository.findAll(rowLevel.scope(type, Action.READ), sort);
+    }
+
     /**
      * Điều kiện của danh sách — phạm vi trước, bộ lọc của người gọi sau: Specification.and không
      * có phép trừ, nên không query string nào nới rộng được. Tách riêng để các truy vấn gộp (đếm
@@ -272,7 +277,7 @@ public abstract class CatalogService<
     private void requireCodeAvailable(T item, String code, Long selfId) {
         findSameCode(item, code).ifPresent(existing -> {
             if (!existing.getId().equals(selfId)) {
-                // Danh mục có quy tắc sinh mã: nói luôn mã kế tiếp còn trống (QLTB-178), như mã của trường.
+                // Danh mục có quy tắc sinh mã: nói luôn mã kế tiếp còn trống, như mã của trường.
                 String target = codeTarget();
                 Optional<String> next = target == null ? Optional.empty() : codeGenerator.peek(target);
                 if (next.isPresent()) {

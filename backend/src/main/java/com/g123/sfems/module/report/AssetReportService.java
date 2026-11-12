@@ -4,6 +4,7 @@ import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +30,18 @@ public class AssetReportService {
     @Transactional(readOnly = true)
     public AssetReportResponse get(String fromValue, String toValue, Long schoolId, Long subjectId,
             Long equipmentTypeId, String requestedStatus, Long originId) {
+        return get(fromValue, toValue, schoolId, subjectId, equipmentTypeId, requestedStatus, originId, ROW_LIMIT, null);
+    }
+
+    @Transactional(readOnly = true)
+    public AssetReportResponse getForExport(String fromValue, String toValue, Long schoolId, Long subjectId,
+            Long equipmentTypeId, String requestedStatus, Long originId, String search) {
+        return get(fromValue, toValue, schoolId, subjectId, equipmentTypeId, requestedStatus, originId,
+                null, search);
+    }
+
+    private AssetReportResponse get(String fromValue, String toValue, Long schoolId, Long subjectId,
+            Long equipmentTypeId, String requestedStatus, Long originId, Integer rowLimit, String search) {
         LocalDate today = LocalDate.now();
         LocalDate to = parseOr(toValue, today);
         LocalDate earliest = jdbc.query("SELECT MIN(e.received_date) FROM equipment e WHERE e.active "
@@ -36,7 +49,7 @@ public class AssetReportService {
                 rs -> { Date date = rs.next() ? rs.getDate(1) : null; return date == null ? null : date.toLocalDate(); },
                 Date.valueOf(to));
         LocalDate from = parseOr(fromValue, earliest == null ? to.withDayOfYear(1) : earliest);
-        if (from.isAfter(to)) from = to;
+        if (from.isAfter(to)) throw new IllegalArgumentException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
         // Immutable Set implementations reject null in contains(), while the filter is optional.
         String status = requestedStatus != null && STATUSES.contains(requestedStatus) ? requestedStatus : null;
         String scope = visible.level();
@@ -52,6 +65,11 @@ public class AssetReportService {
         if (equipmentTypeId != null) { where += " AND c.equipment_type_id = ?"; args.add(equipmentTypeId); }
         if (status != null) { where += " AND e.status = ?"; args.add(status); }
         if (originId != null) { where += " AND e.origin_source_id = ?"; args.add(originId); }
+        if (search != null && !search.isBlank()) {
+            where += " AND (e.code ILIKE ? OR e.name ILIKE ? OR s.name ILIKE ?)";
+            String pattern = "%" + search.trim() + "%";
+            args.add(pattern); args.add(pattern); args.add(pattern);
+        }
         String joins = " FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id "
                 + "JOIN schools s ON s.id = e.school_id "
                 + "LEFT JOIN subjects sub ON sub.id = c.subject_id "
@@ -81,11 +99,15 @@ public class AssetReportService {
 
         Long total = jdbc.queryForObject("SELECT COUNT(*)" + joins + where, Long.class, args.toArray());
         List<Object> rowArgs = new ArrayList<>(args);
-        rowArgs.add(ROW_LIMIT);
+        String rowLimitSql = "";
+        if (rowLimit != null) {
+            rowLimitSql = " LIMIT ?";
+            rowArgs.add(rowLimit);
+        }
         List<AssetReportResponse.Row> rows = jdbc.query("""
                 SELECT e.id, e.code, e.name, s.name, sub.name, et.name, e.status, os.name,
                        e.condition, e.quantity, e.original_value, e.received_date
-                """ + joins + where + " ORDER BY s.name, e.code LIMIT ?",
+                """ + joins + where + " ORDER BY s.name, e.code" + rowLimitSql,
                 (rs, n) -> new AssetReportResponse.Row(rs.getLong(1), rs.getString(2), rs.getString(3),
                         rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), statusLabel(rs.getString(7)),
                         rs.getString(8), rs.getString(9), rs.getBigDecimal(10), rs.getBigDecimal(11),
@@ -114,7 +136,7 @@ public class AssetReportService {
                 new AssetReportResponse.Option(null, "LOST", "Đã mất"));
         return new AssetReportResponse(scope, from.toString(), to.toString(),
                 new AssetReportResponse.Filters(schools, subjects, equipmentTypes, origins, statuses), summary,
-                total == null ? 0 : total, total != null && total > ROW_LIMIT, rows);
+                total == null ? 0 : total, rowLimit != null && total != null && total > rowLimit, rows);
     }
 
     private List<AssetReportResponse.Option> options(String sql, List<Object> args) {
@@ -123,7 +145,12 @@ public class AssetReportService {
     }
 
     private static LocalDate parseOr(String value, LocalDate fallback) {
-        return value == null || value.isBlank() ? fallback : LocalDate.parse(value);
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException("Ngày phải đúng định dạng yyyy-MM-dd: " + value, exception);
+        }
     }
 
     private static AssetReportResponse.Summary emptySummary() {

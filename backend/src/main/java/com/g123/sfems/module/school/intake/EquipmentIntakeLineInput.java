@@ -56,5 +56,14 @@ public record EquipmentIntakeLineInput(
         @Size(max = 255, message = "Hãng sản xuất tối đa 255 ký tự")
         String manufacturer,
         @Size(max = 255, message = "Ghi chú tối đa 255 ký tự")
-        String note) {
+        String note,
+        IdRef movementReason,
+        /** Id của dòng đang có (sửa phiếu); vắng là dòng mới. Giữ id để tệp hoá đơn gắn theo dòng còn bám vào. */
+        Long id,
+        /** Hạn sử dụng của lô vật tư, hoá chất. */
+        LocalDate expiryDate,
+        /** Quy cách bao bì: đơn vị bao bì và lượng đơn vị của thiết bị trong một bao bì. */
+        IdRef packUnit,
+        @DecimalMin(value = "0.001", message = "Lượng trong một bao bì phải lớn hơn 0")
+        BigDecimal packSize) {
 }

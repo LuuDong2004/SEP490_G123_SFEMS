@@ -45,6 +45,10 @@ public class Attachment extends BaseEntity {
     @Column(name = "is_cover", nullable = false)
     private boolean cover;
 
+    /** Cách đóng khung vuông của ảnh đại diện: "x,y,zoom" (tâm theo %, zoom >= 1). Ảnh gốc giữ nguyên. */
+    @Column(name = "cover_crop", length = 100)
+    private String coverCrop;
+
     public String getResource() {
         return resource;
     }
@@ -107,5 +111,13 @@ public class Attachment extends BaseEntity {
 
     public void setCover(boolean cover) {
         this.cover = cover;
+    }
+
+    public String getCoverCrop() {
+        return coverCrop;
+    }
+
+    public void setCoverCrop(String coverCrop) {
+        this.coverCrop = coverCrop;
     }
 }

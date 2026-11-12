@@ -129,14 +129,16 @@ public class AuthService {
         Optional<User> found = userService.findForAuthentication(request.username());
         Instant now = Instant.now();
 
-        // Đang khoá tạm (sai mật khẩu 5 lần, QLTB-509): từ chối trước khi so mật khẩu, kể cả mật khẩu đúng.
-        found.filter(User::canSignIn).ifPresent(candidate -> loginGuard.requireNotLocked(candidate, now));
-
         String hash = found.map(User::getPasswordHash).orElse(DUMMY_HASH);
         boolean passwordMatches = passwordEncoder.matches(request.password(), hash);
 
+        // Đang khoá tạm (sai mật khẩu 5 lần, QLTB-509): từ chối kể cả mật khẩu đúng. Kiểm SAU khi so mật khẩu và
+        // báo cùng một câu, để không ai đoán được tài khoản có thật qua câu báo hay thời gian trả lời (GBR-01).
+        found.filter(User::canSignIn)
+                .ifPresent(candidate -> loginGuard.requireNotLocked(candidate, now, INVALID_CREDENTIALS));
+
         if (found.isPresent() && found.get().canSignIn() && !passwordMatches) {
-            // Đếm trong giao dịch riêng; lần thứ 5 thì khoá 15 phút và câu báo nói rõ điều đó.
+            // Đếm trong giao dịch riêng; lần thứ 5 thì khoá 15 phút, câu báo vẫn như mọi lần sai.
             loginGuard.recordFailure(found.get().getId(), INVALID_CREDENTIALS);
         }
         User user = found

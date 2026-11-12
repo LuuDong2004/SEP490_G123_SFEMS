@@ -4,7 +4,6 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,13 +21,10 @@ public class VisibleSchools {
 
     private final RowLevelPrincipalResolver principals;
     private final ManagedSchoolsCache managedSchools;
-    private final JdbcTemplate jdbc;
 
-    public VisibleSchools(RowLevelPrincipalResolver principals, ManagedSchoolsCache managedSchools,
-            JdbcTemplate jdbc) {
+    public VisibleSchools(RowLevelPrincipalResolver principals, ManagedSchoolsCache managedSchools) {
         this.principals = principals;
         this.managedSchools = managedSchools;
-        this.jdbc = jdbc;
     }
 
     /** Tập id trường; {@code null} nghĩa là mọi trường. */
@@ -79,12 +75,8 @@ public class VisibleSchools {
                 + ") ";
     }
 
+    /** Sở (cấp thành phố) hay không — đọc từ bộ nhớ đệm, không chạm CSDL (gọi ở mỗi {@link #sqlFilter}). */
     public boolean isCityBody(Long bodyId) {
-        if (bodyId == null) {
-            return false;
-        }
-        String type = jdbc.queryForObject("SELECT type FROM departments_of_education WHERE id = ?", String.class,
-                bodyId);
-        return "SO".equals(type);
+        return managedSchools.isCityBody(bodyId);
     }
 }

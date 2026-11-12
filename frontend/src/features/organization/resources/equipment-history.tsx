@@ -11,6 +11,7 @@ import {
 import type { ReactNode } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { CrossLink } from "@/shared/components/cross-link";
 import { Timeline, TimelineItem, type TimelineTone } from "@/shared/components/timeline";
 import { formatDateTime } from "@/shared/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -43,6 +44,12 @@ const ACTION_TONE: Record<EquipmentHistoryAction, TimelineTone> = {
   SUA_CHUA: "warning",
   THANH_LY: "neutral",
   MAT: "destructive",
+};
+
+/** Đường dẫn màn của từng loại phiếu có thể đứng sau một dòng lịch sử. */
+const VOUCHER_PATHS: Record<string, string> = {
+  equipment_intakes: "/equipment-intakes",
+  inventory_sessions: "/inventory-sessions",
 };
 
 /** Giá trị lưu ở backend là tên hằng; trường status/condition hiện nhãn tiếng Việt. */
@@ -95,9 +102,26 @@ export function EquipmentHistoryCard({ equipmentId }: { equipmentId: number }) {
               >
                 <div className="text-sm">{describe(row)}</div>
                 {row.voucherCode ? (
-                  <div className="text-muted-foreground text-xs">Theo phiếu {row.voucherCode}</div>
+                  <div className="text-muted-foreground text-xs">
+                    Theo phiếu{" "}
+                    {/* Phiếu có màn riêng thì bấm sang được — truy ngược tài sản về chứng từ đã sinh ra nó. */}
+                    {row.voucherResource && row.voucherId && VOUCHER_PATHS[row.voucherResource] ? (
+                      <CrossLink
+                        to={`${VOUCHER_PATHS[row.voucherResource]}/show/${row.voucherId}`}
+                        resource={row.voucherResource}
+                        action="list"
+                        plain
+                        className="text-primary hover:underline"
+                      >
+                        {row.voucherCode}
+                      </CrossLink>
+                    ) : (
+                      row.voucherCode
+                    )}
+                  </div>
                 ) : null}
-                {row.note ? <div className="text-muted-foreground text-xs">{row.note}</div> : null}
+                {/* Dòng sự kiện (không gắn trường nào) đã lấy ghi chú làm nội dung chính — không lặp lại. */}
+                {row.note && row.field ? <div className="text-muted-foreground text-xs">{row.note}</div> : null}
               </TimelineItem>
             ))}
           </Timeline>

@@ -37,6 +37,9 @@ public record SchoolPatchRequest(
 
         EducationLevelRef educationLevel,
 
+        /** Loại hình trường — tuỳ chọn. */
+        SchoolTypeRef schoolType,
+
         @Pattern(
                 regexp = "^$|^[A-Za-z0-9]{2}$",
                 message = "Mã hai ký tự của trường phải đúng 2 ký tự chữ hoặc số")

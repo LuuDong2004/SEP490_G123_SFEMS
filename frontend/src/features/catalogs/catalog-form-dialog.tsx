@@ -8,6 +8,7 @@ import { isRecordMissing, RecordNotFound } from "@/shared/components/views/recor
 import { Button } from "@/shared/ui/button";
 import { Form } from "@/shared/ui/form";
 import { SwitchField } from "@/features/catalogs/switch-field";
+import { useSuggestedCode } from "@/features/catalogs/use-suggested-code";
 import {
   BASE_FORM_DEFAULTS,
   BASE_FORM_KEYS,
@@ -40,6 +41,9 @@ export function CatalogFormDialog({
     refineCoreProps: { resource: config.resource, action, id, redirect: "list" },
     defaultValues: { ...BASE_FORM_DEFAULTS, ...config.extraDefaults },
   });
+
+  // Thêm mới: điền sẵn mã kế tiếp theo quy tắc sinh mã của danh mục (mã gõ tay như phường/xã thì không).
+  const suggestedCode = useSuggestedCode(config.resource, form, isCreate && !config.codeRequired);
 
   // Form nạp NGUYÊN bản ghi (kèm id, ngày tạo…); chỉ gửi lên những trường form thật sự sửa.
   function onSubmit(values: CatalogFormValues) {
@@ -79,7 +83,11 @@ export function CatalogFormDialog({
             label={config.codeLabel ?? "Mã"}
             placeholder={config.codePlaceholder}
             description={
-              config.codeRequired ? undefined : "Để trống để hệ thống tự cấp theo quy tắc sinh mã (nếu đã khai)."
+              config.codeRequired
+                ? undefined
+                : suggestedCode
+                  ? "Mã tự động, bạn vẫn sửa được."
+                  : "Để trống để hệ thống tự cấp theo quy tắc sinh mã (nếu đã khai)."
             }
             rules={config.codeRequired ? { required: "Nhập mã" } : undefined}
           />

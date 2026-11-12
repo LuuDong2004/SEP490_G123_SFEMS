@@ -6,6 +6,7 @@ import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.module.catalog.coderule.CodeGenerator;
 import com.g123.sfems.module.catalog.ward.WardService;
 import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
+import com.g123.sfems.module.catalog.schooltype.SchoolTypeService;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.organization.school.api.dto.SchoolPatchRequest;
 import com.g123.sfems.module.organization.school.api.dto.SchoolRequest;
@@ -47,6 +48,7 @@ public class SchoolService {
     private final DepartmentOfEducationService departments;
     private final EducationLevelService educationLevels;
     private final WardService wards;
+    private final SchoolTypeService schoolTypes;
     private final RowLevelSecurity rowLevel;
     private final ManagedSchoolsCache managedSchools;
     private CodeGenerator codes;
@@ -62,6 +64,7 @@ public class SchoolService {
             DepartmentOfEducationService departments,
             EducationLevelService educationLevels,
             WardService wards,
+            SchoolTypeService schoolTypes,
             RowLevelSecurity rowLevel,
             ManagedSchoolsCache managedSchools) {
         this.repository = repository;
@@ -69,6 +72,7 @@ public class SchoolService {
         this.departments = departments;
         this.educationLevels = educationLevels;
         this.wards = wards;
+        this.schoolTypes = schoolTypes;
         this.rowLevel = rowLevel;
     }
 
@@ -118,7 +122,13 @@ public class SchoolService {
         if (request.educationLevel() != null && request.educationLevel().id() != null) {
             school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
         }
-        String shortCode = trimToNull(request.shortCode());
+        if (request.schoolType() != null && request.schoolType().id() != null) {
+            school.setSchoolType(schoolTypes.get(request.schoolType().id()));
+        }
+        String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
+        if (shortCode != null) {
+            requireShortCodeAvailable(shortCode, null);
+        }
         school.setShortCode(shortCode == null ? nextShortCode() : shortCode);
         school.setMoetCode(trimToNull(request.moetCode()));
         if (request.ward() != null && request.ward().id() != null) {
@@ -138,29 +148,20 @@ public class SchoolService {
     }
 
     /**
-     * Mã hai ký tự kế tiếp còn trống: 01…99, rồi A0…Z9, rồi AA…ZZ. Đây là thành phần TR của mã tài
-     * sản in trên tem, nên chỉ cấp MỘT lần lúc tạo trường — không tự đổi về sau.
+     * Mã hai ký tự kế tiếp còn trống ({@link SchoolShortCodes}). Đây là thành phần TR của mã tài sản in trên
+     * tem, nên chỉ cấp MỘT lần lúc tạo trường — không tự đổi về sau.
      */
     private String nextShortCode() {
-        Set<String> taken = new HashSet<>(repository.findAllShortCodes());
-        String digits = "0123456789";
-        String letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        List<String> candidates = new ArrayList<>();
-        for (int i = 1; i < 100; i++) {
-            candidates.add(String.format("%02d", i));
-        }
-        for (char a : letters.toCharArray()) {
-            for (char d : digits.toCharArray()) {
-                candidates.add("" + a + d);
+        return SchoolShortCodes.next(new HashSet<>(repository.findAllShortCodes()));
+    }
+
+    /** Mã hai ký tự là duy nhất toàn hệ thống: hai trường cùng TR thì sinh trùng mã tài sản (NV-33). */
+    private void requireShortCodeAvailable(String shortCode, Long selfId) {
+        for (School existing : repository.findByShortCode(shortCode)) {
+            if (!existing.getId().equals(selfId)) {
+                throw new ConflictException("Mã hai ký tự %s đang là của %s".formatted(shortCode, existing.getName()));
             }
         }
-        for (char a : letters.toCharArray()) {
-            for (char b : letters.toCharArray()) {
-                candidates.add("" + a + b);
-            }
-        }
-        return candidates.stream().filter(c -> !taken.contains(c)).findFirst()
-                .orElseThrow(() -> new ConflictException("Đã hết mã hai ký tự để cấp cho trường mới"));
     }
 
     /** Quy tắc "schools" bị tắt: vẫn cấp được mã, TR + số lớn nhất đang có + 1. */
@@ -202,8 +203,16 @@ public class SchoolService {
             EducationLevel level = levelId == null ? null : educationLevels.get(levelId);
             school.setEducationLevel(level);
         }
+        if (request.schoolType() != null) {
+            Long typeId = request.schoolType().id();
+            school.setSchoolType(typeId == null ? null : schoolTypes.get(typeId));
+        }
         if (request.shortCode() != null) {
-            school.setShortCode(trimToNull(request.shortCode()));
+            String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
+            if (shortCode != null) {
+                requireShortCodeAvailable(shortCode, school.getId());
+            }
+            school.setShortCode(shortCode);
         }
         if (request.moetCode() != null) {
             school.setMoetCode(trimToNull(request.moetCode()));

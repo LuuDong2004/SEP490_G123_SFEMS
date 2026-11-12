@@ -53,6 +53,7 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingCart,
+  SlidersHorizontal,
   Tag,
   University,
   Users,
@@ -90,9 +91,12 @@ export const resources: ResourceProps[] = [
   // ── Thiết bị (TS-01 – TS-07, NghiaNV)
   { name: "equipment_mgmt", meta: { label: "Thiết bị", icon: icon(Boxes), module: true, home: "equipment" } },
   { ...crud("equipment", "/equipment"), meta: { label: "Thiết bị", tabLabel: "Danh sách thiết bị", icon: icon(Boxes), parent: "equipment_mgmt", tabOrder: 1 } },
+  // Ghi tăng (PN-01 – PN-03, DongLV) là một tab của phân hệ Thiết bị, không đứng riêng trên menu:
+  // thiết bị mới vào sổ bằng phiếu ghi tăng, nên lối vào nằm cạnh danh sách thiết bị.
+  { ...crud("equipment_intakes", "/equipment-intakes"), meta: { label: "Ghi tăng", icon: icon(FileInput), parent: "equipment_mgmt", tabOrder: 2 } },
   // Tra cứu theo mã (TS-02) mượn quyền equipment:read (xem `PERMISSION_ALIASES`).
-  { name: "equipment_lookup", list: "/equipment-lookup", meta: { label: "Tra cứu theo mã", icon: icon(ScanLine), parent: "equipment_mgmt", tabOrder: 2 } },
-  { name: "data_imports", list: "/data-imports", show: "/data-imports/show/:id", meta: { label: "Nhập từ tệp", icon: icon(FileSpreadsheet), parent: "equipment_mgmt", tabOrder: 3 } },
+  { name: "equipment_lookup", list: "/equipment-lookup", meta: { label: "Tra cứu theo mã", icon: icon(ScanLine), parent: "equipment_mgmt", tabOrder: 3 } },
+  { name: "data_imports", list: "/data-imports", show: "/data-imports/show/:id", meta: { label: "Nhập từ tệp", icon: icon(FileSpreadsheet), parent: "equipment_mgmt", tabOrder: 4 } },
 
   // ── Mua sắm (NC-01 – NC-07, HoangPND)
   { name: "procurement", meta: { label: "Mua sắm", icon: icon(ShoppingCart), module: true, home: "purchase_proposals" } },
@@ -100,10 +104,6 @@ export const resources: ResourceProps[] = [
   { name: "equipment_adequacy", list: "/equipment-adequacy", meta: { label: "Mức đáp ứng định mức", icon: icon(Gauge), parent: "procurement", tabOrder: 1 } },
   { ...crud("purchase_proposals", "/purchase-proposals"), meta: { label: "Đề xuất mua sắm", icon: icon(ClipboardList), parent: "procurement", tabOrder: 2 } },
   { ...crud("procurement_plans", "/procurement-plans"), meta: { label: "Kế hoạch mua sắm", icon: icon(ClipboardCheck), parent: "procurement", tabOrder: 3 } },
-
-  // ── Nhập thiết bị – ghi tăng tài sản (PN-01 – PN-03, DongLV). Phân hệ một tab: thanh tab tự ẩn.
-  { name: "intake", meta: { label: "Nhập thiết bị", icon: icon(FileInput), module: true, home: "equipment_intakes" } },
-  { ...crud("equipment_intakes", "/equipment-intakes"), meta: { label: "Phiếu nhập thiết bị", icon: icon(FileInput), parent: "intake", tabOrder: 1 } },
 
   // ── Kiểm kê (KK-01 – KK-07, TuTN)
   { name: "inventory", meta: { label: "Kiểm kê", icon: icon(ClipboardList), module: true, home: "inventory_sessions" } },
@@ -133,16 +133,23 @@ export const resources: ResourceProps[] = [
   { name: "catalog_equip", meta: { label: "Tài sản và thiết bị", icon: icon(Boxes), parent: "catalog", module: true } },
   { ...crud("equipment_types", "/catalogs/equipment-types"), meta: { label: "Loại thiết bị", icon: icon(Tag), parent: "catalog_equip" } },
   { ...crud("units", "/catalogs/units"), meta: { label: "Đơn vị tính", icon: icon(Ruler), parent: "catalog_equip" } },
+  { ...crud("equipment_configs", "/catalogs/equipment-configs"), meta: { label: "Bộ thông số kỹ thuật", icon: icon(SlidersHorizontal), parent: "catalog_equip" } },
   { ...crud("equipment_catalogs", "/catalogs/equipment-catalogs"), meta: { label: "Danh mục thiết bị", icon: icon(Package), parent: "catalog_equip" } },
   { ...crud("equipment_standards", "/catalogs/equipment-standards"), meta: { label: "Danh mục tối thiểu và định mức", icon: icon(ListChecks), parent: "catalog_equip" } },
   // Dòng định mức (DM-03) nằm trong màn bộ danh mục tối thiểu, có route riêng nhưng không lên cột trái.
   { ...crud("equipment_norms", "/catalogs/equipment-norms"), meta: { label: "Định mức thiết bị", icon: icon(ListChecks), parent: "catalog_equip", hide: true } },
   { name: "catalog_finance", meta: { label: "Tài chính", icon: icon(Wallet), parent: "catalog", module: true } },
   { ...crud("origin_sources", "/catalogs/origin-sources"), meta: { label: "Nguồn hình thành", icon: icon(Banknote), parent: "catalog_finance" } },
-  { ...crud("acquisition_methods", "/catalogs/acquisition-methods"), meta: { label: "Phương thức hình thành", icon: icon(ShoppingCart), parent: "catalog_finance" } },
+  { ...crud("acquisition_methods", "/catalogs/acquisition-methods"), meta: { label: "Hình thức mua sắm", icon: icon(ShoppingCart), parent: "catalog_finance" } },
   { name: "catalog_business", meta: { label: "Danh mục nghiệp vụ", icon: icon(FileCog), parent: "catalog", module: true } },
   { ...crud("movement_reasons", "/catalogs/movement-reasons"), meta: { label: "Lý do biến động", icon: icon(ArrowRightLeft), parent: "catalog_business" } },
-  { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Quy tắc sinh mã", icon: icon(Hash), parent: "catalog_business" } },
+  { ...crud("code_rules", "/catalogs/code-rules"), meta: { label: "Mã tự động của danh mục chung", icon: icon(Hash), parent: "catalog_business" } },
+  // Danh mục cố định, chỉ đọc: chỉ có màn danh sách, không lên menu hay thanh tab — chúng chỉ là lựa
+  // chọn trong ô chọn của form; đường dẫn vẫn mở được.
+  { name: "asset_categories", list: "/catalogs/asset-categories", meta: { label: "Loại tài sản", icon: icon(Tag), parent: "catalog_equip", hide: true } },
+  { name: "usage_purposes", list: "/catalogs/usage-purposes", meta: { label: "Mục đích sử dụng thiết bị", icon: icon(ListChecks), parent: "catalog_equip", hide: true } },
+  { name: "funding_sources", list: "/catalogs/funding-sources", meta: { label: "Nguồn kinh phí", icon: icon(Banknote), parent: "catalog_finance", hide: true } },
+  { name: "staff_positions", list: "/catalogs/staff-positions", meta: { label: "Chức vụ", icon: icon(Award), parent: "catalog_business", hide: true } },
 
   // ── Quản trị hệ thống (HT-04, HT-05, DongLV)
   { name: "administration", meta: { label: "Quản trị hệ thống", icon: icon(Settings2), group: true } },

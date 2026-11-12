@@ -54,6 +54,7 @@ public class VoucherWorkflow {
     private final JdbcTemplate jdbc;
     private final ApprovalFlowService approvalFlows;
     private final ApplicationEventPublisher publisher;
+    private final InventoryFreeze inventoryFreeze;
 
     public VoucherWorkflow(
             VoucherEventRepository events,
@@ -62,7 +63,8 @@ public class VoucherWorkflow {
             ManagedSchoolsCache managedSchools,
             JdbcTemplate jdbc,
             ApprovalFlowService approvalFlows,
-            ApplicationEventPublisher publisher) {
+            ApplicationEventPublisher publisher,
+            InventoryFreeze inventoryFreeze) {
         this.events = events;
         this.numbers = numbers;
         this.principals = principals;
@@ -70,6 +72,7 @@ public class VoucherWorkflow {
         this.jdbc = jdbc;
         this.approvalFlows = approvalFlows;
         this.publisher = publisher;
+        this.inventoryFreeze = inventoryFreeze;
     }
 
     // ------------------------------------------------------------------ chuyển trạng thái
@@ -82,6 +85,8 @@ public class VoucherWorkflow {
      */
     public boolean submit(SchoolVoucher voucher) {
         require(voucher, VoucherStatus.DRAFT, "trình");
+        // Đang kiểm kê thì số liệu khoá — một chỗ cho mọi loại phiếu đi qua vòng duyệt chung.
+        inventoryFreeze.requireNotFrozen(voucher.resource(), voucher.getId());
         if (voucher.getCode() == null) {
             voucher.setCode(numbers.reserve(voucher.getSchool(), voucher.numberPrefix(), voucher.documentDate()));
         }
@@ -96,6 +101,7 @@ public class VoucherWorkflow {
         voucher.setApprovalStep(first);
         voucher.setStatus(first == null ? VoucherStatus.APPROVED : VoucherStatus.PENDING);
         record(voucher, Action.SUBMIT, from, null, null);
+        if (first != null) publishAwaitingApproval(voucher, first);
         return first == null;
     }
 
@@ -108,11 +114,13 @@ public class VoucherWorkflow {
     public boolean approve(SchoolVoucher voucher, String note) {
         require(voucher, VoucherStatus.PENDING, "duyệt");
         requireTier(voucher);
+        inventoryFreeze.requireNotFrozen(voucher.resource(), voucher.getId());
         ApprovalStep step = voucher.getApprovalStep();
         ApprovalStep next = nextStep(voucher, step);
         if (next != null) {
             voucher.setApprovalStep(next);
             record(voucher, Action.APPROVE, VoucherStatus.PENDING, step, trimToNull(note));
+            publishAwaitingApproval(voucher, next);
             return false;
         }
         voucher.setApprovalStep(null);
@@ -169,10 +177,17 @@ public class VoucherWorkflow {
         if (voucher.getStatus() != VoucherStatus.DRAFT && voucher.getStatus() != VoucherStatus.CANCELLED) {
             throw new FieldValidationException("status", "Chỉ xoá được phiếu nháp hoặc phiếu đã huỷ");
         }
-        if (voucher.getCode() != null || events.existsByResourceAndVoucherId(voucher.resource(), voucher.getId())) {
+        // Huỷ một phiếu nháp cũng ghi một dòng CANCEL; dòng đó không có nghĩa là phiếu từng được trình.
+        if (voucher.getCode() != null
+                || events.existsByResourceAndVoucherIdAndActionNot(voucher.resource(), voucher.getId(), Action.CANCEL)) {
             throw new FieldValidationException("status",
                     "Phiếu đã từng được trình, không xoá được — nó đã có số và nhật ký duyệt. Hãy huỷ phiếu");
         }
+    }
+
+    /** Xoá nhật ký của phiếu sắp bị xoá (chỉ còn dòng CANCEL); bảng nhật ký không có khoá ngoại nên phải tự dọn. */
+    public void forgetEvents(SchoolVoucher voucher) {
+        events.deleteByResourceAndVoucherId(voucher.resource(), voucher.getId());
     }
 
     // ------------------------------------------------------------------ ai làm được gì
@@ -321,6 +336,13 @@ public class VoucherWorkflow {
         Long recipient = voucher.getSubmittedById() != null ? voucher.getSubmittedById() : voucher.getCreatedById();
         publisher.publishEvent(new VoucherDecided(voucher.resource(), voucher.getId(), voucher.getCode(), decision,
                 message, recipient));
+    }
+
+    private void publishAwaitingApproval(SchoolVoucher voucher, ApprovalStep step) {
+        Long schoolId = voucher.getSchool() == null ? null : voucher.getSchool().getId();
+        Long managingBodyId = voucher.getSchool() == null ? null : bodyId(voucher.getSchool());
+        publisher.publishEvent(new VoucherAwaitingApproval(voucher.resource(), voucher.getId(), voucher.getCode(),
+                schoolId, managingBodyId, step));
     }
 
     private void requireTier(SchoolVoucher voucher) {
