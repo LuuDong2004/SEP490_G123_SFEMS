@@ -15,13 +15,16 @@ import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.equipment.EquipmentHistory;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
+import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.school.coderule.AssetCodeService;
+import com.g123.sfems.module.school.voucher.InventoryFindings;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -39,9 +42,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hibernate.Hibernate;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Phiếu nhập thiết bị (PN-01..03): lập, sửa nháp, trình, và ghi tăng tài sản lúc duyệt cuối. Vòng duyệt
@@ -503,6 +508,53 @@ public class EquipmentIntakeService
 
     private static int received(EquipmentIntakeLine line) {
         return line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
+    }
+
+    // ------------------------------------------------------------------ lập từ biên bản kiểm kê
+
+    /**
+     * Kiểm kê thấy tài sản THỪA (KK-06): lập một phiếu nhập NHÁP mang các dòng đó, nguồn hình thành "Kiểm kê thừa",
+     * nguồn chứng từ là biên bản. Ghi tăng vẫn phải qua lãnh đạo trường duyệt như mọi lần ghi tăng khác.
+     */
+    @EventListener
+    @Transactional
+    public void onSurplus(InventoryFindings.Surplus findings) {
+        EquipmentIntake draft = new EquipmentIntake();
+        draft.setSchool(schools.get(findings.schoolId()));
+        draft.setStatus(VoucherStatus.DRAFT);
+        draft.setIntakeDate(LocalDate.now());
+        draft.setSchoolYear(currentSchoolYear());
+        draft.setOriginSource(originSourceOf(OriginRule.KIEM_KE_THUA));
+        draft.setSource("inventory_sessions", findings.sourceId(), findings.sourceCode());
+        draft.setNote("Ghi tăng tài sản thừa theo biên bản kiểm kê " + findings.sourceCode());
+        List<EquipmentIntakeLine> lines = new ArrayList<>();
+        int lineNo = 1;
+        for (InventoryFindings.Item item : findings.items()) {
+            EquipmentIntakeLine line = new EquipmentIntakeLine();
+            line.setLineNo(lineNo++);
+            line.setCatalog(entityManager.getReference(EquipmentCatalog.class, item.catalogId()));
+            line.setName(item.name());
+            line.setPhysicalOrDigital(PhysicalDigitalType.PHYSICAL);
+            line.setDocumentQuantity(item.quantity());
+            line.setReceivedQuantity(item.quantity());
+            line.setRoom(item.roomId() == null ? null : entityManager.getReference(Room.class, item.roomId()));
+            lines.add(line);
+        }
+        draft.replaceLines(lines);
+        repository.persist(draft);
+    }
+
+    /** Năm học đang dùng; chưa khai thì để trống, người lập chọn khi sửa phiếu nháp. */
+    private SchoolYear currentSchoolYear() {
+        return entityManager.createQuery("select y from SchoolYear y where y.current = true", SchoolYear.class)
+                .getResultStream().findFirst().orElse(null);
+    }
+
+    /** Dòng danh mục của một trong sáu nguồn hình thành cố định — mã dòng chính là tên luật. */
+    private OriginSource originSourceOf(OriginRule rule) {
+        return entityManager.createQuery("select o from OriginSource o where o.code = :code", OriginSource.class)
+                .setParameter("code", rule.name())
+                .getResultStream().findFirst().orElse(null);
     }
 
     // ------------------------------------------------------------------ ghi tăng
