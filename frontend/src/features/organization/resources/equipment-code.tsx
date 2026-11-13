@@ -73,31 +73,53 @@ export function CodeSuggestion({ control }: { control: Control<any> }) {
 }
 
 /**
- * Ô "Mã tài sản" của form SỬA: chỉ đọc. Mã cũ (chưa theo chuẩn) hiện nút "Cấp mã chuẩn", gọi
- * `POST /equipment/{id}/standard-code`. Mã cũ được giữ ở "Mã cũ" để tra tem đã in.
+ * Ô "Mã tài sản" của form SỬA: chỉ đọc. Nút "Cấp mã chuẩn" không nằm ở đây mà ở màn Hồ sơ (TS-05), xem
+ * {@link StandardCodeButton}. Mã cũ được giữ ở "Mã cũ" để tra tem đã in.
  */
-export function CodeField({
-  control,
-  recordId,
-  onChanged,
-}: {
-  control: Control<any>;
-  recordId: number | undefined;
-  onChanged: () => void;
-}) {
+export function CodeField({ control }: { control: Control<any> }) {
   const code: string = useWatch({ control, name: "code" }) ?? "";
   const isStandard = STANDARD_CODE.test(code);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Mã tài sản</Label>
+      <div className="border-input bg-muted/40 flex h-9 items-center rounded-md border px-3">
+        <span className="truncate font-mono text-sm">{code || "—"}</span>
+      </div>
+      {!isStandard && code ? (
+        <p className="text-muted-foreground text-xs">Mã chưa theo chuẩn TT.TR.MH.LT.ST.NC.</p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Nút "Cấp mã chuẩn" (TS-05) trên màn Hồ sơ. Chỉ hiện khi mã còn cũ và người xem được ghi thiết bị.
+ * Gọi `POST /equipment/{id}/standard-code`; xong thì {@code onDone} tải lại hồ sơ.
+ */
+export function StandardCodeButton({
+  equipmentId,
+  code,
+  canWrite,
+  onDone,
+}: {
+  equipmentId: number;
+  code: string;
+  canWrite: boolean;
+  onDone: () => void;
+}) {
   const { mutate, mutation } = useCustomMutation();
   const { open } = useNotification();
 
+  if (!canWrite || STANDARD_CODE.test(code)) return null;
+
   const standardize = () => {
-    if (!recordId) return;
     mutate(
-      { url: `${API_URL}/equipment/${recordId}/standard-code`, method: "post", values: {} },
+      { url: `${API_URL}/equipment/${equipmentId}/standard-code`, method: "post", values: {} },
       {
         onSuccess: () => {
           open?.({ type: "success", message: "Đã cấp mã chuẩn" });
-          onChanged();
+          onDone();
         },
         onError: (error: any) => {
           open?.({ type: "error", message: error?.message ?? "Không cấp được mã chuẩn" });
@@ -107,19 +129,8 @@ export function CodeField({
   };
 
   return (
-    <div className="space-y-1.5">
-      <Label>Mã tài sản</Label>
-      <div className="border-input bg-muted/40 flex h-9 items-center justify-between gap-2 rounded-md border px-3">
-        <span className="truncate font-mono text-sm">{code || "—"}</span>
-        {!isStandard && recordId ? (
-          <Button type="button" size="sm" variant="outline" disabled={mutation.isPending} onClick={standardize}>
-            Cấp mã chuẩn
-          </Button>
-        ) : null}
-      </div>
-      {!isStandard && code ? (
-        <p className="text-muted-foreground text-xs">Mã chưa theo chuẩn TT.TR.MH.LT.ST.NC.</p>
-      ) : null}
-    </div>
+    <Button type="button" size="sm" variant="outline" disabled={mutation.isPending} onClick={standardize}>
+      Cấp mã chuẩn
+    </Button>
   );
 }

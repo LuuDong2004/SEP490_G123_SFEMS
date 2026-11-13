@@ -35,14 +35,14 @@ public class PurchaseReportService {
         args.add(year);
         if (requestedSchoolId != null) { where += " AND p.school_id = ?"; args.add(requestedSchoolId); }
         if (requestedEquipmentId != null) {
-            where += " AND EXISTS (SELECT 1 FROM purchase_proposal_lines f WHERE f.proposal_id = p.id AND f.catalog_id = "
-                    + requestedEquipmentId + ")";
+            where += " AND EXISTS (SELECT 1 FROM purchase_proposal_lines f WHERE f.proposal_id = p.id AND f.catalog_id = ?)";
+            args.add(requestedEquipmentId);
         }
         if (status == null) where += " AND p.status IN ('PENDING','APPROVED','COMPLETED')";
         else { where += " AND p.status = ?"; args.add(status); }
 
-        String equipmentJoinFilter = requestedEquipmentId == null ? "" : " AND l.catalog_id = " + requestedEquipmentId;
-        String receivedEquipmentFilter = requestedEquipmentId == null ? "" : " AND il.catalog_id = " + requestedEquipmentId;
+        String equipmentJoinFilter = requestedEquipmentId == null ? "" : " AND l.catalog_id = ?";
+        String receivedEquipmentFilter = requestedEquipmentId == null ? "" : " AND il.catalog_id = ?";
 
         String proposalTotals = "WITH proposal_totals AS (SELECT p.id, p.school_id, p.status, p.plan_id, "
                 + "COALESCE(SUM(l.quantity),0) AS quantity, "
@@ -63,10 +63,17 @@ public class PurchaseReportService {
                 + " COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('APPROVED','COMPLETED')),0)"
                 + " FROM proposal_totals p JOIN schools s ON s.id = p.school_id "
                 + "LEFT JOIN departments_of_education d ON d.id = s.department_of_education_id";
+        List<Object> queryArgs = new java.util.ArrayList<>();
+        // Placeholder order follows SQL order: received-lines subquery, proposal-line join, then WHERE.
+        if (requestedEquipmentId != null) {
+            queryArgs.add(requestedEquipmentId);
+            queryArgs.add(requestedEquipmentId);
+        }
+        queryArgs.addAll(args);
         List<PurchaseReportResponse.Row> rows = jdbc.query(proposalTotals + select + " GROUP BY " + groupKey + ", "
                         + groupName + " ORDER BY 10 DESC, 2", (rs, n) -> new PurchaseReportResponse.Row(
                 rs.getString(1), rs.getString(2), rs.getLong(3), rs.getLong(4), rs.getLong(5), rs.getLong(6),
-                rs.getLong(7), rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getBigDecimal(10), rs.getBigDecimal(11)), args.toArray());
+                rs.getLong(7), rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getBigDecimal(10), rs.getBigDecimal(11)), queryArgs.toArray());
 
         long proposals = rows.stream().mapToLong(PurchaseReportResponse.Row::proposals).sum();
         long pending = rows.stream().mapToLong(PurchaseReportResponse.Row::pending).sum();

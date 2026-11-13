@@ -1,4 +1,5 @@
 import type { ReportExportColumn } from "./report-export-menu";
+import { useEffect } from "react";
 
 const numberFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 
@@ -14,19 +15,83 @@ function formatCell(value: string | number | null | undefined, column: ReportExp
   return String(value);
 }
 
-export function ReportPrintSheet({ title, scope, subtitle, columns, rows }: {
+export function ReportPrintSheet({ title, scope, issuingUnit, subtitle, columns, rows }: {
   title: string;
   scope: string;
+  /** Đơn vị ban hành in ở góc trái đầu bản in; vắng thì là Sở. */
+  issuingUnit?: string;
   subtitle: string;
   columns: ReportExportColumn[];
   rows: (string | number | null | undefined)[][];
 }) {
   const date = new Intl.DateTimeFormat("vi-VN", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
 
+  useEffect(() => {
+    const applyReportPage = () => {
+      if (document.getElementById("report-print-page-size")) return;
+      const style = document.createElement("style");
+      style.id = "report-print-page-size";
+      style.textContent = `
+        @page { size: A4 landscape; margin: 13mm 12mm; }
+        @media print {
+          html, body, #root, [data-slot="sidebar-inset"] {
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+          }
+          #root, [data-slot="sidebar-inset"], main {
+            display: block !important;
+            max-width: none !important;
+          }
+          [data-slot="sidebar-inset"], main {
+            padding: 0 !important;
+          }
+          #main-content:has(.report-print-sheet),
+          #main-content :is(div, main):has(.report-print-sheet) {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            position: static !important;
+            transform: none !important;
+          }
+          .report-print-sheet {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            page: auto !important;
+          }
+          [data-radix-popper-content-wrapper],
+          [data-slot="dropdown-menu-content"],
+          [role="menu"],
+          [data-sonner-toaster],
+          [data-sonner-toast],
+          .toaster { display: none !important; }
+        }
+      `;
+      document.head.append(style);
+    };
+    const clearReportPage = () => document.getElementById("report-print-page-size")?.remove();
+    window.addEventListener("beforeprint", applyReportPage);
+    window.addEventListener("afterprint", clearReportPage);
+    return () => {
+      window.removeEventListener("beforeprint", applyReportPage);
+      window.removeEventListener("afterprint", clearReportPage);
+      clearReportPage();
+    };
+  }, []);
+
   return (
     <article className="report-print-sheet hidden text-[9pt] leading-snug text-black print:block">
       <header className="grid grid-cols-2 gap-4 text-center">
-        <div className="pt-2 font-semibold uppercase">Sở Giáo dục và Đào tạo<br />Thành phố Hồ Chí Minh</div>
+        <div className="pt-2 font-semibold uppercase">
+          {issuingUnit ?? <>Sở Giáo dục và Đào tạo<br />Thành phố Hồ Chí Minh</>}
+        </div>
         <div>
           <p className="font-bold uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
           <p className="font-semibold">Độc lập - Tự do - Hạnh phúc</p>

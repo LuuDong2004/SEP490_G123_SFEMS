@@ -240,26 +240,12 @@ function LockedValue({ control, name, label, labels }: {
 }
 
 /** Phần khung form dùng chung cho tạo và sửa. */
-function EquipmentFields({
-  control,
-  mode,
-  recordId,
-  onCodeChanged,
-}: {
-  control: any;
-  mode: "create" | "edit";
-  recordId?: number;
-  onCodeChanged?: () => void;
-}) {
+function EquipmentFields({ control, mode }: { control: any; mode: "create" | "edit" }) {
   return (
     <>
       <FormSection title="Nhận diện" compact>
         <div className={GRID}>
-          {mode === "create" ? (
-            <CodeSuggestion control={control} />
-          ) : (
-            <CodeField control={control} recordId={recordId} onChanged={onCodeChanged ?? (() => {})} />
-          )}
+          {mode === "create" ? <CodeSuggestion control={control} /> : <CodeField control={control} />}
           <TextField control={control} name="name" label="Tên thiết bị" className="@3xl:col-span-2" />
           <RefField control={control} name="catalog" label="Danh mục thiết bị" resource="equipment_catalogs" />
           <SelectField control={control} name="physicalOrDigital" label="Loại" options={PHYSICAL_DIGITAL_OPTIONS} />
@@ -403,12 +389,7 @@ export const EquipmentEdit = () => {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormPanel contentClassName="@container space-y-6">
             {record ? <EquipmentPhoto equipmentId={record.id} canWrite={record._can?.write !== false} /> : null}
-            <EquipmentFields
-              control={form.control}
-              mode="edit"
-              recordId={record?.id}
-              onCodeChanged={() => query?.refetch?.()}
-            />
+            <EquipmentFields control={form.control} mode="edit" />
             {record ? (
               <EquipmentAttachmentsCard equipmentId={record.id} canWrite={record._can?.write !== false} />
             ) : null}

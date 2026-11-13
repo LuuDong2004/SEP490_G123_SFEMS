@@ -13,6 +13,7 @@ import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-
 import { FilterField, FilterPopover, OptionChoices } from "@/shared/components/data-table/filter-popover";
 import { VOUCHER_STATUS_LABELS } from "@/domains/voucher/types";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
+import { InventoryFreezeNotice } from "@/shared/components/voucher/inventory-freeze-notice";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { AwaitingMeToggle } from "@/shared/components/voucher/awaiting-me-toggle";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
@@ -161,6 +162,7 @@ export const EquipmentIntakeList = () => {
           </CreateButton>
         }
       />
+      <InventoryFreezeNotice resource="equipment_intakes" />
       <div ref={fillBox.ref} style={{ height: fillBox.height }} className="flex min-h-0 flex-col">
           <DataTable
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

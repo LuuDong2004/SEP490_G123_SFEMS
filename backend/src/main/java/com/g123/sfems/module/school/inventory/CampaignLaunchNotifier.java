@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.inventory;
 
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.module.system.notification.service.NotificationService;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.context.event.EventListener;
@@ -21,9 +22,11 @@ class CampaignLaunchNotifier {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final JdbcTemplate jdbc;
+    private final NotificationService notifications;
 
-    CampaignLaunchNotifier(JdbcTemplate jdbc) {
+    CampaignLaunchNotifier(JdbcTemplate jdbc, NotificationService notifications) {
         this.jdbc = jdbc;
+        this.notifications = notifications;
     }
 
     @EventListener
@@ -41,10 +44,7 @@ class CampaignLaunchNotifier {
         String body = "Chốt số liệu ngày %s, nộp biên bản trước ngày %s. Lập phiếu kiểm kê theo đợt này."
                 .formatted(event.cutoffDate().format(DAY), event.deadline().format(DAY));
         for (Long recipient : recipients) {
-            jdbc.update("""
-                    INSERT INTO notifications (recipient_id, level, title, body, link, created_at)
-                    VALUES (?, ?, ?, ?, '/inventory-sessions', now())
-                    """, recipient, NotificationLevel.INFO.name(), title, body);
+            notifications.notify(recipient, NotificationLevel.INFO, title, body, "/inventory-sessions");
         }
     }
 }

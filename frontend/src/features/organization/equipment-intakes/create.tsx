@@ -1,6 +1,7 @@
 import { useForm } from "@refinedev/react-hook-form";
 import { useSearchParams } from "react-router";
 
+import { InventoryFreezeNotice } from "@/shared/components/voucher/inventory-freeze-notice";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { Form } from "@/shared/ui/form";
 import { IntakeFormBody } from "./form-body";
@@ -35,6 +36,7 @@ export const EquipmentIntakeCreate = () => {
   return (
     <CreateView>
       <CreateViewHeader />
+      <InventoryFreezeNotice resource="equipment_intakes" />
       <Form {...form}>
         <IntakeFormBody onFinish={onFinish} />
       </Form>

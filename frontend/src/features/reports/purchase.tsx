@@ -83,7 +83,8 @@ export function PurchaseReportPage() {
     </header>
 
       <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc cơ quan quản lý"
-      exportData={exportData}
+      exportQuery={{ report: "PURCHASE", search, year, ...(school !== ALL ? { schoolId: school } : {}),
+        ...(equipment !== ALL ? { equipmentId: equipment } : {}), ...(status !== ALL ? { status } : {}) }}
       onReset={() => { setYear(String(new Date().getFullYear())); setSchool(ALL); setEquipment(ALL); setStatus(ALL); setSearch(""); }}
       filters={<>
           <Select value={year} onValueChange={setYear}><SelectTrigger aria-label="Năm ngân sách" className="h-9 w-24 rounded-full px-3 text-xs"><SelectValue placeholder={selectedYearLabel} /></SelectTrigger><SelectContent>{(report?.filters.years ?? [{ key: year, label: year }]).map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent></Select>

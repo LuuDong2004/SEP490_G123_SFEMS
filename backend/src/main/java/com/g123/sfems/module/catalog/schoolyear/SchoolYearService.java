@@ -4,6 +4,9 @@ import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
 import com.g123.sfems.module.catalog.base.CatalogService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import java.util.Comparator;
+import java.util.List;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,6 +17,14 @@ public class SchoolYearService extends CatalogService<SchoolYear, SchoolYearRequ
     public SchoolYearService(SchoolYearRepository repository, RowLevelSecurity rowLevel) {
         super(repository, rowLevel, SchoolYear.class, SchoolYear::new, "Năm học");
         this.repository = repository;
+    }
+
+    /** Active school years for cross-feature summaries, with this feature's read scope applied. */
+    public List<SchoolYear> activeForDashboard() {
+        return listAllScoped(Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("name"))).stream()
+                .filter(year -> Boolean.TRUE.equals(year.getActive()))
+                .sorted(Comparator.comparing(SchoolYear::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
+                .toList();
     }
 
     @Override

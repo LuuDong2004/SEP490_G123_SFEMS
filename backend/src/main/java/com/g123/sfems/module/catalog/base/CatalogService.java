@@ -103,6 +103,11 @@ public abstract class CatalogService<
         return repository.findAll(listSpecification(params), params.pageable(SORTABLE, DEFAULT_SORT));
     }
 
+    /** Returns rows visible to the caller without paging, for bounded reference-data consumers. */
+    protected List<T> listAllScoped(Sort sort) {
+        return repository.findAll(rowLevel.scope(type, Action.READ), sort);
+    }
+
     /**
      * Điều kiện của danh sách — phạm vi trước, bộ lọc của người gọi sau: Specification.and không
      * có phép trừ, nên không query string nào nới rộng được. Tách riêng để các truy vấn gộp (đếm

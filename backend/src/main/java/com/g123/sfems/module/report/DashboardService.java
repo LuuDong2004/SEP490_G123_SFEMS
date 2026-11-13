@@ -1,51 +1,42 @@
 package com.g123.sfems.module.report;
 
 import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
-import com.g123.sfems.domain.organization.School;
-import com.g123.sfems.module.catalog.schoolyear.SchoolYearRepository;
+import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
-import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
-import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /** Tổng hợp số liệu BC-01 từ các bảng nghiệp vụ đã có trong bản đồ án. */
 @Service
 public class DashboardService {
 
-    private final SchoolYearRepository schoolYears;
-    private final RowLevelSecurity rowLevel;
+    private final SchoolYearService schoolYears;
     private final RowLevelPrincipalResolver principals;
     private final VisibleSchools visible;
     private final JdbcTemplate jdbc;
+    private final AdequacyReportService adequacyReports;
 
-    public DashboardService(SchoolYearRepository schoolYears, RowLevelSecurity rowLevel,
-            RowLevelPrincipalResolver principals, VisibleSchools visible, JdbcTemplate jdbc) {
+    public DashboardService(SchoolYearService schoolYears,
+            RowLevelPrincipalResolver principals, VisibleSchools visible, JdbcTemplate jdbc,
+            AdequacyReportService adequacyReports) {
         this.schoolYears = schoolYears;
-        this.rowLevel = rowLevel;
         this.principals = principals;
         this.visible = visible;
         this.jdbc = jdbc;
+        this.adequacyReports = adequacyReports;
     }
 
-    @Transactional(readOnly = true)
+    /** Mỗi truy vấn tự trả kết nối; việc tổng hợp hàng trăm trường không giữ một connection suốt vòng lặp. */
     public DashboardResponse get(Long requestedSchoolYearId, String requestedPeriod) {
-        List<SchoolYear> years = schoolYears.findAll(rowLevel.scope(SchoolYear.class, Action.READ),
-                Sort.by(Sort.Direction.ASC, "sortOrder").and(Sort.by("name"))).stream()
-                .filter(year -> Boolean.TRUE.equals(year.getActive()))
-                .sorted(Comparator.comparing(SchoolYear::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
-                .toList();
+        List<SchoolYear> years = schoolYears.activeForDashboard();
         SchoolYear selected = years.stream().filter(year -> requestedSchoolYearId != null
                         && requestedSchoolYearId.equals(year.getId()))
                 .findFirst()
@@ -81,35 +72,35 @@ public class DashboardService {
     private DashboardResponse.City cityDashboard(RowLevelPrincipal principal, SchoolYear year, LocalDate asOf,
             String period) {
         DashboardResponse.Devices devices = devices("TRUE", asOf);
-        int schoolCount = count("SELECT COUNT(*) FROM schools s WHERE s.status = 'ACTIVE'"
-                + visible.sqlFilter("s.id"));
+        List<AdequacyReportResponse.Row> adequacyRows = adequacyReports.rowsForVisibleSchools(year.getSortOrder());
+        List<SchoolRow> schools = adequacyRows.stream()
+                .map(row -> new SchoolRow(row.schoolId(), row.schoolName())).toList();
+        Map<Long, AdequacyReportResponse.Row> adequacyBySchool = adequacyRows.stream()
+                .collect(java.util.stream.Collectors.toMap(AdequacyReportResponse.Row::schoolId, row -> row));
+        Map<Long, EquipmentSchoolStats> equipmentBySchool = equipmentStatsBySchool(asOf);
+        Map<Long, Integer> pendingBySchool = pendingProposalsBySchool(asOf.getYear());
+        int schoolCount = schools.size();
         int meeting = 0;
         List<DashboardResponse.SchoolAttention> attention = new ArrayList<>();
-        List<SchoolRow> schools = jdbc.query("SELECT s.id, s.name FROM schools s WHERE s.status = 'ACTIVE'"
-                        + visible.sqlFilter("s.id") + " ORDER BY s.name",
-                (rs, row) -> new SchoolRow(rs.getLong(1), rs.getString(2)));
         for (SchoolRow school : schools) {
-            DashboardResponse.SchoolMinimumStandard adequacy = adequacy(school.id(), year);
-            if (adequacy.required() > 0 && adequacy.met() >= adequacy.required()) meeting++;
-            int broken = count("SELECT COALESCE(SUM(quantity), 0)::int FROM equipment WHERE school_id = ? AND active"
-                    + " AND status IN ('BROKEN', 'REPAIRING') AND (received_date IS NULL OR received_date <= ?)",
-                    school.id(), asOf);
-            int missing = count("SELECT COALESCE(SUM(quantity), 0)::int FROM equipment WHERE school_id = ? AND active"
-                    + " AND status = 'MISSING' AND (received_date IS NULL OR received_date <= ?)", school.id(), asOf);
-            int equipment = count("SELECT COALESCE(SUM(quantity), 0)::int FROM equipment WHERE school_id = ? AND active"
-                    + " AND status NOT IN ('LIQUIDATED', 'LOST') AND (received_date IS NULL OR received_date <= ?)",
-                    school.id(), asOf);
-            int pending = count("SELECT COUNT(*) FROM purchase_proposals WHERE school_id = ? AND status = 'PENDING'"
-                    + " AND approval_step = 'MANAGING_BODY' AND COALESCE(budget_year, ?) = ?",
-                    school.id(), asOf.getYear(), asOf.getYear());
+            AdequacyReportResponse.Row adequacy = adequacyBySchool.get(school.id());
+            if (adequacy != null && adequacy.norms() > 0 && adequacy.unknown() == 0
+                    && adequacy.met() == adequacy.norms()) meeting++;
+            EquipmentSchoolStats equipment = equipmentBySchool.getOrDefault(school.id(), EquipmentSchoolStats.EMPTY);
+            int broken = equipment.broken();
+            int missing = equipment.missing();
+            int pending = pendingBySchool.getOrDefault(school.id(), 0);
             List<String> reasons = new ArrayList<>();
-            if (adequacy.required() > adequacy.met()) reasons.add("Chưa đạt định mức tối thiểu");
+            if (adequacy == null || adequacy.norms() == 0 || adequacy.unknown() > 0
+                    || adequacy.met() < adequacy.norms()) {
+                reasons.add("Chưa đạt định mức tối thiểu hoặc thiếu dữ liệu tính");
+            }
             if (broken > 0) reasons.add(broken + " thiết bị hỏng/đang sửa");
             if (missing > 0) reasons.add(missing + " thiết bị mất");
             if (pending > 0) reasons.add(pending + " đề xuất chờ duyệt");
             if (!reasons.isEmpty() && attention.size() < 10) {
                 attention.add(new DashboardResponse.SchoolAttention(school.id(), school.name(), String.join("; ", reasons),
-                        equipment, broken, missing, pending));
+                        equipment.total(), broken, missing, pending));
             }
         }
 
@@ -137,7 +128,12 @@ public class DashboardService {
 
     private DashboardResponse.School schoolDashboard(long schoolId, SchoolYear year, LocalDate asOf, String period) {
         DashboardResponse.Devices devices = devices("e.school_id = " + schoolId, asOf);
-        DashboardResponse.SchoolMinimumStandard standard = adequacy(schoolId, year);
+        AdequacyReportResponse.Row adequacy = adequacyReports.rowsForVisibleSchools(year.getSortOrder()).stream()
+                .filter(row -> row.schoolId() == schoolId).findFirst().orElse(null);
+        int required = adequacy == null ? 0 : adequacy.norms() - adequacy.unknown();
+        DashboardResponse.SchoolMinimumStandard standard = new DashboardResponse.SchoolMinimumStandard(
+                adequacy == null ? 0 : adequacy.met(), required, adequacy == null || adequacy.percent() == null
+                        ? 0.0 : adequacy.percent().doubleValue());
         int pending = count("SELECT (SELECT COUNT(*) FROM equipment_intakes WHERE school_id = ? AND status = 'PENDING' AND approval_step = 'SCHOOL')"
                 + " + (SELECT COUNT(*) FROM purchase_proposals WHERE school_id = ? AND status = 'PENDING' AND approval_step = 'SCHOOL')"
                 + " + (SELECT COUNT(*) FROM inventory_sessions WHERE school_id = ? AND status = 'PENDING' AND approval_step = 'SCHOOL')",
@@ -167,56 +163,28 @@ public class DashboardService {
                         rs.getInt(4), rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getInt(8)) : emptyDevices(), asOf);
     }
 
-    private DashboardResponse.SchoolMinimumStandard adequacy(long schoolId, SchoolYear year) {
-        List<Norm> norms = jdbc.query("""
-                SELECT n.catalog_id, n.equipment_type_id, n.subject_id, n.grade_id, n.room_type_id,
-                       n.min_quantity, COALESCE(n.basis_size, 1), n.norm_basis,
-                       s.class_count, s.student_count,
-                       (SELECT COUNT(*) FROM rooms r WHERE r.school_id = s.id AND r.active
-                           AND (n.room_type_id IS NULL OR r.room_type_id = n.room_type_id)
-                           AND (n.subject_id IS NULL OR r.subject_id = n.subject_id))
-                FROM schools s
-                JOIN equipment_standards st ON st.education_level_id = s.education_level_id
-                    AND st.status = 'ACTIVE' AND st.active
-                JOIN equipment_norms n ON n.standard_id = st.id AND n.active AND NOT n.optional
-                    AND n.min_quantity IS NOT NULL
-                JOIN school_years start_y ON start_y.id = st.start_school_year_id
-                LEFT JOIN school_years end_y ON end_y.id = st.end_school_year_id
-                WHERE s.id = ? AND start_y.sort_order <= ? AND (end_y.id IS NULL OR end_y.sort_order >= ?)
-                """, (rs, row) -> new Norm(rs.getObject(1, Long.class), rs.getObject(2, Long.class),
-                rs.getObject(3, Long.class), rs.getObject(4, Long.class), rs.getObject(5, Long.class),
-                rs.getBigDecimal(6), rs.getInt(7), rs.getString(8), rs.getObject(9, Integer.class),
-                rs.getObject(10, Integer.class), rs.getInt(11)), schoolId, year.getSortOrder(), year.getSortOrder());
-        int met = 0;
-        int requiredCount = 0;
-        for (Norm norm : norms) {
-            int base = switch (norm.basis()) {
-                case "PER_CLASS" -> nz(norm.classes());
-                case "PER_STUDENT" -> nz(norm.students());
-                case "PER_ROOM" -> norm.rooms();
-                case "PER_TEACHER" -> 0;
-                default -> 1;
-            };
-            if ("PER_TEACHER".equals(norm.basis())) continue;
-            int needed = norm.quantity().multiply(BigDecimal.valueOf(base))
-                    .divide(BigDecimal.valueOf(Math.max(norm.basisSize(), 1)), 0, RoundingMode.CEILING).intValue();
-            if (needed <= 0) continue;
-            requiredCount++;
-            int available = count("""
-                    SELECT COALESCE(SUM(e.quantity), 0)::int
-                    FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id
-                    WHERE e.school_id = ? AND e.active AND e.status IN ('IN_USE', 'IN_STOCK')
-                      AND COALESCE(e.condition, 'TOT') NOT IN ('HONG', 'KHONG_SU_DUNG')
-                      AND (CAST(? AS BIGINT) IS NULL OR c.id = CAST(? AS BIGINT))
-                      AND (CAST(? AS BIGINT) IS NULL OR c.equipment_type_id = CAST(? AS BIGINT))
-                      AND (CAST(? AS BIGINT) IS NULL OR c.subject_id = CAST(? AS BIGINT))
-                      AND (CAST(? AS BIGINT) IS NULL OR c.grade_id = CAST(? AS BIGINT))
-                    """, schoolId, norm.catalogId(), norm.catalogId(), norm.typeId(), norm.typeId(),
-                    norm.subjectId(), norm.subjectId(), norm.gradeId(), norm.gradeId());
-            if (available >= needed) met++;
-        }
-        return new DashboardResponse.SchoolMinimumStandard(met, requiredCount,
-                requiredCount == 0 ? 0 : roundPercent(met, requiredCount));
+    private Map<Long, EquipmentSchoolStats> equipmentStatsBySchool(LocalDate asOf) {
+        return jdbc.query("""
+                SELECT e.school_id,
+                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'LOST')), 0)::int,
+                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status IN ('BROKEN', 'REPAIRING')), 0)::int,
+                       COALESCE(SUM(e.quantity) FILTER (WHERE e.status = 'MISSING'), 0)::int
+                FROM equipment e
+                WHERE e.active AND (e.received_date IS NULL OR e.received_date <= ?)
+                """ + visible.sqlFilter("e.school_id") + " GROUP BY e.school_id",
+                (rs, row) -> Map.entry(rs.getLong(1), new EquipmentSchoolStats(rs.getInt(2), rs.getInt(3), rs.getInt(4))),
+                asOf).stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private Map<Long, Integer> pendingProposalsBySchool(int budgetYear) {
+        return jdbc.query("""
+                SELECT p.school_id, COUNT(*)::int
+                FROM purchase_proposals p
+                WHERE p.status = 'PENDING' AND p.approval_step = 'MANAGING_BODY'
+                  AND COALESCE(p.budget_year, ?) = ?
+                """ + visible.sqlFilter("p.school_id") + " GROUP BY p.school_id",
+                (rs, row) -> Map.entry(rs.getLong(1), rs.getInt(2)), budgetYear, budgetYear)
+                .stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private DashboardResponse.Inventory cityInventory(long bodyId) {
@@ -338,7 +306,6 @@ public class DashboardService {
         return value == null ? 0 : value;
     }
 
-    private static int nz(Integer value) { return value == null ? 0 : value; }
     private static double roundPercent(int value, int total) {
         return BigDecimal.valueOf(value * 100.0 / total).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
@@ -347,6 +314,7 @@ public class DashboardService {
     }
 
     private record SchoolRow(long id, String name) {}
-    private record Norm(Long catalogId, Long typeId, Long subjectId, Long gradeId, Long roomTypeId,
-            BigDecimal quantity, int basisSize, String basis, Integer classes, Integer students, int rooms) {}
+    private record EquipmentSchoolStats(int total, int broken, int missing) {
+        private static final EquipmentSchoolStats EMPTY = new EquipmentSchoolStats(0, 0, 0);
+    }
 }

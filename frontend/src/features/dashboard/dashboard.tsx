@@ -264,9 +264,9 @@ function CityDashboard({ data }: { data: DashboardData }) {
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard to="/schools" label="Trường trong phạm vi" value={number.format(city.minimumStandard.schoolCount)} unit="trường" icon={School} />
       <SummaryCard to="/equipment" label="Tài sản trên sổ" value={number.format(devices.total)} unit="tài sản" icon={Boxes} />
-      <SummaryCard to="/catalogs/equipment-standards" label="Đáp ứng tối thiểu" value={`${Math.round(city.minimumStandard.rate)}%`} icon={Gauge}
+      <SummaryCard to="/catalogs/equipment-standards" label="Trường đạt đủ định mức" value={`${Math.round(city.minimumStandard.rate)}%`} icon={Gauge}
         tone={city.minimumStandard.rate < 80 ? "warning" : "success"}
-        meter={{ value: city.minimumStandard.rate, label: `${number.format(city.minimumStandard.schoolsMeeting)} / ${number.format(city.minimumStandard.schoolCount)} trường đạt` }} />
+        meter={{ value: city.minimumStandard.rate, label: `${number.format(city.minimumStandard.schoolsMeeting)} / ${number.format(city.minimumStandard.schoolCount)} trường đạt đủ` }} />
       <SummaryCard to="/equipment" label="Hỏng, báo mất" value={number.format(affected)} unit="tài sản" icon={PackageX}
         tone={affected ? "destructive" : "success"} />
     </div>

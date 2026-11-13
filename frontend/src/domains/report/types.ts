@@ -45,6 +45,7 @@ export type AdequacyReport = {
   summary: { schools: number; countedSchools: number; averagePercent: number; shortageTotal: number; surplusTotal: number; unknownNorms: number };
   distribution: { key: string; label: string; count: number }[];
   rows: { schoolId: number; schoolCode: string; schoolName: string; educationLevel: string | null; classCount: number | null; studentCount: number | null; norms: number; met: number; unknown: number; shortageNorms: number; shortageTotal: number; surplusNorms: number; surplusTotal: number; percent: number | null }[];
+  details: { schoolId: number; schoolCode: string; schoolName: string; normCode: string; normName: string; itemNo: string | null; catalogCode: string | null; catalogName: string | null; subjectName: string | null; gradeName: string | null; gradeLevels: string | null; equipmentTypeName: string | null; required: number | null; available: number; shortage: number | null; surplus: number | null; percent: number | null }[];
 };
 
 export type PurchaseReport = {
