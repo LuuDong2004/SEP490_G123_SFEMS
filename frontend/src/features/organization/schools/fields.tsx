@@ -342,7 +342,7 @@ export function SchoolFields({
                     className="font-mono"
                   />
                 </FormControl>
-                <p className="text-muted-foreground text-xs">Dùng để cấp mã tài sản.</p>
+                <p className="text-muted-foreground text-xs">Dùng để cấp mã thiết bị.</p>
                 <FormMessage />
               </FormItem>
             )}
