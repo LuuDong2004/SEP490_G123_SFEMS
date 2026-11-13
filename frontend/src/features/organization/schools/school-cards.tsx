@@ -1,7 +1,9 @@
 import { AlertTriangle, MapPin, School as SchoolIcon } from "lucide-react";
 import { Link } from "react-router";
 
+import { EmptyState } from "@/features/organization/resources/table-empty";
 import { Badge } from "@/shared/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 import type { School } from "@/domains/school/types";
 import {
@@ -23,9 +25,7 @@ import { ORG_STATUS_VARIANTS as STATUS_VARIANTS } from "@/shared/lib/status-vari
  */
 export function SchoolCards({ schools }: { schools: School[] }) {
   if (schools.length === 0) {
-    return (
-      <p className="text-muted-foreground p-10 text-center text-sm">Không có trường nào.</p>
-    );
+    return <EmptyState className="h-full" filtered title="Không có trường nào" />;
   }
   return (
     <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -77,10 +77,17 @@ export function SchoolCards({ schools }: { schools: School[] }) {
                 {/* Nhãn nhỏ, không phải chữ: thẻ nào cũng có cơ quan quản lý,
                     nên thứ cần nổi lên là việc cơ quan ấy có chắc hay không. */}
                 {uncertain ? (
-                  <AlertTriangle
-                    className="text-warning mt-0.5 size-3.5 shrink-0"
-                    aria-label={DEPARTMENT_SOURCE_LABELS[s.departmentSource!]}
-                  />
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <AlertTriangle
+                        className="text-warning mt-0.5 size-3.5 shrink-0"
+                        aria-label="Chưa xác nhận cơ quan quản lý"
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" tone="light" className="max-w-80">
+                      Chưa xác nhận cơ quan quản lý. {DEPARTMENT_SOURCE_LABELS[s.departmentSource!]} Cần Sở xác nhận lại.
+                    </TooltipContent>
+                  </Tooltip>
                 ) : null}
               </div>
             ) : (
