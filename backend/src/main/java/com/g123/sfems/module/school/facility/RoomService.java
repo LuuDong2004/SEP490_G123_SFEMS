@@ -27,8 +27,8 @@ import org.springframework.stereotype.Service;
  *   <li>không xoá phòng còn thiết bị hay còn dòng phiếu ghi tăng.</li>
  * </ul>
  *
- * <p>Khối nhà và tầng là hai ô chữ chứ không phải bảng, nên không có luật "cơ sở lấy theo khối nhà" như ở
- * bản gốc — xem javadoc của {@link Room}.
+ * <p>Khối nhà và tầng là hai ô chữ chứ không phải bảng, nên không có luật "cơ sở lấy theo khối nhà" —
+ * xem javadoc của {@link Room}.
  */
 @Service
 public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatchRequest> {
@@ -116,12 +116,29 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         return codes.resolveOnCreate(item, code);
     }
 
-    /** Lọc thêm: {@code roomType.id}, {@code subject.id}. */
+    /**
+     * Lọc thêm: {@code roomType.id}, {@code subject.id}, {@code usageStatus}, {@code condition}.
+     *
+     * <p>Hai ô lọc trạng thái phải khai Ở ĐÂY chứ không dựa vào {@link CatalogSpecifications#from}: nó chỉ
+     * biết năm trường chung của danh mục và BỎ QUA trường lạ, nên thiếu hai dòng dưới thì ô lọc trên màn hình
+     * gửi tham số lên mà bảng không hẹp lại — một ô lọc trông như đang lọc.
+     *
+     * <p>So theo CHUỖI (như {@code ProcurementPlanService} lọc trạng thái): giá trị lạ không khớp dòng nào,
+     * thay vì {@code Enum.valueOf} ném lỗi 500 cho một tham số gõ tay trên URL.
+     */
     @Override
     protected Specification<Room> ownedFilters(ListParams params) {
-        return Specification.allOf(List.of(
+        List<Specification<Room>> specs = new ArrayList<>(List.of(
                 CatalogSpecifications.<Room>referenceFilter(params, "roomType"),
                 CatalogSpecifications.<Room>referenceFilter(params, "subject")));
+        for (ListParams.Criterion criterion : params.filters()) {
+            if ("usageStatus".equals(criterion.field())) {
+                specs.add((root, query, cb) -> cb.equal(root.get("usageStatus").as(String.class), criterion.value()));
+            } else if ("condition".equals(criterion.field())) {
+                specs.add((root, query, cb) -> cb.equal(root.get("condition").as(String.class), criterion.value()));
+            }
+        }
+        return Specification.allOf(specs);
     }
 
     /**
@@ -162,8 +179,8 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         // Phòng có trạng thái nghiệp vụ riêng (Tình trạng sử dụng); cờ hoạt động chung của danh mục
         // không có ô trên form mà SUY từ nó: ngừng sử dụng thì không còn hiện trong các ô chọn.
         item.setActive(item.getUsageStatus() != RoomUsageStatus.NGUNG_SU_DUNG);
-        // Loại phòng và môn học là danh mục TOÀN NGÀNH ở bản này, không thuộc một trường nào, nên không có
-        // kiểm "cùng trường" như ở bản gốc (nơi hai loại đó có trường sở hữu).
+        // Loại phòng và môn học là danh mục TOÀN NGÀNH, không thuộc một trường nào, nên không cần kiểm
+        // "cùng trường" cho hai tham chiếu này.
     }
 
     private static boolean present(IdRef ref) {

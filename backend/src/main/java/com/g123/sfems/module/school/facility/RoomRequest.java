@@ -23,7 +23,7 @@ import java.math.BigDecimal;
  * quản lý tới phòng. Vì vậy không có luật "cơ sở lấy theo khối nhà" và không có kiểm cùng trường cho hai ô
  * đó — chỉ loại phòng và môn học là tham chiếu thật.
  *
- * <p>Khoảng giá trị theo luật AREA và COUNT của bản gốc: diện tích 0–1.000.000 m² với hai số lẻ, các số
+ * <p>Khoảng giá trị: diện tích 0–1.000.000 m² với hai số lẻ, các số
  * đếm 0–99.999 nguyên.
  */
 public record RoomRequest(

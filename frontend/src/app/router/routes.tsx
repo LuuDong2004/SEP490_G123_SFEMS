@@ -30,7 +30,17 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentEdit, EquipmentImport, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import {
+  EquipmentEdit,
+  EquipmentImport,
+  EquipmentList,
+  EquipmentLookup,
+  EquipmentShow,
+  RoomCreate,
+  RoomEdit,
+  RoomList,
+  RoomShow,
+} from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
 import { SchoolCreate } from "@/features/organization/schools/create";
 import { SchoolEdit } from "@/features/organization/schools/edit";
@@ -160,7 +170,12 @@ export function AppRoutes() {
           edit: <SchoolEdit />,
           show: <SchoolShow />,
         })}
-        {crudRoutes("/rooms", "rooms")}
+        {crudRoutes("/rooms", "rooms", {
+          list: <RoomList />,
+          create: <RoomCreate />,
+          edit: <RoomEdit />,
+          show: <RoomShow />,
+        })}
 
         {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
         <Route path="/catalogs" element={<Navigate to="/catalogs/equipment-catalogs" replace />} />
