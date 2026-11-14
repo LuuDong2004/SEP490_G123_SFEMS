@@ -464,3 +464,5 @@ databaseChangeLog:
       file: db/changelog/changes/252-bo-ubnd.sql
   - include:
       file: db/changelog/changes/253-bo-quyen-ngoai-pham-vi.sql
+  - include:
+      file: db/changelog/changes/254-can-bo-truong-nhap-du-lieu.sql
