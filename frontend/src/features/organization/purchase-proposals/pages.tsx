@@ -17,6 +17,10 @@ import { VoucherFormPage } from "@/shared/components/voucher/voucher-form-page";
 import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
 import { VoucherList } from "@/shared/components/voucher/voucher-list";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
+import { VoucherActions } from "@/shared/components/voucher/voucher-actions";
+import { VoucherViewSwitch } from "@/shared/components/voucher/voucher-view-switch";
+import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
+import { useVoucherView } from "@/shared/hooks/use-voucher-view";
 import { formatPlainDate, todayLocal } from "@/shared/lib/format";
 import { maxLengthOf, numberRules, textRules } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
@@ -34,6 +38,7 @@ import {
   type PurchaseProposal,
   type SchoolAdequacy,
 } from "@/domains/procurement/types";
+import { ExportProposalButton, ExportProposalMenuItem, ProposalDocument } from "./document";
 import { OverlapNote, OverlapSummary, useProposalOverlaps, type OverlapIndex } from "./overlap";
 import { ProposalPickerDialog } from "./picker";
 
@@ -477,6 +482,35 @@ export const PurchaseProposalShow = () => {
   // Người duyệt thấy thiết bị nào đang được xin ở đề xuất khác — chỉ khi phiếu còn chờ quyết định.
   const deciding = record?.status === "DRAFT" || record?.status === "PENDING";
   const overlaps = useProposalOverlaps(record?.school?.id, record?.id, !!record && deciding);
+  // Hai dạng xem như phiếu nhập: "Làm việc" (bảng, nút duyệt) và "Văn bản" (tờ trình A4 để in, ký).
+  const [view, setView] = useVoucherView("purchase_proposal");
+  const viewSwitch = record ? <VoucherViewSwitch view={view} onChange={setView} /> : null;
+  const exportDocument = () => {
+    setView("document");
+    setTimeout(() => window.print(), 300);
+  };
+  const actionText = {
+    approve: { description: "Lãnh đạo trường xác nhận nhu cầu. Sở đồng ý đưa vào kế hoạch mua sắm." },
+    reject: { description: "Đề xuất dừng hẳn. Còn nhu cầu thì trường lập đề xuất mới." },
+  };
+
+  if (record && view === "document") {
+    return (
+      <ShowView>
+        <ShowViewHeader
+          actions={
+            <>
+              {viewSwitch}
+              <ExportProposalButton />
+              <VoucherActions resource={RESOURCE} record={record} text={actionText} />
+            </>
+          }
+        />
+        <ProposalDocument record={record} />
+      </ShowView>
+    );
+  }
+
   return (
     <VoucherShowShell
       resource={RESOURCE}
@@ -512,13 +546,9 @@ export const PurchaseProposalShow = () => {
           : []),
         { label: "Sự cần thiết", value: record?.reason ?? "—" },
       ]}
-      actions={{
-        text: {
-          approve: { description: "Lãnh đạo trường xác nhận nhu cầu. Sở đồng ý đưa vào kế hoạch mua sắm." },
-          reject: { description: "Đề xuất dừng hẳn. Còn nhu cầu thì trường lập đề xuất mới." },
-        },
-      }}
-      extraActions={null}
+      actions={{ text: actionText }}
+      extraActions={viewSwitch}
+      menuItems={<ExportProposalMenuItem onExport={() => setTimeout(exportDocument, 200)} />}
     >
       <div className="overflow-x-auto rounded-md border">
         <Table>
