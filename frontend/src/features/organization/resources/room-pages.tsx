@@ -77,6 +77,8 @@ const usageCell = {
  * Danh sách phòng (TC-02). Cột Trường đứng ngay sau tên phòng: với người xem nhiều trường (quản trị, Sở) thì
  * "phòng của trường nào" là thứ phải thấy đầu tiên, không phải thứ phải cuộn ngang mới tới.
  */
+const area = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+
 export const RoomList = () => {
   const columns = useMemo(() => {
     const h = createColumnHelper<Room>();
@@ -127,6 +129,28 @@ export const RoomList = () => {
         enableSorting: false,
         size: 140,
         cell: ({ row }) => row.original.subject?.name ?? <span className="text-muted-foreground">—</span>,
+      }),
+      h.display({
+        id: "area",
+        header: () => <span className="block text-right">Diện tích (m²)</span>,
+        enableSorting: false,
+        size: 110,
+        cell: ({ row }) => (
+          <span className="block text-right tabular-nums">
+            {row.original.area == null ? <span className="text-muted-foreground">—</span> : area.format(row.original.area)}
+          </span>
+        ),
+      }),
+      h.display({
+        id: "capacity",
+        header: () => <span className="block text-right">Sức chứa</span>,
+        enableSorting: false,
+        size: 90,
+        cell: ({ row }) => (
+          <span className="block text-right tabular-nums">
+            {row.original.capacity ?? <span className="text-muted-foreground">—</span>}
+          </span>
+        ),
       }),
       usageCell as never,
       conditionCell as never,
