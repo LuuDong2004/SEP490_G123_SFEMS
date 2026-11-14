@@ -34,6 +34,7 @@ import { EquipmentEdit, EquipmentImport, EquipmentList, EquipmentLookup, Equipme
 import { SchoolList } from "@/features/organization/schools/list";
 import { SchoolCreate } from "@/features/organization/schools/create";
 import { SchoolEdit } from "@/features/organization/schools/edit";
+import { SchoolShow } from "@/features/organization/schools/show";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -157,6 +158,7 @@ export function AppRoutes() {
           list: <SchoolList />,
           create: <SchoolCreate />,
           edit: <SchoolEdit />,
+          show: <SchoolShow />,
         })}
         {crudRoutes("/rooms", "rooms")}
 
