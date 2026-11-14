@@ -281,7 +281,7 @@ public class OnboardingService {
         funding.add(FundingSource.UNDETERMINED.label());
         out.put(OnboardingSheet.EQUIPMENT.key(), Map.of(
                 "unit", jdbc.queryForList("SELECT name FROM units WHERE active ORDER BY name", String.class),
-                "tracking", List.of("Từng cái", "Theo số lượng"),
+                "tracking", List.of("Từng cái", "Theo lô"),
                 "room", rooms, "manager", staff,
                 "origin", Arrays.stream(OriginRule.values()).map(OriginRule::label).toList(),
                 "funding", funding,

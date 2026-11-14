@@ -137,7 +137,7 @@ export function RoomEquipment({ record }: { record: any }) {
           {fill ? null : "Thiết bị trong phòng"}
           {groups.length ? (
             <span className={cn("text-foreground", !fill && "ms-2")}>
-              {fmt(groups.length)} loại · {fmt(devices)} thiết bị{supplies ? ` · ${fmt(supplies)} vật tư theo số lượng` : ""}
+              {fmt(groups.length)} loại · {fmt(devices)} thiết bị{supplies ? ` · ${fmt(supplies)} vật tư theo lô` : ""}
             </span>
           ) : null}
         </p>

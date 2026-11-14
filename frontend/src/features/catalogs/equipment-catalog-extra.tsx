@@ -218,7 +218,7 @@ function CatalogTreeFields({ control, record }: { control: Control<any>; record?
         <CheckField control={control} name="selfMade" label="Thiết bị tự làm" />
       </div>
       <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_10rem]">
-        <EnumSelect control={control} name="trackingType" label="Cách quản lý" hint="Từng cái: mỗi cái một mã. Theo số lượng: cả lô chung một mã, chỉ dùng cho vật tư, hoá chất." options={TRACKING_TYPE_LABELS} />
+        <EnumSelect control={control} name="trackingType" label="Cách quản lý" hint="Từng cái: mỗi cái một mã. Theo lô: cả lô chung một mã, chỉ cho vật tư, hoá chất." options={TRACKING_TYPE_LABELS} />
         <FormField
           control={control}
           name="usefulLifeYears"

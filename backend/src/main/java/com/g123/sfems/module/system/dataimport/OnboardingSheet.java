@@ -116,8 +116,8 @@ public enum OnboardingSheet {
                     "Số lượng tồn", "Số lượng hiện còn"),
             col("unit", "Đơn vị tính", false, "Bắt buộc với hóa chất, vật tư ngoài danh mục; vd g, ml, lọ", "ĐVT",
                     "Đơn vị", "Đ.vị tính", "Đ.V.T"),
-            col("tracking", "Cách quản lý", false, "Chỉ cho thiết bị ngoài danh mục: Từng cái hoặc Theo số lượng. "
-                    + "Để trống thì hệ thống đoán (hoá chất, đơn vị đo lường → theo số lượng)", "Hình thức quản lý"),
+            col("tracking", "Cách quản lý", false, "Chỉ cho thiết bị ngoài danh mục: Từng cái hoặc Theo lô. "
+                    + "Để trống thì hệ thống đoán (hoá chất, đơn vị đo lường → theo lô)", "Hình thức quản lý"),
             col("serial", "Số serial", false, "Chỉ ghi khi số lượng là 1", "Serial", "Số seri", "Số sê-ri",
                     "Số máy", "S/N", "Số khung"),
             col("room", "Mã phòng", false, "Theo trang Phòng. Để trống = trong kho", "Phòng", "Phòng sử dụng",

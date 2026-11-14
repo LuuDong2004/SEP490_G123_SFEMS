@@ -491,7 +491,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         EquipmentCatalog next = catalogs.get(request.catalog().id());
         if (next.getTrackingType() != item.getCatalog().getTrackingType()) {
             throw new FieldValidationException("catalog",
-                    "Không đổi được sang mục danh mục có cách quản lý khác (từng cái / theo số lượng) — ghi giảm thiết bị này"
+                    "Không đổi được sang mục danh mục có cách quản lý khác (từng cái / theo lô) — ghi giảm thiết bị này"
                             + " rồi ghi tăng đúng mục danh mục");
         }
         if (item.getCode() != null && Equipment.STANDARD_CODE.matcher(item.getCode()).matches()) {

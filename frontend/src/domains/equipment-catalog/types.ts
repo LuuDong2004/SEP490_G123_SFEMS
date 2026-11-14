@@ -1,8 +1,8 @@
 /** Mặt hàng thiết bị trong danh mục: cách quản lý và phương pháp khấu hao. */
 
 export const TRACKING_TYPE_LABELS: Record<string, string> = {
-  serial: "Từng cái, mỗi cái một mã",
-  bulk: "Theo số lượng, chỉ cho vật tư tiêu hao",
+  serial: "Từng cái",
+  bulk: "Theo lô",
 };
 
 /**

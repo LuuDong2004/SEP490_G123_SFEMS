@@ -628,7 +628,7 @@ public class EquipmentCatalogService extends CatalogService<
                 && item.getAssetCategory() != AssetCategory.SUPPLY
                 && item.getAssetCategory() != AssetCategory.CHEMICAL) {
             throw new FieldValidationException("trackingType",
-                    "Chỉ vật tư, hoá chất (vật tư tiêu hao) mới quản lý theo số lượng; thiết bị phải quản lý từng cái, mỗi cái một mã");
+                    "Chỉ vật tư, hoá chất mới quản lý theo lô; thiết bị khác quản lý từng cái, mỗi cái một mã");
         }
     }
 

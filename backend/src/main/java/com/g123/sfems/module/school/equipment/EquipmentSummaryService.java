@@ -150,7 +150,7 @@ public class EquipmentSummaryService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map<String, Object> r : (List<Map<String, Object>>) summarize(by, f).get("rows")) {
             Map<String, Object> row = new HashMap<>(r);
-            row.put("tracking", "BULK".equals(r.get("tracking_type")) ? "Theo số lượng (vật tư tiêu hao)" : "Từng cái");
+            row.put("tracking", "BULK".equals(r.get("tracking_type")) ? "Theo lô" : "Từng cái");
             row.put("minimum", Boolean.TRUE.equals(r.get("minimum_required")) ? "Có" : "");
             readable(row);
             rows.add(row);

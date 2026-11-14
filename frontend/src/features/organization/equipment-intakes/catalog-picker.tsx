@@ -35,9 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/ui/table";
-import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
 import { ASSET_CATEGORY_LABELS } from "@/domains/equipment/types";
-import { CATALOG_ORIGIN_LABELS } from "@/domains/equipment-catalog/types";
+import { CATALOG_ORIGIN_LABELS, TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import { SchoolItemDialog } from "@/shared/components/catalog/school-item-dialog";
 import type { PickedCatalog } from "@/domains/equipment-catalog/types";
 import { errorMessage } from "@/shared/lib/api-error";
@@ -369,7 +368,7 @@ export function CatalogPickerDialog({
                       <TableCell>
                         {row.trackingType ? (
                           <Badge variant={already ? "warning" : row.trackingType === "bulk" ? "info" : "neutral"}>
-                            {TRACKING_LABELS[row.trackingType] ?? row.trackingType}
+                            {TRACKING_TYPE_LABELS[row.trackingType] ?? row.trackingType}
                           </Badge>
                         ) : (
                           "—"
@@ -604,7 +603,7 @@ function NewCatalogDialog({
             <Select value={tracking} onValueChange={setTracking}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-64">
-                {Object.entries(TRACKING_LABELS).map(([v, l]) => (
+                {Object.entries(TRACKING_TYPE_LABELS).map(([v, l]) => (
                   <SelectItem key={v} value={v}>{l}</SelectItem>
                 ))}
               </SelectContent>

@@ -25,8 +25,7 @@ import { Label } from "@/shared/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Textarea } from "@/shared/ui/textarea";
-import { CATALOG_ORIGIN_LABELS } from "@/domains/equipment-catalog/types";
-import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
+import { CATALOG_ORIGIN_LABELS, TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import { ASSET_CATEGORY_LABELS } from "@/domains/equipment/types";
 import type { PickedCatalog } from "@/domains/equipment-catalog/types";
 
@@ -303,9 +302,9 @@ export function SchoolItemDialog({
   // Luật "theo số lượng chỉ cho vật tư, hoá chất" nói ngay dưới ô nó chi phối, và nói theo phân loại
   // ĐANG chọn — một đoạn chung ở cuối phiếu thì lúc cần không ai còn đọc.
   const trackingHint = !category
-    ? "Vật tư, hoá chất thì đếm theo số lượng. Thiết bị khác thì mỗi cái một mã."
+    ? "Vật tư, hoá chất thì quản lý theo lô. Thiết bị khác thì từng cái, mỗi cái một mã."
     : BULK_OK.has(category)
-      ? "Đếm theo số lượng, cả lô dùng chung một mã. Đã nhập hàng rồi thì không đổi được."
+      ? "Theo lô: cả lô dùng chung một mã. Đã nhập hàng rồi thì không đổi được."
       : "Mỗi cái một mã riêng. Đã nhập hàng rồi thì không đổi được.";
 
   return (
@@ -389,7 +388,7 @@ export function SchoolItemDialog({
             </Field>
             <Field label="Cách quản lý" required hint={trackingHint}>
               <Pick value={tracking} onChange={setTracking} placeholder="Vui lòng chọn cách quản lý"
-                items={Object.entries(TRACKING_LABELS).map(([value, label]) => ({
+                items={Object.entries(TRACKING_TYPE_LABELS).map(([value, label]) => ({
                   value, label, disabled: value === "bulk" && !BULK_OK.has(category),
                 }))} />
             </Field>

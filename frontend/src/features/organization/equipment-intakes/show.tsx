@@ -39,7 +39,7 @@ import { Card } from "@/shared/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
 import { FUNDING_LABELS } from "@/domains/equipment/types";
-import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
+import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import type { EquipmentIntake, IntakeLine } from "@/domains/equipment-intake/types";
 import type { VoucherFormConfig } from "@/domains/voucher/form-types";
 import type { VoucherStatus } from "@/domains/voucher/types";
@@ -181,7 +181,7 @@ function LineShowDialog({ line, head, config, issues, canWrite, assets, onClose 
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {[line.catalog?.code, line.trackingType ? TRACKING_LABELS[line.trackingType] : null,
+            {[line.catalog?.code, line.trackingType ? TRACKING_TYPE_LABELS[line.trackingType] : null,
               `${line.receivedQuantity} ${unit}`.trim(), `nhận vào ${line.room?.name ?? "Kho"}`].filter(Boolean).join(" · ")}
           </DialogDescription>
         </DialogHeader>
@@ -505,7 +505,7 @@ export const EquipmentIntakeShow = () => {
                   {/* Một dòng chữ: tên thiết bị. Mã, cách quản lý, nhà cung cấp nằm ở chú thích khi rê chuột và
                       trong hộp chi tiết của dòng — như bảng dòng của form. */}
                   <div className="min-w-0"
-                    title={[line.name || line.catalog?.name, line.catalog?.code, line.trackingType ? TRACKING_LABELS[line.trackingType] : null, supplier].filter(Boolean).join(" · ")}
+                    title={[line.name || line.catalog?.name, line.catalog?.code, line.trackingType ? TRACKING_TYPE_LABELS[line.trackingType] : null, supplier].filter(Boolean).join(" · ")}
                   >
                     <div className="truncate font-medium">{line.name || line.catalog?.name}</div>
                     {/* Mã DM · ĐVT · phòng nhận vào — như bảng dòng của form, khỏi phải rê chuột mới biết. */}

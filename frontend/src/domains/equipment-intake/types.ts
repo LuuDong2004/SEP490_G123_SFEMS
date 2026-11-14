@@ -18,11 +18,6 @@ import type { VoucherBase } from "@/domains/voucher/types";
  */
 export type TrackingType = "serial" | "bulk";
 
-export const TRACKING_LABELS: Record<string, string> = {
-  serial: "Theo từng cái",
-  bulk: "Theo số lượng",
-};
-
 /** Một dòng phiếu sẽ sinh ra gì khi xác nhận — câu để hiện trên màn hình. */
 export function intakeLineOutcome(trackingType: string | undefined, quantity: number, unitName?: string): string {
   if (quantity <= 0) return "Không ghi tăng (không nhận được cái nào)";

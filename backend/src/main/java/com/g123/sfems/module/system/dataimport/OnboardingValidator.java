@@ -766,9 +766,9 @@ public class OnboardingValidator {
                 bulk = chemical || (unit != null && unit.fraction());
             } else {
                 String t = fold(tracking);
-                bulk = t.contains("SO_LUONG") || t.equals("BULK") || t.contains("VAT_TU");
+                bulk = t.equals("THEO_LO") || t.equals("LO") || t.contains("SO_LUONG") || t.equals("BULK") || t.contains("VAT_TU");
                 if (!bulk && !t.contains("TUNG_CAI") && !t.equals("SERIAL")) {
-                    r.error("tracking", "Cách quản lý ghi Từng cái hoặc Theo số lượng");
+                    r.error("tracking", "Cách quản lý ghi Từng cái hoặc Theo lô");
                 }
             }
             if (chemical && unit == null) {
@@ -781,7 +781,7 @@ public class OnboardingValidator {
             bulk = false;
         }
         if (catalog != null && r.text("tracking", 30) != null) {
-            r.warn("tracking", "Thiết bị trong danh mục quản lý " + (bulk ? "theo số lượng" : "từng cái")
+            r.warn("tracking", "Thiết bị trong danh mục quản lý " + (bulk ? "theo lô" : "từng cái")
                     + " theo danh mục — cột Cách quản lý chỉ dùng cho thiết bị ngoài danh mục");
         }
 
@@ -882,7 +882,7 @@ public class OnboardingValidator {
             int over = need - capacity;
             String[] p = key.split("\\.");
             String text = "Bộ mã thiết bị môn " + p[0] + " · " + p[1] + " · năm 20" + p[2] + " chỉ còn " + capacity
-                    + " số, lô cần " + need + " — vật tư dùng hết (cáp, đầu bấm, lọ…) nên quản lý theo số lượng, "
+                    + " số, lô cần " + need + " — vật tư dùng hết (cáp, đầu bấm, lọ…) nên quản lý theo lô, "
                     + "hoặc ghi đúng ngày tiếp nhận để thiết bị rơi vào năm của nó";
             for (Map.Entry<Long, Integer> e : biggest) {
                 if (over <= 0) {
