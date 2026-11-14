@@ -178,8 +178,19 @@ public class EquipmentIntakeService implements RecordAccess {
         return intake;
     }
 
+    /**
+     * Phiếu — kể cả bản NHÁP — phải có nguồn hình thành (15/11/2026): nó quyết định phiếu hỏi chứng từ gì, nguồn kinh
+     * phí nào. Trước đây "Lưu nháp" trên form trống lưu được phiếu rỗng, không nguồn, không thiết bị — rác trong danh sách.
+     */
+    private static void requireOrigin(boolean present) {
+        if (!present) {
+            throw new FieldValidationException("originSource", "Vui lòng chọn nguồn hình thành");
+        }
+    }
+
     @Transactional
     public EquipmentIntake create(EquipmentIntakeRequest request) {
+        requireOrigin(request.originSource() != null);
         EquipmentIntake intake = new EquipmentIntake();
         intake.setSchool(resolveSchool(request.school()));
         intake.setStatus(VoucherStatus.DRAFT);
@@ -237,6 +248,7 @@ public class EquipmentIntakeService implements RecordAccess {
         if (request.fundingSource() != null) {
             intake.setFundingSource(request.fundingSource());
         }
+        requireOrigin(request.originSource() != null || intake.getOriginSource() != null);
         if (request.originSource() != null) {
             OriginSource next = ref(request.originSource(), originSources::get);
             // Phiếu sinh từ phiếu nghiệp vụ khác: nguồn hình thành là hệ quả của phiếu nguồn, không phải

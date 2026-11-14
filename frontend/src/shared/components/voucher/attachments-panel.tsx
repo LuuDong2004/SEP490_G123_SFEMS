@@ -64,7 +64,10 @@ export function AttachmentsPanel({
   section,
   field,
   hint,
+  onAdded,
 }: {
+  /** Gọi với các tệp vừa đính kèm được — vd. tệp XML hoá đơn điện tử thì đọc luôn. */
+  onAdded?: (files: File[]) => void;
   /** Vẽ như một trường form (nhãn + vùng kéo thả, `FileDrop`) — cùng dáng với `PendingAttachments field` trước khi lưu. */
   field?: boolean;
   /** Dòng phụ trong vùng kéo thả khi chưa có tệp (chỉ khi `field`). */
@@ -110,7 +113,7 @@ export function AttachmentsPanel({
   async function upload(list: File[]) {
     if (recordId == null) return;
     setBusy(true);
-    let added = 0;
+    const done: File[] = [];
     for (const file of list) {
       const form = new FormData();
       form.append("resource", resource);
@@ -118,15 +121,16 @@ export function AttachmentsPanel({
       form.append("file", file);
       try {
         await kyInstance.post("attachments", { body: form });
-        added += 1;
+        done.push(file);
       } catch (error) {
         open?.({ type: "error", message: await errorMessage(error), description: `Không đính kèm được ${file.name}` });
       }
     }
-    if (added) open?.({ type: "success", message: added === 1 ? `Đã đính kèm ${list[0].name}` : `Đã đính kèm ${added} tệp` });
+    if (done.length) open?.({ type: "success", message: done.length === 1 ? `Đã đính kèm ${done[0].name}` : `Đã đính kèm ${done.length} tệp` });
     await queryClient.invalidateQueries({ queryKey: key });
     setBusy(false);
     if (input.current) input.current.value = "";
+    if (done.length) onAdded?.(done);
   }
 
   async function download(file: AttachmentInfo) {

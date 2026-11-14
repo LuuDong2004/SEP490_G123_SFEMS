@@ -49,7 +49,9 @@ export function usePendingAttachments(resource: string) {
 }
 
 /** Khung "Tệp đính kèm" của form lập phiếu: nút Thêm tệp và danh sách tệp đang chờ lưu. */
-export function PendingAttachments({ files, onChange, className, title = "Tệp đính kèm", required, field, hint, compact }: {
+export function PendingAttachments({ files, onChange, onAdded, className, title = "Tệp đính kèm", required, field, hint, compact }: {
+  /** Gọi với các tệp vừa nhận (sau khi lọc trùng, quá cỡ) — vd. tệp XML hoá đơn điện tử thì đọc luôn. */
+  onAdded?: (files: File[]) => void;
   files: File[];
   onChange: (files: File[]) => void;
   /** Vẽ như một trường form (nhãn + vùng kéo thả, `FileDrop`) thay cho thẻ có tiêu đề. */
@@ -73,7 +75,10 @@ export function PendingAttachments({ files, onChange, className, title = "Tệp 
     const tooBig = list.filter((f) => f.size > MAX_BYTES);
     if (tooBig.length) open?.({ type: "error", message: `${tooBig.map((f) => f.name).join(", ")} vượt quá 10 MB`, description: "Không thêm được tệp" });
     const ok = list.filter((f) => f.size <= MAX_BYTES && !files.some((x) => x.name === f.name && x.size === f.size));
-    if (ok.length) onChange([...files, ...ok]);
+    if (ok.length) {
+      onChange([...files, ...ok]);
+      onAdded?.(ok);
+    }
   };
 
   if (field) {

@@ -10,7 +10,7 @@ export type HeadFields = {
 
 /**
  * Ô chứng từ ở đầu phiếu theo NGUỒN HÌNH THÀNH — chọn nguồn xong chỉ hiện ô của nguồn đó: mua sắm có nhà cung cấp và
- * hoá đơn (bắt buộc khi trình); được điều chuyển có quyết định điều chuyển; tặng, tài trợ có đơn vị tặng; khác có đơn vị giao và số
+ * hoá đơn (bắt buộc khi trình); được cấp phát, bàn giao có quyết định giao; tặng, tài trợ có đơn vị tặng; khác có đơn vị giao và số
  * chứng từ; kiểm kê thừa, tự làm không có chứng từ mua bán.
  */
 export function headFieldsOf(code: string | undefined): HeadFields {
@@ -19,7 +19,7 @@ export function headFieldsOf(code: string | undefined): HeadFields {
     case "MUA_NGOAI_KH":
       return { supplier: "Nhà cung cấp", documentNo: { label: "Số hoá đơn", invoice: true }, documentDate: "Ngày hoá đơn" };
     case "PHAN_BO":
-      return { documentNo: { label: "Số quyết định điều chuyển", invoice: false }, documentDate: "Ngày quyết định" };
+      return { documentNo: { label: "Số quyết định giao", invoice: false }, documentDate: "Ngày quyết định" };
     case "TANG_TAI_TRO":
       return { supplier: "Đơn vị tặng, tài trợ", documentNo: { label: "Số biên bản tặng", invoice: false }, documentDate: "Ngày biên bản" };
     case "KHAC":
@@ -48,7 +48,7 @@ export function docMetaOf(code: string | undefined): DocMeta {
     case "MUA_NGOAI_KH":
       return { title: "Hoá đơn mua hàng", files: "Hoá đơn, hợp đồng" };
     case "PHAN_BO":
-      return { title: "Quyết định điều chuyển", files: "Quyết định, biên bản bàn giao" };
+      return { title: "Quyết định giao", files: "Quyết định, biên bản bàn giao" };
     case "TANG_TAI_TRO":
       return { title: "Biên bản tặng, tài trợ", files: "Biên bản tiếp nhận" };
     case "KIEM_KE_THUA":

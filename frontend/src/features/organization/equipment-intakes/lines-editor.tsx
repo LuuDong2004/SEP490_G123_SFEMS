@@ -1,5 +1,5 @@
 import { useCustom, useList, useNotification } from "@refinedev/core";
-import { Check, ChevronDown, Copy, ChevronLeft, ChevronRight, CircleAlert, Download, FileSpreadsheet, ListPlus, PackageSearch, Plus, Trash2, Upload } from "lucide-react";
+import { Check, ChevronDown, Copy, ChevronLeft, ChevronRight, CircleAlert, Download, FileSpreadsheet, ListPlus, Loader2, PackageSearch, Plus, Trash2 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useFieldArray, useFormContext, useWatch, type Control } from "react-hook-form";
 
@@ -10,7 +10,7 @@ import type { PickedCatalog } from "@/domains/equipment-catalog/types";
 import { DOWNLOAD_TIMEOUT, kyInstance } from "@/shared/api/data";
 import { getAuthorities } from "@/shared/api/session";
 import { errorMessage } from "@/shared/lib/api-error";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 import { API_URL } from "@/shared/api/constants";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { DateInput } from "@/shared/components/form/date-input";
@@ -35,8 +35,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SectionHead } from "./section-head";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { intakeLineOutcome } from "@/domains/equipment-intake/types";
-import { DocumentFields, DocumentFiles } from "./document-fields";
-import { InvoiceXmlButton, type InvoiceImport } from "./invoice-xml";
+import { DocumentFields, DocumentFiles, hasDocumentHead } from "./document-fields";
+import { useInvoiceReader, type InvoiceImport } from "./invoice-xml";
 import { headFieldsOf } from "./head-fields";
 import { isChemical, isPurchaseCode, lineIssues, serialError, serialsOf } from "./readiness";
 import { newDocument, UNIT_KEYS, unitValue, type DocumentForm, type UnitInfo } from "./fields";
@@ -260,7 +260,8 @@ type Added = { fromExcel?: boolean; catalog: PickedCatalog; quantity?: number; u
 const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase().trim();
 
 /**
- * Hàng công cụ đầu bảng: "Chọn thiết bị trong danh mục" và "Nhập Excel" (chọn tệp theo mẫu / tải tệp mẫu). Không có ô tìm (trưởng
+ * Hàng công cụ đầu bảng: MỘT nút "Thêm thiết bị" (bấm thẳng = mở hộp chọn trong danh mục) và mũi tên bên cạnh mở "Nhập từ
+ * Excel" / "Tải tệp mẫu Excel" (bản mẫu 15/11/2026: hai nút ngang nhau cùng thêm dòng thì rối mắt). Không có ô tìm (trưởng
  * nhóm 13/11/2026: không cần — hộp chọn danh mục đã có tìm). Thông tin phiếu chưa khai xong (`locked` là lý do) thì
  * chưa thêm thiết bị được: dòng thiết bị đọc nguồn hình thành, nguồn kinh phí của phiếu — chỉ còn tải tệp mẫu.
  */
@@ -335,39 +336,52 @@ function LinesToolbar({ onAdd, onBrowse, locked }: { onAdd: (rows: Added[]) => v
   return (
     // `data-field`: mục "Thêm ít nhất một thiết bị" của "Trước khi trình" đưa con trỏ tới nút đầu tiên ở đây.
     <div className="flex flex-wrap items-center justify-end gap-2" data-field="catalog-search">
-      {locked ? <span className="text-muted-foreground me-1 text-xs">{locked}</span> : null}
-      <Button type="button" variant="outline" className="h-9" onClick={onBrowse} disabled={!!locked || pasting}>
-        <ListPlus />
-        Chọn thiết bị trong danh mục
-      </Button>
+      {locked ? (
+        <span className="text-warning-text me-1 inline-flex items-center gap-1.5 text-xs font-medium">
+          <CircleAlert className="size-3.5 shrink-0" />
+          {locked}
+        </span>
+      ) : null}
       <input ref={fileInput} type="file" accept=".xlsx,.csv" className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
           if (f) void importFile(f);
         }} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" className="h-9" disabled={pasting}>
-            <FileSpreadsheet />
-            Nhập Excel
-            <ChevronDown className="opacity-60" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {/* Chưa khai xong thông tin phiếu: chỉ còn tải tệp mẫu (soạn trước được), chưa nhập được. */}
-          {locked ? null : (
-            <DropdownMenuItem onSelect={() => fileInput.current?.click()}>
-              <Upload />
-              Chọn tệp Excel…
+      {/* Nút tách đôi: phần chữ là cách thêm thường dùng nhất, mũi tên mở các cách còn lại. */}
+      <div className="inline-flex">
+        <Button type="button" variant="outline" className="h-9 rounded-e-none border-e-0" onClick={onBrowse} disabled={!!locked || pasting}>
+          {pasting ? <Loader2 className="animate-spin" /> : <Plus />}
+          Thêm thiết bị
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" className="h-9 rounded-s-none px-2.5" disabled={pasting} aria-label="Cách thêm thiết bị khác">
+              <ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {/* Chưa khai xong thông tin phiếu: chỉ còn tải tệp mẫu (soạn trước được), chưa thêm được. */}
+            {locked ? null : (
+              <>
+                <DropdownMenuItem onSelect={onBrowse}>
+                  <ListPlus />
+                  Chọn trong danh mục
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => fileInput.current?.click()}>
+                  <FileSpreadsheet />
+                  Nhập từ Excel
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onSelect={() => void downloadTemplate()}>
+              <Download />
+              Tải tệp mẫu Excel
             </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onSelect={() => void downloadTemplate()}>
-            <Download />
-            Tải tệp mẫu
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
@@ -1029,7 +1043,7 @@ function pathValue(values: any, path: string) {
 
 // ------------------------------------------------------------------ cả bảng
 
-/** "hoá đơn" / "biên bản tặng" / "quyết định điều chuyển" / "chứng từ" — tên chứng từ theo nguồn; null = nguồn không có chứng từ. */
+/** "hoá đơn" / "biên bản tặng" / "quyết định giao" / "chứng từ" — tên chứng từ theo nguồn; null = nguồn không có chứng từ. */
 /**
  * "3 loại thiết bị · số lượng 25" (trưởng nhóm 14/11/2026): loại = số thiết bị danh mục KHÁC NHAU (một thiết bị tách
  * nhiều đơn giá vẫn là một loại), số lượng = tổng số nhận.
@@ -1068,7 +1082,7 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
   locked?: string;
   /** Phiếu đang sửa (kiểm trùng hoá đơn bỏ qua chính nó). */
   intakeId?: number | null;
-  /** Nút thêm ở đầu khối (vd. "Đọc hoá đơn điện tử"). */
+  /** Nút thêm ở đầu khối. */
   actions?: React.ReactNode;
   /** Đổi giá trị = mở mọi hoá đơn đang thu gọn (form cần tới một ô bên trong). */
   expandAll?: number;
@@ -1079,6 +1093,9 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
   const rule = ruleOf(originId);
   const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
   const noun = documentNoun(originCode);
+  // Chưa chọn nguồn hình thành, hoặc nguồn không có chứng từ: không có ô nào của chứng từ ở đây (nguồn kinh phí của nguồn
+  // không chứng từ đứng ở hàng "Thông tin phiếu"; chưa chọn nguồn thì chưa biết hỏi gì).
+  const headless = !originCode || !hasDocumentHead(originCode);
   const { setValue, getValues } = useFormContext();
   const { fields, insert, remove, move } = useFieldArray({
     control,
@@ -1311,23 +1328,22 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
     removeDoc(di);
   };
 
-  /** Hoá đơn điện tử: điền vào hoá đơn đầu nếu còn trống, không thì thêm hoá đơn mới; tệp XML là tệp hoá đơn. */
-  const importInvoice = (r: InvoiceImport) => {
-    const first = documents[0];
+  /**
+   * Hoá đơn điện tử vừa chọn ở ô "Tệp hoá đơn" của MỘT hoá đơn: điền nhà cung cấp, mã số thuế, số, ngày vào chính hoá đơn
+   * đó — chỉ những ô còn trống, không đè thứ người dùng đã gõ — và thêm các thiết bị đã ghép vào hoá đơn đó. Tệp XML đã
+   * nằm trong ô tệp, không thêm lại.
+   */
+  const importInvoice = (r: InvoiceImport, key: string) => {
+    const di = documents.findIndex((d) => d?.key === key);
+    if (di < 0) return;
     const head = { supplier: r.supplier, taxCode: r.taxCode, contact: r.contact, documentNo: r.documentNo, documentDate: r.documentDate };
-    const firstEmpty = documents.length === 1 && !first?.supplier && !first?.documentNo && !lines.some((l) => l?.docKey === first?.key);
-    let key: string;
-    if (firstEmpty && first) {
-      key = first.key;
-      for (const [k, v] of Object.entries(head)) setValue(`documents.0.${k}`, v, { shouldDirty: true, shouldValidate: true });
-      setValue("documents.0.pendingFiles", [...(first.pendingFiles ?? []), r.file], { shouldDirty: true });
-    } else {
-      const d = newDocument({ ...head, pendingFiles: [r.file] });
-      appendDoc(d, { shouldFocus: false });
-      key = d.key;
+    for (const [k, v] of Object.entries(head)) {
+      const current = getValues(`documents.${di}.${k}`);
+      if (v && (current == null || String(current).trim() === "")) setValue(`documents.${di}.${k}`, v, { shouldDirty: true, shouldValidate: true });
     }
     add(r.rows.map((x) => ({ catalog: x.catalog, quantity: x.quantity, unitPrice: x.unitPrice })), key);
   };
+  const invoiceReader = useInvoiceReader(importInvoice);
 
   const browsingDoc = browsing ? documents.find((d) => d.key === browsing) : undefined;
   const chosen = new Set<number>(lines.filter((l) => l?.docKey === browsing).map((l) => Number(l?.catalog?.id)).filter((id) => Number.isFinite(id)));
@@ -1339,10 +1355,8 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
         <SectionHead title={noun ? `Thông tin ${noun} và thiết bị` : "Thông tin thiết bị ghi tăng"} open={open} onToggle={() => onToggle?.()}
           aside={lines.length ? `${noun && documents.length > 1 ? `${documents.length} ${noun} · ` : ""}${countText(lines)}` : undefined}
           summary={lines.length ? countText(lines) : <span className="text-destructive">Chưa có thiết bị</span>}
-          actions={<div className="flex flex-wrap items-center gap-2">
-            {purchase && !locked ? <InvoiceXmlButton onImport={importInvoice} /> : null}
-            {actions}
-          </div>} />
+          actions={actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : undefined} />
+        {invoiceReader.dialog}
       </div>
       <CatalogPickerDialog
         open={browsing != null}
@@ -1398,11 +1412,14 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
                 </header>
               ) : null}
               <div className={cn(isFolded && "hidden")}>
-                <div className="p-4">
-                  <DocumentFields control={control} index={di} schoolId={schoolId} intakeId={intakeId} />
-                </div>
+                {/* Nguồn không có chứng từ: ô duy nhất (nguồn kinh phí) đã đứng ở hàng "Thông tin phiếu". */}
+                {headless ? null : (
+                  <div className="p-4">
+                    <DocumentFields control={control} index={di} schoolId={schoolId} intakeId={intakeId} />
+                  </div>
+                )}
                 {/* Nút thêm thiết bị ở ĐẦU bảng (trưởng nhóm 14/11/2026). */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5">
+                <div className={cn("flex flex-wrap items-center justify-between gap-2 px-4 py-2.5", !headless && "border-t")}>
                   <span className="text-sm font-medium">
                     Thiết bị
                     {docLines.length ? <span className="text-muted-foreground ms-1.5 font-normal tabular-nums">({countText(docLines.map(({ i }) => lines[i]), true)})</span> : null}
@@ -1441,7 +1458,9 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
                     <TableBody>
                       {docLines.length === 0 ? (
                         <TableEmpty colSpan={COLS} compact icon={<PackageSearch />} title="Chưa có thiết bị"
-                          description={locked ?? "Chọn thiết bị trong danh mục, hoặc nhập Excel theo tệp mẫu."} />
+                          description={locked ?? (purchase
+                            ? "Thêm thiết bị, hoặc chọn tệp XML hoá đơn điện tử ở ô Tệp hoá đơn."
+                            : "Thêm thiết bị trong danh mục, hoặc nhập từ Excel.")} />
                       ) : docLines.map(({ f: field, i: index }) => {
                         const l = lines[index];
                         const catalog = l?.catalog?.id ? catalogs.get(Number(l.catalog.id)) : undefined;
@@ -1481,7 +1500,8 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
                 {/* Tệp của hoá đơn: sau bảng thiết bị, vùng thả một dòng. */}
                 {noun ? (
                   <div className="border-t px-4 py-3">
-                    <DocumentFiles control={control} index={di} />
+                    <DocumentFiles control={control} index={di}
+                      onInvoiceXml={purchase && !locked ? (file) => invoiceReader.read(file, doc.key) : undefined} />
                   </div>
                 ) : null}
               </div>

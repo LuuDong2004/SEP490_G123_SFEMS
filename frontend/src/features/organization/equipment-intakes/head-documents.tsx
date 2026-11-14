@@ -8,6 +8,8 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { cn } from "@/shared/lib/utils";
 import { SchoolField } from "@/features/organization/resources/school-field";
+import { useOriginRules } from "@/shared/hooks/use-origin-rules";
+import { DocumentFunding, hasDocumentHead } from "./document-fields";
 import { IntakeOriginFields } from "./origin-field";
 import { SectionHead } from "./section-head";
 
@@ -33,11 +35,16 @@ export function IntakeSourceCard({ control, record, chooseSchool, open, onToggle
   const { result: yearList } = useList<any>({ resource: "school_years", pagination: { pageSize: 50 } });
   const schoolYearName: string | undefined = yearList?.data?.find((y: any) => String(y.id) === String(schoolYearId ?? ""))?.name
     ?? record?.schoolYear?.name;
+  // Nguồn không có chứng từ (đơn vị tự làm, kiểm kê thừa…): nguồn kinh phí là ô duy nhất của "chứng từ" — đứng ngay hàng này.
+  const originId = useWatch({ control, name: "originSource.id" });
+  const { origins } = useOriginRules();
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const fundingHere = !!originCode && !hasDocumentHead(originCode);
 
   return (
     // Cột có TRẦN theo nội dung (tên nguồn dài nhất, ô ngày, "Năm học 2026-2027"): màn rộng thì phần thừa để trống bên
     // phải, ô không kéo dài ngoằng.
-    <div style={{ "--head-cols": "minmax(0,22rem) 10rem minmax(0,13rem)" } as CSSProperties}>
+    <div style={{ "--head-cols": `minmax(0,17rem) 10rem minmax(0,13rem)${fundingHere ? " minmax(0,15rem)" : ""}` } as CSSProperties}>
       <div className={cn("px-5", open ? "space-y-4 pt-4 pb-6" : "py-4")}>
         <SectionHead title="Thông tin phiếu" open={open} onToggle={onToggle} summary={summary} />
         {/* Thu gọn chỉ ẨN các ô — gỡ ra thì luật kiểm của ô mất theo và phiếu lưu được khi đang sai. */}
@@ -68,6 +75,7 @@ export function IntakeSourceCard({ control, record, chooseSchool, open, onToggle
               <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2" />
             </div>
           </div>
+          {fundingHere ? <DocumentFunding control={control} index={0} className="min-w-0" /> : null}
         </div>
       </div>
     </div>

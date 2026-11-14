@@ -1,5 +1,5 @@
 import { useCustom } from "@refinedev/core";
-import { History, TriangleAlert } from "lucide-react";
+import { History, Lock, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
@@ -7,7 +7,9 @@ import { useFormContext, useWatch, type Control } from "react-hook-form";
 import { API_URL } from "@/shared/api/constants";
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { PendingAttachments } from "@/shared/components/voucher/pending-attachments";
+import { isXmlFile } from "./invoice-xml";
 import { ChoiceWithNote } from "@/shared/components/form/choice-with-note";
+import { HelpHint } from "@/shared/components/form/help-hint";
 import { DateInput } from "@/shared/components/form/date-input";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { formatPlainDate } from "@/shared/lib/format";
@@ -148,25 +150,6 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
   const name = (k: string) => `${path}.${k}`;
 
   const allowed = rule?.fundingSources ?? FUNDING_OPTIONS;
-  const funding = (doc?.fundingSource ?? null) as string | null;
-  const fundingOptions = [
-    ...(funding && !allowed.includes(funding) ? [{ value: funding, label: `${FUNDING_LABELS[funding] ?? funding} (không còn phù hợp)` }] : []),
-    ...FUNDING_OPTIONS.filter((v) => allowed.includes(v)).map((v) => ({ value: v, label: FUNDING_LABELS[v] })),
-  ];
-  // Nguồn chỉ cho MỘT nguồn kinh phí (được điều chuyển → ngân sách, tặng → tài trợ): ô khoá, tự điền; đổi sang nguồn
-  // không khoá mà ô vẫn là giá trị máy điền thì gỡ.
-  const fixedFunding = rule && allowed.length === 1 ? allowed[0] : null;
-  const autoFunding = useRef<string | null>(null);
-  useEffect(() => {
-    if (fixedFunding) {
-      autoFunding.current = fixedFunding;
-      if (funding !== fixedFunding) setValue(name("fundingSource"), fixedFunding, { shouldDirty: true });
-    } else if (autoFunding.current) {
-      if (funding === autoFunding.current) setValue(name("fundingSource"), null, { shouldDirty: true });
-      autoFunding.current = null;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixedFunding, funding]);
 
   // Hoá đơn trùng: cùng số của cùng nhà cung cấp đã ghi tăng ở phiếu khác — cảnh báo, không chặn.
   const dupNo = useDebounced(String(doc?.documentNo ?? "").trim(), 500);
@@ -265,27 +248,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
             )}
           />
         ) : null}
-        <FormField
-          control={control}
-          name={name("fundingNote")}
-          rules={funding === "OTHER" ? textRules("SHORT_TEXT", "Ghi rõ nguồn kinh phí", { max: 200, min: 5 }) : undefined}
-          render={({ field: note, fieldState }) => (
-            <FormItem data-field={name("fundingSource")} className={cn(CELL, "@5xl:max-w-[20rem] @5xl:flex-[1.3_1_0%]")}>
-              <FormLabel required={rule?.fundingRequired === "ALWAYS" || undefined}>Nguồn kinh phí</FormLabel>
-              <ChoiceWithNote value={funding ?? ""} options={fundingOptions} otherValue="OTHER" disabled={!rule || !!fixedFunding}
-                clearable={!fixedFunding} invalid={!!fieldState.error}
-                placeholder={rule ? "Vui lòng chọn nguồn kinh phí" : "Chọn nguồn hình thành trước"}
-                notePlaceholder="Nguồn khác: ghi rõ" noteMax={maxLengthOf("SHORT_TEXT", 200)}
-                onChange={(v) => {
-                  setValue(name("fundingSource"), v || null, { shouldDirty: true });
-                  if (v !== "OTHER") setValue(name("fundingNote"), "", { shouldDirty: true });
-                }}
-                note={note.value} onNoteChange={note.onChange} onNoteBlur={note.onBlur} />
-              {!fixedFunding && rule?.fundingRequired === "WHEN_COST" ? <p className="text-muted-foreground text-xs">Bắt buộc khi có chi phí</p> : null}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <DocumentFunding control={control} index={index} className={cn(CELL, "@5xl:max-w-[20rem] @5xl:flex-[1.3_1_0%]")} />
         {rule?.acquisitionMethod ? (
           <div data-field={name("acquisitionMethod")} className={cn(CELL, "@5xl:max-w-[20rem] @5xl:flex-[1.3_1_0%]")}>
             <FormField
@@ -332,12 +295,103 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
   );
 }
 
+/** Vì sao nguồn kinh phí tự điền và khoá, theo nguồn hình thành. */
+const FIXED_FUNDING_WHY: Record<string, string> = {
+  PHAN_BO: "Tài sản cấp trên giao, bàn giao về thuộc ngân sách nhà nước.",
+  TANG_TAI_TRO: "Tài sản được tặng, tài trợ ghi nguồn tài trợ.",
+};
+
+/** Nguồn hình thành không có chứng từ (đơn vị tự làm, kiểm kê thừa…): không có ô nào của hoá đơn ngoài nguồn kinh phí. */
+export function hasDocumentHead(code: string | undefined) {
+  const head = headFieldsOf(code);
+  return !!(head.documentNo || head.supplier || head.documentDate);
+}
+
+/**
+ * Ô "Nguồn kinh phí" của MỘT chứng từ. Đứng trong hàng ô của hoá đơn; nguồn hình thành không có chứng từ (đơn vị tự làm…)
+ * thì đứng ngay hàng "Thông tin phiếu" cạnh nguồn hình thành (15/11/2026) — một khối riêng chỉ chứa một ô thì thừa.
+ * Nguồn chỉ cho MỘT nguồn kinh phí (được điều chuyển → ngân sách, tặng → tài trợ): ô khoá, tự điền; đổi sang nguồn
+ * không khoá mà ô vẫn là giá trị máy điền thì gỡ.
+ */
+export function DocumentFunding({ control, index, className }: { control: Control<any>; index: number; className?: string }) {
+  const name = (k: string) => `documents.${index}.${k}`;
+  const { setValue } = useFormContext();
+  const { ruleOf } = useOriginRules();
+  const originId = useWatch({ control, name: "originSource.id" });
+  const rule = ruleOf(originId);
+  const funding = (useWatch({ control, name: name("fundingSource") }) ?? null) as string | null;
+  const allowed = rule?.fundingSources ?? FUNDING_OPTIONS;
+  const fundingOptions = [
+    ...(funding && !allowed.includes(funding) ? [{ value: funding, label: `${FUNDING_LABELS[funding] ?? funding} (không còn phù hợp)` }] : []),
+    ...FUNDING_OPTIONS.filter((v) => allowed.includes(v)).map((v) => ({ value: v, label: FUNDING_LABELS[v] })),
+  ];
+  const fixedFunding = rule && allowed.length === 1 ? allowed[0] : null;
+  const autoFunding = useRef<string | null>(null);
+  useEffect(() => {
+    if (fixedFunding) {
+      autoFunding.current = fixedFunding;
+      if (funding !== fixedFunding) setValue(name("fundingSource"), fixedFunding, { shouldDirty: true });
+    } else if (autoFunding.current) {
+      if (funding === autoFunding.current) setValue(name("fundingSource"), null, { shouldDirty: true });
+      autoFunding.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedFunding, funding]);
+
+  // Nguồn hình thành chỉ cho MỘT nguồn kinh phí: không có gì để chọn — ô chỉ xem có khoá và lý do, không dấu *.
+  if (fixedFunding) {
+    return (
+      <div data-field={name("fundingSource")} className={cn("grid content-start gap-2", className)}>
+        <span className="flex items-center gap-1.5 text-sm leading-none font-medium">
+          Nguồn kinh phí
+          <HelpHint>{FIXED_FUNDING_WHY[rule?.code ?? ""] ?? "Nguồn hình thành này chỉ có một nguồn kinh phí."}</HelpHint>
+        </span>
+        <div className="bg-surface-subtle text-muted-foreground flex h-9 items-center justify-between gap-2 rounded-full border px-3.5 text-sm">
+          <span className="truncate">{FUNDING_LABELS[fixedFunding] ?? fixedFunding}</span>
+          <Lock className="size-3.5 shrink-0" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <FormField
+      control={control}
+      name={name("fundingNote")}
+      rules={funding === "OTHER" ? textRules("SHORT_TEXT", "Ghi rõ nguồn kinh phí", { max: 200, min: 5 }) : undefined}
+      render={({ field: note, fieldState }) => (
+        <FormItem data-field={name("fundingSource")} className={className}>
+          <FormLabel required={rule?.fundingRequired === "ALWAYS" || undefined}>Nguồn kinh phí</FormLabel>
+          <ChoiceWithNote value={funding ?? ""} options={fundingOptions} otherValue="OTHER" disabled={!rule || !!fixedFunding}
+            clearable={!fixedFunding} invalid={!!fieldState.error}
+            placeholder={rule ? "Vui lòng chọn nguồn kinh phí" : "Chọn nguồn hình thành trước"}
+            notePlaceholder="Nguồn khác: ghi rõ" noteMax={maxLengthOf("SHORT_TEXT", 200)}
+            onChange={(v) => {
+              setValue(name("fundingSource"), v || null, { shouldDirty: true });
+              if (v !== "OTHER") setValue(name("fundingNote"), "", { shouldDirty: true });
+            }}
+            note={note.value} onNoteChange={note.onChange} onNoteBlur={note.onBlur} />
+          {!fixedFunding && rule?.fundingRequired === "WHEN_COST" ? <p className="text-muted-foreground text-xs">Bắt buộc khi có chi phí</p> : null}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
 /**
  * Tệp của MỘT hoá đơn (chứng từ): vùng thả một dòng, đặt cuối khối hoá đơn — sau bảng thiết bị. Hoá đơn đã lưu thì
  * lưu ngay khi chọn; chưa lưu thì giữ trên form (`pendingFiles`), đẩy lên sau khi lưu phiếu. Nguồn không có chứng từ
  * (không có bên giao, không có số) thì không có ô này.
+ *
+ * <p>`onInvoiceXml`: hoá đơn mua sắm — chọn tệp XML hoá đơn điện tử ở đây thì đọc luôn (điền nhà cung cấp, số, ngày,
+ * ghép thiết bị). Không có nút "Đọc hoá đơn điện tử" riêng: đằng nào cũng phải đính tệp hoá đơn.
  */
-export function DocumentFiles({ control, index }: { control: Control<any>; index: number }) {
+export function DocumentFiles({ control, index, onInvoiceXml }: {
+  control: Control<any>;
+  index: number;
+  onInvoiceXml?: (file: File) => void;
+}) {
   const path = `documents.${index}`;
   const { setValue } = useFormContext();
   const { origins } = useOriginRules();
@@ -349,14 +403,15 @@ export function DocumentFiles({ control, index }: { control: Control<any>; index
   if (!head.documentNo && !head.supplier) return null;
   const files = (doc?.pendingFiles ?? []) as File[];
   const title = purchase ? "Tệp hoá đơn" : head.documentNo ? `Tệp ${head.documentNo.label.replace(/^Số /, "")}` : "Tệp chứng từ";
+  const onAdded = onInvoiceXml ? (list: File[]) => { const xml = list.find(isXmlFile); if (xml) onInvoiceXml(xml); } : undefined;
   return (
     <div data-field={`${path}.files`}>
       {doc?.id ? (
         <AttachmentsPanel field compact resource="equipment_intake_documents" recordId={doc.id} canWrite required={purchase} title={title}
-          hint="Bản scan hoặc tệp hoá đơn điện tử · lưu ngay khi chọn" />
+          hint="Bản scan hoặc tệp hoá đơn điện tử · lưu ngay khi chọn" onAdded={onAdded} />
       ) : (
         <PendingAttachments field compact files={files} onChange={(f) => setValue(`${path}.pendingFiles`, f, { shouldDirty: true })}
-          required={purchase} title={title} hint="Tải lên khi lưu phiếu" />
+          required={purchase} title={title} hint="Tải lên khi lưu phiếu" onAdded={onAdded} />
       )}
     </div>
   );

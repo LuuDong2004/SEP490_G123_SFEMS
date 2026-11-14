@@ -9,7 +9,6 @@
      "label": "Người giao",
      "kind": "text",
      "max": 100,
-     "required": true,
      "rule": "PERSON_NAME",
      "min": 2
     },
@@ -17,7 +16,6 @@
      "key": "delivererPhone",
      "label": "Số điện thoại người giao",
      "kind": "text",
-     "required": true,
      "rule": "PHONE"
     },
     {

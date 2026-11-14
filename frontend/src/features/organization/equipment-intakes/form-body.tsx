@@ -74,7 +74,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const form = useFormContext();
   const { control } = form;
   useDefaultSchoolYear();
-  const { show, list } = useNavigation();
+  const { show, list, edit } = useNavigation();
   const invalidate = useInvalidate();
   const { open } = useNotification();
   const config = useVoucherForm("equipment_intakes");
@@ -279,6 +279,9 @@ export function IntakeFormBody({ record, onFinish, header }: {
       show("equipment_intakes", id, "replace");
     } catch (error) {
       open?.({ type: "error", message: await errorMessage(error), description: "Đã lưu nháp nhưng chưa trình được" });
+      // Lập mới mà lưu được, trình hỏng: sang màn SỬA của chính phiếu vừa lưu. Đứng lại ở màn lập thì bấm "Trình duyệt"
+      // lần nữa là lưu thêm một phiếu nháp mới — mỗi lần thử lại đẻ một bản trùng.
+      if (!record?.id && id) edit("equipment_intakes", id, "replace");
     } finally {
       setBusy(null);
     }
