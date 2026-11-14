@@ -40,7 +40,16 @@ export type IntakeFormValues = typeof INTAKE_DEFAULT_VALUES;
 const LINE_DOCUMENT_KEYS = ["supplier", "documentNo", "documentDate", "fundingSource", "fundingNote", "acquisitionMethod", "acquisitionNote"] as const;
 
 /** Chỉ có trên form, không gửi lên máy chủ. */
-const FORM_ONLY_LINE_KEYS = ["ownDocuments", "differs", "serialText"] as const;
+const FORM_ONLY_LINE_KEYS = ["ownDocuments", "differs", "serialText", "unitRooms", "units", "fromExcel", "pendingFiles"] as const;
+
+/** Thông tin của TỪNG cái (256): model, hãng, bảo hành, thông tin khác — vắng ô nào thì theo ô cùng tên của dòng. */
+export type UnitInfo = { model?: string | null; manufacturer?: string | null; warrantyMonths?: number | null; otherInfo?: string | null };
+export const UNIT_KEYS = ["model", "manufacturer", "warrantyMonths", "otherInfo"] as const;
+/** Giá trị ô `key` của cái thứ i: của riêng nó nếu đã có, không thì của dòng. */
+export const unitValue = (line: any, i: number, key: (typeof UNIT_KEYS)[number]) => {
+  const own = (line?.units as UnitInfo[] | undefined)?.[i];
+  return own && own[key] !== undefined ? own[key] : (line?.[key] ?? null);
+};
 
 /** "SN 001\nsn-002" → ["SN001", "SN-002"]: mỗi dòng một số, bỏ khoảng trắng, viết hoa, bỏ dòng trống. */
 export function parseSerials(text: unknown): string[] {
@@ -63,14 +72,25 @@ export function toPayload(values: any) {
   const { fundingNoteHead, acquisitionNoteHead, ...head } = values ?? {};
   const lines = ((values?.lines ?? []) as any[]).map((l) => {
     const out: any = { ...l };
-    if (!l?.ownDocuments) {
-      for (const k of LINE_DOCUMENT_KEYS) out[k] = null;
-      out.fundingNote = fundingNoteHead ? String(fundingNoteHead).trim() || null : null;
-      out.acquisitionNote = acquisitionNoteHead ? String(acquisitionNoteHead).trim() || null : null;
-    } else if (!l?.acquisitionMethod?.id) {
-      out.acquisitionMethod = null;
-    }
+    // Nguồn kinh phí, hình thức mua sắm luôn theo đầu phiếu; dòng "theo hoá đơn khác" chỉ giữ bên giao, số, ngày.
+    for (const k of LINE_DOCUMENT_KEYS) if (!l?.ownDocuments || !["supplier", "documentNo", "documentDate"].includes(k)) out[k] = null;
+    out.fundingNote = fundingNoteHead ? String(fundingNoteHead).trim() || null : null;
+    out.acquisitionNote = acquisitionNoteHead ? String(acquisitionNoteHead).trim() || null : null;
     out.serialNumbers = parseSerials(l?.serialText);
+    // Phòng riêng của từng cái theo vị trí (255); null = theo phòng nhận của dòng.
+    out.unitRoomIds = ((l?.unitRooms ?? []) as (number | null)[]).map((x) => (x == null ? null : Number(x)));
+    // Từng cái: gửi đủ theo vị trí; ô nào mọi cái giống nhau thì đó cũng là giá trị của dòng (tóm tắt, phiếu cũ).
+    if ((l?.units ?? []).length) {
+      const n = Number(l?.receivedQuantity ?? 0);
+      const col = (key: (typeof UNIT_KEYS)[number]) => Array.from({ length: n }, (_, i) => {
+        const v = unitValue(l, i, key);
+        return v === "" ? null : v;
+      });
+      const common = (list: unknown[]) => (list.length && list.every((v) => v === list[0]) ? list[0] : null);
+      const models = col("model"), makers = col("manufacturer"), warranties = col("warrantyMonths"), others = col("otherInfo");
+      out.unitModels = models; out.unitManufacturers = makers; out.unitWarrantyMonths = warranties; out.unitOtherInfos = others;
+      out.model = common(models); out.manufacturer = common(makers); out.warrantyMonths = common(warranties); out.otherInfo = common(others);
+    }
     if (!l?.differs) {
       out.documentQuantity = l?.receivedQuantity;
       out.varianceReason = null;
@@ -138,8 +158,17 @@ export function toFormValues(record: any) {
       warrantyMonths: l.warrantyMonths ?? head.warrantyMonths ?? null,
       packUnit: l.packUnit ?? { id: null },
       room: l.room ?? { id: null },
-      differs: Number(l.documentQuantity ?? 0) !== Number(l.receivedQuantity ?? 0),
+      differs: false,
       serialText: ((l.serialNumbers ?? []) as string[]).join("\n"),
+      unitRooms: ((l.unitRoomIds ?? []) as (number | null)[]),
+      units: [l.unitModels, l.unitManufacturers, l.unitWarrantyMonths, l.unitOtherInfos].some((x) => (x ?? []).length)
+        ? Array.from({ length: Number(l.receivedQuantity ?? 0) }, (_, i) => ({
+          model: l.unitModels?.[i] || l.model || null,
+          manufacturer: l.unitManufacturers?.[i] || l.manufacturer || null,
+          warrantyMonths: l.unitWarrantyMonths?.[i] ?? l.warrantyMonths ?? head.warrantyMonths ?? null,
+          otherInfo: l.unitOtherInfos?.[i] || l.otherInfo || null,
+        }))
+        : [],
       ownDocuments: own,
     };
     return own

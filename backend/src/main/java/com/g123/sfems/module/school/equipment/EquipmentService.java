@@ -720,9 +720,14 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         List<String> reserved = reserveCodes(school, line, line.getReceivedQuantity());
         // Số serial khai lúc lập phiếu (đã kiểm không trùng trong trường): cái thứ i nhận số thứ i, phần còn lại để trống.
         List<String> serials = line.serialSlots();
+        // Phòng riêng của từng cái (255): cái nào có thì về đúng phòng đó, còn lại theo phòng nhận của dòng.
+        List<Long> unitRooms = line.unitRoomSlots();
+        java.util.Map<Long, com.g123.sfems.domain.school.facility.Room> unitRoomCache = new java.util.HashMap<>();
         List<Equipment> created = new ArrayList<>();
         for (int i = 0; i < line.getReceivedQuantity(); i++) {
             Equipment item = new Equipment();
+            com.g123.sfems.domain.school.facility.Room room = i < unitRooms.size() && unitRooms.get(i) != null
+                    ? unitRoomCache.computeIfAbsent(unitRooms.get(i), rooms::get) : line.getRoom();
             item.setSchool(school);
             item.setCatalog(line.getCatalog());
             item.setName(line.getName());
@@ -749,23 +754,25 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setAcquisitionNote(line.getAcquisitionNote());
             item.setAcquisitionNote(line.getAcquisitionNote());
             item.setReceivedDate(intake.getIntakeDate());
-            item.setWarrantyExpiry(warrantyExpiry);
-            item.setModel(line.getModel());
-            item.setManufacturer(line.getManufacturer());
-            item.setOtherInfo(line.getOtherInfo());
+            // Model, hãng, bảo hành, thông tin khác: của riêng cái thứ i (256), không thì của dòng.
+            Integer ownWarranty = line.warrantyMonthsOf(i);
+            item.setWarrantyExpiry(ownWarranty == null ? null : intake.getIntakeDate().plusMonths(ownWarranty));
+            item.setModel(line.modelOf(i));
+            item.setManufacturer(line.manufacturerOf(i));
+            item.setOtherInfo(line.otherInfoOf(i));
             item.setUsageStartYear(intake.getIntakeDate().getYear());
             // Nguyên giá = đơn giá của dòng; giá trị còn lại bằng nguyên giá
             // vì tài sản vừa về, chưa có kỳ khấu hao nào chạy qua.
             item.setOriginalValue(line.getUnitPrice());
             item.setRemainingValue(line.getUnitPrice());
-            item.setRoom(line.getRoom());
+            item.setRoom(room);
             // Về kho thì nằm trong tay thủ kho: người quản lý là cán bộ phụ trách phòng nhận.
-            item.setManager(EquipmentLifecycle.keeperOf(null, line.getRoom()));
+            item.setManager(EquipmentLifecycle.keeperOf(null, room));
             item.setCondition(EquipmentCondition.TOT);
             // Nhập về kho thì là TRONG KHO, không phải đang sử dụng: chưa có
             // phiếu cấp phát nào, chưa ai giữ. Chỉ khi phiếu chỉ thẳng phòng
             // nhận thì tài sản mới bắt đầu ở trạng thái đang dùng.
-            item.setStatus(isStoreroom(line.getRoom()) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
+            item.setStatus(isStoreroom(room) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
             item.setIntakeLine(line);
             // Khoá IDENTITY: mỗi INSERT tài sản vẫn là một lượt đi về (Hibernate không gom lô được khi id
             // do CSDL cấp). Đổi sang SEQUENCE là một changelog đổi mọi bảng — chưa làm; phần gom được là

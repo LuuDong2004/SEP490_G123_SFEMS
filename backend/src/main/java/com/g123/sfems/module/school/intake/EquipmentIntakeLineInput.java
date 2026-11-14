@@ -82,5 +82,17 @@ public record EquipmentIntakeLineInput(
         @Size(max = 10000, message = "Quá nhiều số serial")
         List<@Text(value = FieldRule.SERIAL, label = "Số serial", min = 3) String> serialNumbers,
         // Dòng đã có: giữ nguyên id để tệp hoá đơn gắn theo dòng không bị bỏ rơi mỗi lần lưu.
-        Long id) {
+        Long id,
+        // Phòng nhận của TỪNG cái theo vị trí; null ở vị trí nào là cái đó theo phòng nhận của dòng.
+        @Size(max = 10000, message = "Quá nhiều phòng nhận")
+        List<Long> unitRoomIds,
+        // Model / hãng / bảo hành / thông tin khác của TỪNG cái theo vị trí; trống = theo ô cùng tên của dòng.
+        @Size(max = 10000, message = "Quá nhiều dòng")
+        List<@Text(value = FieldRule.SHORT_TEXT, label = "Model", max = 50) String> unitModels,
+        @Size(max = 10000, message = "Quá nhiều dòng")
+        List<@Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất", max = 100) String> unitManufacturers,
+        @Size(max = 10000, message = "Quá nhiều dòng")
+        List<@Num(value = NumberRule.COUNT, label = "Bảo hành (tháng)") Integer> unitWarrantyMonths,
+        @Size(max = 10000, message = "Quá nhiều dòng")
+        List<@Text(value = FieldRule.NOTE, label = "Thông tin khác") String> unitOtherInfos) {
 }

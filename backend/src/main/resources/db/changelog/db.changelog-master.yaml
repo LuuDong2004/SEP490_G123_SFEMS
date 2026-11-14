@@ -466,3 +466,7 @@ databaseChangeLog:
       file: db/changelog/changes/253-bo-quyen-ngoai-pham-vi.sql
   - include:
       file: db/changelog/changes/254-can-bo-truong-nhap-du-lieu.sql
+  - include:
+      file: db/changelog/changes/255-intake-unit-rooms.sql
+  - include:
+      file: db/changelog/changes/256-intake-unit-details.sql

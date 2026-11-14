@@ -604,6 +604,27 @@ public class EquipmentIntakeService implements RecordAccess {
             line.setVarianceReason(trimToNull(input.varianceReason()));
             line.setUnitPrice(input.unitPrice());
             line.setRoom(ref(input.room(), rooms::get));
+            // Phòng riêng của từng cái: chỉ giữ tới số thực nhận; trùng phòng của dòng thì coi như theo dòng.
+            List<Long> unitRooms = input.unitRoomIds() == null ? List.of() : input.unitRoomIds();
+            Long lineRoom = line.getRoom() == null ? null : line.getRoom().getId();
+            int received = input.receivedQuantity() == null ? 0 : input.receivedQuantity();
+            line.setUnitRoomSlots(unitRooms.stream().limit(Math.max(received, 0))
+                    .map(id -> id == null || id.equals(lineRoom) ? null : id).toList());
+            // Cùng luật với phòng của dòng: đúng trường của phiếu, còn sử dụng.
+            int keep = Math.max(received, 0);
+            line.setUnitDetails(limit(input.unitModels(), keep), limit(input.unitManufacturers(), keep),
+                    limit(input.unitWarrantyMonths(), keep), limit(input.unitOtherInfos(), keep));
+            List<Long> unitSlots = line.unitRoomSlots();
+            for (int u = 0; u < unitSlots.size(); u++) {
+                if (unitSlots.get(u) == null) {
+                    continue;
+                }
+                Room unit = rooms.get(unitSlots.get(u));
+                if (!unit.getSchool().getId().equals(intake.getSchool().getId()) || !Boolean.TRUE.equals(unit.getActive())) {
+                    throw new FieldValidationException("lines", "Dòng %d: phòng nhận của cái thứ %d không dùng được (khác trường hoặc đã ngừng sử dụng)"
+                            .formatted(lineNo, u + 1));
+                }
+            }
             line.setSupplier(trimToNull(input.supplier()));
             line.setDocumentNo(trimToNull(input.documentNo()));
             line.setDocumentDate(input.documentDate());
@@ -875,6 +896,11 @@ public class EquipmentIntakeService implements RecordAccess {
                 });
             }
         }
+    }
+
+    /** Danh sách theo vị trí, chỉ giữ tới số thực nhận; vắng thì rỗng. */
+    private static <T> List<T> limit(List<T> values, int max) {
+        return values == null ? List.of() : values.stream().limit(max).toList();
     }
 
     /** Hàng mua — theo kế hoạch hay ngoài kế hoạch: đòi hoá đơn, đơn giá như nhau. */

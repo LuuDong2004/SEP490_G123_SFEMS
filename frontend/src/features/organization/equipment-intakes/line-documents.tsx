@@ -1,14 +1,12 @@
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
-import { ChoiceWithNote } from "@/shared/components/form/choice-with-note";
+import { PendingAttachments } from "@/shared/components/voucher/pending-attachments";
 import { DateInput } from "@/shared/components/form/date-input";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
-import { maxLengthOf, textRules } from "@/shared/lib/field-rules";
+import { maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { Input } from "@/shared/ui/input";
-import { FUNDING_LABELS, FUNDING_OPTIONS, OTHER_ACQUISITION_CODE } from "@/domains/equipment/types";
-import { AcquisitionChoice } from "./acquisition-choice";
 import { documentDateRules, documentNoRules, headFieldsOf } from "./head-fields";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -30,31 +28,26 @@ export const EMPTY_DOCUMENT = {
  * hoá đơn, hoặc một lô giao bù). Các ô giống ô ở đầu phiếu, cùng luật; tệp hoá đơn của riêng dòng đính kèm ngay đây
  * khi dòng đã được lưu.
  */
-export function LineOwnDocumentFields({ control, path, lineId }: { control: Control<any>; path: string; lineId?: number | null }) {
+export function LineOwnDocumentFields({ control, path, lineId, required }: { control: Control<any>; path: string; lineId?: number | null; required?: boolean }) {
+  // Trong hộp "chứng từ riêng": bên giao, số, ngày bắt buộc — thiếu thì không nhận ra chứng từ nào.
+  const need = (label: string) => (required ? { required: `Nhập ${label.charAt(0).toLowerCase()}${label.slice(1)}` } : {});
   const { setValue } = useFormContext();
-  const { origins, ruleOf } = useOriginRules();
+  const { origins } = useOriginRules();
   const originId = useWatch({ control, name: "originSource.id" });
-  const rule = ruleOf(originId);
   const code = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
   const head = headFieldsOf(code);
   const line = useWatch({ control, name: path }) as any;
   const name = (k: string) => `${path}.${k}`;
-  const allowed = rule?.fundingSources ?? FUNDING_OPTIONS;
-  const funding = line?.fundingSource as string | null | undefined;
-  const fundingOptions = [
-    ...(funding && !allowed.includes(funding) ? [{ value: funding, label: `${FUNDING_LABELS[funding] ?? funding} (không còn phù hợp)` }] : []),
-    ...FUNDING_OPTIONS.filter((v) => allowed.includes(v)).map((v) => ({ value: v, label: FUNDING_LABELS[v] })),
-  ];
 
   return (
-    <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem]">
       {head.supplier ? (
         <FormField
           control={control}
           name={name("supplier")}
-          rules={textRules("SHORT_TEXT", head.supplier, { max: 200, min: 2 })}
+          rules={mergeRules(textRules("SHORT_TEXT", head.supplier, { max: 200, min: 2 }), need(head.supplier))}
           render={({ field }) => (
-            <FormItem className="sm:col-span-2">
+            <FormItem>
               <FormLabel>{head.supplier}</FormLabel>
               <FormControl>
                 <Input value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} onBlur={field.onBlur} name={field.name} ref={field.ref} maxLength={200} />
@@ -68,7 +61,7 @@ export function LineOwnDocumentFields({ control, path, lineId }: { control: Cont
         <FormField
           control={control}
           name={name("documentNo")}
-          rules={documentNoRules(head)}
+          rules={mergeRules(documentNoRules(head), need(head.documentNo.label))}
           render={({ field }) => (
             <FormItem>
               <FormLabel>{head.documentNo!.label}</FormLabel>
@@ -85,7 +78,7 @@ export function LineOwnDocumentFields({ control, path, lineId }: { control: Cont
         <FormField
           control={control}
           name={name("documentDate")}
-          rules={documentDateRules(head.documentDate)}
+          rules={mergeRules(documentDateRules(head.documentDate), need(head.documentDate))}
           render={({ field }) => (
             <FormItem>
               <FormLabel>{head.documentDate}</FormLabel>
@@ -97,40 +90,16 @@ export function LineOwnDocumentFields({ control, path, lineId }: { control: Cont
           )}
         />
       ) : null}
-      <FormField
-        control={control}
-        name={name("fundingNote")}
-        rules={funding === "OTHER" ? textRules("SHORT_TEXT", "Ghi rõ nguồn kinh phí", { max: 200, min: 5 }) : undefined}
-        render={({ field: note, fieldState }) => (
-          <FormItem className="sm:col-span-2">
-            <FormLabel>Nguồn kinh phí</FormLabel>
-            <ChoiceWithNote value={funding ?? ""} options={fundingOptions} otherValue="OTHER" disabled={!rule} clearable
-              invalid={!!fieldState.error} placeholder="Theo phiếu" notePlaceholder="Nguồn khác: ghi rõ" noteMax={maxLengthOf("SHORT_TEXT", 200)}
-              onChange={(v) => {
-                setValue(name("fundingSource"), v || null, { shouldDirty: true });
-                if (v !== "OTHER") setValue(name("fundingNote"), null, { shouldDirty: true });
-              }}
-              note={note.value} onNoteChange={note.onChange} onNoteBlur={note.onBlur} />
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      {rule?.acquisitionMethod ? (
-        <div className="sm:col-span-2">
-          <AcquisitionChoice label="Hình thức mua sắm" clearable value={line?.acquisitionMethod?.id ? line.acquisitionMethod : null}
-            onChange={(m) => {
-              setValue(name("acquisitionMethod"), m ? { id: m.id, code: m.code, name: m.name } : { id: null }, { shouldDirty: true });
-              if (m?.code !== OTHER_ACQUISITION_CODE) setValue(name("acquisitionNote"), null, { shouldDirty: true });
-            }}
-            note={line?.acquisitionNote} onNoteChange={(n) => setValue(name("acquisitionNote"), n, { shouldDirty: true })} />
-        </div>
-      ) : null}
       {lineId ? (
         <div className="sm:col-span-full">
-          <AttachmentsPanel resource="equipment_intake_lines" title="Hoá đơn của dòng" recordId={lineId} canWrite compact
-            description="Hoá đơn riêng của dòng này. Xem lại được ở từng thiết bị sau khi nhập." />
+          <AttachmentsPanel resource="equipment_intake_lines" title="Tệp đính kèm" recordId={lineId} canWrite compact
+            description="Chứng từ riêng của thiết bị này. Xem lại được ở từng thiết bị sau khi nhập." />
         </div>
-      ) : null}
+      ) : (
+        <div className="sm:col-span-full">
+          <PendingAttachments files={(line?.pendingFiles ?? []) as File[]} onChange={(f) => setValue(name("pendingFiles"), f, { shouldDirty: true })} />
+        </div>
+      )}
     </div>
   );
 }

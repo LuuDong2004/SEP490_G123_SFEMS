@@ -144,11 +144,12 @@ function effective(line: IntakeLine, head: EquipmentIntake | undefined) {
   };
 }
 
+/** Một mục "Tên: giá trị" trên cùng một dòng (trưởng nhóm 14/11/2026: có dấu hai chấm, không xếp tên trên giá trị). */
 function Fact({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-0.5", wide && "sm:col-span-2")}>
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="text-sm font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
+    <div className={cn("flex min-w-0 items-baseline gap-1.5 text-sm", wide && "sm:col-span-2")}>
+      <dt className="text-muted-foreground shrink-0">{label}:</dt>
+      <dd className="min-w-0 font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
     </div>
   );
 }

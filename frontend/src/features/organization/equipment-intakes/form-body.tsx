@@ -198,7 +198,33 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const finish = async (formValues: any) => {
     const res: any = await onFinish(toPayload(formValues));
     await pending.uploadTo(res?.data?.id);
+    await uploadLineFiles(formValues, res?.data);
     return res;
+  };
+  /** Tệp chọn trong hộp chứng từ riêng của dòng CHƯA lưu: dòng thứ i của form ↔ dòng số i+1 của phiếu vừa lưu. */
+  const uploadLineFiles = async (formValues: any, saved: any) => {
+    const savedLines: any[] = saved?.lines ?? [];
+    const formLines: any[] = formValues?.lines ?? [];
+    for (let i = 0; i < formLines.length; i++) {
+      const fl = formLines[i];
+      const list: File[] = fl?.ownDocuments ? fl?.pendingFiles ?? [] : [];
+      if (!list.length) continue;
+      const lineId = savedLines.find((x) => Number(x?.lineNo) === i + 1)?.id ?? savedLines[i]?.id;
+      if (lineId == null) continue;
+      for (const file of list) {
+        const body = new FormData();
+        body.append("resource", "equipment_intake_lines");
+        body.append("recordId", String(lineId));
+        body.append("file", file);
+        try {
+          await kyInstance.post("attachments", { body });
+        } catch (error) {
+          open?.({ type: "error", message: await errorMessage(error), description: `Phiếu đã lưu nhưng chưa đính kèm được ${file.name}` });
+        }
+      }
+      form.setValue(`lines.${i}.pendingFiles`, []);
+      await queryClient.invalidateQueries({ queryKey: ["attachments", "equipment_intake_lines", lineId] });
+    }
   };
 
   const save = form.handleSubmit(async (formValues) => {

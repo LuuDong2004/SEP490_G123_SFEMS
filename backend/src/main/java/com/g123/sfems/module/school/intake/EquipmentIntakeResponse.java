@@ -106,7 +106,13 @@ public record EquipmentIntakeResponse(
             BigDecimal packSize,
             BigDecimal stockQuantity,
             // Số serial khai lúc nhận hàng (thiết bị từng cái), theo thứ tự cấp cho thiết bị sinh ra.
-            List<String> serialNumbers) {
+            List<String> serialNumbers,
+            // Phòng nhận riêng của từng cái theo vị trí; null = theo phòng nhận của dòng.
+            List<Long> unitRoomIds,
+            List<String> unitModels,
+            List<String> unitManufacturers,
+            List<Integer> unitWarrantyMonths,
+            List<String> unitOtherInfos) {
 
         static Line from(EquipmentIntakeLine line) {
             BigDecimal price = line.getUnitPrice();
@@ -142,7 +148,12 @@ public record EquipmentIntakeResponse(
                     RefSummary.of(line.getPackUnit()),
                     line.getPackSize(),
                     line.stockQuantity(),
-                    line.serialSlots());
+                    line.serialSlots(),
+                    line.unitRoomSlots(),
+                    line.unitModels(),
+                    line.unitManufacturers(),
+                    line.unitWarrantyMonths(),
+                    line.unitOtherInfos());
         }
     }
 

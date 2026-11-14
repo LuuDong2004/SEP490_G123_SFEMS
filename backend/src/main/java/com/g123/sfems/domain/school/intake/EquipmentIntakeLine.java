@@ -195,6 +195,23 @@ public class EquipmentIntakeLine extends BaseEntity {
     @Column(name = "serial_numbers", columnDefinition = "text")
     private String serialNumbers;
 
+    /** Phòng nhận của TỪNG cái, theo vị trí (cái thứ i ↔ dòng thứ i); dòng trống = theo {@link #room} của cả dòng. */
+    @Column(name = "unit_room_ids", columnDefinition = "text")
+    private String unitRoomIds;
+
+    /** Model / hãng / bảo hành (tháng) / thông tin khác của TỪNG cái, theo vị trí; trống = theo ô cùng tên của dòng (256). */
+    @Column(name = "unit_models", columnDefinition = "text")
+    private String unitModels;
+
+    @Column(name = "unit_manufacturers", columnDefinition = "text")
+    private String unitManufacturers;
+
+    @Column(name = "unit_warranty_months", columnDefinition = "text")
+    private String unitWarrantyMonths;
+
+    @Column(name = "unit_other_infos", columnDefinition = "text")
+    private String unitOtherInfos;
+
     /** Các số serial ĐÃ KHAI (bỏ chỗ trống) — để kiểm trùng, đếm. */
     public List<String> serialList() {
         return serialSlots().stream().filter(s -> !s.isEmpty()).toList();
@@ -204,6 +221,89 @@ public class EquipmentIntakeLine extends BaseEntity {
      * Serial THEO VỊ TRÍ: phần tử thứ i là serial của thiết bị thứ i sinh từ dòng, chuỗi rỗng = máy đó chưa khai
      * (trưởng nhóm 13/11/2026 — form khai từng máy, máy 2 để trống thì máy 3 vẫn mang đúng số của nó).
      */
+    /** Phòng riêng của từng cái theo vị trí; {@code null} ở vị trí nào là cái đó theo phòng nhận của dòng. */
+    public List<Long> unitRoomSlots() {
+        if (unitRoomIds == null || unitRoomIds.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(unitRoomIds.split("\n", -1)).map(String::strip)
+                .map(s -> s.isEmpty() ? null : Long.valueOf(s)).collect(java.util.stream.Collectors.toList());
+    }
+
+    /** Ghi phòng riêng theo vị trí; bỏ phần trống ở cuối, toàn trống thì xoá. */
+    public void setUnitRoomSlots(List<Long> ids) {
+        List<String> list = new java.util.ArrayList<>((ids == null ? List.<Long>of() : ids).stream()
+                .map(id -> id == null ? "" : id.toString()).toList());
+        while (!list.isEmpty() && list.getLast().isEmpty()) {
+            list.removeLast();
+        }
+        this.unitRoomIds = list.isEmpty() ? null : String.join("\n", list);
+    }
+
+    /** Chuỗi theo vị trí → danh sách; ô trống là chuỗi rỗng. */
+    private static List<String> slotsOf(String raw) {
+        return raw == null || raw.isBlank() ? List.of() : Arrays.stream(raw.split("\n", -1)).map(String::strip).toList();
+    }
+
+    /** Danh sách theo vị trí → chuỗi; xuống dòng trong giá trị thành khoảng trắng, bỏ phần trống ở cuối. */
+    private static String joinSlots(List<?> values) {
+        List<String> list = new java.util.ArrayList<>((values == null ? List.of() : values).stream()
+                .map(v -> v == null ? "" : v.toString().replaceAll("\\s*\\R\\s*", " ").strip()).toList());
+        while (!list.isEmpty() && list.getLast().isEmpty()) {
+            list.removeLast();
+        }
+        return list.isEmpty() ? null : String.join("\n", list);
+    }
+
+    private static String at(List<String> slots, int i) {
+        return i < slots.size() && !slots.get(i).isEmpty() ? slots.get(i) : null;
+    }
+
+    public List<String> unitModels() {
+        return slotsOf(unitModels);
+    }
+
+    public List<String> unitManufacturers() {
+        return slotsOf(unitManufacturers);
+    }
+
+    public List<String> unitOtherInfos() {
+        return slotsOf(unitOtherInfos);
+    }
+
+    public List<Integer> unitWarrantyMonths() {
+        return slotsOf(unitWarrantyMonths).stream().map(s -> s.isEmpty() ? null : Integer.valueOf(s)).collect(java.util.stream.Collectors.toList());
+    }
+
+    public void setUnitDetails(List<String> models, List<String> manufacturers, List<Integer> warranties, List<String> otherInfos) {
+        this.unitModels = joinSlots(models);
+        this.unitManufacturers = joinSlots(manufacturers);
+        this.unitWarrantyMonths = joinSlots(warranties);
+        this.unitOtherInfos = joinSlots(otherInfos);
+    }
+
+    /** Model của cái thứ i: của riêng nó, không thì của dòng. */
+    public String modelOf(int i) {
+        String own = at(unitModels(), i);
+        return own != null ? own : model;
+    }
+
+    public String manufacturerOf(int i) {
+        String own = at(unitManufacturers(), i);
+        return own != null ? own : manufacturer;
+    }
+
+    public String otherInfoOf(int i) {
+        String own = at(unitOtherInfos(), i);
+        return own != null ? own : otherInfo;
+    }
+
+    /** Bảo hành (tháng) của cái thứ i: của riêng nó, không thì của dòng / đầu phiếu. */
+    public Integer warrantyMonthsOf(int i) {
+        List<Integer> own = unitWarrantyMonths();
+        return i < own.size() && own.get(i) != null ? own.get(i) : effectiveWarrantyMonths();
+    }
+
     public List<String> serialSlots() {
         if (serialNumbers == null || serialNumbers.isBlank()) {
             return List.of();

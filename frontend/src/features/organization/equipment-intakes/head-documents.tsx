@@ -167,7 +167,7 @@ export function IntakeSourceCard({ control, record, chooseSchool, onViewFiles, o
 
       {/* Nguồn không có ô chứng từ (kiểm kê thừa, tự làm): không có khối này. Tệp chứng từ ở cuối khối Giao nhận. */}
       {hasDocFields ? (
-      <div className={cn("bg-surface-subtle space-y-5 rounded-b-xl border-t px-5 pt-5 pb-6", !open && "hidden")}>
+      <div className={cn("space-y-5 rounded-b-xl px-5 pt-2 pb-6", !open && "hidden")}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h3 className="text-base leading-6 font-semibold">{doc.title}</h3>
             {/* Chưa có tệp thì là nút TẢI tệp (trưởng nhóm 13/11/2026) — nút "Xem tệp" bị khoá không làm gì được;

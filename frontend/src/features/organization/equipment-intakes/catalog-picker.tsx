@@ -9,6 +9,7 @@ import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,7 @@ export function CatalogPickerDialog({
   exclude,
   onPick,
   mode = "multi",
-  title = "Chọn thiết bị từ danh mục",
+  title = "Chọn thiết bị trong danh mục",
   description = "Chọn thiết bị trong danh mục để thêm vào phiếu ghi tăng.",
   header,
   body,
@@ -342,10 +343,10 @@ export function CatalogPickerDialog({
               ) : (
                 rows.map((row) => {
                   const already = exclude.has(row.id);
-                  return (
+                  const tr = (
                     <TableRow
                       key={row.id}
-                      className={cn("group/row", LIFT_ROW, already ? "text-muted-foreground" : "cursor-pointer")}
+                      className={cn("group/row", LIFT_ROW, already ? "text-warning-text" : "cursor-pointer")}
                       onClick={() => toggle(row)}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -363,14 +364,11 @@ export function CatalogPickerDialog({
                             Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin] ?? row.origin}` : ""}
                           </Badge>
                         ) : null}
-                        {already ? (
-                          <div className="text-xs">Phiếu đã có dòng cho thiết bị này</div>
-                        ) : null}
                       </TableCell>
                       <TableCell>{row.unit?.name ?? "—"}</TableCell>
                       <TableCell>
                         {row.trackingType ? (
-                          <Badge variant={row.trackingType === "bulk" ? "info" : "neutral"}>
+                          <Badge variant={already ? "warning" : row.trackingType === "bulk" ? "info" : "neutral"}>
                             {TRACKING_LABELS[row.trackingType] ?? row.trackingType}
                           </Badge>
                         ) : (
@@ -378,6 +376,13 @@ export function CatalogPickerDialog({
                         )}
                       </TableCell>
                     </TableRow>
+                  );
+                  if (!already) return tr;
+                  return (
+                    <Tooltip key={row.id}>
+                      <TooltipTrigger asChild>{tr}</TooltipTrigger>
+                      <TooltipContent side="top">Thiết bị này đã có trong phiếu. Vui lòng tăng số lượng ở đơn giá tương ứng.</TooltipContent>
+                    </Tooltip>
                   );
                 })
               )}

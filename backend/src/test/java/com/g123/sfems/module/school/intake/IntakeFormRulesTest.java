@@ -64,6 +64,16 @@ class IntakeFormRulesTest {
     }
 
     @Test
+    void unitRoomsKeepTheirPositionAndDropTrailingBlanks() {
+        // Cái 2 về phòng 15, cái 1 và 3 theo phòng của dòng; phần trống ở cuối bỏ đi.
+        EquipmentIntakeLine line = new EquipmentIntakeLine();
+        line.setUnitRoomSlots(Arrays.asList(null, 15L, null, null));
+        assertThat(line.unitRoomSlots()).containsExactly(null, 15L);
+        line.setUnitRoomSlots(Arrays.asList(null, null));
+        assertThat(line.unitRoomSlots()).isEmpty();
+    }
+
+    @Test
     void serialCountMustNotExceedReceivedQuantity() {
         EquipmentIntake intake = intake(OriginRule.MUA_SAM, LocalDate.of(2026, 11, 13));
         line(intake, 1, 2, "SN001", "SN002");
