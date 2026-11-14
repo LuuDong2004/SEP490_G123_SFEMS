@@ -71,10 +71,12 @@ export function useRemainingHeight(off?: boolean) {
   return [ref, height] as const;
 }
 
-export function TableEmpty({ colSpan, title, description, filtered, compact, icon, loading }: {
+export function TableEmpty({ colSpan, title, description, action, filtered, compact, icon, loading }: {
   colSpan: number;
   title?: ReactNode;
   description?: ReactNode;
+  /** Lối ra khi bảng trống (nút "Thêm …") — đứng dưới tiêu đề, giữa khung. */
+  action?: ReactNode;
   filtered?: boolean;
   compact?: boolean;
   icon?: ReactNode;
@@ -84,15 +86,15 @@ export function TableEmpty({ colSpan, title, description, filtered, compact, ico
   return (
     <TableRow className="hover:bg-transparent border-0">
       <TableCell ref={ref} colSpan={colSpan} className="p-0" style={compact ? undefined : { height: height ?? 320 }}>
-        <EmptyBody title={title} description={description} filtered={filtered} icon={icon} loading={loading}
+        <EmptyBody title={title} description={description} action={action} filtered={filtered} icon={icon} loading={loading}
           className={compact ? "py-10" : "h-full"} />
       </TableCell>
     </TableRow>
   );
 }
 
-function EmptyBody({ title, description, filtered, icon, loading, className }: {
-  title?: ReactNode; description?: ReactNode; filtered?: boolean; icon?: ReactNode; loading?: boolean; className?: string;
+function EmptyBody({ title, description, action, filtered, icon, loading, className }: {
+  title?: ReactNode; description?: ReactNode; action?: ReactNode; filtered?: boolean; icon?: ReactNode; loading?: boolean; className?: string;
 }) {
   return (
     <div className={cn("flex flex-col items-center justify-center gap-2 px-4 text-center", className)}>
@@ -102,6 +104,7 @@ function EmptyBody({ title, description, filtered, icon, loading, className }: {
         </span>
         <p className="text-foreground line-clamp-2 max-w-xl text-sm font-semibold [overflow-wrap:anywhere]">{title ?? (filtered ? "Không có kết quả phù hợp" : "Chưa có dữ liệu")}</p>
         {description ? <p className="text-muted-foreground max-w-sm text-sm [overflow-wrap:anywhere]">{description}</p> : null}
+        {action ? <div className="mt-2">{action}</div> : null}
       </>}
     </div>
   );

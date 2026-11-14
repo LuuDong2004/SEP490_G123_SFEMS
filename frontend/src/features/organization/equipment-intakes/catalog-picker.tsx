@@ -229,7 +229,7 @@ export function CatalogPickerDialog({
         {body ?? (
         <>
 
-        {/* Một hàng lọc: ô tìm (gõ là lọc), hai ô chọn loại / môn; "Thêm mới" đứng cuối hàng vì
+        {/* Một hàng lọc: ô tìm (gõ là lọc), hai ô chọn loại / môn; nút thêm thiết bị đứng cuối hàng vì
             người ta chỉ cần nó đúng lúc tìm không ra.
             Ô tìm là <div> chứ không phải <form>: hộp này mở TRONG form phiếu
             nhập, và một form lồng trong form thì Enter ở đây submit cả phiếu. */}
@@ -289,7 +289,7 @@ export function CatalogPickerDialog({
           {mayCreate ? (
             <Button type="button" variant="outline" className="ms-auto" onClick={() => setCreating(true)}>
               <Plus />
-              Thêm mới
+              Thêm vào danh mục
             </Button>
           ) : (
             // Trường không ghi danh mục của Sở, nhưng thêm được thiết bị NGOÀI danh mục của riêng mình.
@@ -298,7 +298,7 @@ export function CatalogPickerDialog({
             <span className="ms-auto flex items-center gap-1.5">
               <Button type="button" variant="outline" onClick={() => setAddingOwn(true)}>
                 <Plus />
-                Ngoài danh mục
+                Thêm ngoài danh mục
               </Button>
               <HelpHint>
                 Dùng khi thiết bị không có trong danh mục của Sở.
@@ -339,7 +339,16 @@ export function CatalogPickerDialog({
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
-                <TableEmpty colSpan={5} loading={query.isLoading} title={<>Không có thiết bị nào phù hợp.</>} />
+                // Tìm không ra: mời thêm ngay làm thiết bị ngoài danh mục (tên điền sẵn từ khoá vừa gõ) — nút đứng giữa
+                // khung trống, chỗ mắt người dùng đang nhìn, không phải một dòng chữ nhỏ dưới bảng.
+                <TableEmpty colSpan={5} loading={query.isLoading} filtered={!!applied}
+                  title={applied ? <>Không có “{applied}” trong danh mục</> : <>Không có thiết bị nào phù hợp.</>}
+                  action={mayCreate ? undefined : (
+                    <Button type="button" variant="outline" onClick={() => setAddingOwn(true)}>
+                      <Plus />
+                      Thêm ngoài danh mục
+                    </Button>
+                  )} />
               ) : (
                 rows.map((row) => {
                   const already = exclude.has(row.id);
@@ -397,17 +406,6 @@ export function CatalogPickerDialog({
           ) : null}
         </div>
 
-        {/* Tìm KHÔNG RA thì chỉ ngay lối thêm thiết bị ngoài danh mục, tên điền sẵn từ khoá vừa gõ —
-            hiện thường trực thì thành một dòng chữ không ai đọc. */}
-        {mayCreate || !applied || rows.length > 0 || query.isFetching ? null : (
-          <p className="text-muted-foreground -mt-1 flex flex-wrap items-center gap-x-2 text-xs">
-            Không có “{applied}” trong danh mục. Bạn có thể
-            <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setAddingOwn(true)}>
-              thêm làm thiết bị ngoài danh mục
-            </Button>
-          </p>
-        )}
-
         {/* Một thanh dưới: số đã tải bên trái; số đã chọn và hai nút bên phải. */}
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">
           {total > 0 ? (
@@ -422,7 +420,7 @@ export function CatalogPickerDialog({
               </span>
             )}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Đóng
+              Huỷ
             </Button>
             {single ? null : (
               <Button
@@ -638,7 +636,7 @@ function NewCatalogDialog({
             disabled={busy || !code.trim() || !name.trim() || !unitId || !!codeError || !!nameError}
             onClick={submit}
           >
-            Tạo và chọn
+            Lưu và chọn
           </Button>
         </DialogFooter>
       </DialogContent>

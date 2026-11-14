@@ -95,9 +95,9 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
           <span className="text-muted-foreground text-sm">
             Đã chọn <span className="text-foreground font-semibold tabular-nums">{selected.size}</span>
           </span>
-          <Button type="button" variant="outline" onClick={() => close(false)}>Đóng</Button>
+          <Button type="button" variant="outline" onClick={() => close(false)}>Huỷ</Button>
           <Button type="button" className="min-w-28" disabled={selected.size === 0} onClick={confirmNorm}>
-            Thêm {selected.size > 0 ? selected.size : ""} dòng
+            Thêm {selected.size > 0 ? selected.size : ""} thiết bị
           </Button>
         </div>
       </div>
