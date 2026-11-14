@@ -12,6 +12,7 @@ import { MoneyInput } from "@/shared/components/form/money-input";
 import { SchoolField } from "@/shared/components/form/school-field";
 import { DateField, SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
+import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { VoucherFormPage } from "@/shared/components/voucher/voucher-form-page";
 import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
 import { VoucherList } from "@/shared/components/voucher/voucher-list";
@@ -570,6 +571,15 @@ export const PurchaseProposalShow = () => {
           </TableFooter>
         </Table>
       </div>
+
+      {/* NC-03: người duyệt xem báo giá, biên bản khảo sát… kèm theo đề xuất. */}
+      <AttachmentsPanel
+        resource={RESOURCE}
+        recordId={record?.id}
+        canWrite={record?._can?.write === true}
+        compact
+        description="Báo giá, biên bản khảo sát nhu cầu và giấy tờ khác làm căn cứ cho đề xuất."
+      />
     </VoucherShowShell>
   );
 };
