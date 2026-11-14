@@ -19,8 +19,8 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
 /**
  * Chữ "Đang tải…" kèm vòng quay nhỏ.
  *
- * <p>Repo nguồn có hàm này trong `shared/components/spinner.tsx`, nhưng bản `spinner.tsx` của nhóm đã được
- * viết lại và không còn nó. `shared/**` phải báo DongLV trước khi sửa, nên dựng tại chỗ bằng `Spinner` sẵn có.
+ * <p>`shared/components/spinner.tsx` không có sẵn dạng này, và `shared/**` phải báo DongLV trước khi sửa,
+ * nên dựng tại chỗ bằng `Spinner` sẵn có.
  */
 function LoadingText({ label = "Đang tải…" }: { label?: string }) {
   return (
@@ -35,8 +35,7 @@ function LoadingText({ label = "Đang tải…" }: { label?: string }) {
  * Dòng TRỐNG của bảng tự vẽ (không qua `DataTable`): biểu tượng tròn, tiêu đề, gợi ý — đứng GIỮA và cao KÍN phần
  * còn lại của khung dưới đầu bảng (tự đo vùng cuộn chứa bảng, đổi theo khi khung đổi cỡ).
  *
- * <p>Bản cục bộ của `shared/components/data-table/table-empty.tsx` (repo nguồn) — giữ trong feature thay vì
- * `shared/**` vì file dùng chung phải báo DongLV trước khi thêm.
+ * <p>Giữ trong feature thay vì `shared/**` vì file dùng chung phải báo DongLV trước khi thêm.
  *
  * - `filtered`: đang lọc / tìm mà không ra dòng nào — biểu tượng tìm, tiêu đề mặc định "Không có kết quả phù hợp".
  * - `compact`: bảng nhỏ nằm giữa form (dòng phiếu, bảng phụ) — cao vừa đủ (~10rem), không đo khung.
