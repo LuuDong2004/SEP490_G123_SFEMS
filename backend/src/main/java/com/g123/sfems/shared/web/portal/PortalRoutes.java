@@ -105,6 +105,25 @@ public final class PortalRoutes {
         put(EnumSet.of(SO, SCHOOL), EnumSet.of(SO, SCHOOL), "data_imports");
     }
 
+    /**
+     * Lối GHI riêng của một đường dẫn con, rộng hơn luật của đoạn đầu. Danh mục thiết bị chỉ Sở ghi, nhưng trường thêm /
+     * sửa thiết bị NGOÀI danh mục của chính mình lúc ghi tăng ({@code /api/equipment_catalogs/school-items}, gác bằng
+     * {@code equipment_intakes:write} / {@code equipment:write} và chỉ ghi đồ của trường người gọi). Thiếu dòng này thì
+     * cổng trường không có đường POST / PATCH tới đó (405) — nút "Lưu và chọn" của trường không bao giờ chạy.
+     */
+    private static final Map<String, Set<Portal>> EXTRA_WRITE = Map.of(
+            "/api/equipment_catalogs/school-items", EnumSet.of(SCHOOL));
+
+    /** Cổng ghi thêm cho đường dẫn controller {@code pattern} (chính nó hoặc nằm dưới một khoá của {@link #EXTRA_WRITE}). */
+    public static Set<Portal> extraWrite(String pattern) {
+        for (Map.Entry<String, Set<Portal>> e : EXTRA_WRITE.entrySet()) {
+            if (pattern.equals(e.getKey()) || pattern.startsWith(e.getKey() + "/")) {
+                return e.getValue();
+            }
+        }
+        return NONE;
+    }
+
     private PortalRoutes() {
     }
 

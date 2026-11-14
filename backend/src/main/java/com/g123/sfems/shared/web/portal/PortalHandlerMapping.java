@@ -56,6 +56,9 @@ public class PortalHandlerMapping extends RequestMappingHandlerMapping {
             }
             Set<Portal> portals = EnumSet.noneOf(Portal.class);
             portals.addAll(read ? rule.read() : rule.write());
+            if (!read) {
+                portals.addAll(PortalRoutes.extraWrite(pattern));
+            }
             for (Portal portal : portals) {
                 paths.add("/api/" + portal.prefix() + pattern.substring("/api".length()));
             }

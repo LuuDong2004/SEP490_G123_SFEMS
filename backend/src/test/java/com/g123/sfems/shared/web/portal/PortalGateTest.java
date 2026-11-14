@@ -96,6 +96,26 @@ class PortalGateTest {
         assertThat(status(get("/api/rooms"), apiKey)).isEqualTo(200);
     }
 
+    /**
+     * Trường thêm thiết bị ngoài danh mục qua cổng của mình: danh mục chỉ Sở ghi, nhưng {@code school-items} mở cho
+     * cổng trường ({@code PortalRoutes.EXTRA_WRITE}). Trước đó POST ở cổng trường là 405 — "Lưu và chọn" không chạy.
+     * Kiểm tên (so theo từ) chạy thật câu truy vấn trên CSDL: "Bột Al" trùng "Al (Bột)".
+     */
+    @Test
+    void schoolWritesOwnOutOfCatalogItemsThroughItsPortal() throws Exception {
+        String school = token("thcs.canbo");
+        // Thân rỗng: tới được controller (422 kiểm dữ liệu), không phải 404 / 405 của cổng.
+        assertThat(status(post("/api/school/equipment_catalogs/school-items").contentType(MediaType.APPLICATION_JSON).content("{}"), school))
+                .isIn(400, 422);
+        // Phần còn lại của danh mục vẫn chỉ Sở ghi.
+        assertThat(status(post("/api/school/equipment_catalogs").contentType(MediaType.APPLICATION_JSON).content("{}"), school))
+                .isIn(404, 405);
+        var res = mvc.perform(get("/api/school/equipment_catalogs/school-items/name-check").param("name", "Bột Al")
+                .header("Authorization", "Bearer " + school)).andReturn().getResponse();
+        assertThat(res.getStatus()).isEqualTo(200);
+        assertThat(res.getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).contains("Al (Bột)");
+    }
+
     private String token(String username) {
         User user = users.findByUsernameOrEmail(username).orElse(null);
         Assumptions.assumeTrue(user != null, "Thiếu tài khoản demo " + username);
