@@ -68,7 +68,7 @@ export function MultiRefSelectField({ control, name, resource, label, hint, filt
                   type="button"
                   title={disabledHint ?? (ids.length ? ids.map(nameOf).join(", ") : undefined)}
                   className={cn(
-                    "bg-field flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border px-3 text-sm",
+                    "bg-field flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-full border px-3.5 text-sm",
                     "focus-visible:border-ring outline-none",
                     disabledHint && "cursor-not-allowed opacity-60",
                   )}

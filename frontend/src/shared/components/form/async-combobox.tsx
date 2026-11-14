@@ -193,7 +193,7 @@ export function AsyncCombobox<T extends { id: number }>({
             aria-invalid={invalid || undefined}
             disabled={disabled}
             className={cn(
-              "border-input bg-field hover:bg-accent/60 shadow-e1 flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] outline-none",
+              "border-input bg-field hover:bg-accent/60 shadow-e1 flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-full border px-3.5 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] outline-none",
               "focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50",
               "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
               !label && "text-muted-foreground"

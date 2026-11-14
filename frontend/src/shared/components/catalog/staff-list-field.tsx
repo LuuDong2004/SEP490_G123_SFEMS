@@ -66,7 +66,7 @@ export function StaffListField({ control, name, label, schoolId, hint, prefer, c
           <FormItem className={cn("min-w-0", className)}>
             <FormLabel required={required || undefined}>{label}</FormLabel>
             {hint ? <FormHint>{hint}</FormHint> : null}
-            <div className="bg-field flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1">
+            <div className="bg-field flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 rounded-2xl border px-2 py-1">
               {people.map((p, i) => (
                 <span key={`${p}-${i}`} className="bg-card flex max-w-full items-center gap-1 rounded-md border py-0.5 ps-2 pe-1 text-sm">
                   <span className="truncate">{p}</span>

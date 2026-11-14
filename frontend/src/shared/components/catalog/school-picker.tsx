@@ -32,7 +32,7 @@ export function SchoolPickerField({ value, onChange, placeholder = "Vui lòng ch
     <>
       <button type="button" onClick={() => setOpen(true)} aria-invalid={invalid || undefined}
         className={cn("bg-field hover:border-primary/40 aria-invalid:border-destructive flex h-9 w-full min-w-0 items-center gap-2",
-          "overflow-hidden rounded-md border px-3 text-left text-sm transition-colors")}>
+          "overflow-hidden rounded-full border px-3.5 text-left text-sm transition-colors")}>
         <span className={cn("min-w-0 flex-1 truncate", !value && "text-muted-foreground")}>{value?.name ?? placeholder}</span>
         <ChevronDown className="text-muted-foreground size-4 shrink-0" />
       </button>
