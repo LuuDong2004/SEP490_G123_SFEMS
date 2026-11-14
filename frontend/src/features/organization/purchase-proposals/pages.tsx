@@ -356,8 +356,8 @@ function ProposalFields({ control, record }: { control: Control<any>; record?: a
           type="number"
           rules={{
             validate: (v: unknown) =>
-              v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1950 && Number(v) <= 2100)
-              || "Năm ngân sách phải từ 1950 đến 2100",
+              v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) >= 2000 && Number(v) <= 2100)
+              || "Năm ngân sách phải từ 2000 đến 2100",
           }}
         />
         <SelectField control={control} name="fundingSource" label="Nguồn kinh phí dự kiến" options={opts(PURCHASE_FUNDING)} />

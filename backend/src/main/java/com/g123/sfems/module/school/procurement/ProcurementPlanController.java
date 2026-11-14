@@ -61,8 +61,8 @@ public class ProcurementPlanController {
     /** {@code lines} có mặt thì THAY tập dòng của kế hoạch — xem {@link ProcurementPlanService.Input}. */
     public record Request(IdRef managingBody,
             @Size(max = 255, message = "Tên kế hoạch tối đa 255 ký tự") String title,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             IdRef schoolYear,
             LocalDate planDate,
             @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String note,

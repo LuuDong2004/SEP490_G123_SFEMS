@@ -1,4 +1,4 @@
-import { useGetIdentity, useInvalidate, useList, useNavigation, useNotification } from "@refinedev/core";
+import { useGetIdentity, useInvalidate, useNavigation, useNotification } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { Check, CornerUpLeft, Loader2, Printer, Save, Send, X } from "lucide-react";
@@ -7,7 +7,6 @@ import { useWatch, type Control } from "react-hook-form";
 import { Link } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
-import { RefField } from "@/shared/components/catalog/ref-field";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { DateField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
@@ -58,7 +57,7 @@ export function PlanStatusBadge({ status }: { status: ProcurementPlanStatus }) {
   return <Badge variant={PLAN_VARIANT[status]}>{PLAN_STATUS_LABELS[status]}</Badge>;
 }
 
-type Values = { title: string; schoolYear: { id: number | null }; planDate: string; note: string; lines: PlanLine[] };
+type Values = { title: string; budgetYear: string; planDate: string; note: string; lines: PlanLine[] };
 
 /**
  * Màn kế hoạch mua sắm — MỘT màn cho lập, sửa và xem. Kế hoạch đi theo DÒNG THIẾT BỊ của các đề xuất đã
@@ -84,7 +83,8 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
       : { resource: RESOURCE, action: "edit", id: plan.id, redirect: false, queryOptions: { enabled: false } },
     defaultValues: {
       title: plan?.title ?? "",
-      schoolYear: { id: plan?.schoolYear?.id ?? null },
+      // Năm ngân sách mặc định năm sau: kế hoạch lập năm nay cho tiền năm tới.
+      budgetYear: String(plan?.budgetYear ?? new Date().getFullYear() + 1),
       planDate: plan?.planDate ?? todayLocal(),
       note: plan?.note ?? "",
       lines: plan?.lines ?? [],
@@ -93,18 +93,6 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
   const control = form.control as unknown as Control<any>;
   const lines = (useWatch({ control, name: "lines" }) ?? []) as PlanLine[];
 
-  // Kế hoạch mới: năm học hiện hành điền sẵn, vẫn đổi được.
-  const yearId = useWatch({ control, name: "schoolYear.id" });
-  const { result: years } = useList<any>({
-    resource: "school_years",
-    pagination: { pageSize: 50 },
-    queryOptions: { enabled: creating },
-  });
-  useEffect(() => {
-    if (!creating || yearId) return;
-    const current = (years?.data ?? []).find((y: any) => y.current);
-    if (current) form.setValue("schoolYear", { id: current.id });
-  }, [creating, yearId, years, form]);
   const setLines = (next: PlanLine[]) => form.setValue("lines", next, { shouldDirty: true });
 
   // Đề xuất vừa rút khỏi kế hoạch trên màn (chưa lưu) vẫn chọn lại được — máy chủ còn coi nó thuộc kế hoạch.
@@ -122,7 +110,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
   async function save(values: Values): Promise<number | undefined> {
     const res: any = await onFinish({
       title: values.title,
-      schoolYear: values.schoolYear?.id ? { id: values.schoolYear.id } : null,
+      budgetYear: Number(values.budgetYear),
       planDate: values.planDate,
       note: values.note,
       lines: values.lines.map((l) => ({ lineId: l.lineId, plannedQuantity: l.plannedQuantity })),
@@ -222,9 +210,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
             <ViewFact label="Mã kế hoạch"><span className="font-mono">{plan.code}</span></ViewFact>
             <ViewFact label="Tên kế hoạch" wide>{plan.title}</ViewFact>
             <ViewFact label="Ngày lập">{formatPlainDate(plan.planDate)}</ViewFact>
-            <ViewFact label="Năm học">
-              {plan.schoolYear?.code ?? plan.schoolYear?.name ?? `Năm ngân sách ${plan.budgetYear}`}
-            </ViewFact>
+            <ViewFact label="Năm ngân sách">{plan.budgetYear}</ViewFact>
             <ViewFact label="Người lập">{plan.createdBy?.name ?? "—"}</ViewFact>
             {plan.note ? <ViewFact label="Mô tả" wide>{plan.note}</ViewFact> : null}
           </dl>
@@ -240,17 +226,20 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
               label="Tên kế hoạch"
               rules={textRules("NAME", "Tên kế hoạch", { required: true })}
               className="sm:col-span-2"
-              placeholder="VD: Kế hoạch mua sắm thiết bị dạy học năm học 2026-2027"
+              placeholder="VD: Kế hoạch mua sắm thiết bị dạy học năm 2027"
             />
             <DateField control={control} name="planDate" label="Ngày lập" rules={{ required: "Chọn ngày lập" }} />
-            <RefField
+            <TextField
               control={control}
-              name="schoolYear"
-              resource="school_years"
-              label="Năm học"
-              required
-              labelField="code"
-              current={plan?.schoolYear ?? undefined}
+              name="budgetYear"
+              label="Năm ngân sách"
+              type="number"
+              rules={{
+                required: "Nhập tên kế hoạch và năm ngân sách.",
+                validate: (v: unknown) =>
+                  (Number.isInteger(Number(v)) && Number(v) >= 2000 && Number(v) <= 2100)
+                  || "Năm ngân sách phải từ 2000 đến 2100",
+              }}
             />
             <div className="grid gap-2">
               <Label>Người lập</Label>

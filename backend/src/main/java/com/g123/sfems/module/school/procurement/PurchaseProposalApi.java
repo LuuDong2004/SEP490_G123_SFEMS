@@ -53,8 +53,8 @@ public final class PurchaseProposalApi {
     public record Request(
             IdRef school,
             @NotNull(message = "Chọn ngày đề xuất") LocalDate proposalDate,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             FundingSource fundingSource,
             @Size(max = 1000, message = "Lý do đề xuất tối đa 1000 ký tự") String reason,
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,
@@ -64,8 +64,8 @@ public final class PurchaseProposalApi {
     public record Patch(
             IdRef school,
             LocalDate proposalDate,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             FundingSource fundingSource,
             @Size(max = 1000, message = "Lý do đề xuất tối đa 1000 ký tự") String reason,
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,

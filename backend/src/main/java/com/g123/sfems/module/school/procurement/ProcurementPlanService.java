@@ -417,7 +417,7 @@ public class ProcurementPlanService {
                 Integer.class, id);
         if (count == null || count == 0) {
             throw new FieldValidationException("proposals",
-                    "Kế hoạch chưa có đề xuất nào. Thêm đề xuất đã duyệt của các trường rồi trình lại.");
+                    "Kế hoạch chưa có đề xuất nào.");
         }
         Integer planned = jdbc.queryForObject("""
                 SELECT COALESCE(SUM(l.planned_quantity), 0) FROM purchase_proposal_lines l
@@ -456,7 +456,7 @@ public class ProcurementPlanService {
     public ProcurementPlan returnToDraft(Long id, String note) {
         String reason = trimToNull(note);
         if (reason == null) {
-            throw new FieldValidationException("note", "Ghi lý do trả lại để chuyên viên biết phải sửa gì");
+            throw new FieldValidationException("note", "Ghi lý do trả lại để chuyên viên biết phải sửa gì.");
         }
         ProcurementPlan plan = pendingForApprover(id);
         plan.setStatus(Status.DRAFT);
@@ -558,7 +558,7 @@ public class ProcurementPlanService {
         ProcurementPlan plan = get(id);
         if (!canManage(plan)) {
             throw new FieldValidationException("managingBody",
-                    "Chỉ lãnh đạo của cơ quan lập kế hoạch mới duyệt được kế hoạch này");
+                    "Chỉ lãnh đạo Sở mới duyệt được kế hoạch này.");
         }
         if (plan.getStatus() != Status.PENDING) {
             throw new FieldValidationException("status", "Kế hoạch không ở trạng thái chờ duyệt");
@@ -573,7 +573,7 @@ public class ProcurementPlanService {
             body = requested;
         }
         if (body == null) {
-            throw new FieldValidationException("managingBody", "Chỉ tài khoản của Sở mới lập được kế hoạch mua sắm");
+            throw new FieldValidationException("managingBody", "Chỉ tài khoản thuộc Sở mới lập được kế hoạch mua sắm.");
         }
         Long bodyId = body;
         return rowLevel.asSystem("procurement_plans.body", () -> bodies.get(bodyId));
@@ -593,13 +593,15 @@ public class ProcurementPlanService {
             plan.setSchoolYear(year);
             plan.setBudgetYear(year.getEndDate().getYear());
         } else if (input.budgetYear() != null) {
+            // Màn lập kế hoạch nhập thẳng năm ngân sách (SRS NC-05). Bỏ năm học cũ để hai số không lệch nhau.
             plan.setBudgetYear(input.budgetYear());
+            plan.setSchoolYear(null);
         }
         if (input.note() != null) {
             plan.setNote(trimToNull(input.note()));
         }
         if (plan.getTitle() == null || plan.getBudgetYear() == null) {
-            throw new FieldValidationException("title", "Nhập tên kế hoạch và chọn năm học");
+            throw new FieldValidationException("title", "Nhập tên kế hoạch và năm ngân sách.");
         }
         if (plan.getBudgetYear() < 2000 || plan.getBudgetYear() > 2100) {
             throw new FieldValidationException("budgetYear", "Năm ngân sách không hợp lệ");

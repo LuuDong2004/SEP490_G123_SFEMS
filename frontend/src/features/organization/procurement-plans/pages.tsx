@@ -20,7 +20,7 @@ import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/
 import { PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
 
 const PLAN_SORTS = [
-  { label: "Năm học mới nhất", field: "budgetYear", order: "desc" as const },
+  { label: "Năm ngân sách mới nhất", field: "budgetYear", order: "desc" as const },
   { label: "Lập gần đây nhất", field: "createdAt", order: "desc" as const },
   { label: "Tên kế hoạch A–Z", field: "title", order: "asc" as const },
   { label: "Theo trạng thái", field: "status", order: "asc" as const },
@@ -38,11 +38,7 @@ export const ProcurementPlanList = () => {
       }),
       h.accessor("title", { id: "title", header: "Kế hoạch", enableSorting: true }),
       h.display({ id: "body", header: "Cơ quan", cell: ({ row }) => row.original.managingBody.name }),
-      h.display({
-        id: "schoolYear",
-        header: "Năm học",
-        cell: ({ row }) => row.original.schoolYear?.name?.replace(/^Năm học\s*/i, "") ?? row.original.budgetYear,
-      }),
+      h.accessor("budgetYear", { id: "budgetYear", header: "Năm NS", enableSorting: true, size: 90 }),
       h.accessor("status", {
         id: "status",
         header: "Trạng thái",
