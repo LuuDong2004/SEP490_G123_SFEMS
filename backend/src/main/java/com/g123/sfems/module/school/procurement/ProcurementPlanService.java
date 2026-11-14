@@ -45,20 +45,18 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Kế hoạch mua sắm của một cơ quan quản lý (NC-05, NC-06).
+ * Kế hoạch mua sắm của Sở (NC-05, NC-06).
  *
- * <p>Ai thấy kế hoạch nào: Sở và quản trị viên thấy mọi kế hoạch (tổng hợp toàn ngành); UBND thấy kế hoạch
- * của mình; TRƯỜNG chỉ thấy kế hoạch ĐÃ DUYỆT có đề xuất của chính mình, và trong đó chỉ thấy đề xuất của
+ * <p>Ai thấy kế hoạch nào: Sở và quản trị viên thấy mọi kế hoạch (tổng hợp toàn ngành); TRƯỜNG chỉ thấy
+ * kế hoạch ĐÃ DUYỆT có đề xuất của chính mình, và trong đó chỉ thấy đề xuất của
  * mình. Chỉ chuyên viên của CHÍNH cơ quan lập kế hoạch mới sửa, trình được; chỉ lãnh đạo của chính cơ quan
  * đó mới duyệt.
  *
  * <p>Một kế hoạch chỉ nhận đề xuất ĐÃ DUYỆT của các trường mà cơ quan đó quản lý — cùng cơ quan đã duyệt
  * đề xuất ở bước "cơ quan quản lý". Một đề xuất nằm trong nhiều nhất một kế hoạch.
  *
- * <p>Khác bản gốc ở hai chỗ, cả hai vì repo nhóm chưa có thứ tương ứng: trường {@code details} của phiếu
- * (cần {@code VoucherForms} + cột JSONB, đều ngoài vùng này) bỏ khỏi payload; số tiền theo số đưa vào kế
- * hoạch tính tại đây thay vì gọi {@code PurchaseProposalLine.plannedAmount()} — hàm đó chưa có trong entity
- * của nhóm, và entity không phải chỗ tôi sửa.
+ * <p>Số tiền theo số đưa vào kế hoạch tính tại đây ({@link #plannedAmount}) chứ không đặt trên entity
+ * {@code PurchaseProposalLine}, để entity dùng chung không phải đổi.
  */
 @Service
 @Transactional(readOnly = true)
@@ -169,8 +167,7 @@ public class ProcurementPlanService {
     }
 
     /**
-     * Số tiền của một dòng theo số ĐƯA VÀO KẾ HOẠCH. Bản gốc là {@code PurchaseProposalLine.plannedAmount()};
-     * hàm đó chưa có trong entity của nhóm nên tính tại đây.
+     * Số tiền của một dòng theo số ĐƯA VÀO KẾ HOẠCH.
      */
     private static BigDecimal plannedAmount(PurchaseProposalLine line) {
         return line.getUnitPrice() == null ? BigDecimal.ZERO
@@ -207,7 +204,7 @@ public class ProcurementPlanService {
 
     /**
      * Tổng hợp theo năm ngân sách: mỗi cơ quan quản lý bao nhiêu đề xuất, bao nhiêu tiền, bao nhiêu đã duyệt
-     * / đã vào kế hoạch; và cộng theo nhóm thiết bị. Sở thấy toàn ngành, UBND thấy địa bàn mình.
+     * / đã vào kế hoạch; và cộng theo nhóm thiết bị. Sở thấy toàn ngành.
      */
     public Summary summary(Integer year) {
         return summary(year, null);
@@ -573,7 +570,7 @@ public class ProcurementPlanService {
             body = requested;
         }
         if (body == null) {
-            throw new FieldValidationException("managingBody", "Chỉ Sở hoặc UBND mới lập được kế hoạch mua sắm");
+            throw new FieldValidationException("managingBody", "Chỉ tài khoản của Sở mới lập được kế hoạch mua sắm");
         }
         Long bodyId = body;
         return rowLevel.asSystem("procurement_plans.body", () -> bodies.get(bodyId));

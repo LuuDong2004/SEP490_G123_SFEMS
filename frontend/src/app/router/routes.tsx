@@ -52,6 +52,12 @@ import {
   PurchaseProposalList,
   PurchaseProposalShow,
 } from "@/features/organization/purchase-proposals";
+import {
+  ProcurementPlanCreate,
+  ProcurementPlanEdit,
+  ProcurementPlanList,
+  ProcurementPlanShow,
+} from "@/features/organization/procurement-plans";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -156,7 +162,12 @@ export function AppRoutes() {
           edit: <PurchaseProposalEdit />,
           show: <PurchaseProposalShow />,
         })}
-        {crudRoutes("/procurement-plans", "procurement_plans")}
+        {crudRoutes("/procurement-plans", "procurement_plans", {
+          list: <ProcurementPlanList />,
+          create: <ProcurementPlanCreate />,
+          edit: <ProcurementPlanEdit />,
+          show: <ProcurementPlanShow />,
+        })}
 
         {/* Nhập thiết bị – ghi tăng (PN-01 – PN-03) */}
         {crudRoutes("/equipment-intakes", "equipment_intakes", {
