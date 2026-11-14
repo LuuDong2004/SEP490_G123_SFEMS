@@ -253,13 +253,13 @@ export function EquipmentLinesField({
                                 const rest = round3(available - Number(field.value));
                                 return (
                                   <div>
-                                    <LotQuantityInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} hideHint
-                                      unit={unit} item={item} max={available} invalid={showProblem}
+                                    <LotQuantityInput value={field.value} onChange={field.onChange} onBlur={field.onBlur}
+                                      unit={unit} max={available} invalid={showProblem}
                                       ariaLabel={`${quantityHeader} ${item?.name ?? ""}`} />
                                     <p className={cn("mt-1 text-xs tabular-nums", showProblem ? "text-destructive" : "text-muted-foreground")}>
                                       {showProblem ? problem
-                                        : typed && !problem ? (rest === 0 ? "Chuyển hết lô" : `Còn ${readableAmount(rest, unit, item)}`)
-                                          : `Có ${readableAmount(available, unit, item)}`}
+                                        : typed && !problem ? (rest === 0 ? "Chuyển hết lô" : `Còn ${readableAmount(rest, unit)}`)
+                                          : `Có ${readableAmount(available, unit)}`}
                                     </p>
                                   </div>
                                 );
