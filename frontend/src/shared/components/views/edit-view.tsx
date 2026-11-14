@@ -35,6 +35,8 @@ export function EditView({ children, className }: EditViewProps) {
 }
 
 type EditViewHeaderProps = PropsWithChildren<{
+  /** Nút quay lại đi tới đâu — mặc định lùi lịch sử trình duyệt; form phiếu ghi tăng về danh sách. */
+  onBack?: () => void;
   resource?: string;
   title?: string;
   /** Cạnh tiêu đề: trạng thái, bước của phiếu… — nhỏ, cùng hàng. */
@@ -45,6 +47,7 @@ type EditViewHeaderProps = PropsWithChildren<{
 }>;
 
 export const EditViewHeader = ({
+  onBack,
   resource: resourceFromProps,
   title: titleFromProps,
   meta,
@@ -92,7 +95,7 @@ export const EditViewHeader = ({
         )}
       >
         <div className="flex max-w-full min-w-0 items-center gap-1">
-          <Button data-print="hide" variant="ghost" size="icon" onClick={back} aria-label="Quay lại">
+          <Button type="button" data-print="hide" variant="ghost" size="icon" onClick={onBack ?? back} aria-label="Quay lại">
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">

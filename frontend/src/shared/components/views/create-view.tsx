@@ -34,6 +34,8 @@ export function CreateView({ children, className }: CreateViewProps) {
 }
 
 type CreateHeaderProps = PropsWithChildren<{
+  /** Nút quay lại đi tới đâu — mặc định lùi lịch sử trình duyệt; form phiếu ghi tăng về danh sách. */
+  onBack?: () => void;
   resource?: string;
   title?: string;
   /** Cạnh tiêu đề: trạng thái, bước của phiếu… — nhỏ, cùng hàng. */
@@ -45,6 +47,7 @@ type CreateHeaderProps = PropsWithChildren<{
 }>;
 
 export const CreateViewHeader = ({
+  onBack,
   resource: resourceFromProps,
   title: titleFromProps,
   meta,
@@ -85,7 +88,7 @@ export const CreateViewHeader = ({
           headerClassName
         )}
       >
-        <Button data-print="hide" variant="ghost" size="icon" onClick={back} aria-label="Quay lại">
+        <Button type="button" data-print="hide" variant="ghost" size="icon" onClick={onBack ?? back} aria-label="Quay lại">
           <ArrowLeftIcon className="h-4 w-4" />
         </Button>
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">

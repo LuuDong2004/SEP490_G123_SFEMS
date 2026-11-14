@@ -30,7 +30,7 @@ export type FileDropItem = {
  *
  * Chỉ vẽ; nơi gọi giữ tệp (chờ lưu: `PendingAttachments`, đã lưu: `AttachmentsPanel`) và quyết định thêm / xoá.
  */
-export function FileDrop({ label, required, limit = "Tối đa 10 MB mỗi tệp", hint, items, onAdd, busy, disabled }: {
+export function FileDrop({ label, required, limit = "Tối đa 10 MB mỗi tệp", hint, items, onAdd, busy, disabled, compact }: {
   label: string;
   required?: boolean;
   /** Chữ nhỏ bên phải nhãn. */
@@ -42,6 +42,8 @@ export function FileDrop({ label, required, limit = "Tối đa 10 MB mỗi tệp
   busy?: boolean;
   /** Chỉ xem: không có vùng thả, không có ô "Thêm tệp". */
   disabled?: boolean;
+  /** Vùng thả MỘT DÒNG (ô tệp nằm trong khối khác, vd. tệp của từng hoá đơn) thay cho ô cao. */
+  compact?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -68,6 +70,48 @@ export function FileDrop({ label, required, limit = "Tối đa 10 MB mỗi tệp
   const zone = cn("border-input flex rounded-lg border border-dashed transition-colors",
     disabled ? "cursor-default" : "hover:border-primary/50 hover:bg-primary/5 cursor-pointer",
     over && "border-primary bg-primary/5", busy && "pointer-events-none opacity-60");
+
+  const list = (
+    <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map((f) => (
+        <li key={f.key} className="bg-card hover:border-primary/40 flex min-w-0 items-center gap-2.5 rounded-lg border py-2 ps-2.5 pe-1.5 transition-colors">
+          <span className="bg-surface-subtle flex size-9 shrink-0 items-center justify-center rounded-md border">{f.icon}</span>
+          <button type="button" className="min-w-0 flex-1 text-left" title={`Xem ${f.name}`} onClick={f.onOpen}>
+            <span className="hover:text-primary block truncate text-sm font-medium">{f.name}</span>
+            <span className="text-muted-foreground block truncate text-xs tabular-nums">{f.meta}</span>
+          </button>
+          <div className="flex shrink-0">{f.actions}</div>
+        </li>
+      ))}
+    </ul>
+  );
+
+  // Gọn (tệp của từng hoá đơn): MỘT hàng — nhãn, nút chọn tệp (cũng nhận kéo thả), chữ phụ; có tệp thì danh sách ở dưới.
+  // Không vùng thả chạy hết bề ngang (trưởng nhóm 14/11/2026, CLAUDE.md "không dài ngoằng").
+  if (compact) {
+    return (
+      <div className={cn("grid gap-2 rounded-lg", over && "bg-primary/5")} {...drop}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="text-sm font-medium">
+            {label}
+            {required ? <span className="text-destructive" aria-hidden> *</span> : null}
+            {items.length ? <span className="text-muted-foreground ms-1.5 font-normal tabular-nums">({items.length})</span> : null}
+          </span>
+          <input ref={input} type="file" multiple className="hidden"
+            onChange={(e) => { if (e.target.files?.length) onAdd(Array.from(e.target.files)); }} />
+          {/* Nút ở BÊN PHẢI, không dòng chữ phụ (trưởng nhóm 14/11/2026) — gợi ý, giới hạn tệp nằm trong chú thích nút. */}
+          {disabled ? (items.length ? null : <span className="text-muted-foreground ms-auto text-sm">Chưa có tệp nào.</span>) : (
+            <button type="button" onClick={pick} title={[hint, limit].filter(Boolean).join(" · ")}
+              className={cn(zone, "bg-card text-primary ms-auto items-center gap-2 px-3 py-1.5 text-sm font-medium")}>
+              <Upload className="size-4" />
+              {items.length ? "Thêm tệp" : "Chọn hoặc kéo thả tệp"}
+            </button>
+          )}
+        </div>
+        {items.length ? list : null}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-2" {...drop}>

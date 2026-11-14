@@ -49,13 +49,15 @@ export function usePendingAttachments(resource: string) {
 }
 
 /** Khung "Tệp đính kèm" của form lập phiếu: nút Thêm tệp và danh sách tệp đang chờ lưu. */
-export function PendingAttachments({ files, onChange, className, title = "Tệp đính kèm", required, field, hint }: {
+export function PendingAttachments({ files, onChange, className, title = "Tệp đính kèm", required, field, hint, compact }: {
   files: File[];
   onChange: (files: File[]) => void;
   /** Vẽ như một trường form (nhãn + vùng kéo thả, `FileDrop`) thay cho thẻ có tiêu đề. */
   field?: boolean;
   /** Dòng phụ trong vùng kéo thả khi chưa có tệp (chỉ khi `field`). */
   hint?: string;
+  /** Vùng kéo thả một dòng (chỉ khi `field`). */
+  compact?: boolean;
   /** Tiêu đề khung, vd. "Tệp quyết định" khi loại phiếu cần đúng một loại giấy tờ. */
   title?: string;
   /** Bắt buộc có ít nhất một tệp lúc trình — tiêu đề có dấu * như ô bắt buộc. */
@@ -77,7 +79,7 @@ export function PendingAttachments({ files, onChange, className, title = "Tệp 
   if (field) {
     return (
       <>
-        <FileDrop label={title} required={required} hint={hint ?? "Tệp được tải lên khi lưu phiếu"} onAdd={add}
+        <FileDrop label={title} required={required} hint={hint ?? "Tệp được tải lên khi lưu phiếu"} onAdd={add} compact={compact}
           items={files.map((file) => ({
             key: `${file.name}-${file.size}`,
             name: file.name,

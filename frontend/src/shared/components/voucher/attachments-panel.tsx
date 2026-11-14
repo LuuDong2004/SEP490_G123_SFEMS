@@ -170,7 +170,7 @@ export function AttachmentsPanel({
     return (
       <>
         {isLoading ? <LoadingText /> : (
-          <FileDrop label={title} required={required} hint={hint ?? "Tệp được lưu ngay khi chọn"} busy={busy} disabled={!canWrite}
+          <FileDrop label={title} required={required} hint={hint ?? "Tệp được lưu ngay khi chọn"} busy={busy} disabled={!canWrite} compact={compact}
             onAdd={(list) => void upload(list)}
             items={files.map((file) => ({
               key: String(file.id),
