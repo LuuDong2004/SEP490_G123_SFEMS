@@ -43,7 +43,6 @@ public final class SchoolSpecifications {
                         referenceSpec("departmentOfEducation", criterion);
                 case "educationLevel.id", "educationLevelId" ->
                         referenceSpec("educationLevel", criterion);
-                case "schoolType.id", "schoolTypeId" -> referenceSpec("schoolType", criterion);
                 default -> null;
             };
             if (spec != null) {

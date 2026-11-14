@@ -2,9 +2,9 @@ import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-
-import { LayoutGrid, Rows3 } from "lucide-react";
-import React from "react";
+import { Link, Outlet } from "react-router";
+import { GraduationCap, Landmark, LayoutGrid, Rows3 } from "lucide-react";
+import React, { Suspense } from "react";
 
 import {
   DataTable,
@@ -60,9 +60,14 @@ export const SchoolList = () => {
         cell: ({ row }) => {
           const department = row.original.departmentOfEducation;
           if (!department) return <span className="text-muted-foreground">—</span>;
-          // Resource departments_of_education không có route show → hiển thị plain text,
-          // không link (link sẽ 404).
-          return <span className="text-sm">{department.name}</span>;
+          return (
+            <Link
+              to={`/departments-of-education/show/${department.id}`}
+              className="text-sm hover:underline"
+            >
+              {department.name}
+            </Link>
+          );
         },
       }),
       columnHelper.display({
@@ -130,9 +135,9 @@ export const SchoolList = () => {
               search={<DataTableQuickFilter table={table} />}
               filters={
                 <>
-                  <RefFilter table={table} field="departmentOfEducation.id" resource="departments_of_education" all="Mọi cơ quan quản lý" searchPlaceholder="Tìm cơ quan…" className="w-60" />
-                  <RefFilter table={table} field="educationLevel.id" resource="education_levels" all="Mọi cấp học" className="w-44" />
-                  <RefFilter table={table} field="schoolType.id" resource="school_types" all="Mọi loại hình" className="w-40" />
+                  <RefFilter table={table} field="departmentOfEducation.id" resource="departments_of_education" all="Mọi cơ quan quản lý" searchPlaceholder="Tìm cơ quan…" icon={<Landmark />} hint="Lọc theo cơ quan quản lý" />
+                  <RefFilter table={table} field="educationLevel.id" resource="education_levels" all="Mọi cấp học" icon={<GraduationCap />} hint="Lọc theo cấp học"
+                    filters={[{ field: "active", operator: "eq", value: true }]} />
                 </>
               }
               actions={
@@ -155,6 +160,10 @@ export const SchoolList = () => {
         }
         renderBody={view === "grid" ? (rows) => <SchoolCards schools={rows} /> : undefined}
       />
+      {/* Chỗ hộp thoại Thêm / Sửa trường mở ra: danh sách ở lại sau lớp phủ, đóng là về đúng bộ lọc / trang. */}
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
     </ListView>
   );
 };

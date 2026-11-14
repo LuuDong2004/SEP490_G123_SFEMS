@@ -99,13 +99,26 @@ public abstract class CatalogService<
         return table == null ? null : table.name();
     }
 
-    public Page<T> list(ListParams params) {
-        return repository.findAll(listSpecification(params), params.pageable(SORTABLE, DEFAULT_SORT));
+    /** Các trường được sắp theo ({@code _sort}); loại nào có thêm cột sắp được thì ghi đè. */
+    protected Set<String> sortable() {
+        return SORTABLE;
     }
 
-    /** Returns rows visible to the caller without paging, for bounded reference-data consumers. */
-    protected List<T> listAllScoped(Sort sort) {
-        return repository.findAll(rowLevel.scope(type, Action.READ), sort);
+    public Page<T> list(ListParams params) {
+        Page<T> page = repository.findAll(listSpecification(params), params.pageable(sortable(), DEFAULT_SORT));
+        page.forEach(this::loadForResponse);
+        return page;
+    }
+
+    /**
+     * Móc: chạm các liên kết LAZY mà phản hồi API của loại này đọc, trong lúc phiên còn mở.
+     *
+     * <p>Controller dựng phản hồi SAU khi giao dịch của service đã đóng ({@code open-in-view=false}),
+     * nên một liên kết LAZY chưa nạp mà phản hồi đọc tới là {@code LazyInitializationException}. Mọi
+     * bản ghi service này trả cho controller (danh sách, xem, tạo, sửa, xoá) đi qua đây. Mặc định không
+     * làm gì — loại nào khai liên kết LAZY mà phản hồi cần thì ghi đè (vd. thiết bị: dòng phiếu nhập).
+     */
+    protected void loadForResponse(T item) {
     }
 
     /**
@@ -137,8 +150,10 @@ public abstract class CatalogService<
     }
 
     public T get(Long id) {
-        return repository.findOne(rowLevel.byId(type, Action.READ, id))
+        T item = repository.findOne(rowLevel.byId(type, Action.READ, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
+        loadForResponse(item);
+        return item;
     }
 
     /** Bản ghi trong phạm vi GHI của người gọi — cho những việc làm đổi nó ngoài form sửa (tệp đính kèm…). */
@@ -148,7 +163,9 @@ public abstract class CatalogService<
     }
 
     public List<T> getMany(List<Long> ids) {
-        return repository.findAll(rowLevel.byIds(type, Action.READ, ids));
+        List<T> items = repository.findAll(rowLevel.byIds(type, Action.READ, ids));
+        items.forEach(this::loadForResponse);
+        return items;
     }
 
     @Transactional
@@ -185,6 +202,7 @@ public abstract class CatalogService<
         // đó, và kiểm chính sách trên bản ghi chưa dựng xong thì sai.
         repository.flush();
         rowLevel.checkWritable(saved);
+        loadForResponse(saved);
         return saved;
     }
 
@@ -222,7 +240,9 @@ public abstract class CatalogService<
         applyUpdate(item, request);
 
         rowLevel.checkWritable(item);
-        return repository.persist(item);
+        T saved = repository.persist(item);
+        loadForResponse(saved);
+        return saved;
     }
 
     /**
@@ -235,6 +255,8 @@ public abstract class CatalogService<
         T item = repository.findOne(rowLevel.byId(type, Action.DELETE, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
         beforeDelete(item);
+        // Trước khi xoá: phản hồi của lệnh xoá vọng lại chính bản ghi này.
+        loadForResponse(item);
         repository.remove(item);
         return item;
     }
@@ -277,16 +299,21 @@ public abstract class CatalogService<
     private void requireCodeAvailable(T item, String code, Long selfId) {
         findSameCode(item, code).ifPresent(existing -> {
             if (!existing.getId().equals(selfId)) {
-                // Danh mục có quy tắc sinh mã: nói luôn mã kế tiếp còn trống, như mã của trường.
+                // Danh mục có quy tắc sinh mã: nói luôn mã kế tiếp còn trống (QLTB-178), như mã của trường.
                 String target = codeTarget();
                 Optional<String> next = target == null ? Optional.empty() : codeGenerator.peek(target);
                 if (next.isPresent()) {
                     throw new FieldValidationException("code",
-                            "%s có mã %s đã tồn tại — mã kế tiếp còn trống là %s".formatted(label, code, next.get()));
+                            "%s — mã kế tiếp còn trống là %s".formatted(codeTakenMessage(code), next.get()));
                 }
-                throw new ConflictException("%s có mã %s đã tồn tại".formatted(label, code));
+                throw new ConflictException(codeTakenMessage(code));
             }
         });
+    }
+
+    /** Câu báo mã {@code code} đã có ở bản ghi khác — lớp con đổi khi mã có tên riêng. */
+    protected String codeTakenMessage(String code) {
+        return "%s có mã %s đã tồn tại".formatted(label, code);
     }
 
     /**

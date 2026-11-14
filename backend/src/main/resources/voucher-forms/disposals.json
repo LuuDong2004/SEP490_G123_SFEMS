@@ -1,0 +1,287 @@
+{
+ "resource": "disposals",
+ "sections": [
+  {
+   "title": "Nội dung phiếu",
+   "fields": [
+    {
+     "key": "approvalAuthority",
+     "label": "Cấp quyết định thanh lý",
+     "kind": "enum",
+     "enum": "ApprovalAuthority",
+     "hint": "Cấp có thẩm quyền ra quyết định thanh lý."
+    }
+   ],
+   "when": {
+    "field": "kind",
+    "in": [
+     "LIQUIDATION"
+    ]
+   }
+  },
+  {
+   "title": "Nội dung phiếu",
+   "fields": [
+    {
+     "key": "destructionMethod",
+     "label": "Hình thức tiêu huỷ",
+     "kind": "enum",
+     "required": true,
+     "enum": "DestructionMethod"
+    },
+    {
+     "key": "executingUnit",
+     "label": "Đơn vị tiêu huỷ",
+     "kind": "enum",
+     "required": true,
+     "enum": "DestructionUnit"
+    },
+    {
+     "key": "destructionAuthority",
+     "label": "Cấp quyết định tiêu huỷ",
+     "kind": "enum",
+     "enum": "ApprovalAuthority"
+    },
+    {
+     "key": "destructionLocation",
+     "label": "Địa điểm tiêu huỷ",
+     "kind": "text",
+     "max": 255
+    },
+    {
+     "key": "costFunding",
+     "label": "Nguồn chi phí tiêu huỷ",
+     "kind": "text",
+     "max": 255
+    },
+    {
+     "key": "environmentalNote",
+     "label": "Yêu cầu môi trường, an toàn",
+     "kind": "textarea",
+     "max": 4000,
+     "wide": true
+    }
+   ],
+   "when": {
+    "field": "kind",
+    "in": [
+     "DESTRUCTION"
+    ]
+   }
+  },
+  {
+   "title": "Hội đồng thanh lý",
+   "fields": [
+    {
+     "key": "councilDecisionNo",
+     "label": "Số QĐ lập hội đồng",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "councilAssessment",
+     "label": "Đánh giá của hội đồng",
+     "kind": "textarea",
+     "max": 500,
+     "wide": true
+    }
+   ],
+   "when": {
+    "field": "kind",
+    "in": [
+     "LIQUIDATION"
+    ]
+   },
+   "stage": "execute"
+  },
+  {
+   "title": "Biên bản thanh lý",
+   "fields": [
+    {
+     "key": "minutesNo",
+     "label": "Số biên bản thanh lý",
+     "kind": "text",
+     "max": 100,
+     "wide": true
+    },
+    {
+     "key": "handoverMinutesNo",
+     "label": "Số biên bản bàn giao",
+     "kind": "text",
+     "max": 100,
+     "wide": true
+    },
+    {
+     "key": "valuationOrg",
+     "label": "Đơn vị định giá",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "auctionOrg",
+     "label": "Đơn vị đấu giá",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "buyer",
+     "label": "Bên mua, bên nhận",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "saleContractNo",
+     "label": "Số hợp đồng mua bán",
+     "kind": "text",
+     "max": 100,
+     "wide": true
+    },
+    {
+     "key": "paymentMethod",
+     "label": "Hình thức nộp tiền",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "amountPaidToBudget",
+     "label": "Số tiền thực nộp",
+     "kind": "money",
+     "hint": "Số tiền thu được đã nộp ngân sách hoặc quỹ của đơn vị."
+    }
+   ],
+   "when": {
+    "field": "kind",
+    "in": [
+     "LIQUIDATION"
+    ]
+   },
+   "stage": "execute"
+  },
+  {
+   "title": "Biên bản tiêu huỷ",
+   "fields": [
+    {
+     "key": "destructionResult",
+     "label": "Kết quả tiêu huỷ",
+     "kind": "textarea",
+     "max": 500,
+     "wide": true
+    }
+   ],
+   "when": {
+    "field": "kind",
+    "in": [
+     "DESTRUCTION"
+    ]
+   },
+   "stage": "execute"
+  }
+ ],
+ "line": [
+  {
+   "key": "disposalValue",
+   "label": "Giá trị thanh lý",
+   "kind": "money",
+   "hint": "Giá khởi điểm hoặc giá trị thanh lý được xác định."
+  }
+ ],
+ "lineTables": {},
+ "retired": [
+  "accumulatedDepreciation",
+  "actualRecoveredAmount",
+  "assetType",
+  "completionDate",
+  "conditionAtLiquidation",
+  "councilChair",
+  "councilSecretary",
+  "currentCondition",
+  "depreciationExpired",
+  "description",
+  "disposalUnit",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "equipmentManager",
+  "exploitationStatus",
+  "fiscalYear",
+  "formationSource",
+  "fundingSource",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "liquidationCost",
+  "liquidationReason",
+  "managingDept",
+  "requestedBy",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "storageLocation",
+  "totalWriteOffValue",
+  "unit",
+  "vatAmount",
+  "yearPutIntoUse"
+ ],
+ "enums": {
+  "ApprovalAuthority": [
+   {
+    "value": "PRINCIPAL",
+    "label": "Hiệu trưởng"
+   },
+   {
+    "value": "PEOPLE_COMMITTEE",
+    "label": "UBND phường/xã"
+   },
+   {
+    "value": "DEPARTMENT",
+    "label": "Sở GD&ĐT"
+   }
+  ],
+  "DestructionMethod": [
+   {
+    "value": "BURN",
+    "label": "Đốt"
+   },
+   {
+    "value": "BURY",
+    "label": "Chôn lấp"
+   },
+   {
+    "value": "CRUSH",
+    "label": "Đập phá"
+   },
+   {
+    "value": "RECYCLE",
+    "label": "Tái chế"
+   },
+   {
+    "value": "WASTE_COLLECTION",
+    "label": "Thu gom xử lý chất thải"
+   },
+   {
+    "value": "OTHER",
+    "label": "Khác (ghi rõ ở ghi chú)"
+   }
+  ],
+  "DestructionUnit": [
+   {
+    "value": "SELF",
+    "label": "Tự thực hiện (nhà trường)"
+   },
+   {
+    "value": "WASTE_COMPANY",
+    "label": "Đơn vị thu gom xử lý chất thải"
+   },
+   {
+    "value": "OTHER",
+    "label": "Đơn vị khác"
+   }
+  ]
+ }
+}

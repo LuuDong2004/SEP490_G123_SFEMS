@@ -1,6 +1,7 @@
 package com.g123.sfems.shared.security;
 
 import com.g123.sfems.domain.security.user.User;
+import java.time.Duration;
 import java.time.Instant;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -35,13 +36,17 @@ public class JwtService {
     public static final String CLAIM_USERNAME = "username";
     /** Phiên đăng nhập của access token (QLTB-242). */
     public static final String CLAIM_SESSION = "sid";
+    /** Loại tài khoản (docs/kien-truc/11) — cổng API chặn theo nó trước mọi kiểm quyền. */
+    public static final String CLAIM_USER_TYPE = "userType";
 
     private final JwtEncoder encoder;
     private final JwtProperties properties;
+    private final AdminPortalPolicy adminPortal;
 
-    public JwtService(JwtEncoder encoder, JwtProperties properties) {
+    public JwtService(JwtEncoder encoder, JwtProperties properties, AdminPortalPolicy adminPortal) {
         this.encoder = encoder;
         this.properties = properties;
+        this.adminPortal = adminPortal;
     }
 
     /**
@@ -60,9 +65,10 @@ public class JwtService {
         JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .issuedAt(issuedAt)
-                .expiresAt(issuedAt.plus(properties.accessTokenTtl()))
+                .expiresAt(issuedAt.plus(accessTokenTtl(user)))
                 .subject(String.valueOf(user.getId()))
-                .claim(CLAIM_USERNAME, user.getUsername());
+                .claim(CLAIM_USERNAME, user.getUsername())
+                .claim(CLAIM_USER_TYPE, user.getUserType().name());
         if (sessionId != null) {
             builder.claim(CLAIM_SESSION, sessionId);
         }
@@ -72,12 +78,13 @@ public class JwtService {
         return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 
-    /** Seconds until an access token issued now expires — the {@code expiresIn} the client is told. */
-    public long accessTokenTtlSeconds() {
-        return properties.accessTokenTtl().toSeconds();
+    /** Seconds until an access token issued now for {@code user} expires — the {@code expiresIn} the client is told. */
+    public long accessTokenTtlSeconds(User user) {
+        return accessTokenTtl(user).toSeconds();
     }
 
-    public Instant refreshTokenExpiry(Instant issuedAt) {
-        return issuedAt.plus(properties.refreshTokenTtl());
+    /** Tài khoản SYSTEM có hạn ngắn riêng ({@code app.portal.admin-access-token-ttl}, cổng Admin cách ly). */
+    private Duration accessTokenTtl(User user) {
+        return adminPortal.accessTokenTtl(user.getUserType(), properties.accessTokenTtl());
     }
 }

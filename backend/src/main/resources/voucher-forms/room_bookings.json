@@ -1,0 +1,20 @@
+{
+ "resource": "room_bookings",
+ "sections": [],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "bookingMode",
+  "conditionOnReturn",
+  "endTime",
+  "handoverNote",
+  "handoverTime",
+  "returnTime",
+  "roomConditionOnReturn",
+  "schoolClass",
+  "session",
+  "startTime",
+  "subject"
+ ],
+ "enums": {}
+}

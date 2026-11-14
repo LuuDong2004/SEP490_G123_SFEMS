@@ -1,0 +1,83 @@
+{
+ "resource": "equipment_intakes",
+ "sections": [
+  {
+   "title": "Biên bản giao nhận",
+   "fields": [
+    {
+     "key": "deliveredBy",
+     "label": "Người giao",
+     "kind": "text",
+     "max": 100,
+     "required": true,
+     "rule": "PERSON_NAME",
+     "min": 2
+    },
+    {
+     "key": "delivererPhone",
+     "label": "Số điện thoại người giao",
+     "kind": "text",
+     "required": true,
+     "rule": "PHONE"
+    },
+    {
+     "key": "receiverName",
+     "label": "Người nhận",
+     "kind": "text",
+     "max": 100,
+     "suggest": "staff",
+     "rule": "PERSON_NAME",
+     "min": 2
+    },
+    {
+     "key": "receiverPosition",
+     "label": "Chức vụ người nhận",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "handoverMinutesNo",
+     "label": "Số biên bản",
+     "kind": "text",
+     "max": 30,
+     "min": 1
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "budgetYear",
+  "deliveryRepresentative",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatus",
+  "fiscalYear",
+  "formationMethod",
+  "inspectionResult",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "managingUnitAfter",
+  "movementReason",
+  "qrLabelApplied",
+  "qrLabelDate",
+  "reason",
+  "receiverUnit",
+  "requestedBy",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "storageLocation",
+  "totalValue",
+  "usageRoomAfter",
+  "vatAmount",
+  "warehouseKeeper",
+  "warehouseName"
+ ],
+ "enums": {}
+}

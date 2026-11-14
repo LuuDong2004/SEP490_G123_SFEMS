@@ -53,15 +53,74 @@ const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue
 );
 
+type Validator = (value: unknown, values: unknown) => unknown;
+
+/** Ô trống theo đúng nghĩa `required` của react-hook-form (ô dùng Controller, không phải checkbox thật). */
+const isEmptyValue = (v: unknown) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
+
+function requiredMessage(required: unknown): string {
+  if (typeof required === "string") return required;
+  if (required && typeof required === "object" && "message" in required) {
+    return String((required as { message?: unknown }).message ?? "");
+  }
+  return "";
+}
+
+/**
+ * Luật `required` / `validate` đọc theo lần vẽ MỚI NHẤT.
+ *
+ * react-hook-form chỉ đăng ký `rules` của Controller một lần lúc ô gắn vào form (và gộp chứ không thay), nên
+ * ô bắt buộc theo điều kiện — `required={loại phòng là bộ môn}` — giữ mãi luật của lần đầu: chọn loại bộ môn
+ * rồi đổi về phòng học thường, dấu * mất mà lưu vẫn báo "Chọn môn". Ở đây hai luật đó đi qua một hàm
+ * `validate` cố định, hàm này đọc luật hiện tại qua ref; các luật khác (min, max, pattern…) giữ nguyên.
+ */
+function useLiveRules(rules: ControllerProps["rules"]) {
+  const latest = React.useRef(rules);
+  latest.current = rules;
+  // Ổn định suốt đời ô: react-hook-form chỉ đăng ký một lần, phần thay đổi đi qua ref.
+  const [stable] = React.useState(() => {
+    const run = (value: unknown, values: unknown): unknown => {
+      const r = latest.current as { required?: unknown; validate?: Validator | Record<string, Validator> } | undefined;
+      if (rulesRequire(r) && isEmptyValue(value)) return requiredMessage(r?.required) || false;
+      const v = r?.validate;
+      if (!v) return true;
+      const fns = typeof v === "function" ? [v] : Object.values(v);
+      for (let i = 0; i < fns.length; i++) {
+        const res = fns[i](value, values);
+        if (res instanceof Promise) {
+          // Có luật bất đồng bộ: chạy tiếp phần còn lại theo thứ tự.
+          return (async () => {
+            const first = await res;
+            if (first !== true && first !== undefined) return first;
+            for (const fn of fns.slice(i + 1)) {
+              const next = await fn(value, values);
+              if (next !== true && next !== undefined) return next;
+            }
+            return true;
+          })();
+        }
+        if (res !== true && res !== undefined) return res;
+      }
+      return true;
+    };
+    const rest: Record<string, unknown> = { ...(rules ?? {}) };
+    delete rest.required;
+    delete rest.validate;
+    return { ...rest, validate: run } as ControllerProps["rules"];
+  });
+  return stable;
+}
+
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
+  const rules = useLiveRules(props.rules as ControllerProps["rules"]);
   return (
     <FormFieldContext.Provider value={{ name: props.name, required: rulesRequire(props.rules) }}>
-      <Controller {...props} />
+      <Controller {...props} rules={rules as ControllerProps<TFieldValues, TName>["rules"]} />
     </FormFieldContext.Provider>
   );
 };

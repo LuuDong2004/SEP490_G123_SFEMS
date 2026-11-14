@@ -19,7 +19,7 @@ export function placementProblem(mode: PlacementMode, school?: { id: number | nu
 
 const MODES: { value: Mode; title: string; hint: string; icon: ReactNode }[] = [
   { value: "school", title: "Trường", hint: "Hiệu trưởng, cán bộ, giáo viên", icon: <School /> },
-  { value: "body", title: "Sở / UBND", hint: "Lãnh đạo, chuyên viên cơ quan quản lý", icon: <Landmark /> },
+  { value: "body", title: "Sở GD&ĐT", hint: "Lãnh đạo, chuyên viên cơ quan quản lý", icon: <Landmark /> },
   { value: "none", title: "Không thuộc đơn vị", hint: "Quản trị viên hệ thống", icon: <ShieldCheck /> },
 ];
 
@@ -68,7 +68,7 @@ export function PlacementField({ school, managingBody, onSchoolChange, onManagin
             <button key={m.value} type="button" role="radio" aria-checked={on} onClick={() => pick(m.value)}
               className={cn("flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
                 on ? "border-primary/50 bg-primary/[0.05] shadow-e1" : "bg-card hover:bg-accent/40")}>
-              <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[18px]",
+              <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[1.125rem]",
                 on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
                 {m.icon}
               </span>

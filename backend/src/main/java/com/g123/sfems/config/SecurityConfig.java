@@ -1,6 +1,14 @@
 package com.g123.sfems.config;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import org.springframework.security.authorization.AuthorizationManager;
+import com.g123.sfems.shared.web.portal.Portal;
+import com.g123.sfems.module.security.auth.api.AdminPortalGuard;
 import com.g123.sfems.module.security.auth.service.AuthorizationService;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
+import com.g123.sfems.shared.security.AdminPortalProperties;
 import com.g123.sfems.shared.security.DeployStack;
 import com.g123.sfems.shared.security.JwtProperties;
 import com.g123.sfems.shared.security.JwtService;
@@ -31,6 +39,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.core.convert.converter.Converter;
 
 /**
@@ -56,7 +65,7 @@ import org.springframework.core.convert.converter.Converter;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, AdminPortalProperties.class})
 public class SecurityConfig {
 
     private final JwtProperties properties;
@@ -83,11 +92,36 @@ public class SecurityConfig {
         this.stack = stack;
     }
 
+    /** Chỉ cho qua token của tài khoản đúng loại của cổng (claim {@code userType}). */
+    static AuthorizationManager<RequestAuthorizationContext> userType(Portal portal) {
+        return (authentication, context) -> {
+            Authentication auth = authentication.get();
+            boolean ok = auth != null && auth.isAuthenticated()
+                    && auth.getPrincipal() instanceof Jwt jwt
+                    && portal.userType().name().equals(jwt.getClaimAsString(JwtService.CLAIM_USER_TYPE));
+            return new AuthorizationDecision(ok);
+        };
+    }
+
+    /** Đường cũ `/api/**` (không cổng): khoá API đối tác — token không có phiên `sid`; người dùng chỉ khi bật cờ. */
+    static AuthorizationManager<RequestAuthorizationContext> legacyApi(boolean allowUsers) {
+        return (authentication, context) -> {
+            Authentication auth = authentication.get();
+            boolean ok = auth != null && auth.isAuthenticated()
+                    && auth.getPrincipal() instanceof Jwt jwt
+                    && (allowUsers || jwt.getClaimAsString(JwtService.CLAIM_SESSION) == null);
+            return new AuthorizationDecision(ok);
+        };
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
+            @Value("${app.portal.legacy-user-access:false}") boolean legacyUserAccess,
             RestAuthenticationEntryPoint authenticationEntryPoint,
-            JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+            JwtAuthenticationConverter jwtAuthenticationConverter,
+            AdminPortalPolicy adminPortal,
+            AuthorizationService authorizationService) throws Exception {
 
         http
                 // No cookie is ever used to authenticate, so there is nothing a
@@ -129,6 +163,17 @@ public class SecurityConfig {
                         // authorised against the account named in that frame.
                         .requestMatchers(WebSocketConfig.ENDPOINT + "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Cổng theo loại tài khoản (docs/kien-truc/11, như qlvb-app với /api/system/**): mỗi cổng chỉ
+                        // nhận đúng loại của nó, sai loại là 403 TRƯỚC mọi kiểm quyền / phạm vi dòng.
+                        .requestMatchers(Portal.ADMIN.pattern()).access(userType(Portal.ADMIN))
+                        .requestMatchers(Portal.SO.pattern()).access(userType(Portal.SO))
+                        .requestMatchers(Portal.SCHOOL.pattern()).access(userType(Portal.SCHOOL))
+                        // Đăng nhập, phiên, 2 lớp của chính mình: mọi token hợp lệ.
+                        .requestMatchers("/api/auth/**").authenticated()
+                        // Đường cũ không cổng: chỉ khoá API của đối tác (token không phiên `sid`). Người dùng đăng nhập
+                        // bắt buộc đi qua cổng của loại mình (docs/kien-truc/11, đợt 7). Mở lại tạm cho người dùng:
+                        // app.portal.legacy-user-access=true.
+                        .requestMatchers("/api/**").access(legacyApi(legacyUserAccess))
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
@@ -139,6 +184,9 @@ public class SecurityConfig {
                 // Nothing here serves a browser directly, so the form-login and
                 // basic-auth defaults would only ever produce a login page or a
                 // browser credentials prompt where the client expects JSON.
+                // Cổng Admin cách ly: IP được phép + bắt buộc lớp xác thực thứ hai cho tài khoản SYSTEM. Sau bước chặn
+                // cổng, nên token đã được xác thực và sai loại tài khoản đã bị 403 trước.
+                .addFilterAfter(new AdminPortalGuard(adminPortal, authorizationService), AuthorizationFilter.class)
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .logout(logout -> logout.disable())

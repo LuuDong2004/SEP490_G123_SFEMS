@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { useLogin, useRefineOptions, useTranslate } from "@refinedev/core";
 import {
@@ -16,7 +17,6 @@ import { Label } from "@/shared/ui/label";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -49,13 +49,14 @@ import {
  * ĐĂNG NHẬP NHANH THEO VAI TRÒ — phần dành cho môi trường thử nghiệm.
  *
  * <p>Chỉ có khi chạy dev hoặc bản build mang `VITE_DEMO_LOGIN=true` (dev server,
- * UAT). Cờ được
+ * UAT, và qltb_main khi còn thử nghiệm — `DEMO_LOGIN` trong `deploy/docker-compose.yml`, ảnh mặc định tắt). Cờ được
  * thay thẳng lúc build, nên ở bản production `DEMO_LOGIN` là `false` hằng và các
  * chuỗi mật khẩu dưới đây bị loại khỏi bundle — giữ chúng NẰM TRONG nhánh
- * `DEMO_LOGIN ? … : …`, đưa ra ngoài là chúng quay lại bundle. Máy chủ production
- * còn tự khoá các tài khoản này (`DemoAccountGuard`).
+ * `DEMO_LOGIN ? … : …`, đưa ra ngoài là chúng quay lại bundle. Ngày chạy thật, máy chủ
+ * qltb_main còn tự khoá các tài khoản này (`DemoAccountGuard`, `LOCK_DEMO_ACCOUNTS=true`).
  *
- * <p>Tài khoản: `admin` từ `005-seed-vai-tro-va-quan-tri.sql`; tài khoản thử theo vai thêm sau. Mỗi cấp đều có
+ * <p>Tài khoản: `admin` từ `005-seed-security.sql`, phần còn lại từ
+ * `056-seed-demo-operations.sql` (mật khẩu chung `Demo@123`). Mỗi cấp đều có
  * đủ CẶP lãnh đạo — chuyên viên, vì đó là điều kiện để bước duyệt có nghĩa:
  * người lập phiếu và người duyệt phiếu không bao giờ là một.
  */
@@ -81,27 +82,107 @@ const DEMO_TIERS: {
   tone: string;
   dot: string;
   rows: DemoRow[];
-}[] = [];
-// Tài khoản thử theo vai (Sở, trường THPT) thêm vào đây khi có changelog seed của chúng; tới lúc đó khung
-// chỉ có tài khoản quản trị.
+}[] = !DEMO_LOGIN
+  ? []
+  : [
+      {
+        // Cùng bảng màu với màn Tổng quan (`explorer/body-grid.tsx`): Sở đỏ, UBND
+        // xanh, trường vàng. Màu đã mang nghĩa ở nơi khác thì ở đây phải mang đúng
+        // nghĩa đó, nếu không nó chỉ là trang trí.
+        tier: "Sở GD&ĐT",
+        hint: "đọc toàn thành phố",
+        tone: "text-destructive",
+        dot: "bg-destructive",
+        rows: [
+          {
+            accounts: [
+              {
+                username: "so.lanhdao",
+                password: "Demo@123",
+                role: "Lãnh đạo",
+              },
+              {
+                username: "so.chuyenvien",
+                password: "Demo@123",
+                role: "Chuyên viên",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        // Xếp theo TRƯỜNG chứ không theo vai: đổi vai trong cùng một trường là thao
+        // tác lặp nhiều nhất khi thử luồng duyệt, nên hai nút của một trường phải
+        // nằm cạnh nhau trên một hàng.
+        tier: "Trường",
+        hint: "cán bộ lập · lãnh đạo duyệt",
+        tone: "text-gold-600",
+        dot: "bg-gold-500",
+        rows: [
+          {
+            where: "THCS Bình An",
+            accounts: [
+              { username: "thcs.canbo", password: "Demo@123", role: "Cán bộ" },
+              {
+                username: "thcs.hieutruong",
+                password: "Demo@123",
+                role: "Hiệu trưởng",
+              },
+            ],
+          },
+          {
+            where: "THCS Đặng Tấn Tài",
+            accounts: [
+              { username: "thcs2.canbo", password: "Demo@123", role: "Cán bộ" },
+              {
+                username: "thcs2.hieutruong",
+                password: "Demo@123",
+                role: "Hiệu trưởng",
+              },
+            ],
+          },
+          {
+            where: "THPT An Lạc",
+            accounts: [
+              { username: "thpt.canbo", password: "Demo@123", role: "Cán bộ" },
+              {
+                username: "thpt.hieutruong",
+                password: "Demo@123",
+                role: "Hiệu trưởng",
+              },
+            ],
+          },
+        ],
+      },
+    ];
 
 /** Quản trị đứng riêng, cuối khung: nó không thuộc cây Sở — UBND — trường. */
 const DEMO_ADMIN: DemoAccount | null = DEMO_LOGIN
   ? { username: "admin", password: "Admin@123", role: "Quản trị viên hệ thống" }
   : null;
 
-// Điền sẵn tài khoản quản trị khi chạy dev.
+// Điền sẵn tài khoản dùng nhiều nhất khi thử nghiệp vụ: cán bộ thiết bị THCS Bình An (vai A8).
 const DEV_CREDENTIALS = DEMO_LOGIN
-  ? { username: "admin", password: "Admin@123" }
+  ? { username: "thcs.canbo", password: "Demo@123" }
   : { username: "", password: "" };
 
-export const SignInForm = () => {
-  const [username, setUsername] = useState(DEV_CREDENTIALS.username);
+/**
+ * Khu đăng nhập (cổng Admin cách ly, docs/kien-truc/11): `business` (`/login`) chỉ nhận tài khoản Sở / UBND /
+ * trường; `admin` (`/admin/login`) chỉ nhận tài khoản quản trị hệ thống — không ô chọn đơn vị, không khung dùng thử.
+ */
+export type SignInArea = "admin" | "business";
+
+export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
+  const admin = area === "admin";
+  const initial = admin
+    ? DEMO_ADMIN ?? { username: "", password: "" }
+    : DEV_CREDENTIALS;
+  const [username, setUsername] = useState(initial.username);
   // Người trong trường: chọn trường, chỉ gõ phần sau của tài khoản (`<mã trường>.<mã cán bộ>`).
   const [school, setSchool] = useState<SignInSchool | null>(() =>
-    rememberedSchool()
+    admin ? null : rememberedSchool()
   );
-  const [password, setPassword] = useState(DEV_CREDENTIALS.password);
+  const [password, setPassword] = useState(initial.password);
   const [code, setCode] = useState("");
   const [needCode, setNeedCode] = useState(false);
   // Câu máy chủ trả khi cần mã: mã ứng dụng hay mã vừa gửi tới email nào (QLTB-509).
@@ -120,7 +201,7 @@ export const SignInForm = () => {
         ? `${school.prefix}.${typed}`
         : typed;
     login(
-      { username: full, password, code: needCode ? code : undefined },
+      { username: full, password, code: needCode ? code : undefined, area },
       {
         onSuccess: (data) => {
           if (!data.success && data.error?.name === "MfaRequired") {
@@ -141,7 +222,7 @@ export const SignInForm = () => {
         : typed;
     setCode("");
     login(
-      { username: full, password },
+      { username: full, password, area },
       {
         onSuccess: (data) => {
           if (!data.success && data.error?.name === "MfaRequired")
@@ -165,7 +246,12 @@ export const SignInForm = () => {
     setCode("");
     setNeedCode(false);
     setCodeHint(null);
-    login({ username: account.username, password: account.password });
+    // Tài khoản quản trị chỉ vào được ở khu quản trị.
+    login({
+      username: account.username,
+      password: account.password,
+      area: account === DEMO_ADMIN ? "admin" : "business",
+    });
   };
 
   return (
@@ -184,7 +270,7 @@ export const SignInForm = () => {
           </div>
         ) : null}
         <div className="leading-tight">
-          <p className="text-sm font-semibold sm:text-[15px]">
+          <p className="text-sm font-semibold sm:text-[0.9375rem]">
             Sở Giáo dục và Đào tạo
           </p>
           <p className="text-xs text-white/70">Thành phố Hồ Chí Minh</p>
@@ -215,17 +301,20 @@ export const SignInForm = () => {
           {/* Thẻ gọn, căn trái, góc vừa: tên hệ thống một lần dưới tiêu đề, không dòng nhãn nhỏ + câu nhắc thừa. */}
           <div className="bg-card text-card-foreground space-y-6 rounded-3xl p-7 shadow-[0_30px_70px_-20px_rgb(0_0_0/.55)] sm:p-9">
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Đăng nhập
+              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+                {admin ? <ShieldCheck className="text-primary size-6" /> : null}
+                {admin ? "Quản trị hệ thống" : "Đăng nhập"}
               </h1>
               <p className="text-muted-foreground text-sm">{title.text}</p>
             </div>
 
             <form onSubmit={handleSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Đơn vị</Label>
-                <SignInSchoolPicker value={school} onChange={setSchool} />
-              </div>
+              {admin ? null : (
+                <div className="space-y-2">
+                  <Label>Đơn vị</Label>
+                  <SignInSchoolPicker value={school} onChange={setSchool} />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="username">
@@ -240,7 +329,7 @@ export const SignInForm = () => {
                   {/* Tiền tố của trường đã chọn đứng sẵn trước ô — người dùng chỉ gõ mã của mình (vd. cb0001). */}
                   {school ? (
                     <span
-                      className="bg-muted text-muted-foreground flex h-10 max-w-[55%] shrink-0 items-center truncate rounded-s-md border border-e-0 px-3 text-sm"
+                      className="bg-muted text-muted-foreground flex h-11 max-w-[55%] shrink-0 items-center truncate rounded-s-full border border-e-0 ps-4 pe-2 text-sm"
                       title={`${school.prefix}.`}
                     >
                       {school.prefix}.
@@ -248,7 +337,7 @@ export const SignInForm = () => {
                   ) : null}
                   <UserRound
                     className={cn(
-                      "text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2",
+                      "text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2",
                       school && "hidden"
                     )}
                   />
@@ -268,7 +357,6 @@ export const SignInForm = () => {
               </div>
 
               <div className="space-y-2">
-                {/* Không có "Quên mật khẩu": ngoài phạm vi đồ án — quản trị viên đặt lại mật khẩu ở màn Người dùng. */}
                 <Label htmlFor="password">
                   {t("pages.login.fields.password", "Password")}
                 </Label>
@@ -283,6 +371,11 @@ export const SignInForm = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                </div>
+                <div className="flex justify-end">
+                  <Link to="/forgot-password" className="text-primary text-xs font-medium hover:underline">
+                    Quên mật khẩu?
+                  </Link>
                 </div>
               </div>
 
@@ -321,7 +414,7 @@ export const SignInForm = () => {
               <Button
                 type="submit"
                 size="lg"
-                className="mt-2 h-10 w-full text-sm font-semibold"
+                className="mt-2 h-11 w-full text-sm font-semibold"
                 disabled={isPending}
               >
                 {isPending
@@ -342,7 +435,7 @@ export const SignInForm = () => {
           {/* ------------------------------------------------------------------
               ĐĂNG NHẬP NHANH THEO VAI TRÒ — chỉ khi DEMO_LOGIN. Xem ghi chú ở đầu file.
              ------------------------------------------------------------------ */}
-          {DEMO_LOGIN ? (
+          {DEMO_LOGIN && !admin ? (
             <Sheet>
               <SheetTrigger asChild>
                 <button
@@ -353,22 +446,19 @@ export const SignInForm = () => {
                   Vào bằng môi trường thử nghiệm
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
+              <SheetContent side="right" className="w-full gap-0 sm:max-w-md" aria-describedby={undefined}>
                 <SheetHeader className="border-b">
                   <SheetTitle className="flex items-center gap-2">
                     <FlaskConical className="text-warning-text size-4" />
                     Vào bằng môi trường thử nghiệm
                   </SheetTitle>
-                  <SheetDescription>
-                    Chọn một vai — bấm là đăng nhập ngay.
-                  </SheetDescription>
                 </SheetHeader>
 
                 <div className="flex-1 space-y-6 overflow-y-auto p-4">
                   {/* Trường đứng đầu: đổi vai trong một trường là thao tác lặp nhiều nhất khi thử luồng duyệt. */}
                   {[...DEMO_TIERS].reverse().map((group) => (
                     <section key={group.tier} className="space-y-2.5">
-                      <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                         <p
                           className={cn(
                             "flex items-center gap-2 text-sm font-semibold",
@@ -380,7 +470,7 @@ export const SignInForm = () => {
                           />
                           {group.tier}
                         </p>
-                        <p className="text-muted-foreground truncate text-xs">
+                        <p className="text-muted-foreground text-xs">
                           {group.hint}
                         </p>
                       </div>
@@ -417,23 +507,29 @@ export const SignInForm = () => {
                       ))}
                     </section>
                   ))}
-                </div>
 
-                {DEMO_ADMIN ? (
-                  <div className="border-t p-4">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={isPending}
-                      onClick={() => signInAs(DEMO_ADMIN)}
-                      className="text-muted-foreground w-full"
-                      title={`${DEMO_ADMIN.username} / ${DEMO_ADMIN.password}`}
-                    >
-                      <ShieldCheck />
-                      {DEMO_ADMIN.role}
-                    </Button>
-                  </div>
-                ) : null}
+                  {DEMO_ADMIN ? (
+                    // Quản trị là một nhóm ngay dưới các nhóm trên (theo trưởng nhóm), không dồn xuống đáy bảng.
+                    <section className="space-y-2.5">
+                      <p className="text-muted-foreground flex items-center gap-2 text-sm font-semibold">
+                        <span className="bg-muted-foreground size-2 rounded-full" />
+                        Hệ thống
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => signInAs(DEMO_ADMIN)}
+                        className="h-9 w-full text-xs"
+                        title={`${DEMO_ADMIN.username} / ${DEMO_ADMIN.password}`}
+                      >
+                        <ShieldCheck />
+                        {DEMO_ADMIN.role}
+                      </Button>
+                    </section>
+                  ) : null}
+                </div>
               </SheetContent>
             </Sheet>
           ) : null}

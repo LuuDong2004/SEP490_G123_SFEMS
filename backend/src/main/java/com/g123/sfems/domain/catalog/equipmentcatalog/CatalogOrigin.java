@@ -1,9 +1,8 @@
 package com.g123.sfems.domain.catalog.equipmentcatalog;
 
 /**
- * Nguồn gốc của một nhóm thiết bị NGOÀI danh mục của Sở — bắt buộc khi nhóm thuộc riêng một trường
- * ({@link EquipmentCatalog#getOwnerSchool()}). Báo cáo dùng nó để tách đồ tự làm / được tài trợ / mua
- * ngoài danh mục khỏi phần còn lại.
+ * Nguồn gốc của một thiết bị NGOÀI danh mục của Sở — bắt buộc khi thiết bị thuộc riêng một trường.
+ * Báo cáo dùng nó để tách đồ tự làm / được tài trợ / mua ngoài danh mục khỏi phần còn lại.
  */
 public enum CatalogOrigin {
     /** Giáo viên, học sinh tự làm. */

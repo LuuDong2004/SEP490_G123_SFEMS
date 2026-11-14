@@ -6,9 +6,11 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/equipment_configs} — mã quyền {@code equipment_configs:*}. */
 @RestController
 @RequestMapping("/api/equipment_configs")
-public class EquipmentConfigController extends CatalogController<EquipmentConfig, EquipmentConfigRequest, EquipmentConfigPatchRequest> {
+public class EquipmentConfigController extends CatalogController<
+        EquipmentConfig, EquipmentConfigRequest, EquipmentConfigPatchRequest> {
 
     public EquipmentConfigController(EquipmentConfigService service, RowLevelSecurity rowLevel) {
         super(service, rowLevel);

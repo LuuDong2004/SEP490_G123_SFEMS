@@ -128,7 +128,7 @@ export function HeaderSearch() {
         </kbd>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="top-[12vh] translate-y-0 overflow-hidden p-0 sm:max-w-2xl" showCloseButton={false}>
+        <DialogContent size="auto" className="top-[12vh] translate-y-0 overflow-hidden p-0 sm:max-w-2xl" showCloseButton={false}>
           <DialogTitle className="sr-only">Tìm kiếm</DialogTitle>
           <DialogDescription className="sr-only">Tìm màn hình và dữ liệu</DialogDescription>
           {open ? <SearchPanel onDone={() => setOpen(false)} /> : null}

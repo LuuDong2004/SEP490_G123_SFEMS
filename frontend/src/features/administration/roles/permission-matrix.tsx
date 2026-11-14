@@ -1,12 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useList } from "@refinedev/core";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { CheckIcon, MinusIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CheckIcon,
+  MinusIcon,
+  SearchIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 import {
   PERMISSION_ACTIONS,
@@ -15,18 +24,24 @@ import {
   splitPermissionCode,
   type Permission,
 } from "@/domains/role/types";
+import { scopeFits } from "@/domains/permission/types";
 
 /**
- * Ma trận quyền của một vai trò: hàng là chức năng (resource), cột là thao tác (action).
+ * The permissions a role grants, as a resource x action matrix.
  *
- * Mỗi mã quyền có dạng `{resource}:{action}`, tức là tích của hai trục; danh sách phẳng làm mất
- * một trục. Lưới trả lại trục đó: một hàng đọc là "vai này được làm gì với phiếu nhập", một cột
- * đọc là "ai được duyệt bất cứ thứ gì".
+ * Every code is `{resource}:{action}`, which is a product of two axes, and a
+ * list flattens one of them away. A grid puts it back: a row reads as "what
+ * this role may do to blog posts", a column as "who may delete anything", and
+ * the shape of a role becomes something you can see rather than something you
+ * reconstruct from a column of checkboxes.
  *
- * Cột lấy từ dữ liệu, không ghim cứng, nên một thao tác mới (ví dụ `configure`) tự có cột thay vì
- * biến mất. Ô không có quyền tương ứng hiện gạch ngang: "không có gì để cấp" khác với "đã bỏ cấp".
+ * Columns come from the data, not from a fixed list, so a code with an action
+ * nobody anticipated gets its own column instead of disappearing. A resource
+ * with no permission for a column shows a dash: nothing to grant is a different
+ * statement from granted-and-then-revoked, and a disabled checkbox says
+ * neither.
  *
- * Giá trị là mảng `{ id }` đúng như API nhận.
+ * The value is the array of `{ id }` refs the API expects.
  */
 
 export type PermissionRef = { id: number };
@@ -34,12 +49,17 @@ export type PermissionRef = { id: number };
 type PermissionMatrixProps = {
   value: PermissionRef[] | undefined;
   onChange: (value: PermissionRef[]) => void;
+  /**
+   * Loại vai — chỉ hiện quyền hợp loại (vai quản trị: quyền quản trị + dùng chung; vai Sở / UBND / trường: nghiệp
+   * vụ + dùng chung; docs/kien-truc/11 §11). null = chưa chọn loại, chưa hiện quyền nào.
+   */
+  roleType: string | null;
 };
 
 type MatrixRow = {
   resource: string;
   label: string;
-  /** Quyền ứng với từng thao tác, nếu có. */
+  /** The permission for each action, where one exists. */
   cells: Map<string, Permission>;
   all: Permission[];
 };
@@ -47,8 +67,13 @@ type MatrixRow = {
 type TriState = boolean | "indeterminate";
 
 /**
- * Ô tích ba trạng thái: cả, một phần, không. `shared/ui/checkbox` vẽ dấu tích cho trạng thái
- * indeterminate của Radix, nên hàng cấp dở sẽ trông như cấp đủ; ở đây tự vẽ dấu trừ.
+ * A checkbox that can say "some".
+ *
+ * `components/ui/checkbox.tsx` draws a tick for Radix's indeterminate state, so
+ * a half-granted row would look fully granted through it. The matrix lives or
+ * dies on that distinction — every header box in it summarises the boxes below
+ * or beside it — so it draws its own indicator rather than hand-editing the
+ * stock primitive.
  */
 function TriStateCheckbox({
   state,
@@ -64,7 +89,8 @@ function TriStateCheckbox({
   return (
     <CheckboxPrimitive.Root
       checked={state === true}
-      // Đang cấp một phần thì bước hữu ích là cấp nốt, nên chỉ ô đã đầy mới bỏ.
+      // Partly granted, and the useful move from there is to grant the rest —
+      // so only a full box clears.
       onCheckedChange={() => onToggle(state !== true)}
       aria-label={label}
       aria-checked={state === "indeterminate" ? "mixed" : state}
@@ -74,8 +100,9 @@ function TriStateCheckbox({
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         "data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        state === "indeterminate" && "border-primary bg-primary/15 text-primary dark:bg-primary/25",
-        className,
+        state === "indeterminate" &&
+          "border-primary bg-primary/15 text-primary dark:bg-primary/25",
+        className
       )}
     >
       {state === true && <CheckIcon className="size-3.5" />}
@@ -84,26 +111,42 @@ function TriStateCheckbox({
   );
 }
 
-/** Thứ tự quen thuộc đọc, ghi, xoá, duyệt, xuất, cấu hình; thao tác lạ nối vào cuối. */
+/**
+ * `read`, `write`, `delete` keep their familiar order; an action the catalogue
+ * grows later is appended rather than dropped.
+ */
 function orderActions(actions: Set<string>): string[] {
-  const known: string[] = PERMISSION_ACTIONS.filter((action) => actions.has(action));
+  const known: string[] = PERMISSION_ACTIONS.filter((action) =>
+    actions.has(action)
+  );
   const extra = [...actions]
     .filter((action) => !known.includes(action))
     .sort((a, b) => a.localeCompare(b));
   return [...known, ...extra];
 }
 
-export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
-  // Danh mục quyền nhỏ và chỉ đổi khi có migration, nên một trang lớn là đủ.
+export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrixProps) {
+  // The catalogue is fixed and small — it only changes when a migration adds a
+  // permission — so one large page is the whole of it.
   const { result, query } = useList<Permission>({
     resource: "permissions",
-    pagination: { pageSize: 500 },
+    pagination: { pageSize: 200 },
     sorters: [{ field: "code", order: "asc" }],
   });
 
   const [search, setSearch] = useState("");
 
-  const permissions = useMemo(() => result?.data ?? [], [result?.data]);
+  const permissions = useMemo(
+    () => (roleType ? (result?.data ?? []).filter((p) => scopeFits(p.scope, roleType)) : []),
+    [result?.data, roleType],
+  );
+
+  // Đổi loại vai (form tạo) → bỏ quyền đã tích không hợp loại mới.
+  useEffect(() => {
+    if (!roleType || !result?.data || !value?.length) return;
+    const keep = value.filter((ref) => permissions.some((p) => p.id === ref.id));
+    if (keep.length !== value.length) onChange(keep);
+  }, [roleType, result?.data, permissions, value, onChange]);
 
   const { rows, columns } = useMemo(() => {
     const byResource = new Map<string, MatrixRow>();
@@ -115,7 +158,12 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
 
       let row = byResource.get(resource);
       if (!row) {
-        row = { resource, label: humanizeResource(resource), cells: new Map(), all: [] };
+        row = {
+          resource,
+          label: humanizeResource(resource),
+          cells: new Map(),
+          all: [],
+        };
         byResource.set(resource, row);
       }
       row.cells.set(action, permission);
@@ -123,7 +171,9 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     }
 
     return {
-      rows: [...byResource.values()].sort((a, b) => a.label.localeCompare(b.label, "vi")),
+      rows: [...byResource.values()].sort((a, b) =>
+        a.label.localeCompare(b.label)
+      ),
       columns: orderActions(actions),
     };
   }, [permissions]);
@@ -137,13 +187,16 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
             (row) =>
               row.label.toLowerCase().includes(term) ||
               row.resource.toLowerCase().includes(term) ||
-              row.all.some((p) => p.code.toLowerCase().includes(term)),
+              row.all.some((p) => p.code.toLowerCase().includes(term))
           )
         : rows,
-    [rows, term],
+    [rows, term]
   );
 
-  const selected = useMemo(() => new Set((value ?? []).map((ref) => Number(ref.id))), [value]);
+  const selected = useMemo(
+    () => new Set((value ?? []).map((ref) => Number(ref.id))),
+    [value]
+  );
 
   const emit = (next: Set<number>) => onChange([...next].map((id) => ({ id })));
 
@@ -156,7 +209,7 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     emit(next);
   };
 
-  /** Cả, một phần hay không, trên tập quyền được hỏi. */
+  /** Whole, partial or none, over whatever set of permissions is asked about. */
   const stateOf = (subject: Permission[]): TriState => {
     if (subject.length === 0) return false;
     const granted = subject.filter((p) => selected.has(p.id)).length;
@@ -165,10 +218,12 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     return "indeterminate";
   };
 
-  // Ô đầu cột và ô góc tác động lên các hàng đang hiện, nên lọc xong thì "cấp cả cột" chỉ cấp
-  // đúng những gì đang thấy.
+  // The column and corner boxes act on the rows you can see, so a search
+  // narrows "grant this column" to what it says on screen.
   const columnSubject = (action: string) =>
-    visibleRows.map((row) => row.cells.get(action)).filter((p): p is Permission => p !== undefined);
+    visibleRows
+      .map((row) => row.cells.get(action))
+      .filter((p): p is Permission => p !== undefined);
 
   const visibleSubject = visibleRows.flatMap((row) => row.all);
 
@@ -184,14 +239,18 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
   }
 
   if (permissions.length === 0) {
-    return <p className="text-muted-foreground text-sm">Chưa có quyền nào được định nghĩa.</p>;
+    return (
+      <p className="text-muted-foreground text-sm">
+        {roleType ? "Chưa có quyền nào được định nghĩa." : "Chọn loại vai để hiện các quyền."}
+      </p>
+    );
   }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-xs">
-          <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <SearchIcon className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -203,13 +262,23 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
 
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground text-sm tabular-nums">
-            <span className="text-foreground font-medium">{grantedCount}</span>/{permissions.length} đã
-            cấp
+            <span className="text-foreground font-medium">{grantedCount}</span>/
+            {permissions.length} đã cấp
           </span>
-          <Button type="button" variant="outline" size="sm" onClick={() => setMany(visibleSubject, true)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMany(visibleSubject, true)}
+          >
             Cấp tất cả
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setMany(visibleSubject, false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setMany(visibleSubject, false)}
+          >
             Bỏ chọn
           </Button>
         </div>
@@ -219,20 +288,27 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
         <table className="w-full border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th scope="col" className="bg-muted/50 sticky left-0 z-20 border-b px-3 py-2 text-left">
+              <th
+                scope="col"
+                className="bg-muted/50 sticky left-0 z-20 border-b px-3 py-2 text-left"
+              >
                 <div className="flex items-center gap-2">
                   <TriStateCheckbox
                     state={stateOf(visibleSubject)}
                     onToggle={(next) => setMany(visibleSubject, next)}
                     label="Cấp mọi quyền đang hiển thị"
                   />
-                  <span className="text-muted-foreground text-xs">Chức năng</span>
+                  <span className="text-muted-foreground text-xs">
+                    Resource
+                  </span>
                 </div>
               </th>
 
               {columns.map((action) => {
                 const subject = columnSubject(action);
-                const granted = subject.filter((p) => selected.has(p.id)).length;
+                const granted = subject.filter((p) =>
+                  selected.has(p.id)
+                ).length;
 
                 return (
                   <th
@@ -241,14 +317,16 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
                     className="bg-muted/50 w-28 border-b border-l px-3 py-2 text-center align-bottom"
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-xs font-medium">{actionLabel(action)}</span>
+                      <span className="text-xs font-medium capitalize">
+                        {actionLabel(action)}
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <TriStateCheckbox
                           state={stateOf(subject)}
                           onToggle={(next) => setMany(subject, next)}
-                          label={`Cấp ${actionLabel(action)} trên mọi chức năng đang hiển thị`}
+                          label={`Cấp ${actionLabel(action)} trên mọi tài nguyên đang hiển thị`}
                         />
-                        <span className="text-muted-foreground text-[11px] tabular-nums">
+                        <span className="text-muted-foreground text-[0.6875rem] tabular-nums">
                           {granted}/{subject.length}
                         </span>
                       </div>
@@ -273,12 +351,16 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
 
             {visibleRows.map((row) => {
               const readPermission = row.cells.get("read");
-              // Mọi thao tác khác trên một chức năng đều đi qua màn hình mà `{resource}:read` mở
-              // ra, nên ghi mà không đọc là quyền không ai dùng được. Đáng nhắc, không đáng chặn.
+              // Every other action on a resource is reached through a screen
+              // that `{resource}:read` is what opens, so write without read is
+              // a grant nobody can use. Worth pointing out, not worth refusing:
+              // the API is what decides.
               const missingRead =
                 readPermission !== undefined &&
                 !selected.has(readPermission.id) &&
-                row.all.some((p) => p.id !== readPermission.id && selected.has(p.id));
+                row.all.some(
+                  (p) => p.id !== readPermission.id && selected.has(p.id)
+                );
 
               return (
                 <tr key={row.resource} className="group">
@@ -301,12 +383,12 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
                                 <TriangleAlertIcon className="text-warning size-3.5 shrink-0" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                Chưa cấp quyền đọc nên màn hình này vẫn bị ẩn.
+                                Chưa cấp quyền xem nên màn hình này vẫn bị ẩn.
                               </TooltipContent>
                             </Tooltip>
                           )}
                         </span>
-                        <span className="text-muted-foreground truncate font-mono text-[11px]">
+                        <span className="text-muted-foreground truncate font-mono text-[0.6875rem]">
                           {row.resource}
                         </span>
                       </span>

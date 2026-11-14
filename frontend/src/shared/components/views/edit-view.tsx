@@ -82,22 +82,26 @@ export const EditViewHeader = ({
       <div
         className={cn(
           "flex",
-          "gap-1",
+          // Không đủ chỗ cho cả tiêu đề lẫn nút thì nút xuống hàng dưới, không bóp tiêu đề.
+          "flex-wrap",
+          "gap-x-1 gap-y-2",
           "items-center",
           "justify-between",
           "-ml-2.5",
           headerClassName
         )}
       >
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="flex max-w-full min-w-0 items-center gap-1">
           <Button data-print="hide" variant="ghost" size="icon" onClick={back} aria-label="Quay lại">
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
-          <h1 className="min-w-0 truncate text-3xl font-bold leading-9 tracking-tight">{title}</h1>
-          {meta ? <div className="ms-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="min-w-0 text-xl leading-7 font-bold tracking-tight break-words sm:text-2xl sm:leading-8">{title}</h1>
+            {meta ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+          </div>
         </div>
 
-        <div data-print="hide" className="flex shrink-0 items-center gap-2">
+        <div data-print="hide" className="ms-auto flex max-w-full flex-wrap items-center justify-end gap-2">
           {actionsSlot}
           <RefreshButton
             variant="outline"

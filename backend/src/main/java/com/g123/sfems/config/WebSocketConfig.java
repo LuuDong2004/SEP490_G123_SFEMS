@@ -1,5 +1,6 @@
 package com.g123.sfems.config;
 
+import com.g123.sfems.module.security.auth.api.ClientIpHandshakeInterceptor;
 import com.g123.sfems.module.security.auth.api.StompAuthChannelInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -69,7 +70,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // The same origins the REST API allows, from the same property. A
         // WebSocket handshake is not subject to the CORS rules the browser
         // applies to fetch, so this list is the only thing checking it.
-        registry.addEndpoint(ENDPOINT).setAllowedOriginPatterns(allowedOrigins);
+        registry.addEndpoint(ENDPOINT).setAllowedOriginPatterns(allowedOrigins)
+                .addInterceptors(new ClientIpHandshakeInterceptor());
     }
 
     @Override

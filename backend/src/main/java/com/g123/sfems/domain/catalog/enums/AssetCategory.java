@@ -1,9 +1,6 @@
 package com.g123.sfems.domain.catalog.enums;
 
-/**
- * Loại tài sản để hạch toán. Khai trên nhóm thiết bị (tính chất của mặt hàng) và chép xuống từng
- * tài sản lúc ghi tăng. Mã ngắn là thành phần của mã tài sản khi cần.
- */
+/** Loại tài sản — quyết định cách hạch toán và theo dõi thiết bị. */
 public enum AssetCategory implements LabeledEnum {
     FIXED_ASSET("TS", "Tài sản cố định (TSCĐ)"),
     DURABLE_TOOL("DH", "Đồ dùng / Dụng cụ lâu bền (CCDC)"),

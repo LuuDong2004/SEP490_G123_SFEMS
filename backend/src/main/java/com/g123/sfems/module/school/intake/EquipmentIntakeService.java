@@ -1,298 +1,686 @@
 package com.g123.sfems.module.school.intake;
 
 import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
-import com.g123.sfems.domain.catalog.base.CatalogEntity;
-import com.g123.sfems.domain.catalog.unit.Unit;
-import com.g123.sfems.domain.catalog.originsource.OriginRule;
-import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
-import com.g123.sfems.domain.catalog.movementreason.MovementDirection;
-import com.g123.sfems.domain.catalog.movementreason.MovementReason;
+import com.g123.sfems.domain.catalog.originsource.OriginRule;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
-import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
-import com.g123.sfems.domain.school.equipment.Equipment;
-import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
-import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
-import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
-import com.g123.sfems.domain.school.equipment.EquipmentHistory;
+import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
+import com.g123.sfems.module.catalog.acquisitionmethod.AcquisitionMethodService;
+import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
-import com.g123.sfems.module.catalog.base.dto.RefSummary;
-import com.g123.sfems.module.school.coderule.AssetCodeService;
-import com.g123.sfems.module.school.voucher.InventoryFindings;
-import com.g123.sfems.module.school.voucher.VoucherService;
-import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
+import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
+import com.g123.sfems.module.catalog.originsource.OriginSourceService;
+import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
+import com.g123.sfems.module.catalog.unit.UnitService;
+import com.g123.sfems.domain.catalog.unit.Unit;
+import com.g123.sfems.module.organization.school.service.SchoolService;
+import com.g123.sfems.module.school.equipment.EquipmentService;
+import com.g123.sfems.module.school.facility.RoomService;
+import com.g123.sfems.module.school.voucher.VoucherSpecs;
+import com.g123.sfems.module.school.voucher.VoucherWorkflow;
+import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
+import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.shared.data.RecordAccess;
 import com.g123.sfems.shared.exception.FieldValidationException;
-import com.g123.sfems.shared.security.CurrentUser;
+import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.security.rowlevel.Action;
+import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.hibernate.Hibernate;
-import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import com.g123.sfems.module.school.voucher.VoucherForms;
+import java.math.BigDecimal;
+import com.g123.sfems.domain.catalog.enums.FundingSource;
+import java.time.LocalDate;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums;
+import com.g123.sfems.module.school.voucher.InventoryFindings;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import com.g123.sfems.shared.validation.FieldRule;
 
 /**
- * Phiếu nhập thiết bị (PN-01..03): lập, sửa nháp, trình, và ghi tăng tài sản lúc duyệt cuối. Vòng duyệt
- * và phạm vi dữ liệu là của {@link VoucherService}; ở đây chỉ có phần riêng của phiếu nhập.
+ * Phiếu nhập — lập, sửa khi còn nháp, và XÁC NHẬN NHẬN HÀNG.
+ *
+ * <p>Ba luật của feature này, và cả ba đều nằm ở đây chứ không ở form:
+ *
+ * <ul>
+ *   <li><b>Xác nhận là thời điểm ghi tăng.</b> Trước nó không có tài sản nào;
+ *       sau nó thì có, và phiếu khoá lại. Không có khoảng thời gian "hàng đã về
+ *       trường nhưng chưa ai chịu trách nhiệm".</li>
+ *   <li><b>Phiếu đã xác nhận không sửa được.</b> Sai thì lập phiếu điều chỉnh —
+ *       cho phép sửa nghĩa là số lượng trên chứng từ và số tài sản đã sinh có
+ *       thể lệch nhau mà không ai biết.</li>
+ *   <li><b>Ghi tăng đi theo SỐ THỰC NHẬN</b>, không theo số trên chứng từ. Đó là
+ *       lý do có hai cột số lượng.</li>
+ * </ul>
+ *
+ * <p>Cả việc sinh tài sản lẫn việc cộng tồn nằm trong CÙNG giao dịch với việc
+ * khoá phiếu: một lần xác nhận hoặc làm xong tất cả, hoặc không để lại gì. Ghi
+ * tăng nửa vời là hỏng sổ tài sản, và không có phiếu nào để lần ngược.
  */
+@Transactional(readOnly = true)
 @Service
-public class EquipmentIntakeService
-        extends VoucherService<EquipmentIntake, EquipmentIntakeRequest, EquipmentIntakeRequest> {
+public class EquipmentIntakeService implements RecordAccess {
 
-    private static final String RESOURCE = "equipment_intakes";
-    /** Loại phòng là kho: thiết bị đặt ở đây chưa đưa vào sử dụng. */
-    private static final String WAREHOUSE_ROOM_TYPE = "KHO";
+    public static final String RESOURCE = "equipment_intakes";
 
-    private final AssetCodeService assetCodes;
 
-    public EquipmentIntakeService(VoucherServiceDeps deps, EquipmentIntakeRepository repository,
-            AssetCodeService assetCodes) {
-        super(deps, repository, EquipmentIntake.class, EquipmentIntake::new);
-        this.assetCodes = assetCodes;
+    private static final Set<String> SORTABLE =
+            Set.of("id", "code", "intakeDate", "documentDate", "status", "createdAt", "updatedAt");
+
+    /** Phiếu mới nhất lên đầu: danh sách chứng từ luôn được đọc từ hiện tại lùi về. */
+    private static final Sort DEFAULT_SORT =
+            Sort.by(Sort.Order.desc("intakeDate"), Sort.Order.desc("id"));
+
+    private final EquipmentIntakeRepository repository;
+    private final RowLevelSecurity rowLevel;
+    private final SchoolService schools;
+    private final RowLevelPrincipalResolver principals;
+    private final EquipmentCatalogService catalogs;
+    private final RoomService rooms;
+    private final OriginSourceService originSources;
+    private final AcquisitionMethodService acquisitionMethods;
+    private final EquipmentService equipment;
+    private final VoucherWorkflow workflow;
+    private final EntityManager entityManager;
+    private final VoucherForms forms;
+    private final SchoolYearService schoolYears;
+    private final UnitService units;
+
+    public EquipmentIntakeService(
+            EquipmentIntakeRepository repository,
+            RowLevelSecurity rowLevel,
+            SchoolService schools,
+            RowLevelPrincipalResolver principals,
+            EquipmentCatalogService catalogs,
+            RoomService rooms,
+            OriginSourceService originSources,
+            AcquisitionMethodService acquisitionMethods,
+            EquipmentService equipment,
+            VoucherWorkflow workflow,
+            EntityManager entityManager,
+            VoucherForms forms,
+            SchoolYearService schoolYears,
+            UnitService units) {
+        this.repository = repository;
+        this.rowLevel = rowLevel;
+        this.schools = schools;
+        this.principals = principals;
+        this.catalogs = catalogs;
+        this.rooms = rooms;
+        this.originSources = originSources;
+        this.acquisitionMethods = acquisitionMethods;
+        this.equipment = equipment;
+        this.workflow = workflow;
+        this.entityManager = entityManager;
+        this.forms = forms;
+        this.schoolYears = schoolYears;
+        this.units = units;
     }
 
-    // ------------------------------------------------------------------ ghi
-
-    @Override
-    protected void applyCreate(EquipmentIntake intake, EquipmentIntakeRequest request) {
-        apply(intake, request);
+    public Page<EquipmentIntake> list(ListParams params) {
+        Specification<EquipmentIntake> awaiting = VoucherSpecs.awaitingMe(params)
+                ? workflow.awaitingMe(null) : Specification.unrestricted();
+        Page<EquipmentIntake> page = repository.findAll(
+                rowLevel.<EquipmentIntake>scope(EquipmentIntake.class, Action.READ)
+                        .and(awaiting)
+                        .and(EquipmentIntakeSpecifications.from(params))
+                        .and(CatalogSpecifications.referenceFilter(params, "school"))
+                        .and(CatalogSpecifications.referenceFilter(params, "originSource"))
+                        .and(CatalogSpecifications.referenceFilter(params, "acquisitionMethod")),
+                params.pageable(SORTABLE, DEFAULT_SORT));
+        page.getContent().forEach(EquipmentIntakeService::withLines);
+        return page;
     }
 
-    @Override
-    protected void applyUpdate(EquipmentIntake intake, EquipmentIntakeRequest request) {
-        apply(intake, request);
+    public EquipmentIntake get(Long id) {
+        return withLines(repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id))
+                .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id)));
     }
 
-    private void apply(EquipmentIntake intake, EquipmentIntakeRequest request) {
+    public List<EquipmentIntake> getMany(List<Long> ids) {
+        List<EquipmentIntake> rows = repository.findAll(rowLevel.byIds(EquipmentIntake.class, Action.READ, ids));
+        rows.forEach(EquipmentIntakeService::withLines);
+        return rows;
+    }
+
+    /**
+     * Nạp các dòng TRONG transaction.
+     *
+     * <p>DTO được dựng ở controller, tức là sau khi transaction đã đóng — chạm
+     * vào một collection lazy ở đó là {@code LazyInitializationException}, và
+     * nó chỉ nổ trên đường đọc chứ không phải đường ghi, nên rất dễ lọt. Một
+     * dòng tường minh ở đây rẻ hơn một {@code EAGER} kéo theo cả phiếu vào mọi
+     * lần đọc thiết bị; {@code @BatchSize} lo phần N+1 của một trang.
+     */
+    private static EquipmentIntake withLines(EquipmentIntake intake) {
+        intake.getLines().size();
+        return intake;
+    }
+
+    @Transactional
+    public EquipmentIntake create(EquipmentIntakeRequest request) {
+        EquipmentIntake intake = new EquipmentIntake();
+        intake.setSchool(resolveSchool(request.school()));
+        intake.setStatus(VoucherStatus.DRAFT);
         intake.setIntakeDate(request.intakeDate());
         intake.setDocumentNo(trimToNull(request.documentNo()));
         intake.setDocumentDate(request.documentDate());
         intake.setSupplier(trimToNull(request.supplier()));
         intake.setFundingSource(request.fundingSource());
-        intake.setOriginSource(find(OriginSource.class, request.originSource(), "originSource", "Nguồn hình thành"));
+        intake.setOriginSource(ref(request.originSource(), originSources::get));
         intake.setOriginNote(trimToNull(request.originNote()));
-        intake.setAcquisitionMethod(find(AcquisitionMethod.class, request.acquisitionMethod(), "acquisitionMethod",
-                "Hình thức mua sắm"));
-        intake.setSchoolYear(find(SchoolYear.class, request.schoolYear(), "schoolYear", "Năm học"));
+        // Năm học là HỆ QUẢ của ngày nhập, không phải lựa chọn: phiếu nhập 13/11/2026 không thể thuộc năm học
+        // 2024-2025 — báo cáo theo năm học đếm sai. Giá trị form gửi lên bị bỏ qua.
+        intake.setSchoolYear(schoolYears.forDate(request.intakeDate()));
+        intake.setAcquisitionMethod(ref(request.acquisitionMethod(), acquisitionMethods::get));
         intake.setWarrantyMonths(request.warrantyMonths());
         intake.setNote(trimToNull(request.note()));
-        intake.setDeliverer(trimToNull(request.deliverer()));
-        intake.setDelivererRepresentative(trimToNull(request.delivererRepresentative()));
-        intake.setReceiver(trimToNull(request.receiver()));
-        intake.setReceiverPosition(trimToNull(request.receiverPosition()));
-        intake.setStorekeeper(trimToNull(request.storekeeper()));
-        intake.setInspectionResult(request.inspectionResult());
-        intake.setHandoverNo(trimToNull(request.handoverNo()));
-        applyDetails(intake, request.details());
-        applyLines(intake, request.lines() == null ? List.of() : request.lines());
+        intake.replaceLines(buildLines(intake, request.lines()));
+        intake.setDetails(forms.header(RESOURCE, request.details(), null, intake.getSchool().getId(), null));
+        checkLines(intake);
         fitSources(intake);
+        checkDocuments(intake);
+        checkSerials(intake);
+
+        EquipmentIntake saved = repository.persist(intake);
+        repository.flush();
+        rowLevel.checkWritable(saved);
+        return saved;
+    }
+
+    @Transactional
+    public EquipmentIntake update(Long id, EquipmentIntakePatchRequest request) {
+        EquipmentIntake intake = writable(id);
+        // Khoá trước khi kiểm nháp — lần lưu đọc phiếu lúc còn nháp mà commit sau lần Trình sẽ kéo phiếu về nháp.
+        lockAndReread(intake);
+        requireDraft(intake, "sửa");
+
+        IdRef school = request.school();
+        if (school != null && school.id() != null && !school.id().equals(intake.getSchool().getId())) {
+            throw new FieldValidationException("school", "Không đổi được trường sau khi tạo");
+        }
+        if (request.intakeDate() != null) {
+            intake.setIntakeDate(request.intakeDate());
+        }
+        if (request.documentNo() != null) {
+            intake.setDocumentNo(trimToNull(request.documentNo()));
+        }
+        if (request.documentDate() != null) {
+            intake.setDocumentDate(request.documentDate());
+        }
+        if (request.supplier() != null) {
+            intake.setSupplier(trimToNull(request.supplier()));
+        }
+        if (request.fundingSource() != null) {
+            intake.setFundingSource(request.fundingSource());
+        }
+        if (request.originSource() != null) {
+            OriginSource next = ref(request.originSource(), originSources::get);
+            // Phiếu sinh từ phiếu nghiệp vụ khác: nguồn hình thành là hệ quả của phiếu nguồn, không phải
+            // một lựa chọn — đề xuất mua sắm thì là mua sắm, biên bản kiểm kê thì là kiểm kê thừa.
+            if (intake.getSourceResource() != null && !sameOrigin(next, intake.getOriginSource())) {
+                throw new FieldValidationException("originSource",
+                        "Phiếu lập từ %s nên nguồn hình thành là \"%s\", không đổi được".formatted(
+                                intake.getSourceCode() == null ? "phiếu nghiệp vụ khác" : intake.getSourceCode(),
+                                intake.getOriginSource() == null ? "—" : intake.getOriginSource().getName()));
+            }
+            intake.setOriginSource(next);
+        }
+        if (request.originNote() != null) {
+            intake.setOriginNote(trimToNull(request.originNote()));
+        }
+        // Năm học luôn theo ngày nhập (kể cả khi chỉ sửa ngày nhập) — không nhận năm học form gửi lên.
+        intake.setSchoolYear(schoolYears.forDate(intake.getIntakeDate()));
+        if (request.acquisitionMethod() != null) {
+            intake.setAcquisitionMethod(ref(request.acquisitionMethod(), acquisitionMethods::get));
+        }
+        if (request.warrantyMonths() != null) {
+            intake.setWarrantyMonths(request.warrantyMonths());
+        }
+        if (request.note() != null) {
+            intake.setNote(trimToNull(request.note()));
+        }
+        if (request.lines() != null) {
+            intake.replaceLines(buildLines(intake, request.lines()));
+        }
+        if (request.details() != null) {
+            intake.setDetails(forms.header(RESOURCE, request.details(), intake.getDetails(),
+                    intake.getSchool().getId(), null));
+        }
+        checkLines(intake);
+        fitSources(intake);
+        checkDocuments(intake);
+        checkSerials(intake);
+
+        rowLevel.checkWritable(intake);
+        return repository.persist(intake);
     }
 
     /**
-     * Biên bản giao nhận gửi theo khoá của màn hình ({@code details}) — đè lên các trường rời cùng nghĩa.
-     * Khoá vắng mặt thì giữ giá trị đã gán từ trường rời.
+     * Trình phiếu lên lãnh đạo trường. Phiếu phải có dòng và các dòng phải hợp lệ
+     * — trình một phiếu mà lúc duyệt mới lộ ra thiếu lý do chênh lệch là bắt
+     * người duyệt làm việc của người lập.
      */
-    private static void applyDetails(EquipmentIntake intake, Map<String, Object> details) {
-        if (details == null) {
-            return;
+    @Transactional
+    public EquipmentIntake submit(Long id) {
+        EquipmentIntake intake = writable(id);
+        lockAndReread(intake);
+        if (intake.getLines().isEmpty()) {
+            throw new FieldValidationException("lines", "Phiếu chưa có dòng nào để ghi tăng");
         }
-        if (details.containsKey(DELIVERED_BY)) {
-            intake.setDeliverer(text(details.get(DELIVERED_BY)));
+        checkLines(intake);
+        forms.requireComplete(RESOURCE, intake.getDetails(), null, null);
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            forms.requireLineComplete(RESOURCE, line.getDetails(), line.getLineNo(), null, null);
         }
-        if (details.containsKey(DELIVERY_REPRESENTATIVE)) {
-            intake.setDelivererRepresentative(text(details.get(DELIVERY_REPRESENTATIVE)));
+        requireSources(intake);
+        requirePlanLink(intake);
+        requirePurchaseDocuments(intake);
+        requireSchoolYear(intake);
+        requireAssetProfileData(intake);
+        requireAttachment(intake);
+        equipment.checkCodeCapacity(intake);
+        if (workflow.submit(intake, RESOURCE)) {
+            receive(intake);
         }
-        if (details.containsKey(RECEIVER_NAME)) {
-            intake.setReceiver(text(details.get(RECEIVER_NAME)));
+        rowLevel.checkWritable(intake);
+        return withLines(repository.persist(intake));
+    }
+
+    /**
+     * Duyệt. Lần duyệt cuối CHÍNH LÀ thời điểm ghi tăng — xem {@link #receive}.
+     *
+     * <p>Đọc phiếu theo phạm vi ĐỌC, không phải GHI: người duyệt (lãnh đạo trường)
+     * không sửa phiếu, và không cần phạm vi ghi trên nó. Quyền duyệt được kiểm hai
+     * lớp — mã quyền ở controller, cấp của tài khoản ở {@link VoucherWorkflow}.
+     */
+    @Transactional
+    public EquipmentIntake approve(Long id, String note) {
+        EquipmentIntake intake = readable(id);
+        lockAndReread(intake);
+        if (workflow.approve(intake, RESOURCE, note)) {
+            checkLines(intake);
+            // Kiểm lại ở đây chứ không tin lần kiểm lúc trình: giữa trình và
+            // duyệt có thể có phiếu khác của cùng trường đã ăn hết số thứ tự.
+            requireSources(intake);
+            requireAssetProfileData(intake);
+            equipment.checkCodeCapacity(intake);
+            receive(intake);
         }
-        if (details.containsKey(RECEIVER_POSITION)) {
-            intake.setReceiverPosition(text(details.get(RECEIVER_POSITION)));
-        }
-        if (details.containsKey(HANDOVER_MINUTES_NO)) {
-            intake.setHandoverNo(text(details.get(HANDOVER_MINUTES_NO)));
-        }
-        if (details.containsKey(INSPECTION_RESULT)) {
-            String value = text(details.get(INSPECTION_RESULT));
-            try {
-                intake.setInspectionResult(value == null ? null : EquipmentIntake.InspectionResult.valueOf(value));
-            } catch (IllegalArgumentException e) {
-                throw new FieldValidationException("details." + INSPECTION_RESULT, "Kết quả kiểm tra không hợp lệ");
+        return withLines(repository.persist(intake));
+    }
+
+    @Transactional
+    public EquipmentIntake returnToDraft(Long id, String note) {
+        EquipmentIntake intake = readable(id);
+        lockAndReread(intake);
+        workflow.returnToDraft(intake, RESOURCE, note);
+        return withLines(repository.persist(intake));
+    }
+
+    @Transactional
+    public EquipmentIntake reject(Long id, String reason) {
+        EquipmentIntake intake = readable(id);
+        lockAndReread(intake);
+        workflow.reject(intake, RESOURCE, reason);
+        return withLines(repository.persist(intake));
+    }
+
+    /** Người lập tự bỏ phiếu nháp. */
+    @Transactional
+    public EquipmentIntake cancel(Long id, String reason) {
+        EquipmentIntake intake = writable(id);
+        lockAndReread(intake);
+        workflow.cancel(intake, RESOURCE, reason);
+        rowLevel.checkWritable(intake);
+        return withLines(repository.persist(intake));
+    }
+
+    /**
+     * GHI TĂNG: sinh tài sản (hoặc cộng tồn) cho từng dòng theo cách quản lý của
+     * nhóm, ghi lại đã sinh bao nhiêu, rồi đánh dấu phiếu hoàn tất — cùng một
+     * giao dịch với lần duyệt. Bất kỳ dòng nào không ghi tăng được (thiếu dữ liệu
+     * sinh mã, hết số thứ tự) thì cả lần duyệt bị từ chối và phiếu vẫn chờ duyệt.
+     */
+    private void receive(EquipmentIntake intake) {
+        // Số serial khai lúc lập phiếu: kiểm lại lúc ghi tăng — giữa lúc lập và lúc duyệt, thiết bị khác của trường có
+        // thể đã mang số đó.
+        checkSerials(intake);
+        workflow.complete(intake, RESOURCE, null);
+        // Dòng chưa có phòng nhận (phiếu lập từ đề xuất mua sắm, từ kiểm kê, qua API) thì về kho của trường —
+        // như form vẫn chọn sẵn — để tài sản có chỗ để và người quản lý là cán bộ phụ trách kho (124).
+        Room storeroom = null;
+        boolean looked = false;
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            if (line.getRoom() == null && line.getReceivedQuantity() > 0) {
+                if (!looked) {
+                    storeroom = rooms.storeroomOf(intake.getSchool().getId());
+                    looked = true;
+                }
+                line.setRoom(storeroom);
             }
         }
-        checkLength(intake.getDeliverer(), 255, DELIVERED_BY, "Người giao");
-        checkLength(intake.getDelivererRepresentative(), 255, DELIVERY_REPRESENTATIVE, "Đại diện bên giao");
-        checkLength(intake.getReceiver(), 255, RECEIVER_NAME, "Người nhận");
-        checkLength(intake.getReceiverPosition(), 255, RECEIVER_POSITION, "Chức vụ");
-        checkLength(intake.getHandoverNo(), 100, HANDOVER_MINUTES_NO, "Số biên bản bàn giao");
-    }
-
-    /** Biên bản giao nhận theo khoá của màn hình — chiều đọc của {@link #applyDetails}. */
-    public static Map<String, Object> details(EquipmentIntake intake) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put(DELIVERED_BY, intake.getDeliverer());
-        out.put(DELIVERY_REPRESENTATIVE, intake.getDelivererRepresentative());
-        out.put(RECEIVER_NAME, intake.getReceiver());
-        out.put(RECEIVER_POSITION, intake.getReceiverPosition());
-        out.put(INSPECTION_RESULT, intake.getInspectionResult() == null ? null : intake.getInspectionResult().name());
-        out.put(HANDOVER_MINUTES_NO, intake.getHandoverNo());
-        return out;
-    }
-
-    private static final String DELIVERED_BY = "deliveredBy";
-    private static final String DELIVERY_REPRESENTATIVE = "deliveryRepresentative";
-    private static final String RECEIVER_NAME = "receiverName";
-    private static final String RECEIVER_POSITION = "receiverPosition";
-    private static final String INSPECTION_RESULT = "inspectionResult";
-    private static final String HANDOVER_MINUTES_NO = "handoverMinutesNo";
-
-    private static String text(Object value) {
-        return value == null ? null : trimToNull(String.valueOf(value));
-    }
-
-    private static void checkLength(String value, int max, String key, String label) {
-        if (value != null && value.length() > max) {
-            throw new FieldValidationException("details." + key, label + " tối đa " + max + " ký tự");
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            int quantity = line.getReceivedQuantity();
+            line.setGeneratedCount(quantity);
+            if (quantity <= 0) {
+                // Hàng về thiếu hẳn một dòng: phiếu vẫn ghi nhận dòng đó (lý do
+                // chênh lệch là bắt buộc), chỉ là không sinh ra tài sản nào.
+                continue;
+            }
+            if (line.getCatalog().getTrackingType() == TrackingType.SERIAL) {
+                equipment.generateFromIntakeLine(line);
+            } else {
+                equipment.generateLotFromIntakeLine(line);
+            }
         }
     }
 
     /**
-     * Ghi các dòng: dòng gửi kèm id đang có thì sửa tại chỗ (giữ id — tệp hoá đơn gắn theo dòng bám vào nó),
-     * không thì lấy lại một dòng chưa dùng hoặc tạo mới. Dòng dư bị bỏ. Lấy lại dòng cũ thay vì xoá rồi chèn
-     * để không vấp unique {@code (intake_id, line_no)} khi lệnh chèn chạy trước lệnh xoá.
+     * Xoá hẳn một phiếu. Chỉ phiếu chưa từng được trình: phiếu đã có số và nhật
+     * ký duyệt là một chứng từ, và chứng từ thì huỷ chứ không xoá.
      */
-    private void applyLines(EquipmentIntake intake, List<EquipmentIntakeLineInput> inputs) {
-        Map<Long, EquipmentIntakeLine> byId = new LinkedHashMap<>();
+    @Transactional
+    public EquipmentIntake delete(Long id) {
+        EquipmentIntake intake = repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.DELETE, id))
+                .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
+        lockAndReread(intake);
+        workflow.requireDeletable(intake, RESOURCE);
+        // Đọc các dòng TRƯỚC khi xoá: data provider có phân tích body trả về,
+        // và sau khi xoá thì không còn gì để nạp.
+        withLines(intake);
+        repository.remove(intake);
+        return intake;
+    }
+
+    /** Một dòng hàng mua về, lấy từ đề xuất mua sắm. */
+    public record PurchasedItem(Long catalogId, String name, int quantity, BigDecimal unitPrice) {
+    }
+
+    /**
+     * Số THỰC NHẬN đã ghi theo từng thiết bị (id danh mục → số lượng) trên các phiếu ghi tăng lập từ một phiếu
+     * nguồn — kể cả phiếu nháp / chờ duyệt (đã giữ chỗ), trừ phiếu đã huỷ hoặc bị từ chối. Đề xuất mua sắm dùng nó
+     * để biết thiết bị nào còn phải nhập (QLTB-556: hàng về nhiều đợt, mỗi đợt một phiếu ghi tăng).
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> receivedBySource(String sourceResource, Long sourceId) {
+        List<Object[]> rows = entityManager.createQuery("""
+                        select l.catalog.id, sum(l.receivedQuantity) from EquipmentIntakeLine l
+                        where l.intake.sourceResource = :resource and l.intake.sourceId = :id
+                          and l.intake.status not in :dead
+                        group by l.catalog.id""", Object[].class)
+                .setParameter("resource", sourceResource)
+                .setParameter("id", sourceId)
+                .setParameter("dead", List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED))
+                .getResultList();
+        Map<Long, Integer> result = new HashMap<>();
+        for (Object[] row : rows) {
+            result.put((Long) row[0], ((Number) row[1]).intValue());
+        }
+        return result;
+    }
+
+    /**
+     * Hàng mua theo đề xuất đã về: lập phiếu nhập NHÁP mang đúng các dòng đề xuất.
+     * Cán bộ vẫn phải đếm, sửa số thực nhận và trình như mọi phiếu nhập khác —
+     * đề xuất nói trường XIN gì, không nói hàng về đủ.
+     */
+    @Transactional
+    public EquipmentIntake createFromPurchase(Long schoolId, FundingSource funding,
+            List<PurchasedItem> items, String note, Long proposalId, String proposalCode) {
+        EquipmentIntake draft = new EquipmentIntake();
+        draft.setSchool(schools.get(schoolId));
+        draft.setStatus(VoucherStatus.DRAFT);
+        draft.setIntakeDate(LocalDate.now());
+        // Hàng về theo đề xuất mua sắm là MUA SẮM — nguồn hình thành do phiếu nguồn quyết định, và
+        // phiếu nhớ nó sinh từ đề xuất nào. Nguồn kinh phí của đề xuất mà không đi được với mua sắm
+        // (tài trợ) thì để trống cho người lập chọn lại, thay vì mang một cặp giá trị mâu thuẫn.
+        draft.setSchoolYear(schoolYears.forDate(draft.getIntakeDate()));
+        draft.setOriginSource(originSources.of(OriginRule.MUA_SAM));
+        draft.setSource("purchase_proposals", proposalId, proposalCode);
+        draft.setFundingSource(funding != null && OriginRule.MUA_SAM.allows(funding) ? funding : null);
+        draft.setNote(note);
+        List<EquipmentIntakeLine> result = new ArrayList<>();
+        int lineNo = 1;
+        for (PurchasedItem item : items) {
+            EquipmentIntakeLine line = new EquipmentIntakeLine();
+            line.setIntake(draft);
+            line.setLineNo(lineNo++);
+            line.setCatalog(catalogs.get(item.catalogId()));
+            line.setName(item.name());
+            line.setPhysicalOrDigital(EquipmentEnums.PhysicalDigitalType.PHYSICAL);
+            line.setDocumentQuantity(item.quantity());
+            line.setReceivedQuantity(item.quantity());
+            line.setUnitPrice(item.unitPrice());
+            result.add(line);
+        }
+        draft.replaceLines(result);
+        EquipmentIntake saved = repository.persist(draft);
+        repository.flush();
+        rowLevel.checkWritable(saved);
+        return saved;
+    }
+
+    /**
+     * Kiểm kê thấy tài sản THỪA: lập một phiếu nhập NHÁP mang các dòng đó. Ghi tăng
+     * vẫn phải qua lãnh đạo trường duyệt như mọi lần ghi tăng khác.
+     */
+    @org.springframework.context.event.EventListener
+    public void onSurplus(InventoryFindings.Surplus findings) {
+        EquipmentIntake draft = new EquipmentIntake();
+        draft.setSchool(schools.get(findings.schoolId()));
+        draft.setStatus(VoucherStatus.DRAFT);
+        draft.setIntakeDate(LocalDate.now());
+        draft.setSchoolYear(schoolYears.forDate(draft.getIntakeDate()));
+        draft.setOriginSource(originSources.of(OriginRule.KIEM_KE_THUA));
+        draft.setSource("inventory_sessions", findings.sourceId(), findings.sourceCode());
+        draft.setNote("Ghi tăng thiết bị thừa theo biên bản kiểm kê " + findings.sourceCode());
+        List<EquipmentIntakeLine> result = new ArrayList<>();
+        int lineNo = 1;
+        for (var item : findings.items()) {
+            EquipmentIntakeLine line = new EquipmentIntakeLine();
+            line.setIntake(draft);
+            line.setLineNo(lineNo++);
+            line.setCatalog(catalogs.get(item.catalogId()));
+            line.setName(item.name());
+            line.setPhysicalOrDigital(EquipmentEnums.PhysicalDigitalType.PHYSICAL);
+            line.setDocumentQuantity(item.quantity());
+            line.setReceivedQuantity(item.quantity());
+            line.setRoom(item.roomId() == null ? null : rooms.get(item.roomId()));
+            result.add(line);
+        }
+        draft.replaceLines(result);
+        repository.persist(draft);
+    }
+
+    /** Các nút người gọi bấm được trên phiếu này. */
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public Set<String> actions(EquipmentIntake intake, Map<String, Boolean> can, boolean canApprove) {
+        return workflow.actions(intake, Boolean.TRUE.equals(can.get("write")), canApprove);
+    }
+
+    @Override
+    public String resource() {
+        return RESOURCE;
+    }
+
+    @Override
+    public void checkReadable(Long id) {
+        readable(id);
+    }
+
+    @Override
+    public void checkWritable(Long id) {
+        writable(id);
+    }
+
+    /**
+     * Khoá dòng phiếu rồi đọc lại trạng thái, trước khi quyết định có ghi tăng
+     * hay không.
+     *
+     * <p>Không có bước này thì hai lần duyệt cùng một phiếu — bấm đúp, hai tab,
+     * một lần thử lại của trình duyệt — đều đọc được trạng thái "chờ duyệt" và
+     * đều chạy tiếp: phiếu 50 máy sinh ra 100 tài sản, mã không trùng nên không
+     * ràng buộc nào chặn lại, và việc này chỉ lộ ra ở kỳ kiểm kê. Câu lệnh khoá
+     * làm lần thứ hai phải đợi lần thứ nhất xong, rồi {@code refresh} cho nó
+     * thấy trạng thái đã đổi và dừng lại với câu báo bình thường.
+     */
+    private void lockAndReread(EquipmentIntake intake) {
+        entityManager.lock(intake, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(intake);
+    }
+
+    private EquipmentIntake readable(Long id) {
+        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id))
+                .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
+    }
+
+    private EquipmentIntake writable(Long id) {
+        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.WRITE, id))
+                .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
+    }
+
+    private static void requireDraft(EquipmentIntake intake, String action) {
+        if (intake.getStatus() != VoucherStatus.DRAFT) {
+            throw new FieldValidationException("status",
+                    "Chỉ %s được phiếu nháp — phiếu đã trình thì phải được trả lại mới sửa".formatted(action));
+        }
+    }
+
+    /**
+     * Dựng lại toàn bộ các dòng từ payload. Số thứ tự dòng do server đánh, theo
+     * đúng thứ tự gửi lên — nó là vị trí trên chứng từ, không phải dữ liệu người
+     * dùng nhập.
+     */
+    private List<EquipmentIntakeLine> buildLines(EquipmentIntake intake, List<EquipmentIntakeLineInput> inputs) {
+        List<EquipmentIntakeLine> lines = new ArrayList<>();
+        if (inputs == null) {
+            return lines;
+        }
+        Map<Long, EquipmentIntakeLine> existing = new HashMap<>();
         for (EquipmentIntakeLine line : intake.getLines()) {
             if (line.getId() != null) {
-                byId.put(line.getId(), line);
+                existing.put(line.getId(), line);
             }
         }
-        List<EquipmentIntakeLine> claimed = new ArrayList<>(inputs.size());
-        for (EquipmentIntakeLineInput in : inputs) {
-            claimed.add(in.id() != null ? byId.remove(in.id()) : null);
+        int lineNo = 1;
+        for (EquipmentIntakeLineInput input : inputs) {
+            EquipmentCatalog catalog = catalogs.get(input.catalog().id());
+            catalogs.requireLevelFits(catalog, intake.getSchool(), lineNo);
+            // Dòng đã có thì sửa tại chỗ (giữ id — tệp hoá đơn gắn theo dòng bám vào nó), dòng mới thì tạo.
+            EquipmentIntakeLine line = input.id() != null && existing.containsKey(input.id())
+                    ? existing.remove(input.id())
+                    : new EquipmentIntakeLine();
+            line.setIntake(intake);
+            line.setLineNo(lineNo++);
+            line.setCatalog(catalog);
+            String name = trimToNull(input.name());
+            line.setName(name == null ? catalog.getName() : name);
+            line.setPhysicalOrDigital(input.physicalOrDigital());
+            line.setAssetCategory(input.assetCategory());
+            line.setDocumentQuantity(input.documentQuantity());
+            line.setReceivedQuantity(input.receivedQuantity());
+            line.setVarianceReason(trimToNull(input.varianceReason()));
+            line.setUnitPrice(input.unitPrice());
+            line.setRoom(ref(input.room(), rooms::get));
+            line.setSupplier(trimToNull(input.supplier()));
+            line.setDocumentNo(trimToNull(input.documentNo()));
+            line.setDocumentDate(input.documentDate());
+            line.setFundingSource(input.fundingSource());
+            line.setFundingNote(trimToNull(input.fundingNote()));
+            // Nguồn hình thành là của cả phiếu — dòng không mang riêng nữa.
+            line.setOriginSource(null);
+            line.setAcquisitionMethod(ref(input.acquisitionMethod(), acquisitionMethods::get));
+            line.setAcquisitionNote(trimToNull(input.acquisitionNote()));
+            line.setWarrantyMonths(input.warrantyMonths());
+            line.setModel(trimToNull(input.model()));
+            line.setManufacturer(trimToNull(input.manufacturer()));
+            line.setOtherInfo(trimToNull(input.otherInfo()));
+            // Hạn sử dụng chỉ có nghĩa với vật tư tiêu hao, hoá chất (quản lý theo số lượng); dòng thiết bị
+            // từng cái gửi kèm thì gỡ đi chứ không báo lỗi — cùng cách với các ô nguồn không còn nghĩa.
+            line.setExpiryDate(catalog.getTrackingType() == TrackingType.BULK ? input.expiryDate() : null);
+            applyPack(line, input, catalog);
+            // Serial chỉ thiết bị từng cái mới có; dòng theo số lượng gửi kèm thì gỡ đi, như hạn sử dụng ở trên.
+            line.setSerialList(catalog.getTrackingType() == TrackingType.SERIAL
+                    ? normalizeSerials(input.serialNumbers()) : List.of());
+            line.setDetails(forms.line(RESOURCE, input.details(), intake.getSchool().getId(), line.getLineNo()));
+            lines.add(line);
         }
-        List<EquipmentIntakeLine> spare = new ArrayList<>(byId.values());
-        List<EquipmentIntakeLine> next = new ArrayList<>(inputs.size());
-        for (int i = 0; i < inputs.size(); i++) {
-            EquipmentIntakeLine line = claimed.get(i);
-            if (line == null) {
-                line = spare.isEmpty() ? new EquipmentIntakeLine() : spare.remove(0);
-            }
-            applyLine(intake, line, inputs.get(i), i);
-            next.add(line);
-        }
-        intake.replaceLines(next);
-    }
-
-    private void applyLine(EquipmentIntake intake, EquipmentIntakeLine line, EquipmentIntakeLineInput in, int index) {
-        String prefix = "lines." + index + ".";
-        EquipmentCatalog catalog = find(EquipmentCatalog.class, in.catalog(), prefix + "catalog", "Nhóm thiết bị");
-        if (catalog == null) {
-            throw new FieldValidationException(prefix + "catalog", "Chọn nhóm thiết bị");
-        }
-        line.setLineNo(index + 1);
-        line.setCatalog(catalog);
-        String name = trimToNull(in.name());
-        line.setName(name != null ? name : catalog.getName());
-        line.setPhysicalOrDigital(in.physicalOrDigital() != null ? in.physicalOrDigital() : catalog.getPhysicalOrDigital());
-        line.setAssetCategory(in.assetCategory() != null ? in.assetCategory() : catalog.getAssetCategory());
-        line.setDocumentQuantity(in.documentQuantity());
-        line.setReceivedQuantity(in.receivedQuantity());
-        line.setVarianceReason(trimToNull(in.varianceReason()));
-        line.setUnitPrice(in.unitPrice());
-        line.setRoom(room(intake, in.room(), prefix + "room"));
-        line.setSupplier(trimToNull(in.supplier()));
-        line.setDocumentNo(trimToNull(in.documentNo()));
-        line.setDocumentDate(in.documentDate());
-        line.setFundingSource(in.fundingSource());
-        line.setFundingNote(trimToNull(in.fundingNote()));
-        line.setAcquisitionMethod(find(AcquisitionMethod.class, in.acquisitionMethod(), prefix + "acquisitionMethod",
-                "Hình thức mua sắm"));
-        line.setAcquisitionNote(trimToNull(in.acquisitionNote()));
-        line.setWarrantyMonths(in.warrantyMonths());
-        line.setModel(trimToNull(in.model()));
-        line.setManufacturer(trimToNull(in.manufacturer()));
-        line.setNote(trimToNull(in.note()));
-        MovementReason reason = find(MovementReason.class, in.movementReason(), prefix + "movementReason", "Lý do tăng");
-        if (reason != null && reason.getDirection() != MovementDirection.INCREASE) {
-            throw new FieldValidationException(prefix + "movementReason", "Lý do này không phải lý do tăng");
-        }
-        // Màn lập phiếu không hỏi lý do tăng từng dòng: suy từ nguồn hình thành của phiếu.
-        line.setMovementReason(reason != null ? reason : defaultReason(intake));
-        boolean bulk = catalog.getTrackingType() == TrackingType.BULK;
-        // Hạn sử dụng và quy cách chỉ có nghĩa với dòng quản lý theo số lượng; dòng từng cái gửi kèm thì gỡ đi.
-        line.setExpiryDate(bulk ? in.expiryDate() : null);
-        applyPack(line, in, catalog, bulk, index);
+        return lines;
     }
 
     /**
-     * Quy cách bao bì của dòng: phải khai đủ cả đơn vị bao bì và lượng. Bao bì trùng đơn vị của thiết bị là
-     * không quy đổi gì — gỡ đi.
+     * Những gì phải đúng ở mọi lần ghi, kể cả lưu nháp.
+     *
+     * <p>Lý do chênh lệch cũng được database giữ bằng một {@code CHECK}, và đó
+     * là lý do luật này không đợi tới lúc xác nhận: nếu để service dễ dãi hơn
+     * database thì người dùng lưu một phiếu nháp hợp lệ theo code sẽ nhận về
+     * "bản ghi còn được tham chiếu" — câu 409 chung của một vi phạm ràng buộc —
+     * thay vì một câu nói rõ dòng nào thiếu lý do. Hai tầng nói cùng một luật,
+     * và tầng trên nói bằng tiếng Việt.
      */
-    private void applyPack(EquipmentIntakeLine line, EquipmentIntakeLineInput in, EquipmentCatalog catalog,
-            boolean bulk, int index) {
-        Unit pack = find(Unit.class, in.packUnit(), "lines." + index + ".packUnit", "Đơn vị bao bì");
-        BigDecimal size = in.packSize();
-        if (!bulk || (pack == null && size == null)) {
-            line.setPackUnit(null);
-            line.setPackSize(null);
-            return;
+    private static void checkLines(EquipmentIntake intake) {
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+            if (!line.getReceivedQuantity().equals(line.getDocumentQuantity())
+                    && line.getVarianceReason() == null) {
+                throw new FieldValidationException("lines",
+                        "%s: số thực nhận khác số trên chứng từ, phải ghi lý do chênh lệch".formatted(where));
+            }
+            Room room = line.getRoom();
+            if (room != null && !room.getSchool().getId().equals(intake.getSchool().getId())) {
+                throw new FieldValidationException("lines",
+                        "%s: phòng nhận không thuộc trường của phiếu".formatted(where));
+            }
+            // Phòng ngừng sử dụng (cờ hoạt động suy từ Tình trạng sử dụng) không nhận hàng mới.
+            if (room != null && !Boolean.TRUE.equals(room.getActive())) {
+                throw new FieldValidationException("lines",
+                        "%s: phòng %s đã ngừng sử dụng — chọn phòng khác".formatted(where, room.getName()));
+            }
         }
-        if (pack == null || size == null) {
-            throw new FieldValidationException("lines",
-                    where(line) + ": khai đủ quy cách — đơn vị bao bì và lượng trong một bao bì");
-        }
-        if (catalog.getUnit() != null && catalog.getUnit().getId().equals(pack.getId())) {
-            line.setPackUnit(null);
-            line.setPackSize(null);
-            return;
-        }
-        line.setPackUnit(pack);
-        line.setPackSize(size);
     }
 
-    /** Lý do tăng mặc định theo nguồn hình thành của phiếu. */
-    private MovementReason defaultReason(EquipmentIntake intake) {
-        String code = OriginRule.of(intake.getOriginSource()).map(rule -> switch (rule) {
-            case PHAN_BO -> "CAPPHAT";
-            case TANG_TAI_TRO -> "TAITRO";
-            case KIEM_KE_THUA -> "THUA_KK";
-            default -> "MUAMOI";
-        }).orElse("MUAMOI");
-        return entityManager.createQuery("SELECT r FROM MovementReason r WHERE r.code = :code", MovementReason.class)
-                .setParameter("code", code)
-                .getResultStream().findFirst().orElse(null);
-    }
-
-    private static String where(EquipmentIntakeLine line) {
-        return "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+    private static boolean sameOrigin(OriginSource a, OriginSource b) {
+        return (a == null ? null : a.getId()) == null
+                ? b == null
+                : b != null && a.getId().equals(b.getId());
     }
 
     /**
-     * Nguồn hình thành ↔ nguồn kinh phí ↔ hình thức mua sắm phải KHỚP nhau ở mọi lần lưu, kể cả nháp: một cặp
-     * mâu thuẫn ("Được tặng" + "Ngân sách") là dữ liệu sai chứ không phải dữ liệu thiếu. Thứ không còn nghĩa với
-     * nguồn hình thành đang chọn thì được GỠ chứ không báo lỗi — người dùng đổi nguồn không phải xoá tay từng ô.
+     * Nguồn hình thành ↔ nguồn kinh phí ↔ hình thức mua sắm phải KHỚP nhau ở mọi lần lưu, kể cả nháp
+     * — luật nằm ở {@link OriginRule}. Một cặp mâu thuẫn ("Được tặng" + "Ngân sách Thành phố") là
+     * dữ liệu SAI chứ không phải dữ liệu thiếu, nên không đợi tới lúc trình: để nó nằm trong nháp là
+     * để báo cáo theo nguồn đếm sai ngay khi phiếu được duyệt.
+     *
+     * <p>Thứ không còn nghĩa với nguồn hình thành đang chọn thì được GỠ chứ không báo lỗi: hình thức
+     * mua sắm của hàng không phải mua, phần "ghi rõ" của nguồn không phải "Khác". Người dùng đổi
+     * nguồn hình thành không phải đi xoá tay từng ô đã ẩn.
      */
     private static void fitSources(EquipmentIntake intake) {
         OriginRule rule = OriginRule.of(intake.getOriginSource()).orElse(null);
         if (rule == null) {
+            // Chưa chọn nguồn hình thành: chưa có gì để đối chiếu — lúc trình mới đòi.
             return;
         }
         if (!rule.noteRequired()) {
@@ -302,6 +690,7 @@ public class EquipmentIntakeService
             intake.setAcquisitionMethod(null);
         }
         if (intake.getFundingSource() != null && !rule.allows(intake.getFundingSource())) {
+            // Cột đầu phiếu chỉ còn là chỗ đỡ cho phiếu cũ: giá trị không khớp thì bỏ, dòng tự khai.
             intake.setFundingSource(null);
         }
         for (EquipmentIntakeLine line : intake.getLines()) {
@@ -311,449 +700,358 @@ public class EquipmentIntakeService
             FundingSource funding = line.getFundingSource();
             if (funding != null && !rule.allows(funding)) {
                 throw new FieldValidationException("lines",
-                        "%s: nguồn kinh phí \"%s\" không đi với nguồn hình thành \"%s\". Chọn một trong: %s".formatted(
-                                where(line), funding.label(), rule.label(), fundingChoices(rule)));
+                        "Dòng %d (%s): nguồn kinh phí \"%s\" không đi với nguồn hình thành \"%s\". Chọn một trong: %s"
+                                .formatted(line.getLineNo(), line.getName(), funding.label(), rule.label(),
+                                        rule.fundingSources().stream().map(FundingSource::label)
+                                                .collect(Collectors.joining(", "))));
             }
-            if (funding != FundingSource.OTHER) {
+            // Ghi rõ đi theo nguồn kinh phí THẬT của dòng — dòng theo nguồn của phiếu ("Nguồn khác") vẫn giữ phần ghi rõ.
+            FundingSource effective = line.effectiveFundingSource();
+            if (effective == null || !effective.requiresNote()) {
                 line.setFundingNote(null);
             }
-            if (!isOtherMethod(line.getAcquisitionMethod() != null ? line.getAcquisitionMethod()
-                    : intake.getAcquisitionMethod())) {
+            if (!isOtherMethod(line.effectiveAcquisitionMethod())) {
                 line.setAcquisitionNote(null);
             }
         }
     }
 
-    private static String fundingChoices(OriginRule rule) {
-        return rule.fundingSources().stream().map(FundingSource::label).collect(Collectors.joining(", "));
-    }
-
-    /** Hình thức mua sắm "Khác" — mục duy nhất phải ghi rõ. */
+    /** Hình thức mua sắm "Khác" — mục duy nhất phải ghi rõ, vì tự nó không nói mua bằng cách nào. */
     private static boolean isOtherMethod(AcquisitionMethod method) {
         return method != null && "KHAC".equals(method.getCode());
     }
 
-    /** Phòng nhận phải thuộc đúng trường của phiếu. */
-    private Room room(EquipmentIntake intake, IdRef ref, String field) {
-        Room room = find(Room.class, ref, field, "Phòng");
-        if (room != null && !Objects.equals(room.getSchool().getId(), intake.getSchool().getId())) {
-            throw new FieldValidationException(field, "Phòng không thuộc trường của phiếu");
-        }
-        return room;
-    }
-
-    private <T extends CatalogEntity> T find(Class<T> type, IdRef ref, String field, String label) {
-        if (ref == null || ref.id() == null) {
-            return null;
-        }
-        T found = entityManager.find(type, ref.id());
-        if (found == null) {
-            throw new FieldValidationException(field, label + " không tồn tại");
-        }
-        return found;
-    }
-
-    // ------------------------------------------------------------------ luật
-
-    @Override
-    protected void validate(EquipmentIntake intake) {
-        LocalDate today = LocalDate.now();
-        if (intake.getIntakeDate() != null && intake.getIntakeDate().isAfter(today)) {
-            throw new FieldValidationException("intakeDate", "Ngày nhập không được sau hôm nay");
-        }
-        if (intake.getDocumentDate() != null && intake.getDocumentDate().isAfter(today)) {
-            throw new FieldValidationException("documentDate", "Ngày chứng từ không được sau hôm nay");
-        }
-        List<EquipmentIntakeLine> lines = intake.getLines();
-        for (int i = 0; i < lines.size(); i++) {
-            EquipmentIntakeLine line = lines.get(i);
-            if (!Objects.equals(line.getDocumentQuantity(), line.getReceivedQuantity())
-                    && line.getVarianceReason() == null) {
-                throw new FieldValidationException("lines." + i + ".varianceReason",
-                        "Số thực nhận khác chứng từ, ghi lý do chênh lệch");
-            }
-            if (line.getDocumentDate() != null && line.getDocumentDate().isAfter(today)) {
-                throw new FieldValidationException("lines." + i + ".documentDate",
-                        "Ngày hoá đơn không được sau hôm nay");
-            }
-        }
-    }
-
     /**
-     * Luật lúc trình (GBR-09, GBR-10). Chạy lại y hệt lúc duyệt cuối trước khi ghi tăng: danh mục (đơn vị
-     * tính, mã môn) và bộ mã có thể đã đổi trong lúc phiếu chờ duyệt.
-     */
-    @Override
-    protected void validateSubmit(EquipmentIntake intake) {
-        validate(intake);
-        List<EquipmentIntakeLine> lines = intake.getLines();
-        if (lines.isEmpty()) {
-            throw new FieldValidationException("lines", "Phiếu chưa có dòng thiết bị nào");
-        }
-        if (intake.getDeliverer() == null) {
-            throw new FieldValidationException("deliverer", "Nhập người giao");
-        }
-        if (lines.stream().allMatch(l -> received(l) == 0)) {
-            throw new FieldValidationException("lines", "Phiếu không có thiết bị nào thực nhận");
-        }
-        if (intake.getSchoolYear() == null) {
-            throw new FieldValidationException("schoolYear",
-                    "Chọn năm học của phiếu. Chưa có năm học nào thì khai ở danh mục Năm học trước.");
-        }
-        requireSources(intake);
-        for (int i = 0; i < lines.size(); i++) {
-            validateLineForSubmit(intake, lines.get(i), "lines." + i + ".");
-        }
-        checkCodeCapacity(intake);
-    }
-
-    /**
-     * Nguồn trước khi trình: nguồn hình thành của phiếu, phần ghi rõ khi là "Khác", và nguồn kinh phí của từng
-     * dòng theo luật của nguồn hình thành. Dòng không bắt buộc nguồn kinh phí (kiểm kê thừa, tự làm không tốn
-     * tiền) mà để trống thì ghi "Chưa xác định nguồn" — khác với "chưa ai khai".
+     * Những gì về NGUỒN phải có trước khi trình: nguồn hình thành của phiếu, phần ghi rõ khi là "Khác",
+     * và nguồn kinh phí của từng dòng theo đúng luật của nguồn hình thành đó.
+     *
+     * <p>Nguồn kinh phí không bắt buộc ở hai trường hợp — kiểm kê thừa, và tự làm không tốn vật tư.
+     * Dòng để trống ở đó được ghi "Chưa xác định nguồn" thay vì để null: hồ sơ tài sản đòi phải có
+     * nguồn kinh phí thì mới vào được phiếu sau này ({@code Equipment.missingProfile}), và "không ai
+     * biết tiền từ đâu" là một câu trả lời, khác với "chưa ai khai".
      */
     private static void requireSources(EquipmentIntake intake) {
         OriginRule rule = OriginRule.of(intake.getOriginSource()).orElseThrow(() -> new FieldValidationException(
                 "originSource",
-                "Chọn nguồn hình thành của phiếu: mua sắm, được Sở phân bổ, được tặng, kiểm kê thừa, tự làm hay khác"));
+                "Chọn nguồn hình thành của phiếu: kế hoạch mua sắm, được điều chuyển, được tặng, kiểm kê thừa, tự làm hay khác"));
         if (rule.noteRequired() && intake.getOriginNote() == null) {
             throw new FieldValidationException("originNote",
                     "Nguồn hình thành \"%s\": ghi rõ là nguồn gì".formatted(rule.label()));
         }
         fitSources(intake);
         for (EquipmentIntakeLine line : intake.getLines()) {
-            if (received(line) <= 0) {
+            if (line.getReceivedQuantity() == null || line.getReceivedQuantity() <= 0) {
                 continue;
             }
-            FundingSource funding = line.getFundingSource() != null ? line.getFundingSource() : intake.getFundingSource();
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+            FundingSource funding = line.effectiveFundingSource();
             if (funding == null) {
                 if (rule.requiresFunding(line.getUnitPrice())) {
                     throw new FieldValidationException("fundingSource",
                             "%s: chọn nguồn kinh phí. Với nguồn hình thành \"%s\" chọn được: %s".formatted(
-                                    where(line), rule.label(), fundingChoices(rule)));
+                                    where, rule.label(), rule.fundingSources().stream().map(FundingSource::label)
+                                            .collect(Collectors.joining(", "))));
                 }
                 line.setFundingSource(FundingSource.UNDETERMINED);
-            } else if (funding == FundingSource.OTHER && line.getFundingNote() == null) {
+            } else if (funding.requiresNote() && line.getFundingNote() == null) {
                 throw new FieldValidationException("lines",
-                        "%s: nguồn kinh phí \"%s\" phải ghi rõ là nguồn gì".formatted(where(line), funding.label()));
+                        "%s: nguồn kinh phí \"%s\" phải ghi rõ là nguồn gì".formatted(where, funding.label()));
             }
-            AcquisitionMethod method = line.getAcquisitionMethod() != null ? line.getAcquisitionMethod()
-                    : intake.getAcquisitionMethod();
-            if (isOtherMethod(method) && line.getAcquisitionNote() == null) {
+            if (isOtherMethod(line.effectiveAcquisitionMethod()) && line.getAcquisitionNote() == null) {
                 throw new FieldValidationException("lines",
-                        "%s: hình thức mua sắm \"Khác\" phải ghi rõ là hình thức gì".formatted(where(line)));
+                        "%s: hình thức mua sắm \"Khác\" phải ghi rõ là hình thức gì".formatted(where));
             }
         }
     }
 
     /**
-     * Một dòng đủ để trình: có hàng nhận thì thiết bị có đơn vị tính và cấp được mã; hoá chất có hạn sử dụng; thiết
-     * bị quản lý từng cái không quá 999 cái một dòng. Đơn giá KHÔNG bắt buộc: nguyên giá chỉ ghi khi có dữ liệu.
+     * Những gì phiếu phải có TRƯỚC KHI TRÌNH để hồ sơ tài sản nó sinh ra là hồ
+     * sơ CHUẨN.
+     *
+     * <p>Đây là chỗ vá một cái bẫy im lặng: {@code Equipment.missingProfile()}
+     * đòi tài sản phải có mã chuẩn, đơn vị tính, nguồn kinh phí và ngày tiếp nhận
+     * thì mới được đưa vào BẤT KỲ phiếu nào sau này — cấp phát,
+     * điều chuyển, mượn, báo hỏng, thanh lý. Hai trong bốn thứ đó do phiếu nhập
+     * cấp (nguồn kinh phí ở đầu phiếu, đơn vị tính lấy từ nhóm thiết bị), nhưng không thứ nào từng bắt buộc. Hệ quả:
+     * phiếu lập được, trình được, duyệt được, tài sản vào sổ — rồi người kế tiếp
+     * mới bị chặn, lúc phiếu đã khoá và không sửa được nữa.
+     *
+     * <p>Chỉ đòi khi phiếu THỰC SỰ sinh hồ sơ tài sản: dòng quản lý theo lô chỉ
+     * cộng tồn kho, không có hồ sơ nào để thiếu, nên một phiếu toàn bàn ghế
+     * không bị hỏi nguồn kinh phí.
+     *
+     * <p>Đòi lúc TRÌNH chứ không lúc lưu nháp, cùng lý lẽ với các trường chứng
+     * từ: phiếu nháp sinh tự động từ đề xuất mua sắm hay từ biên bản kiểm kê
+     * chưa có gì để điền.
      */
-    private void validateLineForSubmit(EquipmentIntake intake, EquipmentIntakeLine line, String prefix) {
-        if (line.getMovementReason() == null) {
-            line.setMovementReason(defaultReason(intake));
-        }
-        if (received(line) == 0) {
+    /**
+     * Quy cách bao bì của dòng (QLTB-501). Chỉ vật tư, hoá chất (quản lý theo số lượng) mới có; dòng thiết bị từng
+     * cái gửi kèm thì gỡ đi. Bao bì trùng đơn vị của thiết bị là không quy đổi gì — cũng gỡ.
+     */
+    private void applyPack(EquipmentIntakeLine line, EquipmentIntakeLineInput input,
+            EquipmentCatalog catalog) {
+        Long packUnitId = input.packUnit() == null ? null : input.packUnit().id();
+        BigDecimal size = input.packSize();
+        if (catalog.getTrackingType() != TrackingType.BULK || (packUnitId == null && size == null)) {
+            line.setPackUnit(null);
+            line.setPackSize(null);
             return;
         }
-        EquipmentCatalog catalog = line.getCatalog();
-        boolean bulk = catalog.getTrackingType() == TrackingType.BULK;
-        if (catalog.getUnit() == null) {
-            throw new FieldValidationException(prefix + "catalog",
-                    ("%s: nhóm thiết bị \"%s\" chưa khai đơn vị tính. Khai ở danh mục Nhóm thiết bị rồi trình lại.")
-                            .formatted(where(line), catalog.getName()));
+        String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+        if (packUnitId == null || size == null) {
+            throw new FieldValidationException("lines",
+                    where + ": khai đủ quy cách — đơn vị bao bì và lượng trong một bao bì");
         }
-        AssetCategory category = line.getAssetCategory() != null ? line.getAssetCategory() : catalog.getAssetCategory();
-        if (bulk && category == AssetCategory.CHEMICAL && line.getExpiryDate() == null) {
-            throw new FieldValidationException(prefix + "expiryDate",
-                    "%s: nhập hạn sử dụng — hoá chất bắt buộc có hạn sử dụng.".formatted(where(line)));
+        Unit pack = units.get(packUnitId);
+        Unit base = catalog.getUnit();
+        if (base != null && base.getId().equals(pack.getId())) {
+            line.setPackUnit(null);
+            line.setPackSize(null);
+            return;
         }
-        if (!bulk && received(line) > 999) {
-            throw new FieldValidationException(prefix + "receivedQuantity",
-                    "%s: quá 999 cái một dòng, hãy tách sang phiếu khác".formatted(where(line)));
+        if (base != null && !Unit.accepts(base, size)) {
+            throw new FieldValidationException("lines",
+                    where + ": %s không chia lẻ được — lượng trong một bao bì phải là số nguyên".formatted(base.getName()));
         }
-        assetCodes.missing(intake.getSchool(), catalog).ifPresent(reason -> {
-            throw new FieldValidationException(prefix + "catalog", "Chưa cấp được mã tài sản: " + reason);
-        });
+        line.setPackUnit(pack);
+        line.setPackSize(size);
     }
 
-    /** Mỗi bộ mã {@code TT.TR.MH.LT.NC} còn đủ số thứ tự cho các dòng rơi vào nó (GBR-10). */
-    private void checkCodeCapacity(EquipmentIntake intake) {
-        Map<String, Integer> need = new LinkedHashMap<>();
-        Map<String, EquipmentIntakeLine> first = new HashMap<>();
-        for (EquipmentIntakeLine line : intake.getLines()) {
-            int count = EquipmentIntakeResponse.expectedAssets(line);
-            if (count > 0) {
-                need.merge(codeSetKey(line), count, Integer::sum);
-                first.putIfAbsent(codeSetKey(line), line);
-            }
+    /** Số serial gửi lên → số đem lưu: bỏ khoảng trắng, viết hoa, bỏ dòng trống; thứ tự giữ nguyên. */
+    static List<String> normalizeSerials(List<String> input) {
+        if (input == null) {
+            return List.of();
         }
-        int year = intake.getIntakeDate().getYear();
-        for (Map.Entry<String, Integer> e : need.entrySet()) {
-            EquipmentIntakeLine line = first.get(e.getKey());
-            int left = assetCodes.remaining(intake.getSchool(), line.getCatalog(), line.getPhysicalOrDigital(), year);
-            if (left < e.getValue()) {
-                throw new FieldValidationException("lines." + intake.getLines().indexOf(line) + ".receivedQuantity",
-                        "Bộ mã của \"" + line.getName() + "\" chỉ còn " + left + " số, phiếu cần " + e.getValue()
-                                + ". Hãy tách bớt sang phiếu khác");
-            }
+        // Giữ VỊ TRÍ: ô trống của máy chưa khai vẫn là một phần tử rỗng (`setSerialList` bỏ phần trống ở cuối).
+        List<String> out = new ArrayList<>();
+        for (String raw : input) {
+            String serial = raw == null ? null : FieldRule.SERIAL.normalize(raw);
+            out.add(serial == null ? "" : serial);
         }
-    }
-
-    /** Dòng cùng môn (mã dạy học) và cùng loại vật lý/số thì chung một bộ mã; trường và năm là của phiếu. */
-    private static String codeSetKey(EquipmentIntakeLine line) {
-        return line.getCatalog().getSubject().getTeachingCode() + "|" + line.getPhysicalOrDigital();
-    }
-
-    private static int received(EquipmentIntakeLine line) {
-        return line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
-    }
-
-    // ------------------------------------------------------------------ lập từ biên bản kiểm kê
-
-    /**
-     * Kiểm kê thấy tài sản THỪA (KK-06): lập một phiếu nhập NHÁP mang các dòng đó, nguồn hình thành "Kiểm kê thừa",
-     * nguồn chứng từ là biên bản. Ghi tăng vẫn phải qua lãnh đạo trường duyệt như mọi lần ghi tăng khác.
-     */
-    @EventListener
-    @Transactional
-    public void onSurplus(InventoryFindings.Surplus findings) {
-        EquipmentIntake draft = new EquipmentIntake();
-        draft.setSchool(schools.get(findings.schoolId()));
-        draft.setStatus(VoucherStatus.DRAFT);
-        draft.setIntakeDate(LocalDate.now());
-        draft.setSchoolYear(currentSchoolYear());
-        draft.setOriginSource(originSourceOf(OriginRule.KIEM_KE_THUA));
-        draft.setSource("inventory_sessions", findings.sourceId(), findings.sourceCode());
-        draft.setNote("Ghi tăng tài sản thừa theo biên bản kiểm kê " + findings.sourceCode());
-        List<EquipmentIntakeLine> lines = new ArrayList<>();
-        int lineNo = 1;
-        for (InventoryFindings.Item item : findings.items()) {
-            EquipmentIntakeLine line = new EquipmentIntakeLine();
-            line.setLineNo(lineNo++);
-            line.setCatalog(entityManager.getReference(EquipmentCatalog.class, item.catalogId()));
-            line.setName(item.name());
-            line.setPhysicalOrDigital(PhysicalDigitalType.PHYSICAL);
-            line.setDocumentQuantity(item.quantity());
-            line.setReceivedQuantity(item.quantity());
-            line.setRoom(item.roomId() == null ? null : entityManager.getReference(Room.class, item.roomId()));
-            lines.add(line);
-        }
-        draft.replaceLines(lines);
-        repository.persist(draft);
-    }
-
-    /** Năm học đang dùng; chưa khai thì để trống, người lập chọn khi sửa phiếu nháp. */
-    private SchoolYear currentSchoolYear() {
-        return entityManager.createQuery("select y from SchoolYear y where y.current = true", SchoolYear.class)
-                .getResultStream().findFirst().orElse(null);
-    }
-
-    /** Dòng danh mục của một trong sáu nguồn hình thành cố định — mã dòng chính là tên luật. */
-    private OriginSource originSourceOf(OriginRule rule) {
-        return entityManager.createQuery("select o from OriginSource o where o.code = :code", OriginSource.class)
-                .setParameter("code", rule.name())
-                .getResultStream().findFirst().orElse(null);
-    }
-
-    // ------------------------------------------------------------------ ghi tăng
-
-    /** Duyệt cuối = ghi tăng (GBR-11): kiểm lại, sinh tài sản, hoàn tất — lỗi ở đâu cũng huỷ cả giao dịch. */
-    @Override
-    protected void onApproved(EquipmentIntake intake) {
-        validateSubmit(intake);
-        int created = writeUp(intake);
-        workflow.complete(intake, "Ghi tăng " + created + " tài sản.");
-    }
-
-    /** Chỉ chạy với phiếu đã dừng ở "đã duyệt" từ trước khi có ghi tăng: duyệt mới thì đã ghi ở {@link #onApproved}. */
-    @Override
-    protected void onCompleted(EquipmentIntake intake) {
-        writeUp(intake);
+        return out;
     }
 
     /**
-     * Sinh tài sản từ các dòng: quản lý từng cái thì mỗi cái một tài sản, quản lý theo lô thì một tài sản
-     * mang cả số lượng. Dòng đã sinh thì bỏ qua; dòng phiếu đang bị khoá nên không có hai lần ghi song song.
+     * Luật số serial của một phiếu không cần tới CSDL: mỗi dòng không quá số lượng thực nhận, không số nào lặp lại
+     * trong cả phiếu. Trả câu lỗi, hoặc {@code null} khi hợp lệ.
      */
-    private int writeUp(EquipmentIntake intake) {
-        int year = intake.getIntakeDate().getYear();
-        Map<String, AssetCodeService.Batch> batches = new HashMap<>();
-        Long actorId = CurrentUser.id().orElse(null);
-        String actorName = actorName(actorId);
-        int created = 0;
-        for (EquipmentIntakeLine line : intake.getLines()) {
+    static String serialProblem(List<EquipmentIntakeLine> lines) {
+        Map<String, Integer> seen = new LinkedHashMap<>();
+        for (EquipmentIntakeLine line : lines) {
+            List<String> serials = line.serialList();
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
             int received = line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity();
-            if (received == 0 || line.getGeneratedCount() > 0) {
+            // Theo vị trí: serial khai cho máy thứ k mà dòng chỉ nhận ít hơn k cái (giảm số lượng sau khi khai).
+            if (line.serialSlots().size() > received) {
+                return "%s: có số serial cho máy thứ %d, nhiều hơn số lượng nhận (%d)".formatted(where, line.serialSlots().size(), received);
+            }
+            for (String serial : serials) {
+                Integer other = seen.putIfAbsent(serial.toLowerCase(Locale.ROOT), line.getLineNo());
+                if (other != null) {
+                    return other.equals(line.getLineNo())
+                            ? "%s: số serial %s nhập hai lần".formatted(where, serial)
+                            : "%s: số serial %s trùng với dòng %d".formatted(where, serial, other);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Số serial: luật trong phiếu ({@link #serialProblem}), rồi không trùng thiết bị nào khác của trường. */
+    private void checkSerials(EquipmentIntake intake) {
+        String problem = serialProblem(intake.getLines());
+        if (problem != null) {
+            throw new FieldValidationException("lines", problem);
+        }
+        Set<String> checked = new HashSet<>();
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            for (String serial : line.serialList()) {
+                if (!checked.add(serial)) {
+                    continue;
+                }
+                equipment.serialHolder(intake.getSchool().getId(), serial, null).ifPresent(code -> {
+                    throw new FieldValidationException("lines", "Dòng %d (%s): số serial %s đã có ở thiết bị %s"
+                            .formatted(line.getLineNo(), line.getName(), serial, code));
+                });
+            }
+        }
+    }
+
+    /** Hàng mua — theo kế hoạch hay ngoài kế hoạch: đòi hoá đơn, đơn giá như nhau. */
+    private static boolean isPurchase(EquipmentIntake intake) {
+        return OriginRule.of(intake.getOriginSource()).map(OriginRule::purchase).orElse(false);
+    }
+
+    /**
+     * Chứng từ — kiểm ở mọi lần lưu: ngày hoá đơn không sau ngày nhập; hàng mua sắm thì số hoá đơn theo luật số hoá
+     * đơn (1–30 ký tự, chữ không dấu, số, / - . và khoảng trắng). Nguồn khác ghi số quyết định, biên bản — giữ luật
+     * chữ ngắn của ô.
+     */
+    static void checkDocuments(EquipmentIntake intake) {
+        LocalDate intakeDate = intake.getIntakeDate();
+        boolean purchase = isPurchase(intake);
+        if (intakeDate != null && intake.getDocumentDate() != null && intake.getDocumentDate().isAfter(intakeDate)) {
+            throw new FieldValidationException("documentDate", "Ngày hoá đơn không được sau ngày nhập");
+        }
+        if (purchase && intake.getDocumentNo() != null) {
+            String problem = FieldRule.INVOICE_NO.violation(intake.getDocumentNo(), 0);
+            if (problem != null) {
+                throw new FieldValidationException("documentNo", "Số hoá đơn " + problem);
+            }
+        }
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+            if (intakeDate != null && line.getDocumentDate() != null && line.getDocumentDate().isAfter(intakeDate)) {
+                throw new FieldValidationException("lines", where + ": ngày hoá đơn không được sau ngày nhập");
+            }
+            if (purchase && line.getDocumentNo() != null) {
+                String problem = FieldRule.INVOICE_NO.violation(line.getDocumentNo(), 0);
+                if (problem != null) {
+                    throw new FieldValidationException("lines", where + ": số hoá đơn " + problem);
+                }
+            }
+        }
+    }
+
+    /**
+     * Nguồn "Kế hoạch mua sắm" phải đi từ một đề xuất của trường nằm trong kế hoạch của Sở / UBND (trưởng nhóm
+     * 13/11/2026) — kiểm lúc TRÌNH, nháp vẫn lưu được. Trường tự mua ngoài kế hoạch thì chọn nguồn "Mua sắm ngoài kế hoạch".
+     */
+    static void requirePlanLink(EquipmentIntake intake) {
+        // Chỉ "Kế hoạch mua sắm" phải đi từ kế hoạch; "Mua sắm ngoài kế hoạch" thì không.
+        if (OriginRule.of(intake.getOriginSource()).orElse(null) == OriginRule.MUA_SAM
+                && !"purchase_proposals".equals(intake.getSourceResource())) {
+            throw new FieldValidationException("originSource",
+                    "Nguồn Kế hoạch mua sắm: chọn kế hoạch mua sắm. Hàng tự mua ngoài kế hoạch thì chọn nguồn Mua sắm ngoài kế hoạch");
+        }
+    }
+
+    /**
+     * Hàng MUA SẮM — đòi lúc TRÌNH (phiếu nháp từ đề xuất mua sắm chưa có hoá đơn): nhà cung cấp, số và ngày hoá đơn
+     * (của phiếu, hoặc riêng của dòng), và đơn giá lớn hơn 0 ở mọi dòng có nhận hàng.
+     */
+    static void requirePurchaseDocuments(EquipmentIntake intake) {
+        if (!isPurchase(intake)) {
+            return;
+        }
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            if (line.getReceivedQuantity() == null || line.getReceivedQuantity() <= 0) {
                 continue;
             }
-            boolean bulk = line.getCatalog().getTrackingType() == TrackingType.BULK;
-            int count = bulk ? 1 : received;
-            for (int i = 0; i < count; i++) {
-                // Lô vật tư vào sổ theo số đã quy đổi bao bì; thiết bị từng cái mỗi hồ sơ một cái.
-                Equipment asset = newAsset(intake, line, bulk ? line.stockQuantity() : BigDecimal.ONE);
-                // Một lượt cấp cho mỗi bộ mã, dùng chung giữa các dòng: lượt mới sẽ đọc lại số cuối từ bảng.
-                asset.setCode(batches.computeIfAbsent(codeSetKey(line), k -> assetCodes.begin(intake.getSchool(),
-                        line.getCatalog(), line.getPhysicalOrDigital(), year)).next());
-                entityManager.persist(asset);
-                entityManager.persist(new EquipmentHistory(asset.getId(), EquipmentHistory.Action.GHI_TANG, null, null,
-                        null, RESOURCE, intake.getId(), intake.getCode(), "Ghi tăng theo phiếu nhập " + intake.getCode(),
-                        actorId, actorName));
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+            if (line.effectiveSupplier() == null) {
+                throw new FieldValidationException("supplier", "Hàng mua sắm: nhập nhà cung cấp");
             }
-            line.setGeneratedCount(count);
-            created += count;
+            if (line.effectiveDocumentNo() == null) {
+                throw new FieldValidationException("documentNo", "Hàng mua sắm: nhập số hoá đơn");
+            }
+            if (line.effectiveDocumentDate() == null) {
+                throw new FieldValidationException("documentDate", "Hàng mua sắm: nhập ngày hoá đơn");
+            }
+            if (line.getUnitPrice() == null || line.getUnitPrice().signum() <= 0) {
+                throw new FieldValidationException("lines", where + ": hàng mua sắm phải có đơn giá lớn hơn 0");
+            }
         }
-        return created;
     }
 
-    /** Một tài sản do phiếu sinh ra, đủ để liệt kê và mở hồ sơ. */
-    public record WrittenUpAsset(Long id, Integer lineNo, String code, String name, BigDecimal quantity,
-            String room, AssetStatus status) {
-    }
-
-    /** Tài sản phiếu đã sinh. Đọc theo phạm vi của PHIẾU: thấy phiếu thì thấy những gì phiếu đã ghi tăng. */
-    public List<WrittenUpAsset> writtenUpAssets(Long id) {
-        EquipmentIntake intake = readable(id);
-        return entityManager.createQuery("""
-                        SELECT e FROM Equipment e JOIN e.intakeLine l
-                        WHERE l.intake.id = :id ORDER BY l.lineNo, e.code""", Equipment.class)
+    /** Trình phải có ít nhất một tệp — hoá đơn hoặc biên bản — gắn vào phiếu hay vào một dòng của phiếu. */
+    private void requireAttachment(EquipmentIntake intake) {
+        List<Long> lineIds = intake.getLines().stream().map(EquipmentIntakeLine::getId)
+                .filter(id -> id != null).toList();
+        Long count = entityManager.createQuery("""
+                        select count(a) from Attachment a
+                        where (a.resource = :resource and a.recordId = :id)
+                           or (a.resource = 'equipment_intake_lines' and a.recordId in :lines)""", Long.class)
+                .setParameter("resource", RESOURCE)
                 .setParameter("id", intake.getId())
-                .getResultList().stream()
-                .map(e -> new WrittenUpAsset(e.getId(), e.getIntakeLine().getLineNo(), e.getCode(), e.getName(),
-                        e.getQuantity(), e.getRoom() == null ? null : e.getRoom().getName(), e.getStatus()))
-                .toList();
-    }
-
-    /** Khoản khai riêng ở dòng được ưu tiên, trống thì theo đầu phiếu. */
-    private static Equipment newAsset(EquipmentIntake intake, EquipmentIntakeLine line, BigDecimal quantity) {
-        EquipmentCatalog catalog = line.getCatalog();
-        Equipment asset = new Equipment();
-        asset.setSchool(intake.getSchool());
-        asset.setName(line.getName());
-        asset.setCatalog(catalog);
-        asset.setPhysicalOrDigital(line.getPhysicalOrDigital());
-        asset.setAssetCategory(line.getAssetCategory() != null ? line.getAssetCategory() : catalog.getAssetCategory());
-        asset.setModel(line.getModel() != null ? line.getModel() : catalog.getModel());
-        asset.setManufacturer(line.getManufacturer() != null ? line.getManufacturer() : catalog.getManufacturer());
-        asset.setUnit(catalog.getUnit());
-        asset.setQuantity(quantity);
-        asset.setOriginSource(intake.getOriginSource());
-        asset.setOriginNote(intake.getOriginNote());
-        asset.setAcquisitionMethod(line.getAcquisitionMethod() != null ? line.getAcquisitionMethod() : intake.getAcquisitionMethod());
-        asset.setAcquisitionNote(line.getAcquisitionNote());
-        asset.setFundingSource(line.getFundingSource() != null ? line.getFundingSource() : intake.getFundingSource());
-        asset.setFundingNote(line.getFundingNote());
-        asset.setUsageStartYear(intake.getIntakeDate().getYear());
-        asset.setReceivedDate(intake.getIntakeDate());
-        asset.setPurchaseDate(line.getDocumentDate() != null ? line.getDocumentDate() : intake.getDocumentDate());
-        asset.setOriginalValue(line.getUnitPrice());
-        asset.setRemainingValue(line.getUnitPrice());
-        Integer warranty = line.getWarrantyMonths() != null ? line.getWarrantyMonths() : intake.getWarrantyMonths();
-        asset.setWarrantyExpiry(warranty == null ? null : intake.getIntakeDate().plusMonths(warranty));
-        asset.setRoom(line.getRoom());
-        asset.setCondition(EquipmentCondition.TOT);
-        asset.setStatus(inWarehouse(line.getRoom()) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
-        asset.setIntakeLine(line);
-        return asset;
-    }
-
-    private static boolean inWarehouse(Room room) {
-        return room == null || (room.getRoomType() != null && WAREHOUSE_ROOM_TYPE.equals(room.getRoomType().getCode()));
-    }
-
-    /** Người lập phiếu (tên đăng nhập, họ tên); {@code null} khi phiếu do hệ thống lập. */
-    public RefSummary creator(EquipmentIntake intake) {
-        Long id = intake.getCreatedById();
-        if (id == null) {
-            return null;
-        }
-        List<?> rows = entityManager.createNativeQuery(
-                        "SELECT username, COALESCE(NULLIF(full_name, ''), username) FROM users WHERE id = :id")
-                .setParameter("id", id)
-                .getResultList();
-        if (rows.isEmpty()) {
-            return null;
-        }
-        Object[] row = (Object[]) rows.get(0);
-        return new RefSummary(id, (String) row[0], (String) row[1]);
-    }
-
-    private String actorName(Long actorId) {
-        if (actorId == null) {
-            return null;
-        }
-        return (String) entityManager.createNativeQuery("SELECT COALESCE(NULLIF(full_name, ''), username) FROM users WHERE id = :id")
-                .setParameter("id", actorId)
+                .setParameter("lines", lineIds.isEmpty() ? List.of(-1L) : lineIds)
                 .getSingleResult();
+        if (count == null || count == 0) {
+            throw new FieldValidationException("attachments",
+                    "Đính kèm ít nhất một tệp — hoá đơn hoặc biên bản giao nhận — rồi trình");
+        }
     }
 
-    // ------------------------------------------------------------------ đọc
-
-    @Override
-    protected EquipmentIntake initialize(EquipmentIntake intake) {
-        Hibernate.initialize(intake.getLines());
-        return intake;
+    /** Ghi tăng gắn với một năm học (QLTB-390): sổ tài sản và báo cáo tăng giảm đọc theo năm học. */
+    private static void requireSchoolYear(EquipmentIntake intake) {
+        if (intake.getSchoolYear() == null) {
+            throw new FieldValidationException("schoolYear",
+                    "Chọn năm học của phiếu. Chưa có năm học nào thì khai ở danh mục Năm học trước.");
+        }
     }
 
-    @Override
-    protected Specification<EquipmentIntake> filters(ListParams params) {
-        List<Specification<EquipmentIntake>> specs = new ArrayList<>();
-        for (ListParams.Criterion c : params.filters()) {
-            switch (c.field()) {
-                case "intakeDate" -> {
-                    LocalDate date = date(c.value());
-                    if (date != null) {
-                        specs.add(switch (c.operator()) {
-                            case GTE -> (root, q, cb) -> cb.greaterThanOrEqualTo(root.get("intakeDate"), date);
-                            case LTE -> (root, q, cb) -> cb.lessThanOrEqualTo(root.get("intakeDate"), date);
-                            default -> (root, q, cb) -> cb.equal(root.get("intakeDate"), date);
-                        });
-                    }
-                }
-                case "supplier" -> specs.add((root, q, cb) -> ListParams.foldedLike(cb, root.get("supplier"), c.value()));
-                case "schoolYear" -> {
-                    Long id = number(c.value());
-                    if (id != null) {
-                        specs.add((root, q, cb) -> cb.equal(root.get("schoolYear").get("id"), id));
-                    }
-                }
-                default -> {
-                }
+    private static void requireAssetProfileData(EquipmentIntake intake) {
+        List<EquipmentIntakeLine> generating = new ArrayList<>();
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            if (line.getReceivedQuantity() == null || line.getReceivedQuantity() <= 0) {
+                continue;
+            }
+            // Đơn giá KHÔNG bắt buộc: nguyên giá chỉ ghi khi có dữ liệu (HSMT 3.5.3), không vào điều kiện hồ sơ chuẩn.
+            // Hoá chất có hạn dùng: thiếu nó thì màn Thiết bị không báo được lô sắp / đã hết hạn — hoá chất
+            // hết hạn vẫn nằm trong kho như còn dùng được (QLTB-503).
+            if (isChemical(line) && line.getCatalog().getTrackingType() == TrackingType.BULK
+                    && line.getExpiryDate() == null) {
+                throw new FieldValidationException("lines",
+                        "Dòng %d (%s): nhập hạn sử dụng — hoá chất bắt buộc có hạn sử dụng."
+                                .formatted(line.getLineNo(), line.getName()));
+            }
+            if (line.getCatalog().getTrackingType() == TrackingType.SERIAL) {
+                generating.add(line);
             }
         }
-        return Specification.allOf(specs);
-    }
-
-    @Override
-    protected Set<String> sortable() {
-        return Set.of("id", "code", "status", "createdAt", "updatedAt", "submittedAt", "intakeDate", "supplier");
-    }
-
-    @Override
-    protected Sort defaultSort() {
-        return Sort.by(Sort.Order.desc("intakeDate"), Sort.Order.desc("id"));
-    }
-
-    private static LocalDate date(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
+        if (generating.isEmpty()) {
+            return;
         }
-        try {
-            return LocalDate.parse(value.substring(0, Math.min(10, value.length())));
-        } catch (DateTimeParseException e) {
-            return null;
+        for (EquipmentIntakeLine line : generating) {
+            String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
+            // Nguồn kinh phí của DÒNG (khai riêng, hoặc theo đầu phiếu).
+            if (line.effectiveFundingSource() == null) {
+                throw new FieldValidationException("fundingSource",
+                        ("%s: chọn nguồn kinh phí — ở đầu phiếu, hoặc riêng cho dòng này. Thiết bị thiếu nguồn "
+                                + "kinh phí thì không đưa vào được phiếu cấp phát, điều chuyển hay thanh lý nào.")
+                                .formatted(where));
+            }
+            if (line.getCatalog().getUnit() == null) {
+                throw new FieldValidationException("lines",
+                        ("%s: nhóm thiết bị \"%s\" chưa khai đơn vị tính. Khai ở danh mục Nhóm thiết bị rồi trình lại — "
+                                + "thiết bị không có đơn vị tính thì không vào được phiếu nào sau này.")
+                                .formatted(where, line.getCatalog().getName()));
+            }
         }
     }
 
-    private static Long number(String value) {
-        if (value == null || value.isBlank()) {
+    /** Phân loại của dòng — khai riêng, không thì theo thiết bị trong danh mục (như lúc sinh tài sản). */
+    private static boolean isChemical(EquipmentIntakeLine line) {
+        AssetCategory category = line.getAssetCategory() != null
+                ? line.getAssetCategory() : line.getCatalog().getAssetCategory();
+        return category == AssetCategory.CHEMICAL;
+    }
+
+    /** Trường của phiếu: theo payload, vắng thì theo tài khoản đang đăng nhập. */
+    private School resolveSchool(IdRef ref) {
+        if (ref != null && ref.id() != null) {
+            return schools.get(ref.id());
+        }
+        Long own = principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        if (own == null) {
+            throw new FieldValidationException("school", "Chọn trường");
+        }
+        return schools.get(own);
+    }
+
+    private static boolean present(IdRef ref) {
+        return ref != null && ref.id() != null;
+    }
+
+    private static <R> R ref(IdRef ref, Function<Long, R> loader) {
+        return present(ref) ? loader.apply(ref.id()) : null;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
             return null;
         }
-        try {
-            return Long.valueOf(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

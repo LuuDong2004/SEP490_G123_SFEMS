@@ -28,6 +28,8 @@ type DataTablePaginationProps = {
   total?: number;
   /** Nhãn ô cỡ trang khi một "dòng" không phải một bản ghi — vd. "Số phòng mỗi trang". */
   pageSizeLabel?: string;
+  /** Khung hẹp (bảng nửa hộp thoại): bỏ ô số dòng mỗi trang và nút về trang đầu / cuối — vừa một dòng. */
+  compact?: boolean;
 };
 
 export function DataTablePagination({
@@ -38,6 +40,7 @@ export function DataTablePagination({
   setPageSize,
   total,
   pageSizeLabel,
+  compact,
 }: DataTablePaginationProps) {
   const t = useTranslate();
   const pageSizeOptions = useMemo(() => {
@@ -97,7 +100,7 @@ export function DataTablePagination({
         ) : null}
       </div>
       <div className={cn("flex", "items-center", "flex-wrap", "gap-2")}>
-        <div className={cn("flex", "items-center", "gap-2")}>
+        <div className={cn("flex", "items-center", "gap-2", compact && "hidden")}>
           <span className={cn("text-sm", "text-muted-foreground")}>
             {pageSizeLabel ?? t("table.pagination.rowsPerPage", "Rows per page")}
           </span>
@@ -135,7 +138,7 @@ export function DataTablePagination({
             <Button
               variant="outline"
               size="icon-sm"
-              className={cn("hidden", "lg:flex")}
+              className={cn("hidden", !compact && "lg:flex")}
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1}
               aria-label={t("table.pagination.first", "Go to first page")}
@@ -163,7 +166,7 @@ export function DataTablePagination({
             <Button
               variant="outline"
               size="icon-sm"
-              className={cn("hidden", "lg:flex")}
+              className={cn("hidden", !compact && "lg:flex")}
               onClick={() => setCurrentPage(pageCount)}
               disabled={currentPage === pageCount}
               aria-label={t("table.pagination.last", "Go to last page")}

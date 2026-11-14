@@ -13,8 +13,11 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Một thông số kỹ thuật trong bộ, ví dụ "Công suất" (số thập phân, W) hay "Loại màn hình" (chọn một
- * trong LCD/LED/OLED). Đây chỉ là định nghĩa; giá trị của từng thiết bị lưu ở sổ tài sản theo {@link #code}.
+ * Một thông số kỹ thuật trong bộ — ví dụ "Công suất" (số thập phân, W) hay
+ * "Loại màn hình" (chọn một trong LCD/LED/OLED). Dòng con của bộ thông số.
+ *
+ * <p>Đây chỉ là ĐỊNH NGHĨA thông số. Giá trị của từng thiết bị lưu ở module
+ * thiết bị, theo {@link #code}.
  */
 @Entity
 @Table(name = "equipment_config_attributes")

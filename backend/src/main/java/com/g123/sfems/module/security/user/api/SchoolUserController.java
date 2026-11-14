@@ -4,7 +4,10 @@ import com.g123.sfems.domain.security.user.UserStatus;
 import com.g123.sfems.module.security.user.api.dto.UserResponse;
 import com.g123.sfems.module.security.user.service.SchoolUserService;
 import com.g123.sfems.module.security.user.service.SchoolUserService.Issued;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import com.g123.sfems.shared.web.ListParams;
+import jakarta.validation.Valid;
 import com.g123.sfems.shared.web.ListResponse;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -35,10 +38,31 @@ public class SchoolUserController {
         this.service = service;
     }
 
-    public record CreateRequest(String username, String fullName, String email, String role) {
+    public record CreateRequest(
+            @Text(value = FieldRule.USERNAME, label = "Tên đăng nhập", max = 100)
+            String username,
+
+            @Text(value = FieldRule.NAME, label = "Họ tên")
+            String fullName,
+
+            @Text(value = FieldRule.EMAIL, label = "Email")
+            String email,
+
+            @Text(value = FieldRule.CODE, label = "Vai trò", max = 64)
+            String role) {
     }
 
-    public record PatchRequest(String fullName, String email, String role, UserStatus status) {
+    public record PatchRequest(
+            @Text(value = FieldRule.NAME, label = "Họ tên")
+            String fullName,
+
+            @Text(value = FieldRule.EMAIL, label = "Email")
+            String email,
+
+            @Text(value = FieldRule.CODE, label = "Vai trò", max = 64)
+            String role,
+
+            UserStatus status) {
     }
 
     /** Tài khoản kèm mật khẩu tạm — chỉ ở lần tạo / đặt lại. */
@@ -63,13 +87,13 @@ public class SchoolUserController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('school_users:write')")
-    public IssuedResponse create(@RequestBody CreateRequest request) {
+    public IssuedResponse create(@Valid @RequestBody CreateRequest request) {
         return IssuedResponse.of(service.create(request.username(), request.fullName(), request.email(), request.role()));
     }
 
     @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @PreAuthorize("hasAuthority('school_users:write')")
-    public UserResponse update(@PathVariable Long id, @RequestBody PatchRequest request) {
+    public UserResponse update(@PathVariable Long id, @Valid @RequestBody PatchRequest request) {
         return UserResponse.from(service.update(id, request.fullName(), request.email(), request.role(), request.status()));
     }
 

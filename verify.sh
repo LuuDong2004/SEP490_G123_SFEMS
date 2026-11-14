@@ -15,6 +15,7 @@ step() {
 step "Frontend: kiểm kiểu (tsc)"        frontend npx tsc --noEmit
 step "Frontend: lint (eslint)"           frontend npx eslint . --quiet
 step "Frontend: luật tầng (verify:arch)" frontend npm run --silent verify:arch
+step "Frontend: bảng cổng (verify:portal)" frontend npm run --silent verify:portal
 if [[ "${OS:-}" == "Windows_NT" ]]; then
   step "Backend: biên dịch (gradle)"     backend ./gradlew.bat compileJava --quiet --console=plain
 else

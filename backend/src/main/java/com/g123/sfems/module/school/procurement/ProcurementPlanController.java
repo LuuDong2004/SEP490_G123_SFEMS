@@ -1,23 +1,29 @@
 package com.g123.sfems.module.school.procurement;
 
-import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.shared.web.HeavyQuery;
 import com.g123.sfems.domain.school.procurement.ProcurementPlan;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
+import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
+import com.g123.sfems.module.school.voucher.VoucherForms;
+import com.g123.sfems.module.school.voucher.VoucherHeader;
 import com.g123.sfems.module.security.user.service.UserService;
-import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.ListResponse;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -25,6 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
@@ -40,22 +49,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/procurement_plans} — kế hoạch mua sắm của UBND / Sở (NC-05, NC-06). Ngoài hợp đồng data
- * provider:
- *
+ * {@code /api/procurement_plans} — kế hoạch mua sắm của UBND / Sở. Ngoài hợp
+ * đồng data provider:
  * <ul>
- *   <li>{@code GET /summary?year=&body=} — tổng hợp đề xuất theo cơ quan và nhóm thiết bị,</li>
- *   <li>{@code GET /{id}/candidates} — đề xuất đã duyệt, chưa vào kế hoạch nào,</li>
- *   <li>{@code GET /candidates} — như trên cho kế hoạch CHƯA LƯU,</li>
- *   <li>{@code PUT /{id}/proposals} — thay tập đề xuất trong kế hoạch nháp,</li>
+ *   <li>{@code GET /summary?year=} — tổng hợp đề xuất theo cơ quan và nhóm thiết bị;</li>
+ *   <li>{@code GET /{id}/export.xlsx} — tệp Excel của kế hoạch;</li>
+ *   <li>{@code GET /{id}/candidates} — đề xuất đã duyệt, chưa vào kế hoạch nào;</li>
+ *   <li>{@code PUT /{id}/proposals} — thay tập đề xuất trong kế hoạch nháp;</li>
  *   <li>{@code POST /{id}/submit|approve|return}.</li>
  * </ul>
- *
- * <p>Bản gốc còn {@code GET /{id}/export.xlsx}. Repo nhóm chưa có {@code shared/office/XlsxWriter} (là
- * {@code shared/**}), nên phần xuất tệp làm sau khi nhóm có bộ ghi dùng chung.
- *
- * <p>Trường {@code details} của bản gốc bỏ khỏi payload và DTO: cần {@code VoucherForms} cùng cột JSONB,
- * cả hai ngoài vùng này.
  */
 @RestController
 @RequestMapping("/api/procurement_plans")
@@ -63,13 +65,13 @@ public class ProcurementPlanController {
 
     /** {@code lines} có mặt thì THAY tập dòng của kế hoạch — xem {@link ProcurementPlanService.Input}. */
     public record Request(IdRef managingBody,
-            @Size(max = 255, message = "Tên kế hoạch tối đa 255 ký tự") String title,
+            @Text(value = FieldRule.NAME, label = "Tên kế hoạch") String title,
             @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
             @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
             IdRef schoolYear,
-            LocalDate planDate,
-            @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String note,
-            @Valid List<ProcurementPlanService.LineQuantity> lines) {
+            @DateValue(value = DateRule.ANY, label = "Ngày lập") LocalDate planDate,
+            @Text(value = FieldRule.LONG_TEXT, label = "Ghi chú", max = 1000) String note,
+            @Valid List<ProcurementPlanService.LineQuantity> lines, Map<String, Object> details) {
     }
 
     /**
@@ -82,44 +84,42 @@ public class ProcurementPlanController {
 
         static PlanLine of(PurchaseProposal p, PurchaseProposalLine l) {
             var c = l.getCatalog();
-            int effective = l.effectiveQuantity();
-            BigDecimal amount = l.getUnitPrice() == null ? BigDecimal.ZERO
-                    : l.getUnitPrice().multiply(BigDecimal.valueOf(effective));
-            return new PlanLine(l.getId(), p.getId(), p.getCode(), ref(p.getSchool()), l.getLineNo(),
+            return new PlanLine(l.getId(), p.getId(), p.getCode(), VoucherHeader.school(p.getSchool()), l.getLineNo(),
                     new RefSummary(c.getId(), c.getCode(), c.getName()), l.getName(), l.getSpecification(),
-                    l.getUnitName(), l.getQuantity() == null ? 0 : l.getQuantity(), effective,
-                    l.getUnitPrice(), amount, l.getPriority());
-        }
-
-        private static RefSummary ref(com.g123.sfems.domain.organization.School school) {
-            return school == null ? null : new RefSummary(school.getId(), school.getCode(), school.getName());
+                    l.getUnitName(), l.getQuantity() == null ? 0 : l.getQuantity(), l.effectiveQuantity(),
+                    l.getUnitPrice(), l.plannedAmount(), l.getPriority());
         }
     }
 
     public record ProposalIds(List<Long> ids) {
     }
 
-    public record NoteRequest(@Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
+    public record NoteRequest(@Text(value = FieldRule.NOTE, label = "Ghi chú") String note) {
     }
 
     public record ProposalRow(Long id, String code, RefSummary school, String status, Integer budgetYear,
             String reason, int lineCount, int totalQuantity, BigDecimal totalAmount) {
 
         static ProposalRow of(PurchaseProposal p) {
-            int total = p.getLines().stream().mapToInt(l -> l.getQuantity() == null ? 0 : l.getQuantity()).sum();
-            return new ProposalRow(p.getId(), p.getCode(), PlanLine.ref(p.getSchool()), p.getStatus().name(),
-                    p.getBudgetYear(), p.getReason(), p.getLines().size(), total, p.totalAmount());
+            return new ProposalRow(p.getId(), p.getCode(), VoucherHeader.school(p.getSchool()), p.getStatus().name(),
+                    p.getBudgetYear(), p.getReason(), p.getLines().size(),
+                    p.getLines().stream().mapToInt(l -> l.getQuantity() == null ? 0 : l.getQuantity()).sum(),
+                    p.totalAmount());
         }
     }
 
     /** {@code name} lặp lại {@code title} cho ô chọn tham chiếu dùng chung. */
     public record Response(Long id, String code, RefSummary managingBody, String title, String name,
             Integer budgetYear, RefSummary schoolYear, LocalDate planDate, String status, String note,
-            Instant approvedAt, String approvalNote, Instant createdAt, Instant updatedAt, RefSummary createdBy,
+            Instant approvedAt,
+            String approvalNote, Instant createdAt, Instant updatedAt, RefSummary createdBy,
             List<ProposalRow> proposals, List<PlanLine> lines, List<ProcurementPlanService.CatalogTotal> totals,
-            BigDecimal totalAmount, Integer proposalCount,
+            BigDecimal totalAmount, Integer proposalCount, Map<String, Object> details,
             @JsonProperty("_can") Map<String, Boolean> can, @JsonProperty("_actions") Set<String> actions) {
     }
+
+    private static final MediaType XLSX = MediaType
+            .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
     private final ProcurementPlanService service;
     private final UserService users;
@@ -137,6 +137,7 @@ public class ProcurementPlanController {
                 page.getTotalElements());
     }
 
+    @HeavyQuery
     @GetMapping("/summary")
     @PreAuthorize("hasAuthority('procurement_plans:read') or hasAuthority('purchase_proposals:read')")
     public ProcurementPlanService.Summary summary(@RequestParam(required = false) Integer year,
@@ -148,6 +149,18 @@ public class ProcurementPlanController {
     @PreAuthorize("hasAuthority('procurement_plans:read')")
     public Response get(@PathVariable Long id) {
         return respond(service.get(id), service.detail(id));
+    }
+
+    @GetMapping("/{id}/export.xlsx")
+    @PreAuthorize("hasAuthority('procurement_plans:export')")
+    public ResponseEntity<byte[]> exportExcel(@PathVariable Long id) {
+        ProcurementPlanService.Detail detail = service.detail(id);
+        String code = detail.plan().getCode() != null ? detail.plan().getCode() : String.valueOf(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("Kế hoạch mua sắm - " + code + ".xlsx", StandardCharsets.UTF_8).build().toString())
+                .contentType(XLSX)
+                .body(ProcurementPlanExcel.write(detail));
     }
 
     /** Đề xuất chờ vào kế hoạch, kèm các dòng thiết bị — chọn đề xuất là các dòng của nó hiện ngay trên bảng. */
@@ -222,8 +235,8 @@ public class ProcurementPlanController {
 
     private static ProcurementPlanService.Input input(Request r) {
         return new ProcurementPlanService.Input(r.managingBody() == null ? null : r.managingBody().id(), r.title(),
-                r.budgetYear(), r.schoolYear() == null ? null : r.schoolYear().id(), r.planDate(), r.note(),
-                r.lines());
+                r.budgetYear(), r.schoolYear() == null ? null : r.schoolYear().id(), r.planDate(), r.note(), r.lines(),
+                r.details());
     }
 
     private Response respond(ProcurementPlan p, ProcurementPlanService.Detail detail) {
@@ -252,6 +265,7 @@ public class ProcurementPlanController {
                 detail == null ? null : detail.totals(),
                 detail == null ? null : detail.totalAmount(),
                 detail == null ? null : detail.proposals().size(),
+                VoucherForms.read(p.getDetails()),
                 can, actions);
     }
 

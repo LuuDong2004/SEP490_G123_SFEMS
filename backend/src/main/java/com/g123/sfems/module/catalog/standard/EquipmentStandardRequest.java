@@ -2,13 +2,32 @@ package com.g123.sfems.module.catalog.standard;
 
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
+import java.util.List;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
+/** Payload tạo bộ tiêu chuẩn. */
 public record EquipmentStandardRequest(
-        @Size(max = 64) String code, @NotBlank @Size(max = 255) String name,
-        @PositiveOrZero Integer sortOrder, Boolean active, @Size(max = 500) String note,
-        IdRef educationLevel, IdRef startSchoolYear, IdRef endSchoolYear,
-        @Size(max = 50) String standardVersion) implements CatalogInput {
+        @NotBlank(message = "Mã là bắt buộc")
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
+        String code,
+        @NotBlank(message = "Tên là bắt buộc")
+        @Text(value = FieldRule.NAME, label = "Tên")
+        String name,
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
+        Boolean active,
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
+        String note,
+        IdRef educationLevel,
+        IdRef startSchoolYear,
+        IdRef endSchoolYear,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Phiên bản", max = 50)
+        String standardVersion,
+        IdRef previousStandard,
+        @Valid
+        List<StandardDocumentInput> documents) implements CatalogInput {
 }

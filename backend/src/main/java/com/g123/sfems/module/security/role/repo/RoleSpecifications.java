@@ -1,9 +1,11 @@
 package com.g123.sfems.module.security.role.repo;
 
 import com.g123.sfems.domain.security.role.Role;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.shared.web.ListParams;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
 
 /** Translates the parsed query string into a JPA {@link Specification}. */
@@ -21,6 +23,7 @@ public final class RoleSpecifications {
                 case "code" -> textSpec("code", criterion);
                 case "name" -> textSpec("name", criterion);
                 case "systemRole" -> booleanSpec(criterion);
+                case "roleType" -> roleTypeSpec(criterion.value());
                 default -> null;
             };
             if (spec != null) {
@@ -29,8 +32,8 @@ public final class RoleSpecifications {
         }
 
         params.search().ifPresent(term -> specs.add((root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("code")), ListParams.likePattern(term)),
-                cb.like(cb.lower(root.get("name")), ListParams.likePattern(term)),
+                ListParams.foldedLike(cb, root.get("code"), term),
+                ListParams.foldedLike(cb, root.get("name"), term),
                 cb.like(cb.lower(cb.coalesce(root.get("description"), "")), ListParams.likePattern(term)))));
 
         List<Long> ids = params.ids();
@@ -58,7 +61,7 @@ public final class RoleSpecifications {
         String value = criterion.value();
         return switch (criterion.operator()) {
             case LIKE -> (root, query, cb) ->
-                    cb.like(cb.lower(root.get(field)), ListParams.likePattern(value));
+                    ListParams.foldedLike(cb, root.get(field), value);
             case NE -> (root, query, cb) -> cb.notEqual(root.get(field), value);
             default -> (root, query, cb) -> cb.equal(root.get(field), value);
         };
@@ -70,6 +73,22 @@ public final class RoleSpecifications {
             case NE -> (root, query, cb) -> cb.notEqual(root.get("systemRole"), value);
             default -> (root, query, cb) -> cb.equal(root.get("systemRole"), value);
         };
+    }
+
+    /** Lọc theo loại tài khoản dùng vai; giá trị lạ → không khớp gì. */
+    private static Specification<Role> roleTypeSpec(String value) {
+        UserType type = parseType(value);
+        return type == null
+                ? (root, query, cb) -> cb.disjunction()
+                : (root, query, cb) -> cb.equal(root.get("roleType"), type);
+    }
+
+    static UserType parseType(String value) {
+        try {
+            return UserType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return null;
+        }
     }
 
     private static Long parseId(String value) {

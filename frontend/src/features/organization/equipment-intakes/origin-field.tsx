@@ -1,8 +1,7 @@
 import { useInvalidate, useNotification, useOne } from "@refinedev/core";
-import { AcquisitionChoice } from "./acquisition-choice";
 import { Lock, X } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useController, useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { kyInstance } from "@/shared/api/data";
@@ -10,15 +9,15 @@ import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { errorMessage } from "@/shared/lib/api-error";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { ChoiceWithNote } from "@/shared/components/form/choice-with-note";
-import { FundingSelect } from "@/shared/components/form/funding-select";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
-import { fundingAllowed, OTHER_ACQUISITION_CODE } from "@/domains/equipment/types";
+import { fundingAllowed } from "@/domains/equipment/types";
 import { VOUCHER_ROUTES } from "@/domains/equipment/types";
 import type { IntakeSource } from "@/domains/equipment-intake/types";
 import { IntakeSourceButton, IntakeSourcePicker, isSourceKind } from "./source-picker";
-import { textRules } from "@/shared/lib/field-rules";
+import { maxLengthOf, textRules } from "@/shared/lib/field-rules";
+import { headFieldsOf } from "./head-fields";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -84,9 +83,14 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
   // Nguồn "Khác" (luật đòi ghi rõ): phần ghi rõ gõ ngay trong ô Nguồn hình thành, bắt buộc khi đang chọn nó.
   const otherOrigin = origins.find((o) => ruleOf(o.id)?.noteRequired);
   const { field: noteField, fieldState: noteState } = useController({
-    control, name: "originNote", rules: rule?.noteRequired ? textRules("SHORT_TEXT", "Ghi rõ nguồn hình thành") : undefined,
+    control, name: "originNote", rules: rule?.noteRequired ? textRules("SHORT_TEXT", "Ghi rõ nguồn hình thành", { max: 200, min: 5 }) : undefined,
   });
   const source: IntakeSource | null = record?.source ?? null;
+  // Đã có thiết bị thì KHOÁ nguồn hình thành (trưởng nhóm 13/11/2026): đổi nguồn sau khi đã chọn hàng là ra phiếu
+  // "Kế hoạch mua sắm" / "Kiểm kê thừa" không theo kế hoạch, biên bản nào, và nguồn kinh phí của dòng lệch nguồn.
+  // Muốn đổi thì xoá hết thiết bị trước.
+  const lineCount = ((useWatch({ control, name: "lines" }) as unknown[] | undefined) ?? []).length;
+  const lockedByLines = !source && lineCount > 0;
   // Lập tay với nguồn "Mua sắm" / "Kiểm kê thừa": hỏi ngay phiếu nguồn (QLTB-411). Chỉ lúc LẬP — phiếu đã
   // lưu thì hoặc đã mang phiếu nguồn, hoặc người lập đã chọn lập tay.
   const schoolId = useWatch({ control, name: "school.id" }) as number | null | undefined;
@@ -127,22 +131,10 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
     setValue("originSource", { id: origin.id, name: origin.name }, { shouldValidate: true });
     setPicking(isSourceKind(origin.code));
   }, [pickCode, origins, getValues, setValue]);
-  const headAcquisition = useWatch({ control, name: "acquisitionMethod" }) as { id?: number | null; code?: string | null } | undefined;
-  const headAcquisitionNote = useWatch({ control, name: "acquisitionNoteHead" }) as string | undefined;
-
-  /**
-   * "Ghi rõ" của hình thức mua sắm "Khác" ở đầu phiếu. Máy chủ giữ phần ghi rõ ở TỪNG DÒNG (dòng có thể
-   * khai hình thức riêng), nên ô này chép xuống mọi dòng đang theo hình thức của phiếu — người dùng gõ
-   * một lần, máy chủ vẫn thấy đủ ở từng dòng.
-   */
-  const setHeadAcquisitionNote = (note: string) => {
-    setValue("acquisitionNoteHead", note, { shouldDirty: true });
-    ((getValues("lines") ?? []) as any[]).forEach((line, i) => {
-      if (!line?.acquisitionMethod?.id) setValue(`lines.${i}.acquisitionNote`, note || null, { shouldDirty: true });
-    });
-  };
-
+  // Nguồn đang chọn TRƯỚC khi đổi sang nguồn phải đi theo phiếu nguồn — đóng hộp chọn mà không chọn gì thì trả về nó.
+  const before = useRef<{ id: number | null; name?: string } | null>(null);
   const change = (id: string) => {
+    before.current = (getValues("originSource") as { id: number | null; name?: string } | null) ?? null;
     // Radix `Select` bắn `onValueChange("")` khi giá trị đang có chưa khớp mục nào (danh sách tới sau):
     // nhận nó là ghi `Number("") = 0` đè lên nguồn hình thành của phiếu, và mọi ô nguồn phía dưới bị khoá.
     if (!id) return;
@@ -150,16 +142,32 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
     if (!record && isSourceKind(origins.find((o) => String(o.id) === id)?.code)) setPicking(true);
     const next = ruleOf(id);
     if (!next) return;
+    // Ô chứng từ mà nguồn mới không có thì gỡ giá trị — không để một số hoá đơn ẩn đi theo phiếu tặng.
+    const shown = headFieldsOf(origins.find((o) => String(o.id) === id)?.code);
+    if (!shown.supplier) setValue("supplier", "", { shouldDirty: true });
+    if (!shown.documentNo) setValue("documentNo", "", { shouldDirty: true });
+    if (!shown.documentDate) setValue("documentDate", null, { shouldDirty: true });
     if (!next.noteRequired) setValue("originNote", "", { shouldDirty: true });
     if (!fundingAllowed(next, getValues("fundingSource"))) setValue("fundingSource", null, { shouldDirty: true });
     if (!next.acquisitionMethod) {
       setValue("acquisitionMethod", { id: null }, { shouldDirty: true });
-      setHeadAcquisitionNote("");
+      setValue("acquisitionNoteHead", "", { shouldDirty: true });
     }
     ((getValues("lines") ?? []) as any[]).forEach((line, i) => {
       if (!fundingAllowed(next, line?.fundingSource)) setValue(`lines.${i}.fundingSource`, null, { shouldDirty: true });
       if (!next.acquisitionMethod && line?.acquisitionMethod?.id) setValue(`lines.${i}.acquisitionMethod`, { id: null }, { shouldDirty: true });
     });
+  };
+
+  // "Kế hoạch mua sắm" chỉ đi theo một kế hoạch đã duyệt (trưởng nhóm 13/11/2026): đóng hộp chọn kế hoạch mà không
+  // chọn thì KHÔNG giữ nguồn này — trả về nguồn trước đó (hoặc để trống), không để phiếu mua sắm không kế hoạch.
+  // Kiểm kê thừa cũng vậy: thiết bị thừa phải đi từ một biên bản kiểm kê đã duyệt.
+  const cancelPick = () => {
+    const prev = before.current;
+    setValue("originSource", prev?.id ? prev : { id: null }, { shouldDirty: true, shouldValidate: true });
+    notify?.(sourceKind === "KIEM_KE_THUA"
+      ? { type: "error", message: "Chưa chọn biên bản kiểm kê", description: "Nguồn hình thành \"Kiểm kê thừa\" phải theo một biên bản kiểm kê đã duyệt." }
+      : { type: "error", message: "Chưa chọn kế hoạch mua sắm", description: "Nguồn hình thành \"Kế hoạch mua sắm\" phải theo một kế hoạch đã duyệt của Sở." });
   };
 
   return (
@@ -177,7 +185,9 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
             </FormHint>
             {/* "Khác" ghi rõ ngay trong ô — không có ô "Ghi rõ nguồn hình thành" riêng. Giá trị đang có mà danh mục
                 chưa tải xong vẫn phải có mục của nó — Radix không vẽ được giá trị thiếu mục. */}
-            <ChoiceWithNote value={field.value == null ? "" : String(field.value)} onChange={change} disabled={!!source}
+            {/* Ô bị khoá thì biểu tượng khoá nằm TRONG ô, đè lên mũi tên chọn (trưởng nhóm 13/11/2026). */}
+            <div className="relative">
+            <ChoiceWithNote value={field.value == null ? "" : String(field.value)} onChange={change} disabled={!!source || lockedByLines}
               invalid={!!fieldState.error || !!noteState.error}
               options={[
                 ...(field.value != null && !origins.some((o) => String(o.id) === String(field.value)) && record?.originSource?.name
@@ -185,8 +195,19 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
                 ...origins.map((o) => ({ value: String(o.id), label: o.name })),
               ]}
               otherValue={otherOrigin ? String(otherOrigin.id) : "__"}
-              placeholder="Vui lòng chọn nguồn hình thành" notePlaceholder="Nguồn khác: ghi rõ"
+              placeholder="Vui lòng chọn nguồn hình thành" notePlaceholder="Nguồn khác: ghi rõ" noteMax={maxLengthOf("SHORT_TEXT", 200)}
               note={noteField.value} onNoteChange={noteField.onChange} onNoteBlur={noteField.onBlur} />
+            {source || lockedByLines ? (
+              <span className="bg-muted pointer-events-none absolute top-[1.125rem] right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded">
+                <Lock className="text-muted-foreground size-3.5" />
+              </span>
+            ) : null}
+            </div>
+            {lockedByLines ? (
+              <p className="text-muted-foreground text-xs" title="Xoá hết thiết bị trong danh sách để đổi nguồn hình thành">
+                Đã có danh sách thiết bị ghi tăng
+              </p>
+            ) : null}
             {source ? (
               <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <Lock className="size-3 shrink-0" />
@@ -217,42 +238,8 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
           onConfirm={() => void dropAndRepick()}
         />
       </AlertDialog>
-      {sourceKind ? <IntakeSourcePicker kind={sourceKind} schoolId={schoolId} open={picking} onOpenChange={setPicking} /> : null}
-      {/* Nguồn kinh phí của CẢ PHIẾU, cạnh nguồn hình thành: một lần ghi tăng thường một nguồn tiền. Dòng
-          nào khác nguồn thì khai riêng trong chi tiết dòng — để trống là theo phiếu. */}
-      <FormField
-        control={control}
-        name="fundingSource"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel required={rule?.fundingRequired === "ALWAYS" || undefined}>Nguồn kinh phí</FormLabel>
-            <FormHint>
-              {!rule
-                ? "Chọn nguồn hình thành trước: nguồn kinh phí chọn được đi theo nó."
-                : `Áp cho mọi dòng. Dòng nào khác nguồn thì khai riêng trong chi tiết dòng.${rule.fundingRequired === "ALWAYS" ? "" : " Không bắt buộc với nguồn hình thành này."}`}
-            </FormHint>
-            <FundingSelect
-              value={field.value}
-              onChange={field.onChange}
-              allowed={rule?.fundingSources}
-              disabled={!rule}
-              placeholder={rule ? "Vui lòng chọn nguồn kinh phí" : "Chọn nguồn hình thành trước"}
-              clearable
-            />
-          </FormItem>
-        )}
-      />
-      {/* Hình thức mua sắm: chỉ hàng MUA mới có — ô hiện khi nguồn hình thành là "Mua sắm", áp cho mọi dòng
-          như nguồn kinh phí; dòng nào mua theo hình thức khác thì khai riêng trong chi tiết dòng. */}
-      {rule?.acquisitionMethod ? (
-        <AcquisitionChoice label="Hình thức mua sắm" hint="Áp cho mọi dòng" clearable
-          value={headAcquisition?.id ? { ...record?.acquisitionMethod, ...headAcquisition } : null}
-          onChange={(m) => {
-            setValue("acquisitionMethod", m ? { id: m.id, code: m.code, name: m.name } : { id: null }, { shouldDirty: true });
-            if (m?.code !== OTHER_ACQUISITION_CODE) setHeadAcquisitionNote("");
-          }}
-          note={headAcquisitionNote} onNoteChange={setHeadAcquisitionNote} />
-      ) : null}
+      {sourceKind ? <IntakeSourcePicker kind={sourceKind} schoolId={schoolId} open={picking} onOpenChange={setPicking}
+        onCancel={cancelPick} /> : null}
     </>
   );
 }

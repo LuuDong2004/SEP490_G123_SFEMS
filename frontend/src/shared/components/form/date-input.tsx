@@ -78,7 +78,9 @@ export function DateInput({
       {/* Neo lịch vào CẢ ô nhập (không phải nút lịch ở mép phải), để lịch
           mở thẳng dưới ô, canh trái với ô. */}
       <PopoverAnchor asChild>
-      <div className={cn("relative", className)}>
+      {/* Vừa đủ "dd/mm/yyyy" và biểu tượng lịch — một ô ngày kéo hết cột là một khoảng trống dài vô ích. Chỗ nào cần
+          rộng khác thì truyền `className` (tailwind-merge ghi đè `max-w`). */}
+      <div data-date-input className={cn("relative w-full max-w-40", className)}>
         <Input
           name={name}
           value={text}
@@ -86,7 +88,8 @@ export function DateInput({
           placeholder={placeholder}
           inputMode="numeric"
           maxLength={10}
-          className="pr-9 tabular-nums"
+          // Biểu tượng lịch ở MÉP PHẢI như ô chọn (mũi tên ⌄) — ô ngày vừa đủ "dd/mm/yyyy" nên lịch vẫn sát chữ ngày.
+          className="pe-9 tabular-nums"
           onChange={(e) => {
             // Tự chèn "/" sau ngày và tháng khi gõ số.
             const digits = e.target.value.replace(/\D/g, "").slice(0, 8);

@@ -1,52 +1,53 @@
 package com.g123.sfems.domain.catalog.subject;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
-import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
-import com.g123.sfems.domain.catalog.subjectgroup.SubjectGroup;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import org.hibernate.annotations.BatchSize;
 
-/** Môn học (DM-01): Toán, Vật lí, Hoá học… theo chương trình THPT 2018. */
+/**
+ * Môn học — Toán, Vật lý, Hoạt động trải nghiệm... cùng với các cấp học mà môn
+ * đó được dạy, và ở mỗi cấp nó là bắt buộc hay tự chọn.
+ *
+ * <p>Năm trường chung ở {@link CatalogEntity}; lớp này thêm mã dạy học và danh
+ * sách cấp học.
+ */
 @Entity
 @Table(name = "subjects")
 public class Subject extends CatalogEntity {
 
-    /**
-     * Mã môn ngắn — thành phần MH trong mã tài sản TT.TR.MH.LT.ST.NC (DR-08). Không trùng giữa các
-     * môn (unique index không phân biệt hoa thường). Để trống thì thiết bị của môn này chưa cấp được
-     * mã chuẩn (DR-09).
-     */
-    @Column(name = "short_code", length = 10)
-    private String shortCode;
-
-    /**
-     * Mã dạy học 2 chữ số — thành phần MH của mã tài sản (DR-09, theo repo mẫu). Để trống thì thiết bị của
-     * môn này chưa cấp được mã chuẩn (DR-10). Khác với {@link #shortCode} (mã chữ, dùng cho tên gọi).
-     */
-    @Column(name = "teaching_code", length = 2)
+    /** Mã môn theo chương trình dạy học (ví dụ 22), khác với mã danh mục. */
+    @Column(name = "teaching_code", length = 32)
     private String teachingCode;
 
-    /** Cấp học giảng dạy môn này. EAGER vì open-in-view tắt. */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "education_level_id")
-    private EducationLevel educationLevel;
-
-    /** Tổ chuyên môn phụ trách môn; để trống được (môn chưa xếp tổ). */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "subject_group_id")
-    private SubjectGroup subjectGroup;
-
-    public String getShortCode() {
-        return shortCode;
-    }
-
-    public void setShortCode(String shortCode) {
-        this.shortCode = shortCode;
-    }
+    /**
+     * Các cấp học mà môn được dạy.
+     *
+     * <p>{@code Set} chứ không {@code List}: tổ chuyên môn nạp môn học EAGER, và
+     * môn học lại nạp danh sách này EAGER — hai "bag" ({@code List} không thứ tự)
+     * lồng nhau trong cùng một lần nạp là {@code MultipleBagFetchException} ngay
+     * lúc khởi động. {@code @OrderBy} vẫn giữ thứ tự, vì Hibernate dùng
+     * {@code LinkedHashSet} cho một {@code Set} có thứ tự.
+     *
+     * <p>{@code EAGER} vì DTO được ánh xạ sau khi transaction đã đóng.
+     * {@code @BatchSize} để màn danh sách nạp các dòng con theo lô thay vì một
+     * truy vấn cho mỗi môn.
+     *
+     * <p>{@code orphanRemoval}: gỡ một cấp khỏi danh sách là XOÁ dòng đó — nó
+     * không có ý nghĩa gì khi đứng một mình.
+     */
+    @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.EAGER)
+    @OrderBy("sortOrder ASC, id ASC")
+    @BatchSize(size = 100)
+    private Set<SubjectEducationLevel> educationLevels = new LinkedHashSet<>();
 
     public String getTeachingCode() {
         return teachingCode;
@@ -56,19 +57,13 @@ public class Subject extends CatalogEntity {
         this.teachingCode = teachingCode;
     }
 
-    public EducationLevel getEducationLevel() {
-        return educationLevel;
-    }
-
-    public void setEducationLevel(EducationLevel educationLevel) {
-        this.educationLevel = educationLevel;
-    }
-
-    public SubjectGroup getSubjectGroup() {
-        return subjectGroup;
-    }
-
-    public void setSubjectGroup(SubjectGroup subjectGroup) {
-        this.subjectGroup = subjectGroup;
+    /**
+     * Tập sống — sửa trực tiếp trên đây. KHÔNG thay bằng một tập mới:
+     * {@code orphanRemoval} chỉ hoạt động khi Hibernate còn theo dõi đúng
+     * collection nó đã nạp; gán tập mới là "A collection with
+     * cascade=all-delete-orphan was no longer referenced" lúc flush.
+     */
+    public Set<SubjectEducationLevel> getEducationLevels() {
+        return educationLevels;
     }
 }

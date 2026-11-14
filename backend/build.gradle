@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.g123'
-version = '0.0.1-SNAPSHOT'
+version = '0.1.1'
 description = 'sfems'
 
 java {
@@ -24,8 +24,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
-    // Bộ nhớ đệm dùng chung giữa các node: mức 2 của cache tổng hợp và sổ phiên đăng nhập — xem
-    // shared/cache/SharedCache. Không khai REDIS_HOST thì không dùng, mọi thứ chạy từ CSDL.
+    // Bộ nhớ đệm dùng chung giữa các node (Redis 8, HSDT TL 4.1.10): mức 2 của cache tổng hợp và sổ phiên
+    // đăng nhập — xem shared/cache/SharedCache. Không khai REDIS_HOST thì không dùng, mọi thứ chạy như cũ.
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // Authentication / authorisation. The resource-server starter is what pulls
     // in Nimbus JOSE, which is how access tokens are signed and verified — see
@@ -51,6 +51,8 @@ dependencies {
     implementation 'io.minio:minio:8.5.17'
     // Tài liệu API (QLTB-449, 252): /v3/api-docs và /swagger-ui.html; tắt bằng APP_API_DOCS=false.
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+    // AI gợi ý sửa dòng lỗi ở vùng chờ nhập dữ liệu (OnboardingAiService). Tắt mặc định: APP_AI_ENABLED.
+    implementation 'com.anthropic:anthropic-java:3.2.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-liquibase-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.security:spring-security-test'

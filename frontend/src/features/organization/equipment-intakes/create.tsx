@@ -1,20 +1,16 @@
 import { useForm } from "@refinedev/react-hook-form";
 import { useSearchParams } from "react-router";
 
-import { InventoryFreezeNotice } from "@/shared/components/voucher/inventory-freeze-notice";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { Form } from "@/shared/ui/form";
 import { IntakeFormBody } from "./form-body";
-import {
-  INTAKE_DEFAULT_VALUES,
-  type IntakeFormValues,
-} from "@/features/organization/equipment-intakes/fields";
+import { INTAKE_DEFAULT_VALUES, type IntakeFormValues } from "./fields";
 
 /**
- * Lập phiếu nhập — luôn là MỘT phiếu, mở thẳng vào form, không hỏi trước. Chứng từ (nhà cung cấp,
- * hoá đơn, nguồn, bảo hành) khai ở TỪNG DÒNG: một nhà cung cấp thì khai dòng đầu rồi "Áp cho mọi
- * dòng" (dòng thêm sau tự chép chứng từ của dòng trên); nhiều nhà cung cấp thì mỗi dòng khai của nó.
- * Phiếu mới luôn là NHÁP: lưu xong đi thẳng tới màn chi tiết — việc tiếp theo (trình) ở đó.
+ * Lập phiếu ghi tăng — luôn là MỘT phiếu, mở thẳng vào form, không hỏi trước. Chứng từ (nhà cung cấp, hoá đơn,
+ * nguồn kinh phí, hình thức mua sắm) khai MỘT LẦN ở đầu phiếu, áp cho mọi dòng; dòng nào có hoá đơn khác thì bật
+ * "Hoá đơn riêng" trong chi tiết dòng. Phiếu mới luôn là NHÁP: lưu xong đi tới màn chi tiết, hoặc "Trình duyệt" để
+ * lưu và trình một lần.
  */
 export const EquipmentIntakeCreate = () => {
   const [params] = useSearchParams();
@@ -25,6 +21,8 @@ export const EquipmentIntakeCreate = () => {
     ...form
   } = useForm({
     refineCoreProps: { redirect: "show" },
+    // Báo lỗi khi rời ô (mẫu chốt: gõ sai là thấy ngay), không đợi bấm Lưu.
+    mode: "onTouched",
     defaultValues: {
       ...INTAKE_DEFAULT_VALUES,
       school: { id: Number.isInteger(presetSchool) && presetSchool > 0 ? presetSchool : null },
@@ -35,10 +33,8 @@ export const EquipmentIntakeCreate = () => {
 
   return (
     <CreateView>
-      <CreateViewHeader />
-      <InventoryFreezeNotice resource="equipment_intakes" />
       <Form {...form}>
-        <IntakeFormBody onFinish={onFinish} />
+        <IntakeFormBody onFinish={onFinish} header={(actions) => <CreateViewHeader actionsSlot={actions} />} />
       </Form>
     </CreateView>
   );

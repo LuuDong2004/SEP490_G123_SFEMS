@@ -13,8 +13,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * Tài sản THỪA: thấy thực tế nhưng không có trên sổ. Duyệt biên bản xong, các dòng này thành một phiếu
- * nhập nháp — ghi tăng vẫn phải qua lãnh đạo trường duyệt như mọi lần ghi tăng khác.
+ * Tài sản THỪA: thấy thực tế nhưng không có trên sổ. Duyệt biên bản xong, các
+ * dòng này thành một phiếu nhập nháp — ghi tăng vẫn phải qua lãnh đạo trường duyệt
+ * như mọi lần ghi tăng khác.
  */
 @Entity
 @Table(name = "inventory_surplus")

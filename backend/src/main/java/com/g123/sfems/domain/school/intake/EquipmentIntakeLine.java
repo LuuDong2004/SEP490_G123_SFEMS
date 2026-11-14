@@ -1,12 +1,8 @@
 package com.g123.sfems.domain.school.intake;
 
 import com.g123.sfems.domain.base.BaseEntity;
-import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
-import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
-import com.g123.sfems.domain.catalog.movementreason.MovementReason;
-import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.facility.Room;
 import jakarta.persistence.Column;
@@ -18,29 +14,61 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
+import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.catalog.originsource.OriginRule;
+import com.g123.sfems.domain.catalog.originsource.OriginSource;
+import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
+import com.g123.sfems.domain.catalog.unit.Unit;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Một dòng của phiếu nhập: một LOẠI thiết bị và số lượng của nó.
  *
- * <p>Hai cột số lượng: {@link #documentQuantity} là con số trên hoá đơn, {@link #receivedQuantity} là
- * con số đếm được lúc mở thùng, và ghi tăng đi theo cái thứ hai. Lệch nhau thì {@link #varianceReason}
- * bắt buộc (CHECK ở database).
+ * <p>Hai cột số lượng chứ không phải một. {@link #documentQuantity} là con số
+ * trên hoá đơn, {@link #receivedQuantity} là con số đếm được lúc mở thùng, và
+ * việc ghi tăng đi theo cái thứ hai. Gộp làm một sẽ mất đúng thông tin mà cả
+ * quy trình nhận hàng tồn tại để bắt: hàng về thiếu. Lệch nhau thì
+ * {@link #varianceReason} là bắt buộc.
  *
- * <p>Nhà cung cấp, chứng từ, nguồn kinh phí, hình thức mua sắm, bảo hành nằm trên ĐẦU PHIẾU làm mặc
- * định; dòng khai riêng khi khác đi. Các {@code effective*} là giá trị thật của dòng và là thứ duy nhất
- * nên đọc khi sinh tài sản.
+ * <p>Nhà cung cấp, hoá đơn, nguồn kinh phí, nguồn hình thành, hình thức mua sắm và bảo hành
+ * nằm trên ĐẦU PHIẾU làm mặc định chung; dòng khai riêng khi khác đi (một phiếu gom hàng của
+ * nhiều nhà cung cấp, nhiều nguồn). Các {@code effective*} là giá trị thật của dòng — cột của
+ * dòng nếu có, không thì của phiếu — và là thứ duy nhất nên đọc khi sinh tài sản.
  */
 @Entity
 @Table(name = "equipment_intake_lines")
 public class EquipmentIntakeLine extends BaseEntity {
+    /** Trường chứng từ theo app Jmix cũ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String details = "{}";
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details == null ? "{}" : details;
+    }
+
 
     /**
-     * Phiếu chứa dòng này. EAGER vì hồ sơ tài sản đọc "sinh ra từ phiếu NK-2026-00001" sau khi giao dịch
-     * đã đóng. Không thành vòng với {@code EquipmentIntake.lines} vì phía kia LAZY.
+     * Phiếu chứa dòng này. EAGER vì một dòng chỉ được đọc qua hai đường, và cả
+     * hai đều cần phiếu: màn phiếu (đã có sẵn nó) và hồ sơ tài sản, nơi câu
+     * "sinh ra từ phiếu NK-2026-00001" là cả điểm của việc truy ngược. Để LAZY
+     * thì đường thứ hai đọc ngoài transaction và vỡ.
+     *
+     * <p>Không thành vòng EAGER với {@code EquipmentIntake.lines} vì phía kia
+     * là LAZY — xem chú thích ở đó.
      */
+    // Cùng lý do như trong EquipmentCatalog: dòng phiếu nhập được nạp kèm mọi
+    // tài sản nó sinh ra, nên một JOIN ở đây nhân lên theo số tài sản.
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "intake_id", nullable = false)
@@ -64,7 +92,7 @@ public class EquipmentIntakeLine extends BaseEntity {
     private PhysicalDigitalType physicalOrDigital = PhysicalDigitalType.PHYSICAL;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "asset_category", length = 30)
+    @Column(name = "asset_category", length = 20)
     private AssetCategory assetCategory;
 
     @Column(name = "document_quantity", nullable = false)
@@ -80,16 +108,21 @@ public class EquipmentIntakeLine extends BaseEntity {
     @Column(name = "unit_price", precision = 18, scale = 2)
     private BigDecimal unitPrice;
 
-    /** Vị trí nhận. {@code null} = kho (chưa giao về phòng nào). */
+    /** Vị trí nhận. {@code null} = Kho (chưa giao về phòng nào). */
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "room_id")
     private Room room;
 
-    /** Số tài sản đã sinh khi hoàn tất. Kết quả của ghi tăng, không phải thứ người dùng nhập. */
+    /**
+     * Số tài sản đã sinh (hoặc số lượng đã cộng vào tồn) khi xác nhận. Là kết
+     * quả của việc ghi tăng, không phải thứ người dùng nhập — giữ lại để màn
+     * phiếu nói được "dòng này đã sinh ra 50 tài sản" mà không phải đếm lại.
+     */
     @Column(name = "generated_count", nullable = false)
     private Integer generatedCount = 0;
 
+    // Khai riêng của dòng — null = theo đầu phiếu.
     @Column(length = 255)
     private String supplier;
 
@@ -103,55 +136,118 @@ public class EquipmentIntakeLine extends BaseEntity {
     @Column(name = "funding_source", length = 30)
     private FundingSource fundingSource;
 
+    /** Ghi rõ khi nguồn kinh phí là "Nguồn hợp pháp khác". */
     @Column(name = "funding_note", length = 255)
     private String fundingNote;
+
+    /** Ghi rõ khi hình thức mua sắm là "Khác". */
+    @Column(name = "acquisition_note", length = 255)
+    private String acquisitionNote;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.JOIN)
+    @JoinColumn(name = "origin_source_id")
+    private OriginSource originSource;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.JOIN)
     @JoinColumn(name = "acquisition_method_id")
     private AcquisitionMethod acquisitionMethod;
 
-    @Column(name = "acquisition_note", length = 255)
-    private String acquisitionNote;
-
     @Column(name = "warranty_months")
     private Integer warrantyMonths;
 
-    /** Model và hãng của LÔ hàng này — khác nhau giữa các lần mua của cùng một nhóm. Chép xuống tài sản. */
+    /**
+     * Model và hãng sản xuất của LÔ hàng này — khác nhau giữa các lần mua của
+     * cùng một nhóm thiết bị, nên khai theo dòng chứ không theo danh mục.
+     * Xác nhận phiếu thì chép xuống tài sản.
+     */
     @Column(length = 255)
     private String model;
 
     @Column(length = 255)
     private String manufacturer;
 
-    @Column(length = 255)
-    private String note;
+    /** Thông tin khác của lô (chép xuống tài sản khi duyệt) — cấu hình, công suất, xuất xứ…: chữ tự do, không tách trường. */
+    @Column(name = "other_info", length = 500)
+    private String otherInfo;
 
-    /** Lý do tăng (danh mục lý do biến động, chiều tăng) — bắt buộc khi trình. */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @Fetch(FetchMode.SELECT)
-    @JoinColumn(name = "movement_reason_id")
-    private MovementReason movementReason;
-
-    /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất; dòng quản lý từng cái luôn trống. */
+    /** Hạn sử dụng của LÔ vật tư tiêu hao, hoá chất (QLTB-391); thiết bị từng cái không có. Chép xuống tài sản. */
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
-    /** Quy cách bao bì: 1 {@code packUnit} = {@code packSize} đơn vị của thiết bị. Chỉ dòng quản lý theo số lượng. */
+    /**
+     * Quy cách của vật tư, hoá chất mua theo bao bì (QLTB-501): đơn vị bao bì (Lọ, Chai…) và lượng trong một bao
+     * bì tính theo đơn vị của thiết bị (100 ml). Có quy cách thì số lượng của dòng đếm theo bao bì và đơn giá
+     * là giá một bao bì; lô vào sổ mang số lượng đã quy đổi ({@link #stockQuantity()}). Cùng trống hoặc cùng có.
+     */
     @ManyToOne(fetch = FetchType.EAGER)
-    @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "pack_unit_id")
     private Unit packUnit;
 
     @Column(name = "pack_size", precision = 14, scale = 3)
     private BigDecimal packSize;
 
-    public LocalDate getExpiryDate() {
-        return expiryDate;
+    /**
+     * Số serial khai lúc nhận hàng (changelog 247), mỗi dòng một số, đã bỏ khoảng trắng và viết hoa. Chỉ dòng thiết bị
+     * từng cái mới có; lúc duyệt, thiết bị sinh ra nhận lần lượt các số này theo thứ tự.
+     */
+    @Column(name = "serial_numbers", columnDefinition = "text")
+    private String serialNumbers;
+
+    /** Các số serial ĐÃ KHAI (bỏ chỗ trống) — để kiểm trùng, đếm. */
+    public List<String> serialList() {
+        return serialSlots().stream().filter(s -> !s.isEmpty()).toList();
     }
 
-    public void setExpiryDate(LocalDate expiryDate) {
-        this.expiryDate = expiryDate;
+    /**
+     * Serial THEO VỊ TRÍ: phần tử thứ i là serial của thiết bị thứ i sinh từ dòng, chuỗi rỗng = máy đó chưa khai
+     * (trưởng nhóm 13/11/2026 — form khai từng máy, máy 2 để trống thì máy 3 vẫn mang đúng số của nó).
+     */
+    public List<String> serialSlots() {
+        if (serialNumbers == null || serialNumbers.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(serialNumbers.split("\n", -1)).map(String::strip).toList();
+    }
+
+    /** Ghi serial theo vị trí; chỗ trống giữ chỗ, chỗ trống ở cuối bỏ đi; không còn số nào là không khai. */
+    public void setSerialList(List<String> slots) {
+        List<String> list = slots == null ? List.of() : new java.util.ArrayList<>(slots.stream().map(s -> s == null ? "" : s.strip()).toList());
+        while (!list.isEmpty() && list.get(list.size() - 1).isEmpty()) {
+            list.remove(list.size() - 1);
+        }
+        this.serialNumbers = list.isEmpty() ? null : String.join("\n", list);
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public String getManufacturer() {
+        return manufacturer;
+    }
+
+    public void setManufacturer(String manufacturer) {
+        this.manufacturer = manufacturer;
+    }
+
+    public String getOtherInfo() {
+        return otherInfo;
+    }
+
+    public void setOtherInfo(String otherInfo) {
+        this.otherInfo = otherInfo;
+    }
+
+    /** Số lượng vào sổ theo đơn vị của thiết bị: số nhận × quy cách, hoặc số nhận khi không quy đổi. */
+    public BigDecimal stockQuantity() {
+        BigDecimal received = BigDecimal.valueOf(receivedQuantity == null ? 0 : receivedQuantity);
+        return packSize == null ? received : received.multiply(packSize);
     }
 
     public Unit getPackUnit() {
@@ -170,10 +266,68 @@ public class EquipmentIntakeLine extends BaseEntity {
         this.packSize = packSize;
     }
 
-    /** Số lượng vào sổ: số thực nhận × quy cách, hoặc số thực nhận khi không quy đổi. */
-    public BigDecimal stockQuantity() {
-        BigDecimal received = BigDecimal.valueOf(receivedQuantity == null ? 0 : receivedQuantity);
-        return packSize == null ? received : received.multiply(packSize).stripTrailingZeros();
+    public LocalDate getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setExpiryDate(LocalDate expiryDate) {
+        this.expiryDate = expiryDate;
+    }
+
+    public String getSupplier() {
+        return supplier;
+    }
+
+    public void setSupplier(String supplier) {
+        this.supplier = supplier;
+    }
+
+    public String getDocumentNo() {
+        return documentNo;
+    }
+
+    public void setDocumentNo(String documentNo) {
+        this.documentNo = documentNo;
+    }
+
+    public LocalDate getDocumentDate() {
+        return documentDate;
+    }
+
+    public void setDocumentDate(LocalDate documentDate) {
+        this.documentDate = documentDate;
+    }
+
+    public FundingSource getFundingSource() {
+        return fundingSource;
+    }
+
+    public void setFundingSource(FundingSource fundingSource) {
+        this.fundingSource = fundingSource;
+    }
+
+    public OriginSource getOriginSource() {
+        return originSource;
+    }
+
+    public void setOriginSource(OriginSource originSource) {
+        this.originSource = originSource;
+    }
+
+    public AcquisitionMethod getAcquisitionMethod() {
+        return acquisitionMethod;
+    }
+
+    public void setAcquisitionMethod(AcquisitionMethod acquisitionMethod) {
+        this.acquisitionMethod = acquisitionMethod;
+    }
+
+    public Integer getWarrantyMonths() {
+        return warrantyMonths;
+    }
+
+    public void setWarrantyMonths(Integer warrantyMonths) {
+        this.warrantyMonths = warrantyMonths;
     }
 
     public String effectiveSupplier() {
@@ -192,7 +346,33 @@ public class EquipmentIntakeLine extends BaseEntity {
         return fundingSource != null ? fundingSource : intake.getFundingSource();
     }
 
+    public String getFundingNote() {
+        return fundingNote;
+    }
+
+    public void setFundingNote(String fundingNote) {
+        this.fundingNote = fundingNote;
+    }
+
+    public String getAcquisitionNote() {
+        return acquisitionNote;
+    }
+
+    public void setAcquisitionNote(String acquisitionNote) {
+        this.acquisitionNote = acquisitionNote;
+    }
+
+    /** Nguồn hình thành là của CẢ PHIẾU (từ changelog 109) — dòng không còn mang riêng. */
+    public OriginSource effectiveOriginSource() {
+        return intake.getOriginSource();
+    }
+
+    /** Chỉ hàng MUA mới có hình thức mua sắm — nguồn hình thành khác thì không có, dù cột còn giá trị cũ. */
     public AcquisitionMethod effectiveAcquisitionMethod() {
+        boolean purchased = OriginRule.of(intake.getOriginSource()).map(OriginRule::acquisitionMethod).orElse(true);
+        if (!purchased) {
+            return null;
+        }
         return acquisitionMethod != null ? acquisitionMethod : intake.getAcquisitionMethod();
     }
 
@@ -294,101 +474,5 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     public void setGeneratedCount(Integer generatedCount) {
         this.generatedCount = generatedCount == null ? 0 : generatedCount;
-    }
-
-    public String getSupplier() {
-        return supplier;
-    }
-
-    public void setSupplier(String supplier) {
-        this.supplier = supplier;
-    }
-
-    public String getDocumentNo() {
-        return documentNo;
-    }
-
-    public void setDocumentNo(String documentNo) {
-        this.documentNo = documentNo;
-    }
-
-    public LocalDate getDocumentDate() {
-        return documentDate;
-    }
-
-    public void setDocumentDate(LocalDate documentDate) {
-        this.documentDate = documentDate;
-    }
-
-    public FundingSource getFundingSource() {
-        return fundingSource;
-    }
-
-    public void setFundingSource(FundingSource fundingSource) {
-        this.fundingSource = fundingSource;
-    }
-
-    public String getFundingNote() {
-        return fundingNote;
-    }
-
-    public void setFundingNote(String fundingNote) {
-        this.fundingNote = fundingNote;
-    }
-
-    public AcquisitionMethod getAcquisitionMethod() {
-        return acquisitionMethod;
-    }
-
-    public void setAcquisitionMethod(AcquisitionMethod acquisitionMethod) {
-        this.acquisitionMethod = acquisitionMethod;
-    }
-
-    public String getAcquisitionNote() {
-        return acquisitionNote;
-    }
-
-    public void setAcquisitionNote(String acquisitionNote) {
-        this.acquisitionNote = acquisitionNote;
-    }
-
-    public Integer getWarrantyMonths() {
-        return warrantyMonths;
-    }
-
-    public void setWarrantyMonths(Integer warrantyMonths) {
-        this.warrantyMonths = warrantyMonths;
-    }
-
-    public String getModel() {
-        return model;
-    }
-
-    public void setModel(String model) {
-        this.model = model;
-    }
-
-    public String getManufacturer() {
-        return manufacturer;
-    }
-
-    public void setManufacturer(String manufacturer) {
-        this.manufacturer = manufacturer;
-    }
-
-    public String getNote() {
-        return note;
-    }
-
-    public void setNote(String note) {
-        this.note = note;
-    }
-
-    public MovementReason getMovementReason() {
-        return movementReason;
-    }
-
-    public void setMovementReason(MovementReason movementReason) {
-        this.movementReason = movementReason;
     }
 }

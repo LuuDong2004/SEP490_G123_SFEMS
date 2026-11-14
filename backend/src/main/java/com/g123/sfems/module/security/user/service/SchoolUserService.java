@@ -1,8 +1,11 @@
 package com.g123.sfems.module.security.user.service;
 
+import com.g123.sfems.shared.security.PasswordPolicy;
 import com.g123.sfems.domain.security.role.Role;
+import com.g123.sfems.domain.security.user.SchoolUser;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.domain.security.user.UserStatus;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.module.security.role.service.RoleService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.user.api.dto.RoleRef;
@@ -14,10 +17,9 @@ import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
-import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -31,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ul>
  *   <li>trường là trường của NGƯỜI GỌI, lấy từ principal — không nhận từ request;</li>
- *   <li>chỉ thấy / sửa tài khoản thuộc trường đó và chỉ mang vai phía trường ({@link #SCHOOL_ROLES}) —
+ *   <li>chỉ thấy / sửa tài khoản thuộc trường đó và chỉ mang vai loại trường ({@code roles.role_type = SCHOOL}) —
  *       tài khoản có vai Sở, UBND, quản trị là 404, kể cả khi nó gắn trường này;</li>
  *   <li>chỉ gán được vai phía trường;</li>
  *   <li>không tự đổi vai hay trạng thái của chính mình (tự khoá mình là mất lối vào).</li>
@@ -40,10 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SchoolUserService {
 
-    /** Vai phía trường — lối quản trị cấp trường chỉ gán và chỉ chạm tới các vai này. */
-    public static final Set<String> SCHOOL_ROLES = Set.of("TEACHER", "SCHOOL_STAFF", "SUBJECT_HEAD", "SCHOOL_LEADER");
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserService users;
     private final RoleService roles;
@@ -67,7 +65,8 @@ public class SchoolUserService {
     @Transactional(readOnly = true)
     public User get(Long id) {
         User user = users.get(id);
-        if (user.getSchool() == null || !user.getSchool().getId().equals(schoolId()) || !onlySchoolRoles(user)) {
+        if (!(user instanceof SchoolUser member) || !member.getSchool().getId().equals(schoolId())
+                || !onlySchoolRoles(user)) {
             throw new ResourceNotFoundException("User", id);
         }
         return user;
@@ -85,7 +84,8 @@ public class SchoolUserService {
                 UserStatus.ACTIVE,
                 new SchoolRef(schoolId()),
                 null,
-                List.of(new RoleRef(schoolRole(role).getId()))));
+                List.of(new RoleRef(schoolRole(role).getId())),
+                null));
         return new Issued(user, password);
     }
 
@@ -103,7 +103,8 @@ public class SchoolUserService {
                 status,
                 null,
                 null,
-                role == null ? null : List.of(new RoleRef(schoolRole(role).getId()))));
+                role == null ? null : List.of(new RoleRef(schoolRole(role).getId())),
+                null));
     }
 
     @Transactional
@@ -127,31 +128,16 @@ public class SchoolUserService {
 
     private Role schoolRole(String code) {
         String c = code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
-        if (!SCHOOL_ROLES.contains(c)) {
-            throw new FieldValidationException("role", "Chỉ gán được vai Giáo viên, Cán bộ thiết bị, Trưởng bộ môn hoặc Lãnh đạo trường");
-        }
-        return roles.getByCode(c);
+        return roles.getByCode(c, UserType.SCHOOL);
     }
 
-    private static boolean onlySchoolRoles(User user) {
-        return user.getRoles().stream().allMatch(r -> SCHOOL_ROLES.contains(r.getCode()));
+    /** Tài khoản chỉ mang vai phía trường — điều kiện để lãnh đạo trường được đụng tới nó. */
+    public static boolean onlySchoolRoles(User user) {
+        return user.getRoles().stream().allMatch(r -> r.getRoleType() == UserType.SCHOOL);
     }
 
-    /** Tám ký tự đủ bốn loại theo {@code PasswordPolicy}: hoa, thường, số, ký tự đặc biệt. */
+    /** Mật khẩu tạm do máy sinh, đạt {@code PasswordPolicy}. */
     public static String temporaryPassword() {
-        String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        String lower = "abcdefghijkmnpqrstuvwxyz";
-        String digit = "23456789";
-        String special = "@#!";
-        StringBuilder sb = new StringBuilder();
-        sb.append(upper.charAt(RANDOM.nextInt(upper.length())));
-        for (int i = 0; i < 4; i++) {
-            sb.append(lower.charAt(RANDOM.nextInt(lower.length())));
-        }
-        sb.append(special.charAt(RANDOM.nextInt(special.length())));
-        for (int i = 0; i < 3; i++) {
-            sb.append(digit.charAt(RANDOM.nextInt(digit.length())));
-        }
-        return sb.toString();
+        return PasswordPolicy.temporary();
     }
 }

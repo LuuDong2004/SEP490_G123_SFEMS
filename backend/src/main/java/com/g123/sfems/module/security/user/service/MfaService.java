@@ -4,11 +4,13 @@ import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.SecretBox;
 import com.g123.sfems.shared.security.Totp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -45,10 +47,12 @@ public class MfaService {
 
     private final UserRepository repository;
     private final SecretBox box;
+    private final ApplicationEventPublisher events;
 
-    public MfaService(UserRepository repository, SecretBox box) {
+    public MfaService(UserRepository repository, SecretBox box, ApplicationEventPublisher events) {
         this.repository = repository;
         this.box = box;
+        this.events = events;
     }
 
     public static boolean required(User user) {
@@ -86,6 +90,7 @@ public class MfaService {
         user.setMfaEnabled(true);
         user.setMfaFailedAttempts(0);
         repository.save(user);
+        changed(userId);
         return status(userId);
     }
 
@@ -147,6 +152,12 @@ public class MfaService {
         user.setMfaFailedAttempts(0);
         user.setMfaLockedUntil(null);
         repository.save(user);
+        changed(user.getId());
+    }
+
+    /** Bộ nhớ đệm quyền giữ cờ "đã có lớp thứ hai" — cổng Admin đọc nó ở mỗi yêu cầu, nên bật / tắt có hiệu lực ngay. */
+    private void changed(Long userId) {
+        events.publishEvent(new AuthoritiesChanged.ForUser(userId));
     }
 
     private User user(Long id) {

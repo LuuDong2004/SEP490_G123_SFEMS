@@ -37,6 +37,8 @@ public final class Permissions {
     public static final String SCHOOLS_READ = "schools:read";
     public static final String SCHOOLS_WRITE = "schools:write";
     public static final String SCHOOLS_DELETE = "schools:delete";
+    /** Trường sửa phần hồ sơ của chính mình (ảnh, địa chỉ, mã Bộ) — 239. */
+    public static final String SCHOOL_PROFILE_WRITE = "school_profile:write";
 
     /** Danh mục dùng chung: cấp học. */
     public static final String EDUCATION_LEVELS_READ = "education_levels:read";

@@ -6,6 +6,10 @@ import com.g123.sfems.domain.school.voucher.SchoolVoucher;
 import com.g123.sfems.domain.system.approvalflow.ApprovalFlow;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
@@ -15,25 +19,30 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Luồng phê duyệt của từng loại phiếu: mặc định trong code ({@link ApprovalFlowType}), quản trị viên
- * cấu hình đè lên qua bảng {@code approval_flows}.
+ * Luồng phê duyệt của từng loại phiếu: mặc định trong code ({@link ApprovalFlowType}), Sở cấu hình đè lên
+ * qua bảng {@code approval_flows}.
  *
- * <p>{@link #chainOf} là câu hỏi DUY NHẤT về "phiếu này phải qua những cấp nào", và
- * {@code VoucherWorkflow} hỏi nó ở mỗi lần trình / duyệt:
+ * <p>{@link #chainOf} là câu hỏi DUY NHẤT về "phiếu này phải qua những cấp nào", và {@code VoucherWorkflow}
+ * hỏi nó ở mỗi lần trình / duyệt. Thứ tự quyết định:
+ *
  * <ol>
- *   <li>đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên thì
- *       theo các bước "từ ngưỡng trở lên";</li>
+ *   <li>phiếu được MIỄN duyệt theo nội dung ({@link SchoolVoucher#approvalExempt()}) → không bước nào —
+ *       luật nghiệp vụ, Sở không đè được;</li>
+ *   <li>Sở đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên thì theo
+ *       các bước "từ ngưỡng trở lên";</li>
  *   <li>chưa cấu hình → luồng mặc định.</li>
  * </ol>
  *
- * <p>Bảng chỉ vài dòng và được đọc ở mỗi lần dựng danh sách phiếu, nên giữ trong bộ nhớ: nạp cả
- * bảng, đổi thì nạp lại sau khi commit, và tự nạp lại sau 60 giây.
+ * <p>Bảng chỉ vài chục dòng và được đọc ở mỗi lần dựng danh sách phiếu (nút nào hiện phụ thuộc bước kế
+ * tiếp), nên giữ trong bộ nhớ: nạp cả bảng, đổi thì nạp lại sau khi commit, và tự nạp lại sau 60 giây —
+ * đó là đường để một node khác thấy thay đổi, chậm nhất một phút.
  */
 @Service
 @Transactional(readOnly = true)
@@ -42,30 +51,38 @@ public class ApprovalFlowService {
     private static final long TTL_MILLIS = 60_000;
 
     private final ApprovalFlowRepository flows;
+    private final JdbcTemplate jdbc;
 
     private volatile Map<String, ApprovalFlow> snapshot;
     private volatile long loadedAt;
 
-    public ApprovalFlowService(ApprovalFlowRepository flows) {
+    public ApprovalFlowService(ApprovalFlowRepository flows, JdbcTemplate jdbc) {
         this.flows = flows;
+        this.jdbc = jdbc;
     }
 
     /** Một loại phiếu trên màn cấu hình: luồng mặc định, luồng đang áp dụng, và những gì đặt được. */
     public record FlowView(
             String resource,
             String label,
+            String module,
             List<ApprovalStep> defaultSteps,
             List<ApprovalStep> steps,
             String amountLabel,
             BigDecimal amountThreshold,
             List<ApprovalStep> stepsAbove,
+            boolean receivingSupported,
+            String exemptNote,
             boolean customized,
             String note,
-            Instant updatedAt) {
+            Instant updatedAt,
+            String updatedBy) {
     }
 
-    public record FlowRequest(List<ApprovalStep> steps, BigDecimal amountThreshold, List<ApprovalStep> stepsAbove,
-            String note) {
+    public record FlowRequest(List<ApprovalStep> steps,
+            @Num(value = NumberRule.MONEY, label = "Ngưỡng tiền") BigDecimal amountThreshold,
+            List<ApprovalStep> stepsAbove,
+            @Text(value = FieldRule.NOTE, label = "Ghi chú") String note) {
     }
 
     // ------------------------------------------------------------------ dùng bởi vòng duyệt
@@ -74,24 +91,27 @@ public class ApprovalFlowService {
     public List<ApprovalStep> chainOf(SchoolVoucher voucher) {
         ApprovalFlowType type = ApprovalFlowType.of(voucher).orElse(null);
         if (type == null) {
-            // Loại phiếu chưa khai trong ApprovalFlowType: an toàn là bắt lãnh đạo trường duyệt.
-            return List.of(ApprovalStep.SCHOOL);
+            return voucher.approvalChain();
+        }
+        if (voucher.approvalExempt()) {
+            return List.of();
         }
         ApprovalFlow flow = current().get(type.resource());
         if (flow == null) {
-            return type.defaultSteps();
+            return voucher.limitChain(type.defaultSteps());
         }
         BigDecimal amount = type.amountLabel() == null ? null : voucher.approvalAmount();
         if (flow.getAmountThreshold() != null && amount != null && amount.compareTo(flow.getAmountThreshold()) >= 0) {
-            return parse(flow.getStepsAbove());
+            return voucher.limitChain(parse(flow.getStepsAbove()));
         }
-        return parse(flow.getSteps());
+        return voucher.limitChain(parse(flow.getSteps()));
     }
 
     /**
-     * Các cấp đang áp dụng cho MỘT LOẠI phiếu, chưa xét nội dung phiếu nào (ngưỡng tiền). Form lập
-     * phiếu dùng nó để biết nút là "Trình" hay "Duyệt" khi phiếu chưa tồn tại. Rỗng {@code Optional}
-     * khi loại phiếu không có luồng cấu hình được.
+     * Các cấp đang áp dụng cho MỘT LOẠI phiếu, chưa xét nội dung của phiếu nào (luật miễn duyệt, ngưỡng
+     * tiền). Form lập phiếu dùng nó để biết nút thứ hai là "Trình" hay "Duyệt" khi phiếu chưa tồn tại —
+     * trống nghĩa là loại phiếu này bấm là xong. Rỗng {@code Optional} khi loại phiếu không có luồng
+     * cấu hình được.
      */
     public Optional<List<ApprovalStep>> stepsOf(String resource) {
         return ApprovalFlowType.of(resource).map(type -> {
@@ -105,13 +125,14 @@ public class ApprovalFlowService {
     public List<FlowView> list() {
         Map<String, ApprovalFlow> byResource = flows.findAll().stream()
                 .collect(Collectors.toMap(ApprovalFlow::getResource, Function.identity()));
-        return Arrays.stream(ApprovalFlowType.values()).map(t -> view(t, byResource.get(t.resource()))).toList();
+        return Arrays.stream(ApprovalFlowType.values())
+                .map(t -> view(t, byResource.get(t.resource()))).toList();
     }
 
     @Transactional
     public FlowView save(String resource, FlowRequest request) {
         ApprovalFlowType type = typeOf(resource);
-        List<ApprovalStep> steps = normalize(request.steps());
+        List<ApprovalStep> steps = normalize(type, request.steps(), "steps");
         BigDecimal threshold = request.amountThreshold();
         List<ApprovalStep> above = null;
         if (threshold != null) {
@@ -122,7 +143,7 @@ public class ApprovalFlowService {
             if (threshold.signum() <= 0) {
                 throw new FieldValidationException("amountThreshold", "Ngưỡng tiền phải lớn hơn 0");
             }
-            above = normalize(request.stepsAbove());
+            above = normalize(type, request.stepsAbove(), "stepsAbove");
             if (above.equals(steps)) {
                 throw new FieldValidationException("stepsAbove",
                         "Các bước từ ngưỡng trở lên đang giống hệt các bước thường — bỏ ngưỡng, hoặc chọn bước khác");
@@ -155,14 +176,16 @@ public class ApprovalFlowService {
 
     private FlowView view(ApprovalFlowType type, ApprovalFlow flow) {
         return new FlowView(
-                type.resource(), type.label(), type.defaultSteps(),
+                type.resource(), type.label(), type.module(), type.defaultSteps(),
                 flow == null ? type.defaultSteps() : parse(flow.getSteps()),
                 type.amountLabel(),
                 flow == null ? null : flow.getAmountThreshold(),
                 flow == null || flow.getStepsAbove() == null ? null : parse(flow.getStepsAbove()),
+                type.receivingSupported(), type.exemptNote(),
                 flow != null,
                 flow == null ? null : flow.getNote(),
-                flow == null ? null : (flow.getUpdatedAt() != null ? flow.getUpdatedAt() : flow.getCreatedAt()));
+                flow == null ? null : (flow.getUpdatedAt() != null ? flow.getUpdatedAt() : flow.getCreatedAt()),
+                flow == null ? null : actorName(flow.getUpdatedById() != null ? flow.getUpdatedById() : flow.getCreatedById()));
     }
 
     private static ApprovalFlowType typeOf(String resource) {
@@ -170,17 +193,25 @@ public class ApprovalFlowService {
                 .orElseThrow(() -> new ResourceNotFoundException("Luồng phê duyệt", resource));
     }
 
-    /** Bỏ trùng và xếp theo thứ tự CẤP (trường → cơ quan quản lý). */
-    private static List<ApprovalStep> normalize(List<ApprovalStep> steps) {
-        return steps == null ? List.of()
+    /**
+     * Bỏ trùng và xếp theo thứ tự CẤP (trường → cơ quan quản lý → cơ quan của trường nhận): một phiếu không
+     * thể lên cơ quan quản lý trước khi trường duyệt. Bước cơ quan của trường nhận chỉ có ở phiếu hai trường.
+     */
+    private static List<ApprovalStep> normalize(ApprovalFlowType type, List<ApprovalStep> steps, String field) {
+        List<ApprovalStep> list = steps == null ? List.of()
                 : steps.stream().distinct().sorted(Comparator.comparingInt(Enum::ordinal)).toList();
+        if (list.contains(ApprovalStep.RECEIVING_BODY) && !type.receivingSupported()) {
+            throw new FieldValidationException(field,
+                    "%s chỉ có một trường — không có bước cơ quan quản lý của trường nhận".formatted(type.label()));
+        }
+        return list;
     }
 
     private static String join(List<ApprovalStep> steps) {
         return steps.stream().map(Enum::name).collect(Collectors.joining(","));
     }
 
-    /** Mã lạ (sửa tay) bị bỏ qua thay vì làm hỏng cả vòng duyệt. */
+    /** Mã lạ (bản cũ, sửa tay) bị bỏ qua thay vì làm hỏng cả vòng duyệt. */
     private static List<ApprovalStep> parse(String steps) {
         if (steps == null || steps.isBlank()) {
             return List.of();
@@ -221,5 +252,14 @@ public class ApprovalFlowService {
                 snapshot = null;
             }
         });
+    }
+
+    private String actorName(Long actorId) {
+        if (actorId == null) {
+            return null;
+        }
+        List<String> names = jdbc.queryForList(
+                "SELECT COALESCE(NULLIF(full_name, ''), username) FROM users WHERE id = ?", String.class, actorId);
+        return names.isEmpty() ? null : names.get(0);
     }
 }

@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/room_types} — mã quyền {@code room_types:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/room_types")
 public class RoomTypeController extends CatalogController<RoomType, RoomTypeRequest, RoomTypePatchRequest> {

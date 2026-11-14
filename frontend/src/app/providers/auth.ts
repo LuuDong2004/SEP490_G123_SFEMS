@@ -1,5 +1,6 @@
 import type { AuthProvider } from "@refinedev/core";
 
+import { ADMIN_LOGIN_PATH, currentPortal, portalBase } from "@/shared/api/portal";
 import { API_URL } from "@/shared/api/constants";
 import { connect, disconnect } from "@/shared/api/live";
 import { queryClient } from "@/shared/api/query-client";
@@ -9,6 +10,7 @@ import {
   getAuthorities,
   getIdentity,
   getRefreshToken,
+  homePath,
   loadAuthorities,
   refreshSession,
   revalidateAuthorities,
@@ -48,12 +50,14 @@ async function readError(response: Response, fallback: string): Promise<ApiError
 }
 
 export const authProvider: AuthProvider = {
-  async login({ username, password, code }) {
+  async login({ username, password, code, area }) {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, code: code || undefined }),
+        // `area`: khu đăng nhập — `admin` (màn /admin/login) chỉ nhận tài khoản quản trị hệ thống, `business` (mặc định)
+        // chỉ nhận tài khoản nghiệp vụ (cổng Admin cách ly, docs/kien-truc/11).
+        body: JSON.stringify({ username, password, code: code || undefined, area: area || undefined }),
       });
 
       if (!response.ok) {
@@ -96,8 +100,13 @@ export const authProvider: AuthProvider = {
       // (đăng xuất không tải lại trang). Xoá ở đây chứ không lúc đăng xuất: lúc
       // này chỉ còn màn đăng nhập, không màn nào đang giữ truy vấn để bị gỡ ngang.
       queryClient.clear();
-      // Về trang chủ. Nếu địa chỉ đăng nhập mang `?to=` (bị đẩy ra khi đang ở một trang) thì Refine ưu tiên nó.
-      return { success: true, redirectTo: "/" };
+      // Vào cổng của loại tài khoản (docs/kien-truc/11): tải lại trang để giao diện dựng với gốc `/school`, `/so`…
+      // Cán bộ thiết bị vào thẳng danh sách thiết bị, các vai khác vào Tổng hợp (`homePath`); địa chỉ đăng nhập mang
+      // `?to=` (bị đẩy ra khi đang ở một trang) thì quay lại đúng trang đó.
+      const to = new URLSearchParams(window.location.search).get("to");
+      const target = to && to.startsWith("/") && !to.startsWith("//") ? to : homePath();
+      window.location.replace(`${portalBase()}${target.replace(/^\/(admin|so|ubnd|school)(?=\/|$)/, "") || "/"}`);
+      return { success: true };
     } catch {
       return {
         success: false,
@@ -134,9 +143,13 @@ export const authProvider: AuthProvider = {
     // Before clearing the session, because the socket is authenticated as the
     // account that is leaving: left open, it would go on delivering to a page
     // that has signed out, and hand the next account somebody else's channel.
+    // Quản trị viên quay về màn đăng nhập của khu quản trị, người khác về màn đăng nhập chung.
+    const admin = currentPortal() === "admin";
     disconnect();
     clearSession();
-    return { success: true, redirectTo: "/login" };
+    // Ra khỏi cổng: tải lại ở gốc để người đăng nhập sau vào đúng cổng của họ.
+    window.location.replace(admin ? ADMIN_LOGIN_PATH : "/login");
+    return { success: true };
   },
 
   /**

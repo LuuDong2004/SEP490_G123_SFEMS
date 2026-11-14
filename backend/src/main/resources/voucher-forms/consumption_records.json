@@ -1,0 +1,35 @@
+{
+ "resource": "consumption_records",
+ "sections": [
+  {
+   "title": "Thông tin chi tiết",
+   "fields": [
+    {
+     "key": "lesson",
+     "label": "Bài học / tiết dạy",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "consumedBy",
+     "label": "Người sử dụng",
+     "kind": "staff"
+    },
+    {
+     "key": "purpose",
+     "label": "Mục đích sử dụng",
+     "kind": "textarea",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "unit"
+ ],
+ "enums": {}
+}

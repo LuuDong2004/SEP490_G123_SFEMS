@@ -17,7 +17,7 @@ import jakarta.validation.constraints.Size;
  */
 public record SetPasswordRequest(
         @NotBlank(message = "Nhập mật khẩu")
-        @Size(min = 8, max = 100, message = "Mật khẩu phải từ 8 đến 100 ký tự")
+        @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
         String password) {
 
     /** Bỏ khoảng trắng (QLTB-508). */

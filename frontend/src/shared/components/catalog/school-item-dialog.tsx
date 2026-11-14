@@ -165,6 +165,7 @@ const ORIGIN_BY_VOUCHER: Record<string, string> = {
   TU_LAM: "SELF_MADE",
   TANG_TAI_TRO: "DONATED",
   MUA_SAM: "OUTSIDE_PURCHASE",
+  MUA_NGOAI_KH: "OUTSIDE_PURCHASE",
 };
 
 /**
@@ -199,7 +200,7 @@ export function SchoolItemDialog({
   const [subjectIds, setSubjectIds] = useState<string[]>([]);
   const [unitId, setUnitId] = useState("");
   const [category, setCategory] = useState("");
-  const [tracking, setTracking] = useState("SERIAL");
+  const [tracking, setTracking] = useState("serial");
   const [origin, setOrigin] = useState("SELF_MADE");
   const [model, setModel] = useState("");
   const [note, setNote] = useState("");
@@ -217,7 +218,7 @@ export function SchoolItemDialog({
     setSubjectIds((record.subjects?.length ? record.subjects : record.subject ? [record.subject] : []).map((x: any) => String(x.id)));
     setUnitId(record.unit?.id ? String(record.unit.id) : "");
     setCategory(record.assetCategory ?? "");
-    setTracking(record.trackingType ?? "SERIAL");
+    setTracking(record.trackingType ?? "serial");
     setOrigin(record.origin ?? "SELF_MADE");
     setModel(record.model ?? "");
     setNote(record.note ?? "");
@@ -233,7 +234,7 @@ export function SchoolItemDialog({
   }, [open, fixedOrigin]);
   // Đổi sang phân loại không phải vật tư tiêu hao thì không còn được quản lý theo số lượng.
   useEffect(() => {
-    if (category && !BULK_OK.has(category)) setTracking("SERIAL");
+    if (category && !BULK_OK.has(category)) setTracking("serial");
   }, [category]);
 
   const list = (resource: string) => ({
@@ -249,7 +250,7 @@ export function SchoolItemDialog({
 
   const reset = () => {
     setName(""); setTypeId(""); setSubjectIds([]); setUnitId(""); setCategory("");
-    setTracking("SERIAL"); setOrigin("SELF_MADE"); setModel(""); setNote(""); setError(null);
+    setTracking("serial"); setOrigin("SELF_MADE"); setModel(""); setNote(""); setError(null);
   };
 
   async function submit() {
@@ -309,7 +310,7 @@ export function SchoolItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent size="form">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editing ? "Sửa thiết bị ngoài danh mục" : "Thêm thiết bị ngoài danh mục"}
@@ -348,7 +349,7 @@ export function SchoolItemDialog({
               // Phiếu đã nói nguồn hình thành: nguồn gốc theo phiếu, chỉ xem.
               <ReadField label="Nguồn gốc" className="gap-1.5">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate">{CATALOG_ORIGIN_LABELS[fixedOrigin as keyof typeof CATALOG_ORIGIN_LABELS]}</span>
+                  <span className="truncate">{CATALOG_ORIGIN_LABELS[fixedOrigin]}</span>
                   <HelpHint>Theo nguồn hình thành của phiếu ("{voucherRule?.name}"). Muốn nguồn khác thì đổi nguồn hình thành ở đầu phiếu.</HelpHint>
                 </span>
               </ReadField>
@@ -378,7 +379,7 @@ export function SchoolItemDialog({
           </Group>
 
           <Group title="Đếm và quản lý">
-            <Field label="Phân loại tài sản" required>
+            <Field label="Phân loại kế toán" required>
               <Pick value={category} onChange={setCategory} placeholder="Vui lòng chọn phân loại"
                 items={Object.entries(ASSET_CATEGORY_LABELS).map(([value, label]) => ({ value, label }))} />
             </Field>
@@ -389,7 +390,7 @@ export function SchoolItemDialog({
             <Field label="Cách quản lý" required hint={trackingHint}>
               <Pick value={tracking} onChange={setTracking} placeholder="Vui lòng chọn cách quản lý"
                 items={Object.entries(TRACKING_LABELS).map(([value, label]) => ({
-                  value, label, disabled: value === "BULK" && !BULK_OK.has(category),
+                  value, label, disabled: value === "bulk" && !BULK_OK.has(category),
                 }))} />
             </Field>
             <Field label="Ghi chú" wide error={noteError}>

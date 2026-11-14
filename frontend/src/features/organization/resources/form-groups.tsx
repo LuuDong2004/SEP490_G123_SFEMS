@@ -29,13 +29,24 @@ export function SideGroup({ icon: Icon, title, description, children }: {
 export const SIDE_GROUPS = "@container divide-border divide-y divide-dashed";
 
 /** Nhóm ô có tiêu đề nhỏ nằm TRÊN, ô nhập lưới ba cột (hộp phòng). */
-export function TopGroup({ icon: Icon, title, children, cols = 3 }: { icon: LucideIcon; title: string; children: ReactNode; cols?: 3 | 4 }) {
+export function TopGroup({ icon: Icon, title, children, cols = 3, plain }: {
+  icon: LucideIcon;
+  title: string;
+  children: ReactNode;
+  cols?: 3 | 4;
+  /** Tiêu đề chữ đậm thường, không biểu tượng (hộp Thêm / Sửa phòng có cột mục bên trái đã gọi tên mục). */
+  plain?: boolean;
+}) {
   return (
     <section className="space-y-3 border-b border-border pb-4 last:border-b-0 last:pb-0">
-      <h3 className="text-muted-foreground flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
-        <Icon className="text-primary size-3.5 shrink-0" />
-        {title}
-      </h3>
+      {plain ? (
+        <h3 className="text-[0.9375rem] font-semibold">{title}</h3>
+      ) : (
+        <h3 className="text-muted-foreground flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
+          <Icon className="text-primary size-3.5 shrink-0" />
+          {title}
+        </h3>
+      )}
       <div className={cols === 4 ? "grid items-start gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4" : "grid items-start gap-x-4 gap-y-5 sm:grid-cols-3"}>{children}</div>
     </section>
   );

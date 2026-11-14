@@ -1,9 +1,12 @@
 package com.g123.sfems.module.school.intake;
 
+import com.g123.sfems.module.school.voucher.VoucherLimits;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
-import com.g123.sfems.domain.school.intake.EquipmentIntake.InspectionResult;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
-import com.g123.sfems.module.school.voucher.VoucherRequest;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,47 +17,36 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Body của lập và sửa phiếu nhập (PN-01). Form gửi lại nguyên phiếu mỗi lần lưu, nên tạo và sửa dùng
- * chung một hình.
+ * Payload tạo phiếu nhập. Phiếu mới luôn là NHÁP — không có trường
+ * {@code status}: chuyển trạng thái là một hành động có endpoint riêng, không
+ * phải một giá trị gửi kèm form.
+ *
+ * <p>Số phiếu cũng không có mặt: nó do hệ thống cấp lúc xác nhận.
  */
 public record EquipmentIntakeRequest(
         IdRef school,
         @NotNull(message = "Nhập ngày nhập")
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày nhập")
         LocalDate intakeDate,
-        @Size(max = 100, message = "Số chứng từ tối đa 100 ký tự")
+        // Số hoá đơn khi mua sắm (1–30, chữ không dấu, số, / - .) kiểm ở service — nguồn khác ghi số quyết định, biên bản.
+        @Text(value = FieldRule.SHORT_TEXT, label = "Số chứng từ", max = 100)
         String documentNo,
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày chứng từ")
         LocalDate documentDate,
-        @Size(max = 255, message = "Nhà cung cấp tối đa 255 ký tự")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Nhà cung cấp", max = 200, min = 2)
         String supplier,
         FundingSource fundingSource,
         IdRef originSource,
-        @Size(max = 255, message = "Tối đa 255 ký tự")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Ghi rõ nguồn hình thành", max = 200, min = 5)
         String originNote,
-        IdRef acquisitionMethod,
+        // Năm học của lần ghi tăng; để trống thì lấy năm học chứa ngày nhập.
         IdRef schoolYear,
+        IdRef acquisitionMethod,
         @Min(value = 0, message = "Thời hạn bảo hành không được âm")
         @Max(value = 600, message = "Thời hạn bảo hành tối đa 600 tháng")
         Integer warrantyMonths,
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-        @Size(max = 255, message = "Người giao tối đa 255 ký tự")
-        String deliverer,
-        @Size(max = 255, message = "Đại diện bên giao tối đa 255 ký tự")
-        String delivererRepresentative,
-        @Size(max = 255, message = "Người nhận tối đa 255 ký tự")
-        String receiver,
-        @Size(max = 255, message = "Chức vụ tối đa 255 ký tự")
-        String receiverPosition,
-        @Size(max = 255, message = "Thủ kho tối đa 255 ký tự")
-        String storekeeper,
-        InspectionResult inspectionResult,
-        @Size(max = 100, message = "Số biên bản tối đa 100 ký tự")
-        String handoverNo,
-        @Size(max = 500, message = "Một phiếu tối đa 500 dòng")
-        List<@Valid EquipmentIntakeLineInput> lines,
-        /**
-         * Biên bản giao nhận theo khoá của màn hình (deliveredBy, deliveryRepresentative, receiverName,
-         * receiverPosition, inspectionResult, handoverMinutesNo). Có thì đè lên các trường rời cùng nghĩa.
-         */
-        Map<String, Object> details) implements VoucherRequest {
+        @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid EquipmentIntakeLineInput> lines,
+        Map<String, Object> details) {
 }

@@ -78,7 +78,7 @@
       "forbiddenTitle": "Bạn không có quyền truy cập trang này",
       "forbiddenDescription": "Vai trò của bạn không có quyền xem trang này.",
       "forbiddenDescriptionResource": "Vai trò của bạn không có quyền xem {{resource}}.",
-      "forbiddenAskAdmin": "Hãy liên hệ quản trị viên nếu bạn cần quyền này.",
+      "forbiddenAskAdmin": "Liên hệ quản trị viên nếu cần quyền này.",
       "forbiddenBack": "Về trang tổng hợp"
     }
   },
@@ -103,7 +103,7 @@
       "title": "Chưa có dữ liệu",
       "description": "Bảng này hiện đang trống.",
       "scopedTitle": "Chưa có dữ liệu",
-      "scopedDescription": "Bạn chỉ xem được dữ liệu của đơn vị mình, và đơn vị chưa có gì ở mục này.",
+      "scopedDescription": "Đơn vị chưa có dữ liệu ở mục này.",
       "filteredTitle": "Không có dòng nào khớp bộ lọc",
       "filteredDescription": "Thử bỏ bớt hoặc đổi bộ lọc để xem thêm."
     },
@@ -164,15 +164,15 @@
     }
   },
   "notifications": {
-    "success": "Thành công",
+    "success": "",
     "error": "Lỗi (mã {{statusCode}})",
     "undoable": "Còn {{seconds}} giây để hoàn tác",
-    "createSuccess": "Đã thêm {{resource}}",
-    "createError": "Thêm {{resource}} không thành công (mã {{statusCode}})",
-    "deleteSuccess": "Đã xoá {{resource}}",
-    "deleteError": "Xoá {{resource}} không thành công (mã {{statusCode}})",
-    "editSuccess": "Đã lưu {{resource}}",
-    "editError": "Lưu {{resource}} không thành công (mã {{statusCode}})",
+    "createSuccess": "Đã thêm {{resource, lower}}",
+    "createError": "Thêm {{resource, lower}} không thành công (mã {{statusCode}})",
+    "deleteSuccess": "Đã xoá {{resource, lower}}",
+    "deleteError": "Xoá {{resource, lower}} không thành công (mã {{statusCode}})",
+    "editSuccess": "Đã lưu {{resource, lower}}",
+    "editError": "Lưu {{resource, lower}} không thành công (mã {{statusCode}})",
     "importProgress": "Đã nhập {{processed}}/{{total}}",
     "notifications": "Thông báo",
     "unread": "Thông báo, {{count}} chưa đọc",
@@ -278,7 +278,7 @@
     }
   },
   "organization": {
-    "organization": "Trường học & cơ sở vật chất"
+    "organization": "Trường học"
   },
   "departments_of_education": {
     "departments_of_education": "Cơ quan quản lý",
@@ -362,21 +362,30 @@
     }
   },
   "room_types": {
-    "room_types": "Loại phòng",
+    "room_types": "Loại CSVC",
     "titles": {
-      "list": "Loại phòng",
-      "create": "Thêm loại phòng",
-      "edit": "Sửa loại phòng",
-      "show": "Chi tiết loại phòng"
+      "list": "Loại CSVC",
+      "create": "Thêm loại CSVC",
+      "edit": "Sửa loại CSVC",
+      "show": "Chi tiết loại CSVC"
     }
   },
-  "school_types": {
-    "school_types": "Loại hình trường",
+  "facility_groups": {
+    "facility_groups": "Khối CSVC",
     "titles": {
-      "list": "Loại hình trường",
-      "create": "Thêm loại hình trường",
-      "edit": "Sửa loại hình trường",
-      "show": "Chi tiết loại hình trường"
+      "list": "Khối CSVC",
+      "create": "Thêm khối CSVC",
+      "edit": "Sửa khối CSVC",
+      "show": "Chi tiết khối CSVC"
+    }
+  },
+  "facility_standard_rules": {
+    "facility_standard_rules": "Chuẩn CSVC",
+    "titles": {
+      "list": "Chuẩn CSVC",
+      "create": "Thêm quy tắc chuẩn CSVC",
+      "edit": "Sửa quy tắc chuẩn CSVC",
+      "show": "Chi tiết quy tắc chuẩn CSVC"
     }
   },
   "school_years": {
@@ -422,7 +431,7 @@
     "catalog_academic": "Năm học và môn học"
   },
   "catalog_equip": {
-    "catalog_equip": "Tài sản và thiết bị"
+    "catalog_equip": "Thiết bị"
   },
   "catalog_finance": {
     "catalog_finance": "Tài chính"
@@ -431,9 +440,9 @@
     "catalog_business": "Danh mục nghiệp vụ"
   },
   "code_rules": {
-    "code_rules": "Mã tự động của danh mục chung",
+    "code_rules": "Quy tắc sinh mã của danh mục chung",
     "titles": {
-      "list": "Mã tự động của danh mục chung",
+      "list": "Quy tắc sinh mã của danh mục chung",
       "create": "Thêm quy tắc sinh mã",
       "edit": "Sửa quy tắc sinh mã",
       "show": "Chi tiết quy tắc sinh mã"
@@ -443,9 +452,9 @@
     "catalog_system": "Hệ thống"
   },
   "asset_categories": {
-    "asset_categories": "Loại tài sản",
+    "asset_categories": "Phân loại kế toán",
     "titles": {
-      "list": "Loại tài sản"
+      "list": "Phân loại kế toán"
     }
   },
   "usage_purposes": {
@@ -617,9 +626,9 @@
     }
   },
   "equipment_lookup": {
-    "equipment_lookup": "Tra cứu tài sản",
+    "equipment_lookup": "Tra cứu thiết bị",
     "titles": {
-      "list": "Tra cứu tài sản"
+      "list": "Tra cứu thiết bị"
     }
   },
   "equipment_labels": {
@@ -724,6 +733,18 @@
       "list": "Đối chiếu danh mục thiết bị tối thiểu"
     }
   },
+  "standard_adjustments": {
+    "standard_adjustments": "Đề nghị điều chỉnh chuẩn",
+    "titles": {
+      "list": "Đề nghị điều chỉnh chuẩn"
+    }
+  },
+  "standard_adjustment_rules": {
+    "standard_adjustment_rules": "Cấu hình điều chỉnh chuẩn",
+    "titles": {
+      "list": "Cấu hình điều chỉnh chuẩn tối thiểu"
+    }
+  },
   "equipment_adequacy": {
     "equipment_adequacy": "Định mức & nhu cầu",
     "titles": {
@@ -737,22 +758,22 @@
     }
   },
   "data_imports": {
-    "data_imports": "Đổ dữ liệu đầu vào",
+    "data_imports": "Nhập dữ liệu đầu vào",
     "titles": {
-      "list": "Đổ dữ liệu đầu vào",
-      "show": "Lô nhập dữ liệu"
-    }
-  },
-  "data_transfer": {
-    "data_transfer": "Nhập / xuất dữ liệu",
-    "titles": {
-      "list": "Nhập / xuất dữ liệu"
+      "list": "Nhập dữ liệu đầu vào",
+      "show": "Nhập dữ liệu đầu vào"
     }
   },
   "api_clients": {
     "api_clients": "Khoá API tích hợp",
     "titles": {
       "list": "Khoá API tích hợp"
+    }
+  },
+  "ai_settings": {
+    "ai_settings": "Cấu hình AI",
+    "titles": {
+      "list": "Cấu hình AI"
     }
   },
   "system_status": {
@@ -834,21 +855,21 @@
     "ops_decrease": "Ghi giảm & kết thúc"
   },
   "report_equipment_by_school": {
-    "report_equipment_by_school": "Tổng hợp tài sản",
+    "report_equipment_by_school": "Tổng hợp thiết bị",
     "titles": {
-      "list": "Tổng hợp tài sản"
+      "list": "Tổng hợp thiết bị"
     }
   },
   "report_equipment_by_catalog": {
-    "report_equipment_by_catalog": "Tài sản theo thiết bị",
+    "report_equipment_by_catalog": "Thiết bị theo danh mục",
     "titles": {
-      "list": "Tổng hợp tài sản theo thiết bị"
+      "list": "Tổng hợp thiết bị theo danh mục"
     }
   },
   "report_movements": {
-    "report_movements": "Tăng, giảm tài sản",
+    "report_movements": "Tăng, giảm thiết bị",
     "titles": {
-      "list": "Tăng, giảm tài sản"
+      "list": "Tăng, giảm thiết bị"
     }
   },
   "report_vouchers": {
@@ -870,9 +891,9 @@
     }
   },
   "report_disposals": {
-    "report_disposals": "Tài sản ghi giảm",
+    "report_disposals": "Thiết bị ghi giảm",
     "titles": {
-      "list": "Tài sản ghi giảm"
+      "list": "Thiết bị ghi giảm"
     }
   },
   "report_purchase": {
@@ -923,12 +944,6 @@
       "list": "Danh sách thiết bị theo trạng thái"
     }
   },
-  "report_asset_value": {
-    "report_asset_value": "Nguyên giá, giá trị còn lại",
-    "titles": {
-      "list": "Nguyên giá và giá trị còn lại"
-    }
-  },
   "report_transfers": {
     "report_transfers": "Lịch sử điều chuyển",
     "titles": {
@@ -948,9 +963,21 @@
     }
   },
   "report_equipment_ledger": {
-    "report_equipment_ledger": "Sổ sách thiết bị",
+    "report_equipment_ledger": "Bảng theo dõi thiết bị",
     "titles": {
-      "list": "Sổ sách thiết bị"
+      "list": "Bảng theo dõi thiết bị"
+    }
+  },
+  "report_csvc_statistics": {
+    "report_csvc_statistics": "Biểu số liệu CSVC",
+    "titles": {
+      "list": "Biểu số liệu cơ sở vật chất"
+    }
+  },
+  "report_facility_standard": {
+    "report_facility_standard": "Mức độ chuẩn CSVC",
+    "titles": {
+      "list": "Đánh giá mức độ chuẩn CSVC"
     }
   },
   "report_room_usage": {
@@ -963,6 +990,18 @@
     "report_room_standard": "Chuẩn phòng bộ môn",
     "titles": {
       "list": "Đánh giá chuẩn phòng bộ môn"
+    }
+  },
+  "report_supply_expiry": {
+    "report_supply_expiry": "Hoá chất, vật tư hết hạn",
+    "titles": {
+      "list": "Hoá chất, vật tư hết hạn"
+    }
+  },
+  "report_supply_consumption": {
+    "report_supply_consumption": "Tiêu hao vật tư",
+    "titles": {
+      "list": "Tiêu hao vật tư"
     }
   },
   "report_unused_equipment": {

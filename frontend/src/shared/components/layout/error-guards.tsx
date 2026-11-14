@@ -52,7 +52,7 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   }
 
   componentDidCatch(error: unknown) {
-    console.error("[SFEMS] Màn hình gặp lỗi khi hiển thị:", error);
+    console.error("[QLTB] Màn hình gặp lỗi khi hiển thị:", error);
   }
 
   render() {

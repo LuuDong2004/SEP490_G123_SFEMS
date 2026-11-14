@@ -28,3 +28,7 @@ _.ntvs_
 _.njsproj
 _.sln
 \*.sw?
+
+# Kết quả chạy E2E (npm run e2e)
+e2e-report/
+e2e-results/

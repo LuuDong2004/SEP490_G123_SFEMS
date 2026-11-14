@@ -4,6 +4,7 @@ import com.g123.sfems.domain.security.token.RefreshToken;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.token.repo.RefreshTokenRepository;
 import com.g123.sfems.shared.cache.SharedCache;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
 import com.g123.sfems.shared.security.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -54,12 +55,15 @@ public class RefreshTokenService {
     private final RefreshTokenRepository repository;
     private final JwtProperties properties;
     private final SharedCache shared;
+    private final AdminPortalPolicy adminPortal;
     private final SecureRandom random = new SecureRandom();
 
-    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties, SharedCache shared) {
+    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties, SharedCache shared,
+            AdminPortalPolicy adminPortal) {
         this.repository = repository;
         this.properties = properties;
         this.shared = shared;
+        this.adminPortal = adminPortal;
     }
 
     /**
@@ -75,9 +79,12 @@ public class RefreshTokenService {
         random.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 
-        repository.save(new RefreshToken(user, hash(raw), now.plus(properties.refreshTokenTtl()), session.id(),
+        // Tài khoản SYSTEM: phiên không quá app.portal.admin-session-ttl tính từ lúc đăng nhập (cổng Admin cách ly).
+        Instant expiresAt = adminPortal.refreshExpiry(user.getUserType(), now, session.startedAt(),
+                properties.refreshTokenTtl());
+        repository.save(new RefreshToken(user, hash(raw), expiresAt, session.id(),
                 session.startedAt(), truncate(client.ip(), 64), truncate(client.userAgent(), 300)));
-        opened(session.id(), now.plus(properties.refreshTokenTtl()), now);
+        opened(session.id(), expiresAt, now);
         return raw;
     }
 

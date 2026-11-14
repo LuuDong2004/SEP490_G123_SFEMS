@@ -1,5 +1,6 @@
-# Dịch vụ phụ cho môi trường dev. Chạy: docker compose -f backend/compose.yaml up -d minio
-# PostgreSQL vẫn cài thẳng trên máy như trước; ở đây chỉ có kho tệp đính kèm.
+# Dịch vụ phụ cho môi trường dev. Chạy: docker compose -f backend/compose.yaml up -d minio redis
+# PostgreSQL vẫn cài thẳng trên máy như trước; ở đây có kho tệp đính kèm và bộ nhớ đệm dùng chung.
+# Redis không bắt buộc: chạy app với REDIS_HOST=localhost REDIS_PORT=6380 thì dùng, không thì thôi.
 services:
   minio:
     image: minio/minio:latest
@@ -13,6 +14,13 @@ services:
       - "9101:9001" # bảng điều khiển web
     volumes:
       - minio-data:/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379" # 6379 hay bị Redis của dự án khác chiếm
     restart: unless-stopped
 
 volumes:

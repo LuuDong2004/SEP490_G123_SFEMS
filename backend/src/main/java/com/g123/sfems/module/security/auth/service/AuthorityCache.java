@@ -1,5 +1,6 @@
 package com.g123.sfems.module.security.auth.service;
 
+import com.g123.sfems.shared.data.rls.RowSecurityDataSource;
 import com.g123.sfems.module.security.user.service.UserService;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.rowlevel.RowLevelGeneration;
@@ -228,9 +229,11 @@ public class AuthorityCache {
 
     private Entry load(long userId) {
         // Ba câu chiếu hẹp (mã quyền, vai, chỗ công tác), không nạp cả đồ thị User.
-        return userService.authorityFacts(userId)
+        // Không gắn phạm vi trường cho kết nối của lần nạp này (RowSecurityDataSource.unscoped): dò phạm vi lại cần
+        // chính các quyền đang nạp — không cắt thì luồng tự chờ nó mãi.
+        return RowSecurityDataSource.unscoped(() -> userService.authorityFacts(userId)
                 .map(facts -> Entry.of(facts, policies.generation()))
-                .orElse(null);
+                .orElse(null));
     }
 
     /**
@@ -259,6 +262,8 @@ public class AuthorityCache {
      *                    câu hỏi khác nhau, và chính sách phạm vi dòng của tài
      *                    khoản cấp Sở hoặc UBND đọc cột này
      * @param version     the stamp described on {@link #versionFor(long)}
+     * @param secondFactor đã bật lớp xác thực thứ hai (ứng dụng hoặc email) — {@code AdminPortalGuard} đọc ở mỗi
+     *                    yêu cầu của tài khoản SYSTEM. Bật / tắt phát {@code AuthoritiesChanged} nên có hiệu lực ngay
      * @param loadedAt    when this was read, for the expiry
      */
     public record Entry(
@@ -271,6 +276,7 @@ public class AuthorityCache {
             Long managingBodyId,
             String version,
             Instant passwordChangedAt,
+            boolean secondFactor,
             long loadedAt) {
 
         static Entry of(UserService.AuthorityFacts user, String policyGeneration) {
@@ -311,6 +317,7 @@ public class AuthorityCache {
                     user.managingBodyId(),
                     stamp,
                     user.passwordChangedAt(),
+                    user.secondFactor(),
                     System.nanoTime() + jitter());
         }
 

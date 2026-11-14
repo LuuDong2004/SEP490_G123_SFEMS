@@ -15,6 +15,7 @@ import type { EquipmentIntake } from "@/domains/equipment-intake/types";
 import type { PurchaseProposal } from "@/domains/procurement/types";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 const money = new Intl.NumberFormat("vi-VN");
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase();
@@ -24,20 +25,24 @@ export type SourceKind = "MUA_SAM" | "KIEM_KE_THUA";
 // eslint-disable-next-line react-refresh/only-export-components
 export const isSourceKind = (code: string | undefined | null): code is SourceKind => code === "MUA_SAM" || code === "KIEM_KE_THUA";
 
-const TEXT: Record<SourceKind, { title: string; description: string; empty: string; button: string; code: string; info: string; search: string }> = {
+const TEXT: Record<SourceKind, { title: string; description: string; empty: string; emptyHint?: string; button: string; code: string; info: string; search: string }> = {
   MUA_SAM: {
+    // Người lập chọn KẾ HOẠCH của Sở / UBND (trưởng nhóm 13/11/2026) — đề xuất của trường trong kế hoạch là thứ máy
+    // chủ chép dòng từ đó, chỉ hiện như một cột phụ.
     title: "Chọn kế hoạch mua sắm",
-    description: "Các kế hoạch đã duyệt mà trường còn thiết bị chưa nhập. Chọn kế hoạch rồi chọn thiết bị nhập đợt này.",
-    empty: "Không có kế hoạch mua sắm đã duyệt nào còn thiết bị chưa nhập.",
+    description: "Kế hoạch mua sắm của Sở đã duyệt, còn thiết bị của trường chưa nhập. Chọn kế hoạch rồi chọn thiết bị nhập đợt này.",
+    // Màn trống một dòng ngắn (trưởng nhóm 13/11/2026).
+    empty: "Chưa có kế hoạch mua sắm",
     button: "Chọn kế hoạch mua sắm",
     code: "Đề xuất của trường",
     info: "Kế hoạch mua sắm",
-    search: "Tìm kế hoạch, cơ quan, số đề xuất…",
+    search: "Tìm kế hoạch, cơ quan lập, số đề xuất…",
   },
   KIEM_KE_THUA: {
+    // Cùng khuôn với kế hoạch mua sắm (trưởng nhóm 13/11/2026): chữ ngắn, đóng hộp là trả nguồn hình thành về.
     title: "Chọn biên bản kiểm kê",
-    description: "Biên bản kiểm kê được duyệt mà có tài sản thừa thì hệ thống đã lập sẵn một phiếu ghi tăng nháp. Chọn biên bản để mở phiếu đó.",
-    empty: "Không có phiếu ghi tăng nháp nào lập từ biên bản kiểm kê. Phiếu chỉ được lập khi biên bản có tài sản thừa và đã được duyệt.",
+    description: "Biên bản kiểm kê đã duyệt còn thiết bị thừa chưa ghi tăng.",
+    empty: "Chưa có biên bản kiểm kê",
     button: "Chọn biên bản kiểm kê",
     code: "Số biên bản",
     info: "Ghi chú",
@@ -131,9 +136,7 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
           </TableHeader>
           <TableBody>
             {error || !lines ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground px-4 py-6 text-center whitespace-normal">{error ?? "Đang tải…"}</TableCell>
-              </TableRow>
+              <TableEmpty colSpan={5} loading={!error} title={error} />
             ) : lines.map((l) => {
               const done = l.remaining === 0;
               const qty = picked[l.lineId] ?? 0;
@@ -190,7 +193,7 @@ const SORTS = [
 type Sort = (typeof SORTS)[number]["value"];
 
 /**
- * Hộp chọn PHIẾU NGUỒN khi lập phiếu ghi tăng tay (QLTB-411). Nguồn hình thành "Mua sắm" đi từ một đề xuất
+ * Hộp chọn PHIẾU NGUỒN khi lập phiếu ghi tăng tay (QLTB-411). Nguồn hình thành "Kế hoạch mua sắm" đi từ một đề xuất
  * mua sắm, "Kiểm kê thừa" đi từ một biên bản kiểm kê — chọn nguồn mà không nối phiếu thì phiếu ghi tăng
  * không biết hàng này theo đề xuất nào, và đề xuất không bao giờ thấy mình đã nhập hàng.
  *
@@ -199,12 +202,18 @@ type Sort = (typeof SORTS)[number]["value"];
  * ghi tăng, máy chủ giữ số còn lại), kiểm kê thừa mở
  * phiếu nháp máy chủ đã lập lúc duyệt biên bản. Chọn xong là sang màn SỬA của phiếu nháp đó.
  */
-export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
+export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCancel }: {
   kind: SourceKind;
   schoolId: number | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Đóng hộp mà KHÔNG chọn phiếu nguồn (nút Đóng, dấu ×, Esc) — chọn xong thì không gọi. */
+  onCancel?: () => void;
 }) {
+  const cancel = () => {
+    onCancel?.();
+    onOpenChange(false);
+  };
   const { edit } = useNavigation();
   const { open: notify } = useNotification();
   const [busy, setBusy] = useState<string | null>(null);
@@ -252,7 +261,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
     // không hiện.
     const planOf = new Map((plans.result?.data ?? []).map((pl) => [pl.id, pl]));
     return (proposals.result?.data ?? [])
-      .filter((p) => (p._actions as string[] | undefined)?.includes("intake"))
+      // Chỉ đề xuất ĐÃ VÀO kế hoạch (có kế hoạch) — "Kế hoạch mua sắm" không nhận hàng ngoài kế hoạch.
+      .filter((p) => p._actions?.includes("intake") && p.plan != null)
       .map((p) => ({
         key: `p${p.id}`, code: p.code ?? "—", date: p.proposalDate, info: p.plan?.title ?? "", lines: p.lineCount, amount: p.totalAmount ?? 0,
         body: p.plan ? planOf.get(p.plan.id)?.managingBody?.name : undefined, year: (p.plan ? planOf.get(p.plan.id)?.budgetYear : null) ?? p.budgetYear,
@@ -301,12 +311,13 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
   const withAmount = kind === "MUA_SAM";
   const columns = withAmount ? 6 : 5;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : cancel())}>
       {/* Cùng khuôn với hộp chọn cán bộ: hàng tìm + xếp, bảng trong khung cao cố định, thanh chân. */}
       <DialogContent size="picker">
         <DialogHeader>
           <DialogTitle>{chosen ? `Chọn thiết bị nhập đợt này — ${chosen.info || chosen.code}` : text.title}</DialogTitle>
-          <DialogDescription>
+          {/* Hộp chọn kế hoạch không có dòng phụ (trưởng nhóm 13/11/2026) — tiêu đề và bảng đã đủ; giữ cho trình đọc màn hình. */}
+          <DialogDescription className={cn(!chosen && kind === "MUA_SAM" && "sr-only")}>
             {chosen
               ? "Bỏ chọn hoặc giảm số lượng với thiết bị chưa về. Phần còn lại lập phiếu ghi tăng ở đợt sau."
               : text.description}
@@ -343,7 +354,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
             {withAmount ? (
               <colgroup>
                 <col />
-                <col className="w-56" />
+                <col className="w-44" />
                 <col className="w-20" />
                 <col className="w-40" />
                 <col className="w-32" />
@@ -373,7 +384,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
                     <TableHead className="px-4">{text.code}</TableHead>
                     <TableHead className="px-4">Ngày</TableHead>
                     <TableHead className="px-4">{text.info}</TableHead>
-                    <TableHead className="px-4 text-end">Số dòng</TableHead>
+                    <TableHead className="px-4 text-end">Thiết bị thừa</TableHead>
                   </>
                 )}
                 <TableHead />
@@ -381,11 +392,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
             </TableHeader>
             <TableBody>
               {loading || shown.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={columns} className="text-muted-foreground px-4 py-6 text-center whitespace-normal">
-                    {loading ? "Đang tải…" : q ? "Không có phiếu nào khớp." : text.empty}
-                  </TableCell>
-                </TableRow>
+                <TableEmpty colSpan={columns} loading={loading} filtered={!!q} title={q ? "Không có phiếu nào khớp." : text.empty}
+                  description={q ? undefined : text.emptyHint} />
               ) : (
                 shown.map((r) => (
                   <TableRow key={r.key} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer")} onClick={() => busy == null && void pick(r)}>
@@ -422,10 +430,12 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange }: {
         {/* Số dòng bên trái; nút dồn về tay phải. */}
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">
           <span className="text-muted-foreground me-auto text-sm">
-            <span className="text-foreground font-medium tabular-nums">{shown.length}</span> {withAmount ? "kế hoạch" : "phiếu"}
+            <span className="text-foreground font-medium tabular-nums">{shown.length}</span> {withAmount ? "kế hoạch" : "biên bản"}
           </span>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Không theo phiếu nào
+          {/* "Kế hoạch mua sắm" bắt buộc theo kế hoạch (trưởng nhóm 13/11/2026): không có lối "nhập không theo phiếu" —
+              đóng hộp thì phiếu chưa trình được tới khi chọn đề xuất hoặc đổi nguồn. */}
+          <Button type="button" variant="outline" onClick={cancel}>
+            Đóng
           </Button>
         </div>
         </>)}

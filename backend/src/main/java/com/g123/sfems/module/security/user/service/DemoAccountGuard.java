@@ -20,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>{@code 005-seed-security.sql} và {@code 056-seed-demo-operations.sql} tạo các tài khoản này trên MỌI
  * database, mật khẩu nằm trong repo và tài liệu. Changeset đã chạy thì không sửa được, nên chặn ở đây: mỗi lần
  * khởi động trên {@link DeployStack#production()}, tài khoản nào trong danh sách còn ĐÚNG mật khẩu seed thì
- * thành {@code LOCKED}. Đã đổi mật khẩu thì để yên — đó là tài khoản người ta đã nhận về dùng thật.
+ * thành {@code LOCKED}. Đã đổi mật khẩu thì để yên — đó là tài khoản người ta đã nhận về dùng thật. Chỉ chạy
+ * khi {@code app.security.lock-demo-accounts} bật — compose để tắt khi hệ thống còn thử nghiệm.
  *
  * <p>{@code admin} bị khoá là mất lối vào quản trị duy nhất (mở lại chỉ còn bằng SQL). Việc đúng là đổi mật khẩu
  * {@code admin} trước khi deploy; lỡ chưa đổi thì đặt {@code APP_KEEP_SEEDED_ADMIN=true} một lần cho node khởi
@@ -31,27 +32,34 @@ public class DemoAccountGuard {
 
     private static final Logger log = LoggerFactory.getLogger(DemoAccountGuard.class);
 
-    /** Mật khẩu chung của mọi tài khoản seed (changelog 005 và 012). */
-    private static final String SEED_PASSWORD = "Admin@123";
+    private static final String DEMO = "Demo@123";
 
-    /** Tên đăng nhập → mật khẩu seed. Phải khớp đúng danh sách tài khoản mẫu ở changelog 012. */
+    /** Tên đăng nhập → mật khẩu seed. */
     private static final Map<String, String> SEEDED = Map.ofEntries(
-            Map.entry("admin", SEED_PASSWORD),
-            Map.entry("so.lanhdao", SEED_PASSWORD),
-            Map.entry("so.chuyenvien", SEED_PASSWORD),
-            Map.entry("mk.hieutruong", SEED_PASSWORD),
-            Map.entry("mk.thietbi", SEED_PASSWORD),
-            Map.entry("lqd.hieutruong", SEED_PASSWORD),
-            Map.entry("lqd.thietbi", SEED_PASSWORD),
-            Map.entry("btx.thietbi", SEED_PASSWORD));
+            Map.entry("admin", "Admin@123"),
+            Map.entry("manager", "Manager@123"),
+            Map.entry("viewer", "User@123"),
+            Map.entry("so.lanhdao", DEMO),
+            Map.entry("so.chuyenvien", DEMO),
+            Map.entry("ubnd.lanhdao", DEMO),
+            Map.entry("ubnd.chuyenvien", DEMO),
+            Map.entry("thcs.canbo", DEMO),
+            Map.entry("thcs.hieutruong", DEMO),
+            Map.entry("thcs2.canbo", DEMO),
+            Map.entry("thcs2.hieutruong", DEMO),
+            Map.entry("thpt.canbo", DEMO),
+            Map.entry("thpt.hieutruong", DEMO));
 
     private final DeployStack stack;
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final boolean keepAdmin;
+    private final boolean enabled;
 
     public DemoAccountGuard(DeployStack stack, UserRepository users, PasswordEncoder encoder,
-                            @Value("${app.security.keep-seeded-admin:false}") boolean keepAdmin) {
+                            @Value("${app.security.keep-seeded-admin:false}") boolean keepAdmin,
+                            @Value("${app.security.lock-demo-accounts:true}") boolean enabled) {
+        this.enabled = enabled;
         this.stack = stack;
         this.users = users;
         this.encoder = encoder;
@@ -61,7 +69,8 @@ public class DemoAccountGuard {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void lockSeededAccounts() {
-        if (!stack.production()) {
+        if (!stack.production() || !enabled) {
+            // Tắt (LOCK_DEMO_ACCOUNTS=false) khi bản chính thức còn chạy thử nghiệm: anh em vẫn dùng tài khoản demo.
             return;
         }
         SEEDED.forEach((username, password) -> users.findByUsernameIgnoreCase(username).ifPresent(user -> {

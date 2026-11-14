@@ -1,52 +1,41 @@
 package com.g123.sfems.domain.school.inventory;
 
-import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
 import com.g123.sfems.domain.school.facility.Room;
+import com.g123.sfems.domain.school.voucher.VoucherEquipmentLine;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Một tài sản trên sổ lúc mở phiếu kiểm kê: sổ nói gì ({@code expected*}) và tổ kiểm kê thấy gì
- * ({@code found*}). {@code found == null} là chưa kiểm tới.
+ * Một tài sản trên sổ lúc mở phiếu: sổ nói gì ({@code expected*}) và tổ kiểm kê
+ * thấy gì ({@code found*}).
  */
 @Entity
 @Table(name = "inventory_lines")
-public class InventoryLine {
+public class InventoryLine extends VoucherEquipmentLine {
 
     /** Loại chênh lệch. Một dòng có thể vừa sai vị trí vừa hỏng. */
     public enum Discrepancy {
         MISSING,
         WRONG_ROOM,
-        DAMAGED
+        DAMAGED,
+        /** Hoá chất, vật tư theo lô: đếm được ít hơn số trên sổ (QLTB-574). */
+        SHORTAGE
     }
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     private InventorySession session;
-
-    @Column(name = "line_no", nullable = false)
-    private Integer lineNo;
-
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "equipment_id", nullable = false)
-    private Equipment equipment;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "expected_room_id")
@@ -56,6 +45,7 @@ public class InventoryLine {
     @Column(name = "expected_condition", length = 20)
     private EquipmentCondition expectedCondition;
 
+    /** {@code null}: chưa kiểm tới. */
     @Column
     private Boolean found;
 
@@ -67,8 +57,13 @@ public class InventoryLine {
     @Column(name = "found_condition", length = 20)
     private EquipmentCondition foundCondition;
 
-    @Column(length = 255)
-    private String note;
+    /** Số lượng trên sổ lúc lập phiếu — chỉ có ở tài sản quản lý theo số lượng (hoá chất, vật tư theo lô). */
+    @Column(name = "expected_quantity", precision = 18, scale = 3)
+    private BigDecimal expectedQuantity;
+
+    /** Số đếm được; {@code null} = chưa đếm (coi như đủ khi đã ghi "có"). */
+    @Column(name = "counted_quantity", precision = 18, scale = 3)
+    private BigDecimal countedQuantity;
 
     /** Chênh lệch giữa sổ và thực tế. Rỗng là khớp (hoặc chưa kiểm). */
     public Set<Discrepancy> discrepancies() {
@@ -86,15 +81,14 @@ public class InventoryLine {
         if (foundCondition == EquipmentCondition.HONG && expectedCondition != EquipmentCondition.HONG) {
             result.add(Discrepancy.DAMAGED);
         }
+        if (expectedQuantity != null && countedQuantity != null && countedQuantity.compareTo(expectedQuantity) < 0) {
+            result.add(Discrepancy.SHORTAGE);
+        }
         return result;
     }
 
     private static Long id(Room room) {
         return room == null ? null : room.getId();
-    }
-
-    public Long getId() {
-        return id;
     }
 
     public InventorySession getSession() {
@@ -105,20 +99,20 @@ public class InventoryLine {
         this.session = session;
     }
 
-    public Integer getLineNo() {
-        return lineNo;
+    public BigDecimal getExpectedQuantity() {
+        return expectedQuantity;
     }
 
-    public void setLineNo(Integer lineNo) {
-        this.lineNo = lineNo;
+    public void setExpectedQuantity(BigDecimal expectedQuantity) {
+        this.expectedQuantity = expectedQuantity;
     }
 
-    public Equipment getEquipment() {
-        return equipment;
+    public BigDecimal getCountedQuantity() {
+        return countedQuantity;
     }
 
-    public void setEquipment(Equipment equipment) {
-        this.equipment = equipment;
+    public void setCountedQuantity(BigDecimal countedQuantity) {
+        this.countedQuantity = countedQuantity;
     }
 
     public Room getExpectedRoom() {
@@ -159,13 +153,5 @@ public class InventoryLine {
 
     public void setFoundCondition(EquipmentCondition foundCondition) {
         this.foundCondition = foundCondition;
-    }
-
-    public String getNote() {
-        return note;
-    }
-
-    public void setNote(String note) {
-        this.note = note;
     }
 }

@@ -1,4 +1,4 @@
-import { useList, type CrudFilter } from "@refinedev/core";
+import { useInfiniteList, type CrudFilter } from "@refinedev/core";
 import { ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { LoadMore } from "@/shared/components/data-table/load-more";
+import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -20,12 +23,12 @@ export type CatalogRow = {
   subject?: { name: string } | null;
 };
 
-/** Một trang của hộp chọn — vừa đúng chiều cao bảng, không phải cuộn trong cuộn. */
-const PAGE_SIZE = 8;
+/** Số dòng mỗi lần tải thêm khi cuộn tới đáy. */
+const PAGE_SIZE = 30;
 
 /**
  * Chọn một thiết bị trong Danh mục thiết bị bằng HỘP THOẠI: mã, tên, đơn vị tính, loại, môn. Danh mục hơn
- * 1.700 dòng nên tìm và phân trang ở MÁY CHỦ — ô xổ đổ sẵn "200 dòng đầu" là sót im lặng. `filters` thu hẹp
+ * 1.700 dòng nên tìm và tải dần (cuộn tới đâu tải tới đó) ở MÁY CHỦ — ô xổ đổ sẵn "200 dòng đầu" là sót im lặng. `filters` thu hẹp
  * danh sách (vd. chỉ vật tư tiêu hao). Dùng chung cho mọi ô chọn thiết bị từ danh mục (`RefField` với
  * `resource="equipment_catalogs"`).
  */
@@ -53,7 +56,6 @@ export function EquipmentCatalogPicker({
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [applied, setApplied] = useState("");
-  const [page, setPage] = useState(1);
   // Dòng vừa chọn: giữ lại để ô hiện đúng tên và mã mà không phải đọc lại danh mục.
   const [picked, setPicked] = useState<CatalogRow | null>(null);
 
@@ -61,25 +63,29 @@ export function EquipmentCatalogPicker({
   useEffect(() => {
     const t = setTimeout(() => {
       setApplied(term.trim());
-      setPage(1);
     }, 300);
     return () => clearTimeout(t);
   }, [term]);
 
-  const { result, query } = useList<CatalogRow>({
+  // Cuộn tới đâu tải thêm tới đó, không phân trang "Trước / Sau" (trưởng nhóm 13/11/2026).
+  const { result, query } = useInfiniteList<CatalogRow>({
     resource: "equipment_catalogs",
     filters: [
       ...(filters ?? []),
       { field: "active", operator: "eq", value: true },
       ...(applied ? [{ field: "q", operator: "eq" as const, value: applied }] : []),
     ],
-    pagination: { currentPage: page, pageSize: PAGE_SIZE },
+    pagination: { pageSize: PAGE_SIZE },
     sorters: [{ field: "code", order: "asc" }],
     queryOptions: { enabled: open, placeholderData: (prev: any) => prev },
   });
-  const rows = result?.data ?? [];
-  const total = result?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rows = (result.data?.pages ?? []).flatMap((p) => (p.data ?? []) as CatalogRow[]);
+  const total = result.data?.pages?.[0]?.total ?? 0;
+  const loadMore = useInfiniteScroll({
+    hasMore: result.hasNextPage ?? false,
+    isFetching: query.isFetchingNextPage,
+    onLoadMore: () => void query.fetchNextPage(),
+  });
 
   const selected = value ? (picked?.id === value.id ? picked : { id: value.id, name: value.name ?? `#${value.id}`, code: value.code }) : null;
 
@@ -112,7 +118,6 @@ export function EquipmentCatalogPicker({
         onOpenChange={(o) => {
           if (!o) {
             setTerm("");
-            setPage(1);
           }
           setOpen(o);
         }}
@@ -131,7 +136,7 @@ export function EquipmentCatalogPicker({
               onChange={(e) => setTerm(e.target.value)}
               // Hộp này mở TRONG form của màn: Enter ở ô tìm không được submit form bên ngoài.
               onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-              placeholder="Tìm mã hoặc tên…"
+              placeholder="Tìm theo tên hoặc mã DM thiết bị…"
               className="rounded-full pl-8"
               aria-label={`Tìm ${label}`}
             />
@@ -148,7 +153,7 @@ export function EquipmentCatalogPicker({
               </colgroup>
               <TableHeader sticky>
                 <TableRow>
-                  <TableHead className="px-4">Mã</TableHead>
+                  <TableHead className="px-4">Mã DM thiết bị</TableHead>
                   <TableHead className="px-4">Tên</TableHead>
                   <TableHead className="px-4">Đơn vị tính</TableHead>
                   <TableHead className="px-4">Loại thiết bị</TableHead>
@@ -157,11 +162,7 @@ export function EquipmentCatalogPicker({
               </TableHeader>
               <TableBody>
                 {query.isLoading || rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground py-10 text-center">
-                      {query.isLoading ? "Đang tải…" : applied ? "Không có mục nào khớp." : "Danh mục chưa có mục nào."}
-                    </TableCell>
-                  </TableRow>
+                  <TableEmpty colSpan={5} loading={query.isLoading} title={applied ? "Không có mục nào khớp." : "Danh mục chưa có mục nào."} />
                 ) : (
                   rows.map((r) => {
                     const active = r.id === value?.id;
@@ -178,27 +179,15 @@ export function EquipmentCatalogPicker({
                 )}
               </TableBody>
             </Table>
+            <LoadMore attach={loadMore} hasMore={result.hasNextPage ?? false} loading={query.isFetchingNextPage} />
           </div>
 
-          {/* Số dòng bên trái; phân trang và nút bấm dồn về tay phải. */}
+          {/* Số dòng đã tải / tổng bên trái; nút bấm dồn về tay phải. */}
           <div className="flex flex-wrap items-center gap-3 border-t pt-4">
             <span className="text-muted-foreground me-auto text-sm tabular-nums">
-              {total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} trên ` : ""}
+              {result.hasNextPage ? `${rows.length} / ` : ""}
               <span className="text-foreground font-medium">{total}</span> mục
             </span>
-            {pageCount > 1 ? (
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((n) => n - 1)}>
-                  Trước
-                </Button>
-                <span className="tabular-nums">
-                  Trang {page}/{pageCount}
-                </span>
-                <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((n) => n + 1)}>
-                  Sau
-                </Button>
-              </div>
-            ) : null}
             <div className="flex items-center gap-3">
               {value && !required ? (
                 <Button type="button" variant="ghost" onClick={() => pick(null)}>

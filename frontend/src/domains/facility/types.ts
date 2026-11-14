@@ -24,13 +24,6 @@ export const STRUCTURE_LABELS: Record<string, string> = {
   NHO_MUON_THUE: "Nhờ, mượn, thuê",
 };
 
-/** Xác nhận hiện trạng của lãnh đạo đơn vị (202). */
-export const CONFIRM_STATUS_LABELS: Record<string, string> = {
-  PENDING: "Chờ xác nhận",
-  CONFIRMED: "Chính thức",
-  RETURNED: "Trả lại",
-};
-
 /** Cơ sở: trường chính, phân hiệu, điểm trường (201). */
 export function campusKindLabel(c: { primaryCampus?: boolean | null; branch?: boolean | null } | null | undefined): string {
   if (!c) return "—";

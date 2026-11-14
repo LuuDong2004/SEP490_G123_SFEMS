@@ -4,7 +4,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { HelpHint } from "@/shared/components/form/help-hint";
-import { IconFilter } from "@/shared/components/data-table/icon-filter";
+import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-table/filter-popover";
 import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -43,6 +43,7 @@ import { errorMessage } from "@/shared/lib/api-error";
 import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -245,7 +246,7 @@ export function CatalogPickerDialog({
                   setApplied(term.trim());
                 }
               }}
-              placeholder="Mã hoặc tên thiết bị…"
+              placeholder="Tên hoặc mã DM thiết bị…"
               className="rounded-full pl-8"
               aria-label="Tìm thiết bị"
             />
@@ -253,17 +254,38 @@ export function CatalogPickerDialog({
           {/* Trường đã có cấp học thì KHÔNG có ô chọn cấp: thiết bị của cấp khác không ghi tăng được cho
               trường này (máy chủ cũng không trả về và từ chối khi lưu). Ô chọn chỉ còn với trường chưa
               khai cấp học. */}
-          {schoolLevel ? null : (
-            <IconFilter icon={<GraduationCap />} label="cấp học" allLabel="Mọi cấp học" value={levelId === ALL ? null : levelId}
-              onChange={(v) => setLevelPick(v ?? ALL)}
-              groups={[{ items: (levels?.data ?? []).map((l: any) => ({ key: String(l.id), label: l.name })) }]} />
-          )}
-          <IconFilter icon={<Boxes />} label="loại thiết bị" allLabel="Tất cả loại" value={typeId === ALL ? null : typeId}
-            onChange={(v) => setTypeId(v ?? ALL)}
-            groups={[{ items: (types?.data ?? []).map((t: any) => ({ key: String(t.id), label: t.name })) }]} />
-          <IconFilter icon={<BookOpen />} label="môn học" allLabel="Tất cả môn" value={subjectId === ALL ? null : subjectId}
-            onChange={(v) => setSubjectId(v ?? ALL)}
-            groups={[{ items: (subjects?.data ?? []).map((x: any) => ({ key: String(x.id), label: x.name })) }]} />
+          {/* Một nút "Bộ lọc" gom cấp học, loại, môn (trưởng nhóm 13/11/2026) — ba nút biểu tượng không ai đoán ra. */}
+          {/* Hai cột thay vì ba danh sách chồng nhau (trưởng nhóm 13/11/2026: "dài ngoằng"): trái là cấp học + loại
+              thiết bị, phải là môn học — danh sách dài nhất, cao bằng cột trái và cuộn bên trong. */}
+          <FilterButton modal count={[schoolLevel ? ALL : levelId, typeId, subjectId].filter((v) => v !== ALL).length}
+            contentClassName="w-[38rem]"
+            onClear={() => {
+              if (!schoolLevel) setLevelPick(ALL);
+              setTypeId(ALL);
+              setSubjectId(ALL);
+            }}>
+            <div className="grid grid-cols-2 items-start gap-x-6">
+              <div className="grid gap-4">
+                {schoolLevel ? null : (
+                  <FilterField label="Cấp học" icon={GraduationCap} active={levelId !== ALL}>
+                    <ChoiceList value={levelId === ALL ? null : levelId} onChange={(v) => setLevelPick(v ?? ALL)} columns={1}
+                      options={(levels?.data ?? []).map((l: any) => ({ value: String(l.id), label: l.name }))} />
+                  </FilterField>
+                )}
+                <FilterField label="Loại thiết bị" icon={Boxes} active={typeId !== ALL}>
+                  {/* Loại thiết bị chỉ khoảng mười mục: hiện đủ, không cuộn lưng chừng. */}
+                  <ChoiceList value={typeId === ALL ? null : typeId} onChange={(v) => setTypeId(v ?? ALL)} columns={1}
+                    className="max-h-none"
+                    options={(types?.data ?? []).map((t: any) => ({ value: String(t.id), label: t.name }))} />
+                </FilterField>
+              </div>
+              <FilterField label="Môn học" icon={BookOpen} active={subjectId !== ALL}>
+                <ChoiceList value={subjectId === ALL ? null : subjectId} onChange={(v) => setSubjectId(v ?? ALL)} columns={1}
+                  className={schoolLevel ? "max-h-[19.5rem]" : "max-h-[27rem]"}
+                  options={(subjects?.data ?? []).map((x: any) => ({ value: String(x.id), label: x.name }))} />
+              </FilterField>
+            </div>
+          </FilterButton>
           {mayCreate ? (
             <Button type="button" variant="outline" className="ms-auto" onClick={() => setCreating(true)}>
               <Plus />
@@ -306,7 +328,7 @@ export function CatalogPickerDialog({
                     }
                   />
                 </TableHead>
-                <TableHead>Mã thiết bị</TableHead>
+                <TableHead>Mã DM thiết bị</TableHead>
                 <TableHead>Thiết bị</TableHead>
                 {/* Không có cột Loại thiết bị và Môn học: hai ô lọc ngay trên bảng đã là hai cột đó,
                     và chúng đẩy cột Thiết bị — thứ người ta thực sự đọc để chọn — bị cắt mất chữ. */}
@@ -315,18 +337,8 @@ export function CatalogPickerDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {query.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
-                    Đang tải…
-                  </TableCell>
-                </TableRow>
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
-                    Không có thiết bị nào phù hợp.
-                  </TableCell>
-                </TableRow>
+              {rows.length === 0 ? (
+                <TableEmpty colSpan={5} loading={query.isLoading} title={<>Không có thiết bị nào phù hợp.</>} />
               ) : (
                 rows.map((row) => {
                   const already = exclude.has(row.id);
@@ -348,7 +360,7 @@ export function CatalogPickerDialog({
                         {row.name}
                         {row.ownerSchool ? (
                           <Badge variant="warning" className="ms-2" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
-                            Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin as keyof typeof CATALOG_ORIGIN_LABELS] ?? row.origin}` : ""}
+                            Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin] ?? row.origin}` : ""}
                           </Badge>
                         ) : null}
                         {already ? (
@@ -358,7 +370,7 @@ export function CatalogPickerDialog({
                       <TableCell>{row.unit?.name ?? "—"}</TableCell>
                       <TableCell>
                         {row.trackingType ? (
-                          <Badge variant={row.trackingType === "BULK" ? "info" : "neutral"}>
+                          <Badge variant={row.trackingType === "bulk" ? "info" : "neutral"}>
                             {TRACKING_LABELS[row.trackingType] ?? row.trackingType}
                           </Badge>
                         ) : (
@@ -415,7 +427,7 @@ export function CatalogPickerDialog({
                   reset();
                 }}
               >
-                Thêm {selected.size > 0 ? selected.size : ""} dòng
+                Thêm {selected.size > 0 ? selected.size : ""} thiết bị
               </Button>
             )}
           </div>
@@ -480,7 +492,7 @@ function NewCatalogDialog({
   const [name, setName] = useState("");
   const [unitId, setUnitId] = useState<string>("");
   const [typeId, setTypeId] = useState<string>(ALL);
-  const [tracking, setTracking] = useState("SERIAL");
+  const [tracking, setTracking] = useState("serial");
   const [category, setCategory] = useState<string>(ALL);
   const [error, setError] = useState<string | null>(null);
 
@@ -492,12 +504,12 @@ function NewCatalogDialog({
     queryOptions: { enabled: open },
   });
 
-  const codeError = textError("CODE", "Mã", code);
+  const codeError = textError("CODE", "Mã DM thiết bị", code);
   const nameError = textError("NAME", "Tên", name);
 
   const reset = () => {
     setCode(""); setName(""); setUnitId(""); setTypeId(ALL);
-    setTracking("SERIAL"); setCategory(ALL); setError(null);
+    setTracking("serial"); setCategory(ALL); setError(null);
   };
 
   async function submit() {
@@ -540,7 +552,7 @@ function NewCatalogDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent size="form">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Thêm thiết bị vào danh mục</DialogTitle>
           <DialogDescription>
@@ -550,7 +562,7 @@ function NewCatalogDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Mã <span className="text-destructive">*</span></Label>
+            <Label>Mã DM thiết bị <span className="text-destructive">*</span></Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="VD: TB-MAYCHIEU" maxLength={maxLengthOf("CODE")} />
             {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
           </div>
@@ -594,9 +606,9 @@ function NewCatalogDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Loại tài sản</Label>
+            <Label>Phân loại kế toán</Label>
             <Select value={category === ALL ? "" : category} onValueChange={setCategory}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn loại tài sản" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn phân loại kế toán" /></SelectTrigger>
               <SelectContent className="max-h-64">
                 {category === ALL ? null : <SelectItem value={ALL} className="text-muted-foreground">Bỏ chọn</SelectItem>}
                 {Object.entries(ASSET_CATEGORY_LABELS).map(([v, l]) => (

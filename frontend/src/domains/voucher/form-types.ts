@@ -22,6 +22,8 @@ export type DetailField = {
   label: string;
   kind: DetailFieldKind;
   max?: number;
+  /** Độ dài tối thiểu khi có khai (vd. họ tên 2–100) — cùng `min` của cấu hình ở máy chủ. */
+  min?: number;
   /** Kiểu chuẩn của ô chữ (`FieldRule` ở máy chủ) — vắng: một dòng SHORT_TEXT, nhiều dòng LONG_TEXT. */
   rule?: string;
   /** `"past"`: ngày của việc đã xảy ra, không sau hôm nay. */

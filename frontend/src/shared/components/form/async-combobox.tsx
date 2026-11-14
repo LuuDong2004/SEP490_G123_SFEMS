@@ -1,6 +1,6 @@
 import type { CrudFilter } from "@refinedev/core";
 import { useCan, useInfiniteList, useOne } from "@refinedev/core";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/shared/ui/button";
@@ -200,7 +200,7 @@ export function AsyncCombobox<T extends { id: number }>({
             )}
           >
             <span className="min-w-0 truncate">{label ?? placeholder}</span>
-            <ChevronsUpDown className="text-muted-foreground size-4 shrink-0 opacity-50" />
+            <ChevronDown className="text-muted-foreground size-4 shrink-0 opacity-50" />
           </button>
       </PopoverTrigger>
       )}

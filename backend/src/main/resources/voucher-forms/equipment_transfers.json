@@ -1,0 +1,86 @@
+{
+ "resource": "equipment_transfers",
+ "sections": [
+  {
+   "title": "Bàn giao và vận chuyển",
+   "fields": [
+    {
+     "key": "handoverMinutesNo",
+     "label": "Số biên bản bàn giao",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "carrierName",
+     "label": "Đơn vị vận chuyển",
+     "kind": "text",
+     "rule": "NAME",
+     "max": 255
+    },
+    {
+     "key": "carrierContact",
+     "label": "Người phụ trách vận chuyển",
+     "kind": "text",
+     "rule": "PERSON_NAME",
+     "max": 100
+    },
+    {
+     "key": "carrierPhone",
+     "label": "Số điện thoại vận chuyển",
+     "kind": "text",
+     "rule": "PHONE"
+    },
+    {
+     "key": "vehiclePlate",
+     "label": "Biển số xe",
+     "kind": "text",
+     "max": 20
+    },
+    {
+     "key": "transportCost",
+     "label": "Chi phí vận chuyển",
+     "kind": "money"
+    },
+    {
+     "key": "transportCostFunding",
+     "label": "Nguồn chi phí vận chuyển",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "accumulatedDepreciation",
+  "approvalAuthority",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatus",
+  "fiscalYear",
+  "fromManager",
+  "fromRoom",
+  "handoverDate",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "receiptDate",
+  "remainingValue",
+  "requestedBy",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "toManager",
+  "totalValue",
+  "transferType",
+  "unit",
+  "valueHandlingNote"
+ ],
+ "enums": {}
+}

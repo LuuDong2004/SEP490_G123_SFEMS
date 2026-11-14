@@ -8,6 +8,7 @@ import {
   FilePen,
   History,
   PackageCheck,
+  QrCode,
   XCircle,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
@@ -23,7 +24,8 @@ import { RelatedVouchers } from "@/shared/components/voucher/related-vouchers";
 import { VoucherActions, type TuckedAction } from "@/shared/components/voucher/voucher-actions";
 import { VoucherMoreMenu } from "@/shared/components/voucher/voucher-more-menu";
 import { VoucherViewSwitch } from "@/shared/components/voucher/voucher-view-switch";
-import { lineDetailsText, VoucherDetailsView } from "@/shared/components/voucher/voucher-details";
+import { detailFacts, lineDetailsText } from "@/shared/components/voucher/voucher-details";
+import type { Details } from "@/domains/voucher/form-types";
 import { CompletionList, SideFact, SideSection, VoucherTwoColumn } from "@/shared/components/voucher/voucher-layout";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { VoucherTimelineDialog, useVoucherEventCount } from "@/shared/components/voucher/voucher-timeline";
@@ -39,14 +41,14 @@ import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
 import { FUNDING_LABELS } from "@/domains/equipment/types";
 import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
 import type { EquipmentIntake, IntakeLine } from "@/domains/equipment-intake/types";
-import type { Details, VoucherFormConfig } from "@/domains/voucher/form-types";
+import type { VoucherFormConfig } from "@/domains/voucher/form-types";
 import type { VoucherStatus } from "@/domains/voucher/types";
 import { LINES_GRID, LineStatus } from "./lines-editor";
 import { AssetCodeList, AssetCodesCell } from "./asset-codes";
-import { useIntakeAssets } from "./use-intake-assets";
+import { useIntakeAssets, type IntakeAsset } from "./use-intake-assets";
 
 /**
- * Bảng dòng của phiếu ĐÃ ghi tăng: thêm cột "Mã tài sản" đứng đầu — người đối chiếu (dán tem, so hoá đơn)
+ * Bảng dòng của phiếu ĐÃ ghi tăng: thêm cột "Mã thiết bị" đứng đầu — người đối chiếu (dán tem, so hoá đơn)
  * cần thấy mã ngay trên phiếu, không phải bấm sang danh sách thiết bị (góp ý của tester). Chỉ màn xem có
  * cột này; form lập phiếu vẫn theo LINES_GRID, vì lúc đó chưa có mã nào.
  */
@@ -55,6 +57,7 @@ const COMPLETED_GRID =
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { IntakeSourceLink } from "./origin-field";
 import { intakeReadiness, lineIssues } from "./readiness";
+import { headFieldsOf } from "./head-fields";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -65,32 +68,32 @@ const STAGE: Record<VoucherStatus, { icon: ReactNode; tone: string; text: string
   DRAFT: {
     icon: <FilePen />,
     tone: "bg-neutral-subtle text-neutral-text",
-    text: "Chưa ghi tăng. Trình để lãnh đạo trường duyệt.",
+    text: "Nháp, chưa trình",
   },
   PENDING: {
     icon: <Clock />,
     tone: "bg-warning-subtle text-warning-text",
-    text: "Đã trình, chờ duyệt. Duyệt xong thì tài sản mới được ghi tăng.",
+    text: "Đang chờ duyệt",
   },
   APPROVED: {
     icon: <CheckCircle2 />,
     tone: "bg-info-subtle text-info-text",
-    text: "Đã duyệt.",
+    text: "Đã duyệt",
   },
   COMPLETED: {
     icon: <PackageCheck />,
     tone: "bg-success-subtle text-success-text",
-    text: "Đã ghi tăng. Phiếu không sửa được nữa.",
+    text: "Đã ghi tăng",
   },
   REJECTED: {
     icon: <XCircle />,
     tone: "bg-destructive-subtle text-destructive-text",
-    text: "Bị từ chối, không ghi tăng.",
+    text: "Bị từ chối",
   },
   CANCELLED: {
     icon: <Ban />,
     tone: "bg-neutral-subtle text-neutral-text",
-    text: "Đã huỷ, không ghi tăng.",
+    text: "Đã huỷ",
   },
 };
 
@@ -111,14 +114,17 @@ function IntakeMoreMenu({ record, onTimeline, onAction, onPrint }: {
   const navigate = useNavigate();
   const generated = record?.status === "COMPLETED" ? record.generatedCount ?? 0 : 0;
   return (
-    <VoucherMoreMenu resource="equipment_intakes" record={record} onTimeline={onTimeline} onAction={onAction}
-      timelineButton printLabel="In phiếu" onPrint={onPrint}>
+    <VoucherMoreMenu resource="equipment_intakes" record={record} onTimeline={onTimeline} onAction={onAction} onPrint={onPrint}>
       {generated > 0 && record ? (
         <>
           <DropdownMenuItem onSelect={() => navigate(assetsLink(record))}>
             <CheckCircle2 />
-            Xem tài sản đã ghi tăng
+            Xem thiết bị đã ghi tăng
             <span className="text-muted-foreground ms-auto text-xs tabular-nums">{generated}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate(`/equipment-labels?intake=${record.id}`)}>
+            <QrCode />
+            In tem QR
           </DropdownMenuItem>
         </>
       ) : null}
@@ -147,26 +153,35 @@ function Fact({ label, children, wide }: { label: string; children: ReactNode; w
   );
 }
 
-/** Hộp chi tiết một dòng (chỉ xem) — cùng các mục với hộp sửa dòng của form. */
-function LineShowDialog({ line, head, config, issues, canWrite, onClose }: {
+/**
+ * Hộp chi tiết một thiết bị trên phiếu (chỉ xem). Tiêu đề là TÊN thiết bị — không gọi "dòng" (trưởng nhóm
+ * 14/11/2026); nhóm nào trống thì ẩn hẳn (áo choàng không có nhóm model). Phiếu đã ghi tăng: liệt kê đủ từng thiết bị.
+ */
+function LineShowDialog({ line, head, config, issues, canWrite, assets, onClose }: {
   line: IntakeLine;
   head: EquipmentIntake | undefined;
   config: VoucherFormConfig | undefined;
   issues: string[];
   canWrite: boolean;
+  assets?: IntakeAsset[];
   onClose: () => void;
 }) {
   const doc = effective(line, head);
   const mismatch = line.receivedQuantity !== line.documentQuantity;
   const extra = lineDetailsText(config, (line as any).details);
+  const unit = line.packUnit?.name ?? line.unit?.name ?? "";
+  const title = line.catalog?.name ?? line.name;
+  const ownDocument = line.supplier != null || line.documentNo != null || line.documentDate != null;
+  const hasTech = !!(line.model || line.manufacturer || line.otherInfo);
+  const serials = line.serialNumbers?.some((x) => x) ? line.serialNumbers : null;
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent size="form" className="overflow-y-auto">
+      <DialogContent size="wide" className="overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Dòng {line.lineNo} — {line.catalog?.name ?? line.name}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {line.catalog?.code ? <span className="font-mono">{line.catalog.code}</span> : null}
-            {line.trackingType ? ` · ${TRACKING_LABELS[line.trackingType]}` : ""}
+            {[line.catalog?.code, line.trackingType ? TRACKING_LABELS[line.trackingType] : null,
+              `${line.receivedQuantity} ${unit}`.trim(), `nhận vào ${line.room?.name ?? "Kho"}`].filter(Boolean).join(" · ")}
           </DialogDescription>
         </DialogHeader>
         {issues.length ? (
@@ -175,65 +190,90 @@ function LineShowDialog({ line, head, config, issues, canWrite, onClose }: {
           </div>
         ) : null}
         <section className="space-y-3">
-          <h4 className="text-overline text-muted-foreground">Số lượng, giá và vị trí</h4>
+          <h4 className="text-overline text-muted-foreground">Số lượng và giá</h4>
           <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Fact label="Tên trên chứng từ" wide>{line.name}</Fact>
-            <Fact label="SL hoá đơn">{line.documentQuantity}</Fact>
-            <Fact label="SL thực nhận">
+            <Fact label="Số lượng">
               <span className={mismatch ? "text-warning-text" : undefined}>{line.receivedQuantity}</span>
-              {(line.packUnit?.name ?? line.unit?.name) ? <span className="text-muted-foreground font-normal"> {line.packUnit?.name ?? line.unit?.name}</span> : null}
+              {unit ? <span className="text-muted-foreground font-normal"> {unit}</span> : null}
+              {mismatch ? <span className="text-muted-foreground font-normal"> · hoá đơn ghi {line.documentQuantity}</span> : null}
             </Fact>
             {line.packUnit && line.packSize != null ? (
               <>
                 <Fact label="Quy cách">{`1 ${line.packUnit.name} = ${Number(line.packSize).toLocaleString("vi-VN")} ${line.unit?.name ?? ""}`}</Fact>
-                <Fact label="Vào sổ">{`${Number(line.stockQuantity ?? 0).toLocaleString("vi-VN")} ${line.unit?.name ?? ""}`}</Fact>
+                <Fact label="Vào hệ thống">{`${Number(line.stockQuantity ?? 0).toLocaleString("vi-VN")} ${line.unit?.name ?? ""}`}</Fact>
               </>
             ) : null}
             <Fact label="Đơn giá">{line.unitPrice != null ? `${money.format(line.unitPrice)} đ` : null}</Fact>
             <Fact label="Thành tiền">{line.amount != null ? `${money.format(line.amount)} đ` : null}</Fact>
-            <Fact label="Vị trí nhận">{line.room?.name ?? "Kho"}</Fact>
-            {head?.status === "COMPLETED" ? <Fact label="Đã ghi tăng">{line.generatedCount} hồ sơ</Fact> : null}
-            {line.varianceReason ? <Fact label="Lý do lệch" wide>{line.varianceReason}</Fact> : null}
-            <Fact label="Model">{line.model}</Fact>
-            <Fact label="Hãng sản xuất">{line.manufacturer}</Fact>
+            {doc.warrantyMonths != null ? <Fact label="Bảo hành">{`${doc.warrantyMonths} tháng`}</Fact> : null}
             {line.expiryDate ? <Fact label="Hạn sử dụng">{formatPlainDate(line.expiryDate)}</Fact> : null}
+            {line.name && line.name !== title ? <Fact label="Tên trên chứng từ" wide>{line.name}</Fact> : null}
+            {line.varianceReason ? <Fact label="Lý do nhận khác hoá đơn" wide>{line.varianceReason}</Fact> : null}
           </dl>
         </section>
+        {hasTech ? (
+          <section className="space-y-3">
+            <h4 className="text-overline text-muted-foreground">Model, hãng, thông tin khác</h4>
+            <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+              {line.model ? <Fact label="Model">{line.model}</Fact> : null}
+              {line.manufacturer ? <Fact label="Hãng sản xuất">{line.manufacturer}</Fact> : null}
+              {line.otherInfo ? <Fact label="Thông tin khác" wide>{line.otherInfo}</Fact> : null}
+            </dl>
+          </section>
+        ) : null}
         <section className="space-y-3">
-          <h4 className="text-overline text-muted-foreground">Chứng từ và nguồn</h4>
+          <h4 className="text-overline text-muted-foreground">Hoá đơn và nguồn kinh phí</h4>
           <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Fact label="Nhà cung cấp" wide>{doc.supplier}</Fact>
-            <Fact label="Số hoá đơn / hợp đồng">{doc.documentNo}</Fact>
-            <Fact label="Ngày hoá đơn">{doc.documentDate ? formatPlainDate(doc.documentDate) : null}</Fact>
-            <Fact label="Nguồn kinh phí">
-              {doc.fundingSource ? `${FUNDING_LABELS[doc.fundingSource] ?? doc.fundingSource}${line.fundingNote ? `: ${line.fundingNote}` : ""}` : null}
-            </Fact>
-            <Fact label="Bảo hành">{doc.warrantyMonths != null ? `${doc.warrantyMonths} tháng` : null}</Fact>
+            {ownDocument ? (
+              <>
+                <Fact label="Nhà cung cấp" wide>{doc.supplier}</Fact>
+                <Fact label="Số hoá đơn / hợp đồng">{doc.documentNo}</Fact>
+                <Fact label="Ngày hoá đơn">{doc.documentDate ? formatPlainDate(doc.documentDate) : null}</Fact>
+              </>
+            ) : (
+              <Fact label="Hoá đơn" wide>
+                Theo hoá đơn của phiếu
+                {doc.documentNo ? <span className="text-muted-foreground font-normal"> · {doc.documentNo}</span> : null}
+              </Fact>
+            )}
+            {doc.fundingSource ? (
+              <Fact label="Nguồn kinh phí">{`${FUNDING_LABELS[doc.fundingSource] ?? doc.fundingSource}${line.fundingNote ? `: ${line.fundingNote}` : ""}`}</Fact>
+            ) : null}
             {doc.acquisitionMethod ? <Fact label="Hình thức mua sắm">{`${doc.acquisitionMethod.name}${line.acquisitionNote ? `: ${line.acquisitionNote}` : ""}`}</Fact> : null}
           </dl>
         </section>
         {extra ? (
           <section className="space-y-2">
-            <h4 className="text-overline text-muted-foreground">Thông tin bổ sung của dòng</h4>
+            <h4 className="text-overline text-muted-foreground">Thông tin bổ sung</h4>
             <p className="text-sm">{extra}</p>
+          </section>
+        ) : null}
+        {assets?.length ? (
+          <section className="space-y-1">
+            <h4 className="text-overline text-muted-foreground">{assets.length} thiết bị đã ghi tăng</h4>
+            <AssetCodeList assets={assets} />
+          </section>
+        ) : serials ? (
+          <section className="space-y-2">
+            <h4 className="text-overline text-muted-foreground">Số serial</h4>
+            {/* Serial lưu theo vị trí (máy 2 để trống thì máy 3 vẫn đúng số): ghi kèm số thứ tự máy, bỏ ô trống. */}
+            <p className="text-sm">{serials.map((x, i) => (x ? `Máy ${i + 1}: ${x}` : null)).filter(Boolean).join(" · ")}</p>
           </section>
         ) : null}
         {line.id != null ? (
           <AttachmentsPanel
             resource="equipment_intake_lines"
-            title="Hoá đơn của dòng"
+            title="Tệp hoá đơn"
             recordId={line.id}
             canWrite={canWrite}
             compact
-            description="Hoá đơn, hợp đồng của dòng hàng này. Xem lại được ở từng tài sản sau khi nhập."
+            description="Hoá đơn, hợp đồng riêng của thiết bị này. Xem lại được ở từng hồ sơ thiết bị sau khi ghi tăng."
           />
         ) : null}
       </DialogContent>
     </Dialog>
   );
 }
-
-const INSPECTION_LABELS: Record<string, string> = { PASSED: "Đạt", PARTIAL: "Đạt một phần", FAILED: "Không đạt" };
 
 /**
  * Phiếu ghi tăng trình bày như VĂN BẢN — tờ phiếu để ký, đóng dấu, lưu hồ sơ: quốc hiệu, tên trường, số
@@ -268,14 +308,14 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
   const keeper = storedKeeper ?? storeRoom?.managingStaff?.name;
   const qty = (l: IntakeLine) => (hasVariance ? [l.documentQuantity, l.receivedQuantity] : [l.receivedQuantity]);
   // Trường chứng từ đã điền mà tờ phiếu chưa có chỗ riêng (cấu hình thêm trường mới) vẫn hiện ra.
-  const known = new Set(["deliveredBy", "deliveryRepresentative", "receiverName", "receiverPosition", "warehouseKeeper", "inspectionResult", "handoverMinutesNo"]);
+  const known = new Set(["deliveredBy", "delivererPhone", "deliveryRepresentative", "receiverName", "receiverPosition", "warehouseKeeper", "inspectionResult", "handoverMinutesNo"]);
   const extra = (config?.sections ?? []).flatMap((sec) => sec.fields)
     .filter((f) => !known.has(f.key) && d[f.key] != null && d[f.key] !== "")
     .map((f) => ({ label: f.label, value: named(d[f.key]) }));
   return (
     <DocumentSheet
       unit={record.school?.name}
-      title="Phiếu ghi tăng tài sản"
+      title="Phiếu ghi tăng thiết bị"
       number={record.code}
       date={record.intakeDate}
       facts={[
@@ -283,9 +323,8 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
         { label: "Nguồn kinh phí", value: fundings.map((f) => FUNDING_LABELS[f] ?? f).join(", ") || null },
         { label: "Nhà cung cấp", value: suppliers.join("; ") || null, wide: suppliers.join("; ").length > 40 },
         { label: "Hoá đơn, hợp đồng số", value: invoices.join(", ") || null },
-        { label: "Người giao", value: [d.deliveredBy, d.deliveryRepresentative ? `đại diện ${d.deliveryRepresentative}` : null].filter(Boolean).join(", ") || null },
+        { label: "Người giao", value: [d.deliveredBy, d.deliveryRepresentative ? `đại diện ${d.deliveryRepresentative}` : null, d.delivererPhone ? `ĐT ${d.delivererPhone}` : null].filter(Boolean).join(", ") || null },
         { label: "Người nhận", value: [d.receiverName, d.receiverPosition].filter(Boolean).join(", ") || null },
-        { label: "Kết quả kiểm tra", value: d.inspectionResult ? (INSPECTION_LABELS[d.inspectionResult] ?? d.inspectionResult) : null },
         { label: "Biên bản bàn giao số", value: d.handoverMinutesNo },
         ...extra,
         { label: "Ghi chú", value: record.note, wide: true },
@@ -293,7 +332,7 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
       // Người lập phiếu là TÀI KHOẢN đã lập — tên tài khoản demo dài ("Cán bộ thiết bị THCS Bình An (demo)")
       // vẫn nằm gọn trong cột chữ ký vì họ tên được xuống dòng.
       table={{
-        headers: ["STT", "Tên thiết bị", "Mã", "ĐVT", ...(hasVariance ? ["SL chứng từ", "SL thực nhận"] : ["Số lượng"]), "Đơn giá", "Thành tiền"],
+        headers: ["STT", "Tên thiết bị", "Mã DM thiết bị", "ĐVT", ...(hasVariance ? ["SL chứng từ", "SL thực nhận"] : ["Số lượng"]), "Đơn giá", "Thành tiền"],
         rows: lines.map((l, i) => [
           i + 1,
           l.name || l.catalog?.name,
@@ -367,10 +406,11 @@ export const EquipmentIntakeShow = () => {
   const eventCount = useVoucherEventCount("equipment_intakes", record?.id);
   const catalogOf = (l: any) => ({ trackingType: l?.trackingType, unit: l?.unit, assetCategory: l?.assetCategory });
   const rule = useOriginRules().ruleOf(record?.originSource?.id);
-  const readiness = intakeReadiness((record ?? {}) as Parameters<typeof intakeReadiness>[0], catalogOf, config, rule);
+  const head = headFieldsOf(rule?.code ?? record?.originSource?.code);
+  const readiness = intakeReadiness(record ?? {}, catalogOf, config, rule);
   const missing = readiness.filter((i) => !i.ok);
   const lines = record?.lines ?? [];
-  const assets = useIntakeAssets(record?.id, completed, record?.lines);
+  const assets = useIntakeAssets(record?.id, completed);
   const showCodes = completed && assets.canRead;
   const grid = showCodes ? COMPLETED_GRID : LINES_GRID;
   const issuesOf = (l: IntakeLine) => (draft ? lineIssues(l, catalogOf(l), config, record?.fundingSource, rule) : []);
@@ -414,11 +454,11 @@ export const EquipmentIntakeShow = () => {
       <Card className="gap-0 overflow-hidden py-0">
         <div className="px-4 pt-4 pb-3">
           <h3 className="flex items-center gap-2 text-base font-semibold">
-            Hàng nhận
+            Danh sách thiết bị ghi tăng
             <HelpHint>
               {completed
                 ? "Bấm vào dòng để xem chứng từ, hoá đơn."
-                : "Bấm vào dòng để xem chứng từ, hoá đơn. Tài sản được ghi tăng khi lãnh đạo trường duyệt phiếu."}
+                : "Bấm vào dòng để xem chứng từ, hoá đơn. Thiết bị được ghi tăng khi lãnh đạo trường duyệt phiếu."}
             </HelpHint>
           </h3>
         </div>
@@ -426,7 +466,7 @@ export const EquipmentIntakeShow = () => {
           <div className={showCodes ? "min-w-[58rem]" : "min-w-[44rem]"}>
             <div className={cn(grid, "bg-surface-subtle text-overline text-muted-foreground border-b px-3 py-2")}>
               <span className="text-center">#</span>
-              {showCodes ? <span>Mã tài sản</span> : null}
+              {showCodes ? <span>Mã thiết bị</span> : null}
               <span>Thiết bị</span>
               <span className="text-right">Đơn giá</span>
               <span className="text-right">SL</span>
@@ -463,13 +503,16 @@ export const EquipmentIntakeShow = () => {
                   ) : null}
                   {/* Một dòng chữ: tên thiết bị. Mã, cách quản lý, nhà cung cấp nằm ở chú thích khi rê chuột và
                       trong hộp chi tiết của dòng — như bảng dòng của form. */}
-                  <div
-                    className="truncate font-medium"
+                  <div className="min-w-0"
                     title={[line.name || line.catalog?.name, line.catalog?.code, line.trackingType ? TRACKING_LABELS[line.trackingType] : null, supplier].filter(Boolean).join(" · ")}
                   >
-                    {line.name || line.catalog?.name}
+                    <div className="truncate font-medium">{line.name || line.catalog?.name}</div>
+                    {/* Mã DM · ĐVT · phòng nhận vào — như bảng dòng của form, khỏi phải rê chuột mới biết. */}
+                    <div className="text-muted-foreground truncate text-xs">
+                      {[line.catalog?.code, line.packUnit?.name ?? line.unit?.name, line.room?.name ? `nhận vào ${line.room.name}` : null].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
-                  <span className="text-right tabular-nums">{line.unitPrice != null ? money.format(line.unitPrice) : "—"}</span>
+                  <span className="text-right tabular-nums">{money.format(line.unitPrice ?? 0)}</span>
                   <div className="text-right tabular-nums">
                     <span className={cn("font-medium", mismatch && "text-warning-text")}>{line.receivedQuantity}</span>
                     {mismatch ? <div className="text-warning-text text-[0.6875rem]">HĐ {line.documentQuantity}</div> : null}
@@ -477,7 +520,7 @@ export const EquipmentIntakeShow = () => {
                       <div className="text-warning-text text-[0.6875rem]">ghi tăng {line.generatedCount}</div>
                     ) : null}
                   </div>
-                  <span className="text-right font-medium tabular-nums">{line.amount != null ? money.format(line.amount) : "—"}</span>
+                  <span className="text-right font-medium tabular-nums">{money.format(line.amount ?? 0)}</span>
                   {draft ? (
                     <LineStatus issues={issuesOf(line)} />
                   ) : (
@@ -489,17 +532,27 @@ export const EquipmentIntakeShow = () => {
                 </div>
               );
             })}
+            {/* Tổng tiền ở chân bảng, ngay dưới cột Thành tiền (trưởng nhóm 13/11/2026) — cột phải là số thiết bị. */}
+            {lines.length ? (
+              <div className={cn(grid, "bg-surface-subtle border-t px-3 py-2.5 text-sm")}>
+                <span />
+                {showCodes ? <span /> : null}
+                <span className="text-muted-foreground tabular-nums">{record?.lineCount ?? lines.length} loại thiết bị</span>
+                <span className="text-muted-foreground text-right font-medium">Tổng cộng</span>
+                <span className="text-right font-semibold tabular-nums">{record?.totalReceived ?? 0}</span>
+                <span className="text-right text-base font-semibold tabular-nums">
+                  {`${money.format(Number(record?.totalAmount ?? 0))} đ`}
+                </span>
+                <span />
+              </div>
+            ) : null}
           </div>
         </div>
       </Card>
 
-      <VoucherDetailsView config={config} details={(record?.details ?? undefined) as Details | undefined} draft={draft} title="Biên bản giao nhận" />
+      <HandoverCard config={config} details={record?.details} draft={draft} />
 
-      <RelatedVouchers
-        links={record?.source?.id != null
-          ? [{ direction: "source", resource: record.source.resource, id: record.source.id, code: record.source.code, status: null, name: null }]
-          : []}
-      />
+      <RelatedVouchers resource="equipment_intakes" id={record?.id} />
 
       <AttachmentsPanel
         resource="equipment_intakes"
@@ -516,6 +569,7 @@ export const EquipmentIntakeShow = () => {
           config={config}
           issues={issuesOf(lines[opened])}
           canWrite={canWrite}
+          assets={showCodes && lines[opened].id != null ? assets.byLine.get(lines[opened].id!) : undefined}
           onClose={() => setOpened(null)}
         />
       ) : null}
@@ -547,30 +601,42 @@ export const EquipmentIntakeShow = () => {
             : <span className="text-warning-text font-normal">Chưa chọn</span>}
         </SideFact>
         {record?.fundingSource ? <SideFact label="Nguồn kinh phí">{FUNDING_LABELS[record.fundingSource] ?? record.fundingSource}</SideFact> : null}
+        {/* Chứng từ đầu phiếu — nhãn theo nguồn hình thành ("Số hoá đơn", "Số quyết định"…), như form. */}
+        {record?.supplier && head.supplier ? <SideFact label={head.supplier}>{record.supplier}</SideFact> : null}
+        {record?.documentNo && head.documentNo ? <SideFact label={head.documentNo.label}>{record.documentNo}</SideFact> : null}
+        {record?.documentDate && head.documentDate ? <SideFact label={head.documentDate}>{formatPlainDate(record.documentDate)}</SideFact> : null}
+        {record?.acquisitionMethod ? <SideFact label="Hình thức mua sắm">{record.acquisitionMethod.name}</SideFact> : null}
         {record?.source ? <SideFact label="Lập từ"><IntakeSourceLink source={record.source} /></SideFact> : null}
         {record?.note ? <SideFact label="Ghi chú">{record.note}</SideFact> : null}
         {record?.cancelReason ? <SideFact label="Lý do huỷ">{record.cancelReason}</SideFact> : null}
         {stage ? (
           <p className={cn("flex items-start gap-2 rounded-md px-2.5 py-2 text-xs [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0", stage.tone)}>
             {stage.icon}
-            {completed && record?.confirmedAt ? `Đã ghi tăng lúc ${formatDateTime(record.confirmedAt)}. Phiếu không sửa được nữa.` : stage.text}
+            {completed && record?.confirmedAt ? `Đã ghi tăng lúc ${formatDateTime(record.confirmedAt)}` : stage.text}
           </p>
         ) : null}
       </SideSection>
 
-      <SideSection title="Tổng cộng">
-        <div className="text-2xl font-semibold tracking-tight tabular-nums">{record?.lines?.some((l) => l.unitPrice != null) ? `${money.format(Number(record?.totalAmount ?? 0))} đ` : "—"}</div>
+      <SideSection title="Số lượng thiết bị">
+        <div className="text-2xl font-semibold tracking-tight tabular-nums">
+          {money.format(record?.totalReceived ?? 0)} <span className="text-muted-foreground text-base font-normal">đơn vị</span>
+        </div>
         <p className="text-muted-foreground text-xs tabular-nums">
-          {record?.lineCount ?? 0} dòng · {record?.totalReceived ?? 0} đơn vị
+          {record?.lineCount ?? 0} loại thiết bị
           {completed ? ` · đã sinh ${record?.generatedCount ?? 0} hồ sơ` : ""}
         </p>
         {completed && (record?.generatedCount ?? 0) > 0 && record ? (
-          // Chưa có màn In tem QR trong hệ thống: chỉ còn nút Xem tài sản.
-          <div className="grid gap-2 pt-1">
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <Button asChild variant="outline" size="sm">
               <Link to={assetsLink(record)}>
                 <CheckCircle2 />
-                Xem tài sản
+                Xem thiết bị
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/equipment-labels?intake=${record.id}`}>
+                <QrCode />
+                In tem QR
               </Link>
             </Button>
           </div>
@@ -633,7 +699,7 @@ export const EquipmentIntakeShow = () => {
             text={{
               approve: {
                 label: "Duyệt và ghi tăng",
-                title: "Duyệt phiếu và ghi tăng tài sản?",
+                title: "Duyệt phiếu và ghi tăng thiết bị?",
                 description: (
                   <div className="space-y-2">
                     <p>
@@ -647,7 +713,7 @@ export const EquipmentIntakeShow = () => {
                   </div>
                 ),
                 confirm: "Duyệt và ghi tăng",
-                done: "Đã duyệt, tài sản đã được ghi tăng",
+                done: "Đã duyệt, thiết bị đã được ghi tăng",
               },
             }}
           />          </>
@@ -660,3 +726,59 @@ export const EquipmentIntakeShow = () => {
     </ShowView>
   );
 };
+
+/** Hai bên của biên bản: các ô này vẽ trong khung Bên giao / Bên nhận, không vào danh sách chung. */
+const HANDOVER_SIDES = {
+  "Bên giao": [["deliveredBy", "Người giao"], ["delivererPhone", "Số điện thoại"]],
+  "Bên nhận": [["receiverName", "Người nhận"], ["receiverPosition", "Chức vụ"]],
+} as const;
+
+/**
+ * Biên bản giao nhận ở dạng "Làm việc": tách Bên giao / Bên nhận như form lập phiếu (trưởng nhóm 14/11/2026), bên dưới
+ * là số biên bản và các trường cấu hình thêm. Phiếu nháp nhắc trường bắt buộc còn thiếu.
+ */
+function HandoverCard({ config, details, draft }: { config: VoucherFormConfig | undefined; details: Details | undefined; draft: boolean }) {
+  if (!config) return null;
+  const d = (details ?? {}) as Record<string, unknown>;
+  const text = (v: unknown) => (v && typeof v === "object" ? (v as { name?: string }).name : v == null || v === "" ? null : String(v));
+  const fields = (config.sections ?? []).flatMap((sec) => sec.fields);
+  const missing = fields.filter((f) => f.required && text(d[f.key]) == null);
+  const sideKeys = new Set<string>(Object.values(HANDOVER_SIDES).flatMap((rows) => rows.map(([k]) => k)));
+  const sideLabels = new Set(fields.filter((f) => sideKeys.has(f.key)).map((f) => f.label));
+  const rest = detailFacts(config, details).filter((f) => !sideLabels.has(f.label));
+  return (
+    <Card className="gap-4 p-5">
+      <h3 className="text-sm font-semibold">Biên bản giao nhận</h3>
+      {draft && missing.length ? (
+        <p className="bg-warning-subtle text-warning-text rounded-md px-3 py-2 text-sm">
+          Còn thiếu {missing.length} trường bắt buộc trước khi trình: {missing.map((f) => f.label).join(", ")}.
+        </p>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Object.entries(HANDOVER_SIDES).map(([side, rows]) => (
+          <section key={side} className="rounded-md border px-4 py-3">
+            <h4 className="text-overline text-muted-foreground mb-2">{side}</h4>
+            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+              {rows.map(([key, label]) => (
+                <div key={key} className="flex flex-col gap-0.5">
+                  <dt className="text-muted-foreground text-xs">{label}</dt>
+                  <dd className="text-sm font-medium">{text(d[key]) ?? <span className="text-muted-foreground font-normal">Chưa ghi</span>}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+      {rest.length ? (
+        <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+          {rest.map((f) => (
+            <div key={f.label} className="flex flex-col gap-0.5">
+              <dt className="text-muted-foreground text-xs">{f.label}</dt>
+              <dd className="text-sm font-medium whitespace-pre-line">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </Card>
+  );
+}

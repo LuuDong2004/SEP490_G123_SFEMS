@@ -7,6 +7,10 @@ import com.g123.sfems.shared.web.ListParams;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+/**
+ * Đơn vị tính. Phần chung ở {@link CatalogService}; lớp này gán cờ cho phép số lẻ. Feature
+ * khác cần phân giải một mục thì gọi {@code get(id)} của lớp này.
+ */
 @Service
 public class UnitService extends CatalogService<Unit, UnitRequest, UnitPatchRequest> {
 
@@ -14,15 +18,9 @@ public class UnitService extends CatalogService<Unit, UnitRequest, UnitPatchRequ
         super(repository, rowLevel, Unit.class, Unit::new, "Đơn vị tính");
     }
 
-    /** Danh mục lựa chọn: hai mục cùng tên thì không phân biệt được trong ô chọn. */
-    @Override
-    protected boolean uniqueName() {
-        return true;
-    }
-
     @Override
     protected void applyCreate(Unit item, UnitRequest request) {
-        item.setAllowsFraction(request.allowsFraction());
+        item.setAllowsFraction(Boolean.TRUE.equals(request.allowsFraction()));
     }
 
     @Override
@@ -32,16 +30,21 @@ public class UnitService extends CatalogService<Unit, UnitRequest, UnitPatchRequ
         }
     }
 
-    /** Lọc {@code allowsFraction=true|false}: ô chọn đơn vị đếm (lọ, chai, hộp) chỉ lấy đơn vị không chia được. */
+    /**
+     * {@code allowsFraction=false} — chỉ đơn vị đếm nguyên (Lọ, Chai, Hộp…): ô "đơn vị bao bì" của quy cách hoá
+     * chất (QLTB-501) chỉ đưa ra những đơn vị này, không đưa Lít, Gam vốn là đơn vị đo.
+     */
     @Override
     protected Specification<Unit> extraFilters(ListParams params) {
-        Specification<Unit> spec = Specification.unrestricted();
-        for (ListParams.Criterion criterion : params.filters()) {
-            if (criterion.field().equals("allowsFraction")) {
-                boolean allowsFraction = Boolean.parseBoolean(criterion.value().trim());
-                spec = spec.and((root, query, cb) -> cb.equal(root.get("allowsFraction"), allowsFraction));
-            }
-        }
-        return spec;
+        return params.filters().stream()
+                .filter(c -> c.field().equals("allowsFraction") && c.operator() == ListParams.Operator.EQ)
+                .findFirst()
+                .<Specification<Unit>>map(c -> (root, q, cb) -> cb.equal(root.get("allowsFraction"), Boolean.parseBoolean(c.value())))
+                .orElse(Specification.unrestricted());
+    }
+
+    @Override
+    protected boolean uniqueName() {
+        return true;
     }
 }

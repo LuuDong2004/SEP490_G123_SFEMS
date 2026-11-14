@@ -2,10 +2,7 @@ import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 
 import { useLiquid } from "@/shared/hooks/use-liquid";
-import { TAB_ACTIVE, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
-
-/** Chú thích khi rê chuột lên một lựa chọn: đủ rộng cho một câu, không tràn màn hẹp. */
-const TAB_HINT = "max-w-[min(32rem,90vw)] font-medium text-pretty";
+import { TAB_ACTIVE, TAB_HINT, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 
@@ -56,7 +53,7 @@ export function Segmented<V extends string>({ options, value, onChange, label, v
               TAB_ITEM,
               // Nút chọn nằm trong THANH CÔNG CỤ, cạnh ô tìm / nút lọc — cỡ gọn hơn thanh tab điều hướng (theo trưởng nhóm):
               // `md` nút 30px, cả khung (viền + đệm) 36px bằng ô tìm và nút "Bộ lọc" (h-9); `sm` 28px cho ô lọc nhỏ.
-              size === "md" ? "h-[30px] gap-1.5 px-3.5" : "h-7 gap-1.5 px-2.5 text-xs [&_svg:not([class*='size-'])]:size-3.5",
+              size === "md" ? "h-[1.875rem] gap-1.5 px-3.5" : "h-7 gap-1.5 px-2.5 text-xs [&_svg:not([class*='size-'])]:size-3.5",
               active
                 ? (variant === "brand" ? TAB_ACTIVE : "text-primary delay-75")
                 : TAB_IDLE,
@@ -69,7 +66,7 @@ export function Segmented<V extends string>({ options, value, onChange, label, v
         return (
           <Tooltip key={o.value} delayDuration={300}>
             <TooltipTrigger asChild>{button}</TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={4} className={TAB_HINT}>{o.hint}</TooltipContent>
+            <TooltipContent side="bottom" sideOffset={4} tone="light" className={TAB_HINT}>{o.hint}</TooltipContent>
           </Tooltip>
         );
       })}

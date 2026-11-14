@@ -2,31 +2,25 @@ package com.g123.sfems.module.catalog.grade;
 
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
-/** Payload sửa khối lớp. Trường {@code null} là để nguyên. */
+/** Payload sửa khối lớp: năm trường chung + teachingCode + tham chiếu cấp học. */
 public record GradePatchRequest(
-        @Size(min = 1, max = 64, message = "Mã phải từ 1 đến 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Size(min = 1, message = "Mã không được để trống")
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
-
-        @Size(min = 1, max = 255, message = "Tên phải từ 1 đến 255 ký tự")
+        @Size(min = 1, message = "Tên không được để trống")
+        @Text(value = FieldRule.NAME, label = "Tên")
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-
-        IdRef educationLevel,
-
-        @Min(value = 1, message = "Số khối từ 1 đến 12")
-        @Max(value = 12, message = "Số khối từ 1 đến 12")
-        Integer gradeNumber) implements CatalogInput {
+        @Text(value = FieldRule.CODE, label = "Mã khối dạy học", max = 32)
+        String teachingCode,
+        IdRef educationLevel) implements CatalogInput {
 }

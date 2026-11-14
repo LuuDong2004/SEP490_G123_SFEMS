@@ -1,4 +1,7 @@
+import type { CrudFilter } from "@refinedev/core";
 import type { BaseRecord, HttpError } from "@refinedev/core";
+import type { ReactNode } from "react";
+import { School } from "lucide-react";
 import type { UseTableReturnType } from "@refinedev/react-table";
 import type { ColumnFiltersState } from "@tanstack/react-table";
 
@@ -11,7 +14,11 @@ import { usePerspective } from "@/shared/hooks/use-perspective";
  * (`<field>=<id>`), nên số đếm và phân trang vẫn đúng; ô chọn tìm và tải theo trang ở máy chủ, dùng
  * được cả với gần nghìn trường.
  */
-export function RefFilter<T extends BaseRecord>({ table, field, resource, all, searchPlaceholder, className = "w-56" }: {
+export function RefFilter<T extends BaseRecord>({ table, field, resource, all, searchPlaceholder, className = "w-56", icon, hint, filters }: {
+  /** Nút biểu tượng tròn thay cho ô chọn rộng — hàng công cụ như màn Thiết bị; tên ô hiện khi rê chuột. */
+  icon?: ReactNode;
+  /** Chữ khi rê chuột lên nút biểu tượng, vd. "Lọc theo trường". */
+  hint?: string;
   table: UseTableReturnType<T, HttpError>;
   /** Tên tham số lọc, vd. `school.id`. */
   field: string;
@@ -20,6 +27,8 @@ export function RefFilter<T extends BaseRecord>({ table, field, resource, all, s
   all: string;
   searchPlaceholder?: string;
   className?: string;
+  /** Lọc sẵn các mục của menu, vd. chỉ cấp học còn dùng. */
+  filters?: CrudFilter[];
 }) {
   // Ghi qua `columnFilters` của TanStack như ô tìm nhanh, không qua `refineCore.setFilters`: `useTable` dựng
   // lại bộ lọc lõi từ `columnFilters` mỗi lần đổi, nên bộ lọc đặt thẳng vào lõi bị xoá ngay sau đó.
@@ -28,9 +37,11 @@ export function RefFilter<T extends BaseRecord>({ table, field, resource, all, s
   const active = entries.find((e) => e.id === field)?.value;
   const value = active != null && active !== "" ? Number(active) : null;
   return (
-    <div className={className}>
+    <div className={icon ? "contents" : className}>
       <AsyncCombobox<{ id: number; name: string }>
+        icon={icon}
         resource={resource}
+        filters={filters}
         value={value}
         onChange={(id) =>
           setColumnFilters((prev) => {
@@ -39,7 +50,7 @@ export function RefFilter<T extends BaseRecord>({ table, field, resource, all, s
           })
         }
         labelOf={(x) => x.name}
-        placeholder={all}
+        placeholder={icon ? `${hint ?? all} · đang xem ${all.toLowerCase()}` : all}
         clearLabel={all}
         searchPlaceholder={searchPlaceholder}
       />
@@ -54,7 +65,8 @@ export function RefFilter<T extends BaseRecord>({ table, field, resource, all, s
 export function SchoolFilter<T extends BaseRecord>({ table }: { table: UseTableReturnType<T, HttpError> }) {
   const { perspective } = usePerspective();
   if (perspective === "school") return null;
-  return <RefFilter table={table} field="school.id" resource="schools" all="Mọi trường" searchPlaceholder="Tìm trường…" />;
+  return <RefFilter table={table} field="school.id" resource="schools" all="Mọi trường" searchPlaceholder="Tìm trường…"
+    icon={<School />} hint="Lọc theo trường" />;
 }
 
 const ANY = "__any__";

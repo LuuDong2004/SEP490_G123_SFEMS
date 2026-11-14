@@ -7,8 +7,8 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
 /**
- * Gói các bean mà MỌI {@link VoucherService} cần, để lớp con chỉ tiêm một tham số thay vì năm — thêm
- * một phụ thuộc chung sau này không phải sửa constructor của từng loại phiếu.
+ * Những gì service phiếu nào cũng cần, gói lại một chỗ — để constructor của mỗi
+ * loại phiếu chỉ liệt kê cái RIÊNG của nó.
  */
 @Component
 public record VoucherServiceDeps(
@@ -16,5 +16,7 @@ public record VoucherServiceDeps(
         VoucherWorkflow workflow,
         SchoolService schools,
         RowLevelPrincipalResolver principals,
-        EntityManager entityManager) {
+        EntityManager entityManager,
+        VoucherForms forms,
+        VoucherHolds holds) {
 }

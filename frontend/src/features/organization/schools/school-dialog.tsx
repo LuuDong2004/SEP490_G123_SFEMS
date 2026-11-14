@@ -35,9 +35,7 @@ export function SchoolDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Cỡ `wideFit` của repo nguồn chưa có trong `DialogContent` của nhóm (shared/**, phải báo
-          DongLV trước khi sửa) — đặt bề rộng qua `className`. */}
-      <DialogContent className="sm:max-w-[min(80rem,calc(100vw-4rem))]">
+      <DialogContent size="wideFit">
         <DialogHeader>
           <DialogTitle>{id ? "Sửa trường" : "Thêm trường"}</DialogTitle>
         </DialogHeader>

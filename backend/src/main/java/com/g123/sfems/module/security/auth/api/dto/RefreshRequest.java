@@ -1,6 +1,7 @@
 package com.g123.sfems.module.security.auth.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * {@code POST /auth/refresh} and {@code POST /auth/logout} payload.
@@ -11,5 +12,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record RefreshRequest(
         @NotBlank(message = "Thiếu mã làm mới phiên đăng nhập")
+        @Size(max = 512, message = "Mã làm mới phiên đăng nhập không hợp lệ")
         String refreshToken) {
 }

@@ -38,6 +38,11 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             + "where r.code = :roleCode and u.status = com.g123.sfems.domain.security.user.UserStatus.ACTIVE")
     long countActiveWithRole(@Param("roleCode") String roleCode);
 
+    /** Quản trị cấp cao đang hoạt động — phải còn ít nhất một. */
+    @Query("select count(u) from SystemUser u where u.superAdmin = true"
+            + " and u.status = com.g123.sfems.domain.security.user.UserStatus.ACTIVE")
+    long countActiveSuperAdmins();
+
     /**
      * Ba câu chiếu (projection) cho {@code AuthorityCache}: chỉ những cột bộ nhớ đệm quyền cần,
      * thay vì nạp cả đồ thị User → vai → quyền (|vai| × |quyền| dòng rộng, kéo theo trường và
@@ -51,7 +56,12 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query("select u from User u where u.id = :id")
     Optional<User> lockById(@Param("id") Long id);
 
-    @Query("select u.status, u.school.id, u.managingBody.id, u.passwordChangedAt from User u where u.id = :id")
+    // Đơn vị nằm ở bảng con: trường ở SchoolUser, cơ quan quản lý ở SoUser.
+    @Query("select u.status,"
+            + " (select su.school.id from SchoolUser su where su.id = u.id),"
+            + " (select so.managingBody.id from SoUser so where so.id = u.id),"
+            + " u.passwordChangedAt, u.mfaEnabled, u.mfaEmail"
+            + " from User u where u.id = :id")
     List<Object[]> authorityHeader(@Param("id") Long id);
 
     @Query("select r.id, r.code from User u join u.roles r where u.id = :id")

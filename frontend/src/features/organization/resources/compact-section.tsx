@@ -2,6 +2,9 @@ import { useCan, useList, type CrudFilter, type CrudSort } from "@refinedev/core
 import { ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { EmptyState } from "@/shared/components/data-table/table-empty";
+import { useFillPanel } from "@/shared/components/layout/fill-panel";
+import { cn } from "@/shared/lib/utils";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -14,7 +17,7 @@ const STEP = 5;
  * sáu cột với ô tìm trong đó là cả một màn danh sách nhét vào hộp thoại, còn chưa có gì thì chiếm nửa hộp.
  * Đọc {@value STEP} dòng, "Xem thêm" đọc tiếp.
  */
-export function CompactSection({ title, resource, filters, sorters, row, onOpen, action, emptyText, step = STEP }: {
+export function CompactSection({ title, resource, filters, sorters, row, onOpen, action, emptyText, emptyIcon, step = STEP }: {
   title: string;
   resource: string;
   filters: CrudFilter[];
@@ -25,9 +28,12 @@ export function CompactSection({ title, resource, filters, sorters, row, onOpen,
   /** Nút ở đầu khối (vd. "Ghi sửa chữa") — đã tự gác quyền ở chỗ gọi. */
   action?: ReactNode;
   emptyText: string;
+  /** Biểu tượng khi trống ở trang riêng cao kín khung (`FillPanelContext`). */
+  emptyIcon?: ReactNode;
   /** Số dòng đọc mỗi lần (mặc định {@value STEP}). */
   step?: number;
 }) {
+  const fill = useFillPanel();
   const mayRead = useCan({ resource, action: "list" }).data?.can ?? false;
   const [limit, setLimit] = useState(step);
   const { result, query } = useList<any>({
@@ -42,16 +48,22 @@ export function CompactSection({ title, resource, filters, sorters, row, onOpen,
   const total = result?.total ?? rows.length;
 
   return (
-    <section className="space-y-2">
+    <section className={cn("space-y-2", fill && "flex flex-1 flex-col")}>
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <h3 className="text-overline text-muted-foreground">
-          {title}
-          {total ? <span className="text-foreground ms-1.5">{total}</span> : null}
-        </h3>
+        {/* Trang riêng đã có tiêu đề ở trên ("Lịch sử sửa chữa"): bỏ dòng tiêu đề phụ chữ hoa (trưởng nhóm 13/11/2026). */}
+        {fill ? <span /> : (
+          <h3 className="text-overline text-muted-foreground">
+            {title}
+            {total ? <span className="text-foreground ms-1.5">{total}</span> : null}
+          </h3>
+        )}
         {action}
       </div>
       {query.isLoading ? (
         <Skeleton className="h-14 w-full" />
+      ) : rows.length === 0 && fill ? (
+        // Trang riêng cao kín khung: biểu tượng + chữ đứng chính giữa (trưởng nhóm 13/11/2026).
+        <EmptyState icon={emptyIcon} title={emptyText} />
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-2.5 text-sm">{emptyText}</p>
       ) : (

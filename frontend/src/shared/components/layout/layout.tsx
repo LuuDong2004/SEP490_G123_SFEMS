@@ -9,7 +9,6 @@ import { ModuleTabs } from "@/shared/components/layout/module-tabs";
 import { HubShell } from "@/shared/components/layout/hub-shell";
 import { Breadcrumb } from "@/shared/components/layout/breadcrumb";
 import { ScreenErrorBoundary, ServerDownGate } from "@/shared/components/layout/error-guards";
-import { WelcomeSplash } from "@/shared/components/layout/welcome-splash";
 // import { SecurityReminder } from "@/shared/components/layout/security-reminder";
 import { SidebarInset, SidebarProvider } from "@/shared/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
@@ -59,8 +58,6 @@ export function Layout({ children }: PropsWithChildren) {
         {t("layout.skipToContent", "Skip to content")}
       </a>
 
-      {/* Lời chào lúc vừa vào app, che màn đang tải dữ liệu phía sau. */}
-      <WelcomeSplash />
       <Sidebar />
 
       <SidebarInset className="min-w-0 bg-background">
@@ -76,9 +73,9 @@ export function Layout({ children }: PropsWithChildren) {
             "gap-4 px-(--shell-gutter-x) py-(--shell-gutter-y)"
           )}
         >
-          {/* Breadcrumb nằm trên thanh header (md trở lên); màn hẹp header không đủ chỗ nên nó
+          {/* Breadcrumb nằm trên thanh header (lg trở lên); hẹp hơn header không đủ chỗ nên nó
               về đầu trang, trên thanh tab phân hệ. */}
-          <div className="empty:hidden md:hidden">
+          <div className="empty:hidden lg:hidden">
             <Breadcrumb />
           </div>
           {/* Tạm tắt dải nhắc bảo mật (xác thực hai lớp, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}

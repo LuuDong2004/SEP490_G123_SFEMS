@@ -77,7 +77,9 @@ export function Breadcrumb() {
       list.push({
         key: `breadcrumb-item-${i}`,
         href: href ?? "",
-        Component: href ? <Link to={href}>{label}</Link> : <span>{label}</span>,
+        Component: href
+          ? <Link to={href} className="block truncate" title={label}>{label}</Link>
+          : <span className="block truncate" title={label}>{label}</span>,
       });
     }
 
@@ -87,18 +89,20 @@ export function Breadcrumb() {
   // Màn ngoài cây resource (vd. Tài khoản của tôi) vẫn có tên trên thanh đường dẫn — không để thanh trống.
   const staticLabel = STATIC_CRUMBS[pathname];
   const items = breadCrumbItems.length <= 1 && staticLabel
-    ? [...breadCrumbItems, { key: "breadcrumb-item-static", href: pathname, Component: <span>{staticLabel}</span> }]
+    ? [...breadCrumbItems, { key: "breadcrumb-item-static", href: pathname, Component: <span className="block truncate" title={staticLabel}>{staticLabel}</span> }]
     : breadCrumbItems;
   // Chỉ có "Trang chủ" (tổng quan): không có gì để chỉ đường.
   if (items.length <= 1) return null;
 
   return (
-    <ShadcnBreadcrumb data-print="hide">
-      <ShadcnBreadcrumbList>
+    <ShadcnBreadcrumb data-print="hide" className="min-w-0 overflow-hidden">
+      {/* Luôn một hàng trong thanh đầu trang cao cố định: thiếu chỗ thì các mục giữa cắt "…" trước, mục cuối (đang ở đâu)
+          cắt sau cùng; rê chuột xem đủ tên. */}
+      <ShadcnBreadcrumbList className="flex-nowrap whitespace-nowrap">
         {items.map((item, index) => {
           if (index === items.length - 1) {
             return (
-              <ShadcnBreadcrumbPage key={item.key}>
+              <ShadcnBreadcrumbPage key={item.key} className="min-w-0">
                 {item.Component}
               </ShadcnBreadcrumbPage>
             );
@@ -106,10 +110,10 @@ export function Breadcrumb() {
 
           return (
             <Fragment key={item.key}>
-              <ShadcnBreadcrumbItem key={item.key}>
+              <ShadcnBreadcrumbItem key={item.key} className={index === 0 ? "shrink-0" : "min-w-8 shrink-[100]"}>
                 {item.Component}
               </ShadcnBreadcrumbItem>
-              <ShadcnBreadcrumbSeparator />
+              <ShadcnBreadcrumbSeparator className="shrink-0" />
             </Fragment>
           );
         })}

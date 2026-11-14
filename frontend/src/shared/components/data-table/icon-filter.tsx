@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/shared/lib/utils";
@@ -19,7 +20,7 @@ export type IconFilterGroup = { heading?: string; items: { key: string; label: s
  * tên, đang lọc thì viền màu + chấm ở góc, bấm mở menu chọn một mục. Dùng khi danh sách lựa chọn đã có sẵn trong trình duyệt;
  * danh sách lấy từ API thì dùng `AsyncCombobox icon`.
  */
-export function IconFilter({ icon, label, allLabel, total, groups, value, onChange, fallback, alwaysSearch, baseline, disabled }: {
+export function IconFilter({ icon, label, allLabel, total, groups, value, onChange, fallback, alwaysSearch, baseline, disabled, labeled, prefix, actions }: {
   icon: ReactNode;
   /** Tên điều kiện, viết thường — "lớp", "môn học". */
   label: string;
@@ -38,6 +39,15 @@ export function IconFilter({ icon, label, allLabel, total, groups, value, onChan
   baseline?: string;
   /** Điều kiện đang bị khoá theo chỗ khác (phòng đã chọn ở kế hoạch). */
   disabled?: boolean;
+  /**
+   * Hiện chữ cạnh biểu tượng ("Khối: Tất cả khối ▾") thay cho nút tròn. Dùng khi hàng công cụ còn rộng (chỉ ô tìm và
+   * vài bộ lọc): người dùng thấy ngay đang lọc theo gì. Hàng đã chật (có dải chế độ xem, nhiều nút) thì để nút tròn.
+   */
+  labeled?: boolean;
+  /** Chữ trước giá trị trên nút có chữ ("Nhóm: Khối nhà"). */
+  prefix?: string;
+  /** Việc làm ở cuối menu, chữ trơn không biểu tượng (vd. "Thu gọn tất cả") — bấm là làm, không đổi giá trị đang chọn. */
+  actions?: { key: string; label: string; icon?: ReactNode; onSelect: () => void }[];
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -64,11 +74,20 @@ export function IconFilter({ icon, label, allLabel, total, groups, value, onChan
       <Tooltip delayDuration={200}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button type="button" variant="outline" size="icon" role="combobox" aria-expanded={open} aria-label={`Lọc theo ${label}`} disabled={disabled}
-              className={cn("relative shrink-0", filtering && "border-primary/50 text-primary bg-primary/5")}>
-              {icon}
-              {filtering ? <span aria-hidden className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2" /> : null}
-            </Button>
+            {labeled ? (
+              <Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-label={`Lọc theo ${label}`} disabled={disabled}
+                className={cn("max-w-72 min-w-0 shrink-0 justify-start font-normal", filtering && "border-primary/50 text-primary bg-primary/5")}>
+                {icon}
+                <span className="min-w-0 truncate">{prefix ? `${prefix}: ` : ""}{picked ?? allLabel ?? label}</span>
+                <ChevronDown className="ms-auto size-4 opacity-60" />
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" size="icon" role="combobox" aria-expanded={open} aria-label={`Lọc theo ${label}`} disabled={disabled}
+                className={cn("relative shrink-0", filtering && "border-primary/50 text-primary bg-primary/5")}>
+                {icon}
+                {filtering ? <span aria-hidden className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2" /> : null}
+              </Button>
+            )}
           </PopoverTrigger>
         </TooltipTrigger>
         {open ? null : (
@@ -91,16 +110,29 @@ export function IconFilter({ icon, label, allLabel, total, groups, value, onChan
           <CommandList className={searchable ? "max-h-80" : "max-h-(--radix-popover-content-available-height)"}>
             <CommandEmpty>Không tìm thấy.</CommandEmpty>
             {/* Mọi mục phải nằm trong CommandGroup: Command sắp lại DOM khi tìm, gặp thẻ bọc lạ là lỗi appendChild. */}
-            <CommandGroup>
+            {/* Mục "tất cả" và các lựa chọn liền nhau: nhóm không tiêu đề bỏ lề giữa hai nhóm, không để một khoảng trống. */}
+            <CommandGroup className={cn(groups.length > 0 && "pb-0")}>
               {allLabel ? row("__all", allLabel, allLabel, total, !value, () => choose(null)) : null}
               {missing ? row("__picked", picked ?? "", picked ?? "", undefined, true, () => choose(null)) : null}
             </CommandGroup>
             {groups.map((g, i) => (
-              <CommandGroup key={g.heading ?? i} heading={g.heading}>
+              <CommandGroup key={g.heading ?? i} heading={g.heading} className={cn(!g.heading && "pt-0")}>
                 {g.items.map((o) =>
                   row(o.key, `${g.heading ?? ""} ${o.label} ${o.key}`, o.label, o.count, o.key === value, () => choose(o.key === value && allLabel ? null : o.key)))}
               </CommandGroup>
             ))}
+            {actions?.length ? (
+              <>
+                <CommandGroup className="pt-0">
+                  {actions.map((a) => (
+                    <CommandItem key={a.key} value={`__action ${a.label}`} onSelect={() => { a.onSelect(); setOpen(false); }}>
+                      {a.icon}
+                      <span className="min-w-0 flex-1 truncate">{a.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>

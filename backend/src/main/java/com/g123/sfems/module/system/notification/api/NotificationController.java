@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.notification.api;
 
 import com.g123.sfems.domain.system.notification.Notification;
+import com.g123.sfems.module.system.notification.api.dto.NotificationRequest;
 import com.g123.sfems.module.system.notification.api.dto.NotificationResponse;
 import com.g123.sfems.module.system.notification.api.dto.UnreadCountResponse;
 import com.g123.sfems.module.system.notification.service.NotificationService;
@@ -8,6 +9,8 @@ import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.Permissions;
 import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.ListResponse;
+import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Page;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -96,6 +100,26 @@ public class NotificationController {
     @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATIONS_READ + "')")
     public NotificationResponse get(@PathVariable Long id) {
         return NotificationResponse.from(service.get(currentUserId(), id));
+    }
+
+    /**
+     * Raises a notification for somebody else.
+     *
+     * <p>Guarded by {@code users:write} rather than a {@code notifications:*}
+     * code, and that is the honest mapping: this is the one endpoint here that
+     * reaches another account, so what it needs is the permission to act on
+     * other people's accounts. A {@code notifications:write} granted to
+     * everyone — as {@code notifications:read} is — would let any signed-in user
+     * send anything to anyone.
+     */
+    @PostMapping
+    @PreAuthorize("hasAuthority('" + Permissions.USERS_WRITE + "')")
+    public ResponseEntity<NotificationResponse> create(@Valid @RequestBody NotificationRequest request) {
+        Notification created = service.notify(
+                request.recipientId(), request.level(), request.title(), request.body(), request.link());
+        return ResponseEntity
+                .created(URI.create("/api/notifications/" + created.getId()))
+                .body(NotificationResponse.from(created));
     }
 
     /**

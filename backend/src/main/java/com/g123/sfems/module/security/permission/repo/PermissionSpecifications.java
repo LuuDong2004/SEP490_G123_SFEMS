@@ -1,9 +1,13 @@
 package com.g123.sfems.module.security.permission.repo;
 
 import com.g123.sfems.domain.security.permission.Permission;
+import com.g123.sfems.domain.security.permission.PermissionScope;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.shared.web.ListParams;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
 
 /**
@@ -27,6 +31,8 @@ public final class PermissionSpecifications {
                 case "code" -> textSpec("code", criterion);
                 case "name" -> textSpec("name", criterion);
                 case "systemPermission" -> booleanSpec(criterion);
+                case "scope" -> scopeSpec(criterion.value());
+                case "roleType" -> fitsSpec(criterion.value());
                 default -> null;
             };
             if (spec != null) {
@@ -37,8 +43,8 @@ public final class PermissionSpecifications {
         // The quick filter matches the code and the name, which is what the
         // role form's permission picker searches on.
         params.search().ifPresent(term -> specs.add((root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("code")), ListParams.likePattern(term)),
-                cb.like(cb.lower(root.get("name")), ListParams.likePattern(term)))));
+                ListParams.foldedLike(cb, root.get("code"), term),
+                ListParams.foldedLike(cb, root.get("name"), term))));
 
         List<Long> ids = params.ids();
         if (!ids.isEmpty()) {
@@ -65,7 +71,7 @@ public final class PermissionSpecifications {
         String value = criterion.value();
         return switch (criterion.operator()) {
             case LIKE -> (root, query, cb) ->
-                    cb.like(cb.lower(root.get(field)), ListParams.likePattern(value));
+                    ListParams.foldedLike(cb, root.get(field), value);
             case NE -> (root, query, cb) -> cb.notEqual(root.get(field), value);
             default -> (root, query, cb) -> cb.equal(root.get(field), value);
         };
@@ -77,6 +83,28 @@ public final class PermissionSpecifications {
             case NE -> (root, query, cb) -> cb.notEqual(root.get("systemPermission"), value);
             default -> (root, query, cb) -> cb.equal(root.get("systemPermission"), value);
         };
+    }
+
+    private static Specification<Permission> scopeSpec(String value) {
+        PermissionScope scope;
+        try {
+            scope = PermissionScope.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        return (root, query, cb) -> cb.equal(root.get("scope"), scope);
+    }
+
+    /** Quyền gán được cho vai loại {@code value} (docs/kien-truc/11 §11). */
+    private static Specification<Permission> fitsSpec(String value) {
+        UserType type;
+        try {
+            type = UserType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        List<PermissionScope> fitting = Arrays.stream(PermissionScope.values()).filter(s -> s.fits(type)).toList();
+        return (root, query, cb) -> root.get("scope").in(fitting);
     }
 
     private static Long parseId(String value) {

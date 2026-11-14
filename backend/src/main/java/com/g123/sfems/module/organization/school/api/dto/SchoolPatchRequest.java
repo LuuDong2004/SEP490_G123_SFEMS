@@ -1,6 +1,11 @@
 package com.g123.sfems.module.organization.school.api.dto;
 
+import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMin;
 import com.g123.sfems.domain.organization.OrgStatus;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -23,22 +28,18 @@ import jakarta.validation.constraints.Size;
  * null.
  */
 public record SchoolPatchRequest(
-        @Size(min = 1, max = 64, message = "Mã trường phải từ 1 đến 64 ký tự")
-        @Pattern(
-                regexp = "^[A-Za-z0-9._-]+$",
-                message = "Mã trường chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Size(min = 1, message = "Mã trường là bắt buộc")
+        @Text(value = FieldRule.CODE, label = "Mã trường")
         String code,
 
-        @Size(min = 1, max = 255, message = "Tên trường phải từ 1 đến 255 ký tự")
+        @Size(min = 1, message = "Tên trường là bắt buộc")
+        @Text(value = FieldRule.NAME, label = "Tên trường")
         String name,
 
-        @jakarta.validation.Valid
+        @Valid
         DepartmentOfEducationRef departmentOfEducation,
 
         EducationLevelRef educationLevel,
-
-        /** Loại hình trường — tuỳ chọn. */
-        SchoolTypeRef schoolType,
 
         @Pattern(
                 regexp = "^$|^[A-Za-z0-9]{2}$",
@@ -46,14 +47,14 @@ public record SchoolPatchRequest(
         String shortCode,
 
         /** Mã định danh cơ sở giáo dục của Bộ GD&ĐT, 20 ký tự. */
-        @Size(max = 20, message = "Mã định danh Bộ GD&ĐT tối đa 20 ký tự")
+        @Text(value = FieldRule.CODE, label = "Mã định danh Bộ GD&ĐT", max = 20)
         String moetCode,
 
         // Tham chiếu tới phường/xã, không phải chữ: @Size trên một record không có bộ kiểm nào và làm
         // MỌI lần tạo / sửa trường đổ 500 (HV000030) — từ hồi ô này còn là chuỗi tên phường.
         WardRef ward,
 
-        @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
+        @Text(value = FieldRule.ADDRESS, label = "Địa chỉ")
         String address,
 
         @Pattern(
@@ -61,11 +62,11 @@ public record SchoolPatchRequest(
                 message = "Màu chủ đạo phải có dạng #RRGGBB")
         String primaryColor,
 
-        @jakarta.validation.constraints.PositiveOrZero(message = "Số lớp không âm")
-        Integer classCount,
+        @DecimalMin(value = "0", message = "Diện tích đất không được âm")
+        BigDecimal landArea,
 
-        @jakarta.validation.constraints.PositiveOrZero(message = "Số học sinh không âm")
-        Integer studentCount,
+        @DecimalMin(value = "0", message = "Diện tích xây dựng không được âm")
+        BigDecimal constructionArea,
 
         OrgStatus status) {
 }

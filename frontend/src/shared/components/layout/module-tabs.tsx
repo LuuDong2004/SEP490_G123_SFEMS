@@ -4,10 +4,14 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import { useAccessibleMenuItems } from "@/shared/components/layout/sidebar";
+import { useAccessibleMenuItems, useManagementMenu } from "@/shared/components/layout/sidebar";
 import { useLiquid } from "@/shared/hooks/use-liquid";
-import { TAB_ACTIVE, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
+import { usePerspective } from "@/shared/hooks/use-perspective";
+import { TAB_ACTIVE, TAB_HINT, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
 import { cn } from "@/shared/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+
+import { tabHint } from "./tab-hints";
 
 /**
  * Thanh tab của PHÂN HỆ đang mở (Thiết bị, Mượn trả, ...), nằm trên đầu vùng nội dung.
@@ -24,12 +28,17 @@ export function ModuleTabs() {
   const { menuItems } = useMenu();
   const items = useAccessibleMenuItems(menuItems);
   const { resource, action } = useResourceParams();
+  const { perspective } = usePerspective();
+  const managementMenu = useManagementMenu(items);
   const parent = resource?.meta?.parent as string | undefined;
   if (!resource) return null;
   // Đang LẬP / SỬA một phiếu hay bản ghi: thanh tab ẩn đi. Lúc đó người dùng đang làm dở một việc —
   // tab là lối rẽ sang việc khác (và làm mất dữ liệu đang gõ), còn breadcrumb và nút quay lại đã
   // đủ để về danh sách.
   if (action === "create" || action === "edit" || action === "clone") return null;
+  // Hồ sơ thiết bị đã vừa một màn, có nút quay lại và breadcrumb — thanh tab phân hệ chỉ chiếm chỗ.
+  // Hồ sơ thiết bị trong danh mục cùng bố cục (thẻ trái + dải ô + tab) — cũng không cần thanh tab phân hệ.
+  if (action === "show" && (resource.name === "equipment" || resource.name === "equipment_catalogs")) return null;
 
   const find = (nodes: TreeMenuItem[]): TreeMenuItem | undefined => {
     for (const n of nodes) {
@@ -38,18 +47,31 @@ export function ModuleTabs() {
       if (deeper) return deeper;
     }
   };
+  // Góc nhìn quản lý: nhóm việc trên menu (Trường học, Thiết bị, Mua sắm, Kiểm kê) là một dòng, các mục
+  // của nó là thanh tab ở đây.
+  if (perspective === "management") {
+    const group = managementMenu.find((g) => g.meta?.mgmtTabs && (g.children ?? []).some((c) => c.name === resource.name));
+    // Tên tab là tên trên menu quản lý (`meta.label` đã mang `mgmtLabel`), không phải `tabLabel` của phân hệ trường.
+    const groupTabs = ((group?.children ?? []) as TreeMenuItem[])
+      .filter((c) => c.route)
+      .map((c) => ({ ...c, meta: { ...c.meta, tabLabel: undefined } }) as TreeMenuItem);
+    if (group && groupTabs.length > 1) return <TabStrip label={String(group.meta?.label ?? group.name)} tabs={groupTabs} current={resource.name} management />;
+  }
+
   const module = find(items);
-  if (!module) return null;
+  // Phân hệ là cách TRƯỜNG làm việc — góc nhìn quản lý vào từng màn thẳng từ menu của nó. Ngoại lệ:
+  // nhóm danh mục dùng chung (`tabsEverywhere`), vì Sở là người khai danh mục.
+  if (!module || (perspective === "management" && !module.meta?.tabsEverywhere)) return null;
+
+  // Tab của góc nhìn quản lý (`meta.audience: "management"`, vd. Đợt kiểm kê) không hiện với tài khoản của
+  // trường — cùng luật với sidebar. Quản trị viên (`full`) vẫn thấy đủ.
   const tabs = ([...(module.children ?? [])] as TreeMenuItem[])
-    .filter((c) => c.route)
+    .filter((c) => c.route && !(perspective === "school" && c.meta?.audience === "management"))
     .sort((a, b) => ((a.meta?.tabOrder as number) ?? 99) - ((b.meta?.tabOrder as number) ?? 99));
-  // Phân hệ chỉ còn một tab (Nhập thiết bị, hoặc tài khoản chỉ có quyền một tab): dải tab một mục
-  // không dẫn đi đâu, ẩn đi.
-  if (tabs.length < 2) return null;
 
   // Chỉ một tab thì không có gì để chọn — không vẽ dải tab.
   if (tabs.length <= 1) return null;
-  return <TabStrip label={String(module.meta?.label ?? module.name)} tabs={tabs} current={resource.name} />;
+  return <TabStrip label={String(module.meta?.label ?? module.name)} tabs={tabs} current={resource.name} management={perspective === "management"} />;
 }
 
 /**
@@ -58,7 +80,7 @@ export function ModuleTabs() {
  * tầm nhìn (mở thẳng một tab cuối từ menu thì nó không nằm khuất bên phải), và mép nào còn tab thì
  * mép đó có nút mũi tên — một dải chữ bị cắt ngang không nói rằng nó cuộn được.
  */
-function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[]; current: string }) {
+function TabStrip({ label, tabs, current, management = false }: { label: string; tabs: TreeMenuItem[]; current: string; management?: boolean }) {
   // Nền tab đang mở trượt kiểu iOS khi đổi tab (`useLiquid`); cùng phần tử với khung cuộn của dải tab.
   const [ref, indRef] = useLiquid<HTMLElement>(current, { memory: `tabs:${label}` });
   const [edge, setEdge] = useState({ left: false, right: false });
@@ -147,12 +169,14 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
           className="pill-on pointer-events-none absolute rounded-full opacity-0" />
         {tabs.map((t) => {
           const active = t.name === current;
-          return (
+          const fullLabel = String(t.meta?.label ?? t.label ?? t.name);
+          // Rê chuột: một câu nói tab chứa gì (`tab-hints.ts`); chưa có câu thì hiện tên đầy đủ khi tab mang tên ngắn.
+          const hint = tabHint(t.name, management) ?? (TAB_SHORT[t.name] ? fullLabel : undefined);
+          const link = (
             <Link
               key={t.name}
               to={t.route!}
               aria-current={active ? "page" : undefined}
-              title={TAB_SHORT[t.name] ? String(t.meta?.label ?? t.label) : undefined}
               className={cn(
                 // Chữ đổi màu trễ một nhịp (delay) để viên màu trượt tới rồi chữ mới sáng lên.
                 TAB_ITEM,
@@ -168,6 +192,16 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
               {TAB_SHORT[t.name] ?? (t.meta?.tabLabel as string) ?? (t.meta?.label as string) ?? t.label}
             </Link>
           );
+          if (!hint) return link;
+          return (
+            <Tooltip key={t.name} delayDuration={300}>
+              <TooltipTrigger asChild>{link}</TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4} tone="light"
+                className={TAB_HINT}>
+                {hint}
+              </TooltipContent>
+            </Tooltip>
+          );
         })}
       </nav>
     </div>
@@ -181,7 +215,7 @@ function TabStrip({ label, tabs, current }: { label: string; tabs: TreeMenuItem[
  */
 const TAB_SHORT: Record<string, string> = {
   // Quản trị — cấu hình
-  code_rules: "Mã danh mục",
+  code_rules: "Quy tắc sinh mã",
   school_code_rules: "Mã của trường",
   approval_flows: "Luồng duyệt",
   ai_settings: "AI",
@@ -213,5 +247,7 @@ const TAB_SHORT: Record<string, string> = {
   equipment_norms: "Định mức",
   acquisition_methods: "Hình thức mua",
   movement_reasons: "Lý do biến động",
-  school_types: "Loại hình trường",
+  room_types: "Loại CSVC",
+  facility_groups: "Khối CSVC",
+  facility_standard_rules: "Chuẩn CSVC",
 };

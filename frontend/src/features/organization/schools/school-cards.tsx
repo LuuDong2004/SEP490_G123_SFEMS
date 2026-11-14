@@ -1,7 +1,7 @@
 import { AlertTriangle, MapPin, School as SchoolIcon } from "lucide-react";
 import { Link } from "react-router";
 
-import { EmptyState } from "@/features/organization/resources/table-empty";
+import { EmptyState } from "@/shared/components/data-table/table-empty";
 import { Badge } from "@/shared/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/utils";

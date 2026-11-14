@@ -1,37 +1,32 @@
 package com.g123.sfems.module.catalog.subject;
 
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
-import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
+import java.util.List;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
-/** Payload tạo môn học: năm trường chung cộng mã môn ngắn, cấp học giảng dạy và tổ chuyên môn. */
+/** Payload tạo môn học: năm trường chung + mã dạy học + danh sách cấp học. */
 public record SubjectRequest(
-        @Size(max = 64, message = "Mã tối đa 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]*$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        // Mã danh mục không còn nhập tay: máy chủ gán bằng mã môn dạy học —
+        // hai ô mã trên form làm người nhập không biết ô nào là thật. Để trống
+        // ("" của form ẩn ô Mã) hay vắng hẳn đều là "máy chủ cấp".
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
-
         @NotBlank(message = "Tên là bắt buộc")
-        @Size(max = 255, message = "Tên tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên")
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-
-        @Size(max = 10, message = "Mã môn tối đa 10 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9]*$", message = "Mã môn chỉ gồm chữ và số")
-        String shortCode,
-
-        @NotNull(message = "Chọn cấp học giảng dạy")
-        IdRef educationLevel,
-
-        /** Tổ chuyên môn phụ trách; vắng hoặc {@code {"id": null}} là chưa xếp tổ. */
-        IdRef subjectGroup) implements CatalogInput {
+        @NotBlank(message = "Mã môn dạy học là bắt buộc")
+        @Pattern(regexp = "^\\d{2}$", message = "Mã môn dạy học gồm đúng hai chữ số")
+        String teachingCode,
+        @Valid
+        List<SubjectLevelInput> educationLevels) implements CatalogInput {
 }

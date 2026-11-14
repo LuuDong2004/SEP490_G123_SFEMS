@@ -60,35 +60,6 @@ export function Spinner({
 }
 
 /**
- * Vòng xoay chiếm cả khung, căn giữa.
- *
- * <p>Dùng khi chưa có gì để hiển thị: một trang đang xác thực, một màn hình
- * đang nạp lần đầu. Khi đã biết hình dạng của nội dung sắp tới thì
- * `Skeleton` nói được nhiều hơn — nó cho thấy trước bố cục — nên vòng xoay
- * dành cho lúc chưa biết gì.
- */
-export function PageSpinner({
-  className,
-  label = "Đang tải",
-  size = "lg",
-}: {
-  className?: string;
-  label?: string;
-  size?: SpinnerSize;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-h-40 w-full flex-1 items-center justify-center",
-        className
-      )}
-    >
-      <Spinner size={size} label={label} />
-    </div>
-  );
-}
-
-/**
  * Vòng xoay giữa màn hình, chiếm toàn bộ chiều cao khung nhìn.
  *
  * <p>Dành cho lúc vỏ ứng dụng còn chưa dựng — phiên đang được kiểm tra, quyền
@@ -98,12 +69,26 @@ export function PageSpinner({
 export function FullPageSpinner({ label = "Đang tải" }: { label?: string }) {
   // Logo Sở giữa một vòng chuyển sắc đang quay — màn chờ lúc vỏ ứng dụng chưa dựng không còn là một vòng xoay trơn.
   return (
-    <div className="bg-background flex h-screen w-full flex-col items-center justify-center gap-5">
+    // Logo + vòng quay chỉ hiện khi chờ quá 0,4 giây (mờ dần vào): chờ ngắn thì chỉ là nền, không chớp một màn logo.
+    <div className="bg-background flex h-screen w-full flex-col items-center justify-center gap-5 [&>*]:[animation:hello-fade_.3s_ease-out_.4s_both]">
       <div className="relative flex size-28 items-center justify-center">
         <Spinner size="2xl" label={label} className="absolute inset-0" />
         <img src="/logo-so-gddt-hcm.png" alt="" className="relative size-[4.5rem] rounded-full bg-white object-contain p-1 shadow-e2" />
       </div>
       <p className="text-muted-foreground animate-pulse text-sm font-medium tracking-wide">{label}…</p>
     </div>
+  );
+}
+
+/**
+ * Chữ "Đang tải…" kèm vòng quay nhỏ — mọi chỗ báo đang tải trong màn (đầu trang lúc khung xám, ô bảng, khối đang chờ).
+ * Không viết chữ "Đang tải…" trơn: không có gì chuyển động thì trông như màn đứng.
+ */
+export function LoadingText({ className, label = "Đang tải…" }: { className?: string; label?: string }) {
+  return (
+    <span className={cn("text-muted-foreground inline-flex items-center gap-2 text-sm", className)}>
+      <Spinner size="sm" />
+      {label}
+    </span>
   );
 }

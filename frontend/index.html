@@ -80,6 +80,17 @@
             "comfortable"
           )
         );
+        // Hiệu ứng chuyển động — khớp applyMotion ở src/shared/lib/theme.ts.
+        var motion = read("dth-ui-motion", ["system", "on", "off"], "system");
+        d.setAttribute("data-motion", motion);
+        if (
+          motion === "off" ||
+          (motion === "system" &&
+            typeof matchMedia === "function" &&
+            matchMedia("(prefers-reduced-motion: reduce)").matches)
+        ) {
+          d.setAttribute("data-reduce-motion", "");
+        }
       })();
     </script>
   </head>

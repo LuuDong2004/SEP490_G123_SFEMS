@@ -1,69 +1,59 @@
 package com.g123.sfems.module.school.facility;
 
+import java.util.List;
+import java.util.Map;
+import com.g123.sfems.domain.school.facility.FacilityStructure;
 import com.g123.sfems.domain.school.facility.FacilityCondition;
 import com.g123.sfems.domain.school.facility.RoomUsageStatus;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.base.SchoolOwnedInput;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
-/**
- * Payload sửa phòng (TC-02), ngữ nghĩa patch: {@code null} là để nguyên, chuỗi rỗng là XÓA giá trị đang có.
- *
- * <p>Mã phòng sửa được (khác mã tài sản — mã tài sản sinh theo quy tắc chuẩn của toàn ngành). Phòng chưa có
- * mã do máy cấp sẽ được cấp khi sửa mà mã để trống.
- */
+/** Payload sửa phòng. {@code null} là để nguyên. */
 public record RoomPatchRequest(
         @Size(min = 1, message = "Mã phòng không được để trống")
-        @Size(max = 64, message = "Mã phòng tối đa 64 ký tự")
-        @Pattern(
-                regexp = "^[A-Za-z0-9._-]+$",
-                message = "Mã phòng chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Text(value = FieldRule.CODE, label = "Mã phòng")
         String code,
-
         @Size(min = 1, message = "Tên phòng không được để trống")
-        @Size(max = 255, message = "Tên phòng tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên phòng")
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm")
-        @Max(value = 99999, message = "Thứ tự tối đa 99.999")
-        Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,
-
-        /** Không đổi được trường sau khi tạo — {@link com.g123.sfems.module.school.base.SchoolOwnedService} chặn. */
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
+        String note,
         IdRef school,
-
+        IdRef campus,
+        IdRef building,
         IdRef roomType,
-
         IdRef subject,
-
-        @Size(max = 100, message = "Khối nhà tối đa 100 ký tự") String building,
-
-        @Size(max = 50, message = "Tầng tối đa 50 ký tự") String floor,
-
-        @Size(max = 255, message = "Vị trí tối đa 255 ký tự") String location,
-
-        @PositiveOrZero(message = "Diện tích không được âm")
-        @DecimalMax(value = "1000000", message = "Diện tích tối đa 1.000.000 m²")
-        @Digits(integer = 8, fraction = 2, message = "Diện tích tối đa hai chữ số thập phân")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Vị trí")
+        String location,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Tầng", max = 50)
+        String floor,
+        @Num(value = NumberRule.AREA, label = "Diện tích")
         BigDecimal area,
-
-        @PositiveOrZero(message = "Sức chứa không được âm")
-        @Max(value = 99999, message = "Sức chứa tối đa 99.999")
+        @Num(value = NumberRule.COUNT, label = "Sức chứa")
         Integer capacity,
-
         FacilityCondition condition,
-
         RoomUsageStatus usageStatus,
-
-        @Size(max = 255, message = "Đơn vị quản lý tối đa 255 ký tự") String managingUnit)
-        implements SchoolOwnedInput {
+        IdRef managingStaff,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị quản lý")
+        String managingUnit,
+        /** Cho mượn được không; vắng lúc tạo thì theo loại phòng (kho, phòng học: không). */
+        Boolean loanable,
+        /** Kết cấu: Kiên cố / Bán kiên cố / Tạm / Nhờ, mượn, thuê. */
+        FacilityStructure structure,
+        /** Loại CSVC thứ hai mà phòng dùng kết hợp; id null là bỏ. */
+        IdRef combinedType,
+        /** Thông số theo loại (khoá theo thông số của loại CSVC). */
+        Map<String, String> params,
+        /** Lịch mở cửa: thứ 1–7 (ISO); rỗng = mọi ngày. */
+        List<Integer> openDays,
+        /** Buổi mở cửa: SANG, CHIEU, TOI; rỗng = mọi buổi. */
+        List<String> openSessions) implements SchoolOwnedInput {
 }

@@ -3,7 +3,7 @@
 import type { HttpError, BaseRecord } from "@refinedev/core";
 import { useNavigation, useResourceParams, useTranslate } from "@refinedev/core";
 import type { UseTableReturnType } from "@refinedev/react-table";
-import type { Column, RowData } from "@tanstack/react-table";
+import type { Column, Row, RowData } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
 import {
   ArrowDown,
@@ -12,7 +12,7 @@ import {
   Inbox,
   SearchX,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   Table,
@@ -29,6 +29,11 @@ import { HelpHint } from "@/shared/components/form/help-hint";
 import { cn } from "@/shared/lib/utils";
 import { isScopedResource } from "@/shared/api/session";
 import { readColumnPrefs, useColumnsKey } from "@/shared/components/data-table/column-prefs";
+import { useInListView } from "@/shared/components/views/list-view";
+import { useFillHeight } from "@/shared/hooks/use-fill-height";
+import { useRemainingHeight } from "@/shared/components/data-table/table-empty";
+import { TAB_HINT } from "@/shared/lib/tab-style";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
 /**
  * `defaultColumn` for a table that opts into column resizing.
@@ -115,13 +120,16 @@ type DataTableProps<TData extends BaseRecord> = {
    * Lấp đầy chiều cao của khối cha: thân bảng cuộn BÊN TRONG (tiêu đề cột dính trên,
    * phân trang dính dưới), nên đổi 10 → 20 dòng mỗi trang không làm trang dài ra. Cha
    * phải có chiều cao xác định (xem `useFillHeight`).
+   *
+   * Vắng thì bảng của màn danh sách (`ListView`) tự cao kín cửa sổ, ít hay nhiều dòng đều một cỡ
+   * (bảng trong hộp thoại thì không). `false` để bảng cao theo số dòng.
    */
   fill?: boolean;
   /**
    * Câu của lúc bảng TRỐNG (không lọc, không bị thu hẹp phạm vi) khi câu chung "Chưa có dữ liệu" không nói
    * được gì — màn Thông báo: "Chưa có thông báo nào".
    */
-  empty?: { title: string; description?: string };
+  empty?: { title: string; description?: string; filteredTitle?: string; filteredDescription?: string };
   /**
    * Bấm một dòng (tên cũ giữ cho khỏi đổi các màn đang dùng). Mặc định: mở trang chi tiết (`show`) của resource nếu có.
    * Màn nào xem chi tiết bằng hộp thoại thì truyền handler riêng.
@@ -146,6 +154,10 @@ type DataTableProps<TData extends BaseRecord> = {
   rowClassName?: (record: TData) => string | undefined;
   /** Rê chuột lên một dòng thì dòng "nổi" lên (nhấc, bóng, nền pha màu chính). Mặc định bật cho mọi danh sách. */
   liftRows?: boolean;
+  /** Chuột phải lên một dòng (menu nghiệp vụ kiểu Jmix). Có handler thì menu của trình duyệt không hiện trên dòng. */
+  onRowContextMenu?: (record: TData, event: React.MouseEvent, row: Row<TData>) => void;
+  /** Đang chọn nhiều: bấm một dòng là tích / bỏ tích dòng đó thay vì mở chi tiết. */
+  rowClickSelects?: boolean;
 };
 
 
@@ -160,9 +172,16 @@ export function DataTable<TData extends BaseRecord>({
   rowClassName,
   liftRows = true,
   externallyFiltered,
-  fill,
+  fill: fillProp,
   empty,
+  onRowContextMenu,
+  rowClickSelects,
 }: DataTableProps<TData>) {
+  const autoFill = useInListView() && fillProp === undefined;
+  const fillBox = useFillHeight();
+  const measure = fillBox.ref;
+  const autoRef = useCallback((el: HTMLElement | null) => measure(el?.closest("[data-slot=dialog-content]") ? null : el), [measure]);
+  const fill = fillProp || (autoFill && fillBox.height != null);
   const { resource: currentResource, identifier: currentIdentifier } = useResourceParams();
   const { show, showUrl } = useNavigation();
   const canOpen = !!onRowDoubleClick || !!currentResource?.show;
@@ -193,6 +212,23 @@ export function DataTable<TData extends BaseRecord>({
   // skeleton renders more cells than the header has and the "no data" cell
   // spans past the last column.
   const leafColumns = table.reactTable.getVisibleLeafColumns();
+  // Chia phần bề rộng DƯ (bảng rộng hơn tổng cỡ cột) theo tỷ lệ cỡ của từng cột — không dồn hết cho một cột "fill"
+  // (cột Trường ngắn chữ thành khoảng trắng lớn, cột ngày vẫn bị cắt). Cột hẹp (≤ 100px: STT, ô chọn, thao tác) và
+  // cột ghim không nhận thêm; cột đánh dấu `meta.fill` (cột tên) nhận gấp đôi.
+  // (Bề rộng khung đo bằng ResizeObserver — `calc()` có % trên ô bảng bị Chrome coi như `auto`, nên tính ra px.)
+  const [boxW, setBoxW] = useState(0);
+  const spread = useMemo(() => {
+    const weight = (c: Column<TData>) => (c.getSize() <= 100 || c.getIsPinned() ? 0
+      : c.getSize() * ((c.columnDef.meta as { fill?: boolean } | undefined)?.fill ? 2 : 1));
+    const all = leafColumns.reduce((s, c) => s + weight(c), 0);
+    const total = leafColumns.reduce((s, c) => s + c.getSize(), 0);
+    const extra = Math.max(0, boxW - total);
+    return {
+      table: Math.max(total, boxW),
+      width: new Map(leafColumns.map((c) => [c.id, Math.floor(c.getSize() + (all ? (extra * weight(c)) / all : 0))])),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxW, leafColumns.map((c) => `${c.id}:${c.getSize()}:${c.getIsPinned()}`).join("|")]);
 
   // Cột người dùng đã tắt / bật ở menu "Cột hiển thị" (xem `column-prefs.ts`): áp lại khi bảng mở, nên tải lại
   // trang vẫn giữ lựa chọn trước đó.
@@ -222,6 +258,24 @@ export function DataTable<TData extends BaseRecord>({
     horizontal: false,
     vertical: false,
   });
+
+  // Đo phần NHÌN THẤY của vùng cuộn, không phải cả khung: thanh cuộn dọc kiểu cổ điển (Windows) ăn mất ~10px, đo cả
+  // khung thì bảng rộng hơn chỗ hiện và sinh thanh cuộn ngang dù các cột vừa đủ.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = tableContainerRef.current;
+    if (!box) return;
+    const measure = () => {
+      const s = scrollRef.current;
+      const w = s && getComputedStyle(s).display !== "contents" ? s.clientWidth : box.clientWidth;
+      setBoxW(Math.floor(w));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    if (scrollRef.current) ro.observe(scrollRef.current);
+    return () => ro.disconnect();
+  }, [fill]);
 
   useEffect(() => {
     const checkOverflow = () => {
@@ -256,7 +310,9 @@ export function DataTable<TData extends BaseRecord>({
   }, [tableQuery.data?.data, pageSize, columnSizing]);
 
   return (
-    <div className={cn("flex", "flex-col", "flex-1", "gap-4", fill && "min-h-0")}>
+    <div ref={autoFill ? autoRef : undefined} style={autoFill ? { height: fillBox.height } : undefined}
+      // `flex-1` có `flex-basis: 0%` sẽ đè mất `height` trong cột flex: đang tự đo chiều cao thì không dùng nó.
+      className={cn("flex", "flex-col", autoFill && fillBox.height != null ? "shrink-0" : "flex-1", "gap-4", fill && "min-h-0", "print:!h-auto")}>
       <div
         ref={tableContainerRef}
         className={cn(
@@ -274,22 +330,24 @@ export function DataTable<TData extends BaseRecord>({
           // on the same vertical line as the first column rather than a few
           // pixels off it. `space-y-3` spaces whatever a screen adds under its
           // toolbar (a drill-down chip, a note).
-          <div className="space-y-3 border-b border-border px-3 py-3">
+          <div className="shrink-0 space-y-3 border-b border-border px-3 py-3">
             {toolbar}
           </div>
         )}
 
         {renderBody ? (
-          isLoading ? (
-            <div className="space-y-2 p-3">
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          ) : (
-            renderBody(getRowModel().rows.map((r) => r.original))
-          )
+          <div className={fill ? "scrollbar-fade min-h-0 flex-1 overflow-auto" : "contents"}>
+            {isLoading ? (
+              <div className="space-y-2 p-3">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : (
+              renderBody(getRowModel().rows.map((r) => r.original))
+            )}
+          </div>
         ) : (
-        <div className={fill ? "scrollbar-fade min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible" : "contents"}>
+        <div ref={scrollRef} className={fill ? "scrollbar-fade min-h-0 flex-1 overflow-auto print:overflow-visible [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b" : "contents"}>
         <Table
           ref={tableRef}
           // `minWidth` keeps the table filling the card while the columns add
@@ -297,7 +355,7 @@ export function DataTable<TData extends BaseRecord>({
           // and the wrapper scrolls horizontally.
           style={{
             tableLayout: "fixed",
-            width: canResizeColumns ? getTotalSize() : "100%",
+            width: spread.table ? spread.table : canResizeColumns ? getTotalSize() : "100%",
             minWidth: "100%",
           }}
           className={cn(isResizing && "select-none")}
@@ -335,6 +393,7 @@ export function DataTable<TData extends BaseRecord>({
                         ...getCommonStyles({
                           column: header.column,
                           isOverflowing: isOverflowing,
+                          spread,
                         }),
                       }}
                       className={getPinnedClasses({ column: header.column })}
@@ -357,20 +416,22 @@ export function DataTable<TData extends BaseRecord>({
                             sorted && "text-foreground"
                           )}
                         >
-                          <span className="truncate">
+                          <TruncateTip>
                             {flexRender(
                               header.column.columnDef.header,
                               header.getContext()
                             )}
-                          </span>
+                          </TruncateTip>
                           <SortIndicator sorted={sorted} />
                         </button>
                       ) : (
-                        <div className={cn("flex", "items-center", "gap-1")}>
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                        <div className={cn("flex", "min-w-0", "items-center", "gap-1")}>
+                          <TruncateTip>
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </TruncateTip>
                         </div>
                       )}
                       {hint && !isPlaceholder ? <HelpHint>{hint}</HelpHint> : null}
@@ -417,7 +478,7 @@ export function DataTable<TData extends BaseRecord>({
                   {leafColumns.map((column, colIndex) => (
                     <TableCell
                       key={`skeleton-cell-${rowIndex}-${column.id}`}
-                      style={{ ...getCommonStyles({ column, isOverflowing: isOverflowing }) }}
+                      style={{ ...getCommonStyles({ column, isOverflowing: isOverflowing, spread }) }}
                       className={cn("truncate", getPinnedClasses({ column }))}
                     >
                       <div className="flex h-8 items-center">
@@ -438,7 +499,16 @@ export function DataTable<TData extends BaseRecord>({
                     key={row.original?.id ?? row.id}
                     data-state={row.getIsSelected() && "selected"}
                     className={cn("group/row", canOpen ? "cursor-pointer" : "cursor-default", liftRows && LIFT_ROW, rowClassName?.(row.original))}
+                    onContextMenu={onRowContextMenu ? (e) => {
+                      e.preventDefault();
+                      onRowContextMenu(row.original, e, row);
+                    } : undefined}
                     onClick={(e) => {
+                      if (rowClickSelects) {
+                        if ((e.target as HTMLElement).closest("button, a, input, [role=checkbox]")) return;
+                        row.toggleSelected();
+                        return;
+                      }
                       // Bấm một lần là mở chi tiết (trước đây phải bấm đúp, không ai biết). Bấm lên nút / ô nhập /
                       // liên kết trong dòng, hoặc đang bôi đen chữ để chép, thì không mở. Ctrl / Cmd + bấm mở tab mới.
                       if (!canOpen) return;
@@ -455,6 +525,7 @@ export function DataTable<TData extends BaseRecord>({
                             ...getCommonStyles({
                               column: cell.column,
                               isOverflowing: isOverflowing,
+                              spread,
                             }),
                           }}
                           className={getPinnedClasses({ column: cell.column })}
@@ -503,7 +574,7 @@ export function DataTable<TData extends BaseRecord>({
         {!isLoading && getRowModel().rows?.length > 0 && (
           <div
             data-print="hide"
-            className={cn("border-t border-border px-3 py-1.5")}
+            className={cn("shrink-0 border-t border-border px-3 py-1.5")}
           >
             <DataTablePagination
               currentPage={currentPage}
@@ -544,7 +615,7 @@ function DataTableNoData({
   filtered,
   empty,
 }: {
-  empty?: { title: string; description?: string };
+  empty?: { title: string; description?: string; filteredTitle?: string; filteredDescription?: string };
   isOverflowing: { horizontal: boolean; vertical: boolean };
   columnsLength: number;
   /** Đang có bộ lọc (ô tìm, lọc nâng cao, cây bên trái...). */
@@ -558,13 +629,16 @@ function DataTableNoData({
   // là đổ lỗi nhầm chỗ, và người dùng đi hỏi quyền cho một thứ chỉ cần bỏ lọc.
   const scoped = !filtered && isScopedResource(resource?.name);
   const t = useTranslate();
+  // Lấp kín phần còn lại của khung (không để vạch kẻ cuối dòng trống lơ lửng giữa bảng).
+  const [cellRef, height] = useRemainingHeight();
 
   return (
-    <TableRow className="hover:bg-transparent">
+    <TableRow className="hover:bg-transparent !border-b-0">
       <TableCell
+        ref={cellRef}
         colSpan={columnsLength}
         className={cn("relative", "text-center")}
-        style={{ height: "490px" }}
+        style={{ height: height ?? 490 }}
       >
         <div
           className={cn(
@@ -599,16 +673,17 @@ function DataTableNoData({
           >
             {filtered ? <SearchX /> : <Inbox />}
           </span>
-          <div className={cn("text-base", "font-semibold", "text-foreground")}>
+          {/* Tiêu đề có thể nhắc lại từ khoá đang tìm: chữ dài liền (không dấu cách) phải xuống dòng và cắt ở dòng 2, không đẩy khung tràn ngang. */}
+          <div className={cn("text-base", "font-semibold", "text-foreground", "line-clamp-2 max-w-xl [overflow-wrap:anywhere]")}>
             {filtered
-              ? t("table.empty.filteredTitle", "Nothing matches the current filters")
+              ? (empty?.filteredTitle ?? t("table.empty.filteredTitle", "Nothing matches the current filters"))
               : scoped
                 ? t("table.empty.scopedTitle", "Nothing in your data scope")
                 : (empty?.title ?? t("table.empty.title", "No records yet"))}
           </div>
-          <div className={cn("max-w-sm", "text-sm", "text-muted-foreground")}>
+          <div className={cn("max-w-sm", "text-sm", "text-muted-foreground", "[overflow-wrap:anywhere]")}>
             {filtered
-              ? t("table.empty.filteredDescription", "Clear or change the filters to see more rows.")
+              ? (empty?.filteredDescription ?? t("table.empty.filteredDescription", "Clear or change the filters to see more rows."))
               : scoped
               ? t("table.empty.scopedDescription", "You can open this resource, but no rows fall within the scope your roles grant.")
               : empty ? empty.description : t("table.empty.description", "This table is empty for the time being.")}
@@ -622,8 +697,11 @@ function DataTableNoData({
 export function getCommonStyles<TData>({
   column,
   isOverflowing,
+  spread,
 }: {
   column: Column<TData>;
+  /** Bề rộng px từng cột sau khi chia phần dư (xem `spread` trong `DataTable`); vắng thì như cũ: cột `meta.fill` nhận hết. */
+  spread?: { table: number; width: Map<string, number> };
   isOverflowing: {
     horizontal: boolean;
     vertical: boolean;
@@ -684,7 +762,9 @@ export function getCommonStyles<TData>({
     // Bảng rộng hơn tổng kích thước cột thì trình duyệt chia phần dư theo tỷ
     // lệ cho MỌI cột có width — cột hẹp cố định (Thứ tự) cũng bị kéo giãn.
     // Cột đánh dấu `meta.fill` để width tự do nên nhận hết phần dư đó.
-    width: column.columnDef.meta?.fill ? undefined : column.getSize(),
+    width: spread?.table
+      ? spread.width.get(column.id) ?? column.getSize()
+      : column.columnDef.meta?.fill ? undefined : column.getSize(),
     zIndex: isPinned ? 1 : 0,
   };
 }
@@ -737,4 +817,22 @@ declare module "@tanstack/react-table" {
     /** Giữ mở cho meta riêng của từng màn. */
     [key: string]: unknown;
   }
+}
+
+/**
+ * Chữ tiêu đề cột cắt "…" khi cột hẹp; rê chuột thì hiện đủ tên trong nhãn nổi (cùng kiểu nhãn của thanh tab). Chỉ
+ * hiện khi chữ thật sự bị cắt.
+ */
+function TruncateTip({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip delayDuration={300} open={open}
+      onOpenChange={(o) => setOpen(o && !!ref.current && ref.current.scrollWidth > ref.current.clientWidth + 1)}>
+      <TooltipTrigger asChild>
+        <span ref={ref} className="min-w-0 truncate">{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={4} tone="light" className={TAB_HINT}>{children}</TooltipContent>
+    </Tooltip>
+  );
 }

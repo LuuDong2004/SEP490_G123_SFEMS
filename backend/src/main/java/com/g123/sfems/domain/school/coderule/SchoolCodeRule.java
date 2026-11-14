@@ -10,21 +10,18 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * Cách MỘT trường đặt mã cho dữ liệu nó tự lập — phòng, và phần số thứ tự (ST) của mã tài sản (TS-05):
- * ký hiệu đầu, độ dài phần số, số bắt đầu. Không giữ bộ đếm — số kế tiếp đọc từ dữ liệu đang có.
- *
- * <p>Mỗi trường mỗi {@link #target} một dòng ({@code uq_school_code_rules}). Quy tắc chung toàn ngành
- * nằm ở {@code code_rules} (DM-04); dòng ở đây là phần trường được tự quyết.
+ * Cách MỘT trường đặt mã cho một loại dữ liệu nó tự lập (phòng, khối nhà, cơ sở, cán bộ): ký hiệu
+ * đầu, độ dài phần số, số bắt đầu. Không giữ bộ đếm — số kế tiếp đọc từ dữ liệu đang có
+ * (xem {@code SchoolCodeService}).
  */
 @Entity
 @Table(name = "school_code_rules")
 public class SchoolCodeRule extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;
 
-    /** Loại dữ liệu áp dụng: {@code rooms}, {@code equipment}. */
     @Column(nullable = false, length = 64)
     private String target;
 
@@ -32,7 +29,7 @@ public class SchoolCodeRule extends BaseEntity {
     private String prefix;
 
     @Column(name = "number_length", nullable = false)
-    private Integer numberLength = 3;
+    private Integer numberLength = 2;
 
     @Column(name = "start_number", nullable = false)
     private Integer startNumber = 1;
@@ -66,7 +63,7 @@ public class SchoolCodeRule extends BaseEntity {
     }
 
     public void setNumberLength(Integer numberLength) {
-        this.numberLength = numberLength == null ? 3 : numberLength;
+        this.numberLength = numberLength;
     }
 
     public Integer getStartNumber() {
@@ -74,6 +71,6 @@ public class SchoolCodeRule extends BaseEntity {
     }
 
     public void setStartNumber(Integer startNumber) {
-        this.startNumber = startNumber == null ? 1 : startNumber;
+        this.startNumber = startNumber;
     }
 }

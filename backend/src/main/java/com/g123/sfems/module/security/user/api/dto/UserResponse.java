@@ -1,10 +1,15 @@
 package com.g123.sfems.module.security.user.api.dto;
 
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
 import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.security.role.Role;
+import com.g123.sfems.domain.security.user.AgencyUser;
+import com.g123.sfems.domain.security.user.SchoolUser;
+import com.g123.sfems.domain.security.user.SystemUser;
 import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.domain.security.user.UserPosition;
 import com.g123.sfems.domain.security.user.UserStatus;
 import java.time.Instant;
 import java.util.Comparator;
@@ -26,12 +31,16 @@ public record UserResponse(
         String username,
         String email,
         String fullName,
+        /** Loại tài khoản — cố định từ lúc tạo. */
+        UserType userType,
         UserStatus status,
         List<RoleSummary> roles,
         /** Null for an account that has not been placed. */
         /** Rỗng với tài khoản chưa thuộc trường nào. */
         SchoolSummary school,
         ManagingBodySummary managingBody,
+        /** Phần riêng theo loại tài khoản (bảng con). */
+        Profile profile,
         Instant createdAt,
         Instant updatedAt,
         Instant lastLoginAt) {
@@ -83,12 +92,31 @@ public record UserResponse(
         }
     }
 
+    /**
+     * Phần riêng theo loại — ô không thuộc loại để null. {@code position} suy từ vai (LEADER / STAFF), chỉ đọc.
+     * {@code allowedIps} chỉ có ở tài khoản quản trị; danh sách tài khoản chỉ quản trị đọc được.
+     */
+    public record Profile(UserPosition position, String jobTitle, String workPhone, String note, Boolean superAdmin,
+            String allowedIps) {
+
+        static Profile from(User user) {
+            return switch (user) {
+                case SystemUser a -> new Profile(null, a.getJobTitle(), null, a.getNote(), a.isSuperAdmin(),
+                        a.getAllowedIps());
+                case AgencyUser a -> new Profile(a.getPosition(), a.getJobTitle(), a.getWorkPhone(), null, null, null);
+                case SchoolUser s -> new Profile(s.getPosition(), s.getJobTitle(), null, null, null, null);
+                default -> null;
+            };
+        }
+    }
+
     public static UserResponse from(User user) {
         return new UserResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
+                user.getUserType(),
                 user.getStatus(),
                 user.getRoles().stream()
                         // Sorted by code so the badges keep a stable order
@@ -96,10 +124,11 @@ public record UserResponse(
                         .sorted(Comparator.comparing(Role::getCode))
                         .map(RoleSummary::from)
                         .toList(),
-                user.getSchool() == null ? null : SchoolSummary.from(user.getSchool()),
-                user.getManagingBody() == null
+                user.schoolOrNull() == null ? null : SchoolSummary.from(user.schoolOrNull()),
+                user.managingBodyOrNull() == null
                         ? null
-                        : ManagingBodySummary.from(user.getManagingBody()),
+                        : ManagingBodySummary.from(user.managingBodyOrNull()),
+                Profile.from(user),
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 user.getLastLoginAt());

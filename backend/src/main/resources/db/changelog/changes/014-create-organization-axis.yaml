@@ -1,0 +1,197 @@
+# Trục tổ chức: Sở/Phòng GD và các trường trực thuộc.
+#
+# Hai bảng trong một changeset vì bảng thứ hai vô nghĩa nếu không có bảng thứ
+# nhất: `schools.department_of_education_id` là NOT NULL, nên không tồn tại
+# trạng thái nào của schema mà có `schools` mà không có
+# `departments_of_education`. Cùng lý do mà 009 gộp organizations + departments.
+databaseChangeLog:
+  - changeSet:
+      id: 014-create-organization-axis
+      author: dth
+      changes:
+        - createTable:
+            tableName: departments_of_education
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_departments_of_education
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_departments_of_education_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: province
+                  type: varchar(128)
+              - column:
+                  name: address
+                  type: varchar(500)
+              - column:
+                  name: status
+                  type: varchar(32)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+
+        - createTable:
+            tableName: schools
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_schools
+              - column:
+                  name: department_of_education_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              # Khoá ngoại thật tới danh mục cấp học, không phải chuỗi mã.
+              # Cho phép rỗng: có trường liên cấp và có dữ liệu nhập về chưa
+              # xác định cấp.
+              - column:
+                  name: education_level_id
+                  type: bigint
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_schools_code
+              - column:
+                  name: emis_code
+                  type: varchar(2)
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              # Không có cột district: từ 2025 TP.HCM bỏ cấp quận/huyện, địa
+              # chỉ hành chính chỉ còn phường/xã.
+              - column:
+                  name: ward
+                  type: varchar(128)
+              - column:
+                  name: address
+                  type: varchar(500)
+              - column:
+                  name: primary_color
+                  type: varchar(20)
+              - column:
+                  name: status
+                  type: varchar(32)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+
+        # RESTRICT, như phần còn lại của schema: xoá một Sở còn trường trực
+        # thuộc bị database từ chối, và ApiExceptionHandler biến nó thành đúng
+        # lỗi 409 mà một danh mục đang được dùng vẫn sinh ra.
+        - addForeignKeyConstraint:
+            baseTableName: schools
+            baseColumnNames: department_of_education_id
+            referencedTableName: departments_of_education
+            referencedColumnNames: id
+            constraintName: fk_schools_department_of_education
+            onDelete: RESTRICT
+
+        - addForeignKeyConstraint:
+            baseTableName: schools
+            baseColumnNames: education_level_id
+            referencedTableName: education_levels
+            referencedColumnNames: id
+            constraintName: fk_schools_education_level
+            onDelete: RESTRICT
+
+        - addForeignKeyConstraint:
+            baseTableName: departments_of_education
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_departments_of_education_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: departments_of_education
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_departments_of_education_updated_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: schools
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_schools_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: schools
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_schools_updated_by
+            onDelete: SET NULL
+
+        # Lọc trường theo Sở là câu hỏi mà màn chi tiết Sở hỏi mỗi lần mở, và
+        # là bộ lọc mà màn danh sách trường dùng nhiều nhất.
+        - createIndex:
+            tableName: schools
+            indexName: idx_schools_department_of_education
+            columns:
+              - column:
+                  name: department_of_education_id
+        - createIndex:
+            tableName: schools
+            indexName: idx_schools_education_level
+            columns:
+              - column:
+                  name: education_level_id
+        # Thứ tự mặc định của danh sách trường là theo tên.
+        - createIndex:
+            tableName: schools
+            indexName: idx_schools_name
+            columns:
+              - column:
+                  name: name

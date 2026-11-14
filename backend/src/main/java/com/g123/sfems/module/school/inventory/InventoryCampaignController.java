@@ -1,13 +1,17 @@
 package com.g123.sfems.module.school.inventory;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.ListResponse;
+import com.g123.sfems.shared.validation.DateRange;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,29 +31,25 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code /api/inventory_campaigns} — đợt kiểm kê do Sở phát động (KK-01); thêm {@code GET /{id}/progress} tiến độ
- * theo trường và {@code GET /{id}/discrepancies} chênh lệch theo trường (KK-02).
- */
+/** {@code /api/inventory_campaigns} — đợt kiểm kê; thêm {@code GET /{id}/progress} tiến độ theo trường,
+ * {@code GET /{id}/discrepancies} chênh lệch theo trường. */
 @RestController
 @RequestMapping("/api/inventory_campaigns")
 public class InventoryCampaignController {
 
-    public record Request(
-            IdRef managingBody,
-            @Size(max = 255, message = "Tên đợt kiểm kê tối đa 255 ký tự") String title,
-            LocalDate cutoffDate,
-            LocalDate deadline,
-            @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String note,
+    @DateRange(from = "cutoffDate", to = "deadline", message = "Hạn nộp không được trước ngày chốt số liệu")
+    public record Request(IdRef managingBody,
+            @Text(value = FieldRule.NAME, label = "Tên đợt kiểm kê") String title,
+            @DateValue(value = DateRule.ANY, label = "Ngày chốt số liệu") LocalDate cutoffDate,
+            @DateValue(value = DateRule.ANY, label = "Hạn nộp") LocalDate deadline,
+            @Text(value = FieldRule.LONG_TEXT, label = "Ghi chú", max = 1000) String note,
             Boolean closed) {
     }
 
-    /**
-     * {@code name} lặp lại {@code title} để ô chọn tham chiếu dùng chung (hiển thị theo "name") đọc được.
-     * {@code overdue}: đợt còn mở mà đã quá hạn nộp.
-     */
+    /** {@code name} lặp lại {@code title} để ô chọn tham chiếu dùng chung (hiển thị theo "name") đọc được. */
     public record Response(Long id, RefSummary managingBody, String title, String name, LocalDate cutoffDate,
-            LocalDate deadline, String note, boolean closed, boolean overdue, Instant createdAt,
+            LocalDate deadline,
+            String note, boolean closed, boolean overdue, Instant createdAt,
             @JsonProperty("_can") Map<String, Boolean> can) {
     }
 
@@ -59,20 +59,6 @@ public class InventoryCampaignController {
     public InventoryCampaignController(InventoryCampaignService service, InventoryDiscrepancies discrepancies) {
         this.service = service;
         this.discrepancies = discrepancies;
-    }
-
-    /** Tiến độ: mỗi trường trong đợt và phiếu kiểm kê của nó đang ở bước nào. */
-    @GetMapping("/{id}/progress")
-    @PreAuthorize("hasAuthority('inventory_campaigns:read')")
-    public InventoryCampaignService.Progress progress(@PathVariable Long id) {
-        return service.progress(id);
-    }
-
-    /** Chênh lệch theo trường — số của biên bản người xem mở được (cần cả quyền đọc phiếu kiểm kê). */
-    @GetMapping("/{id}/discrepancies")
-    @PreAuthorize("hasAuthority('inventory_campaigns:read') and hasAuthority('inventory_sessions:read')")
-    public List<InventoryDiscrepancies.SchoolRow> discrepancies(@PathVariable Long id) {
-        return discrepancies.campaign(id);
     }
 
     @GetMapping
@@ -86,6 +72,19 @@ public class InventoryCampaignController {
     @PreAuthorize("hasAuthority('inventory_campaigns:read')")
     public Response get(@PathVariable Long id) {
         return respond(service.get(id));
+    }
+
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("hasAuthority('inventory_campaigns:read')")
+    public InventoryCampaignService.Progress progress(@PathVariable Long id) {
+        return service.progress(id);
+    }
+
+    /** Chênh lệch theo trường — số của biên bản người xem mở được (cần cả quyền đọc phiếu kiểm kê). */
+    @GetMapping("/{id}/discrepancies")
+    @PreAuthorize("hasAuthority('inventory_campaigns:read') and hasAuthority('inventory_sessions:read')")
+    public List<InventoryDiscrepancies.SchoolRow> discrepancies(@PathVariable Long id) {
+        return discrepancies.campaign(id);
     }
 
     @PostMapping
@@ -112,13 +111,12 @@ public class InventoryCampaignController {
                 r.cutoffDate(), r.deadline(), r.note(), r.closed());
     }
 
-    private Response respond(InventoryCampaign campaign) {
-        var body = campaign.getManagingBody();
-        boolean manage = service.canManage(campaign);
-        return new Response(campaign.getId(), new RefSummary(body.getId(), body.getCode(), body.getName()),
-                campaign.getTitle(), campaign.getTitle(), campaign.getCutoffDate(), campaign.getDeadline(),
-                campaign.getNote(), campaign.isClosed(),
-                !campaign.isClosed() && campaign.getDeadline().isBefore(LocalDate.now()), campaign.getCreatedAt(),
+    private Response respond(InventoryCampaign c) {
+        var body = c.getManagingBody();
+        boolean manage = service.canManage(c);
+        return new Response(c.getId(), new RefSummary(body.getId(), body.getCode(), body.getName()), c.getTitle(),
+                c.getTitle(), c.getCutoffDate(), c.getDeadline(), c.getNote(), c.isClosed(),
+                !c.isClosed() && c.getDeadline().isBefore(LocalDate.now()), c.getCreatedAt(),
                 Map.of("write", manage, "delete", manage));
     }
 }

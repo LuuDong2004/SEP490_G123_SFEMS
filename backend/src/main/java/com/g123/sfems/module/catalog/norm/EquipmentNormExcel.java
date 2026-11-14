@@ -2,13 +2,13 @@ package com.g123.sfems.module.catalog.norm;
 
 import com.g123.sfems.domain.catalog.standard.EquipmentNorm;
 import com.g123.sfems.domain.catalog.standard.EquipmentStandard;
+import com.g123.sfems.domain.catalog.standard.EquipmentStandardDocument;
 import com.g123.sfems.domain.catalog.standard.NormBasis;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.standard.EquipmentStandardService;
-import com.g123.sfems.module.catalog.standard.StandardDocumentService;
 import com.g123.sfems.shared.exception.FieldValidationException;
-import com.g123.sfems.module.catalog.norm.office.SpreadsheetReader;
-import com.g123.sfems.module.catalog.norm.office.XlsxWriter;
+import com.g123.sfems.shared.office.SpreadsheetReader;
+import com.g123.sfems.shared.office.XlsxWriter;
 import com.g123.sfems.shared.web.ListParams;
 import java.math.BigDecimal;
 import java.text.Normalizer;
@@ -19,7 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -50,14 +49,11 @@ public class EquipmentNormExcel {
 
     private final EquipmentNormService norms;
     private final EquipmentStandardService standards;
-    private final StandardDocumentService documents;
     private final JdbcTemplate jdbc;
 
-    public EquipmentNormExcel(EquipmentNormService norms, EquipmentStandardService standards,
-            StandardDocumentService documents, JdbcTemplate jdbc) {
+    public EquipmentNormExcel(EquipmentNormService norms, EquipmentStandardService standards, JdbcTemplate jdbc) {
         this.norms = norms;
         this.standards = standards;
-        this.documents = documents;
         this.jdbc = jdbc;
     }
 
@@ -95,8 +91,8 @@ public class EquipmentNormExcel {
             rows.add(row);
         }
         String level = standard.getEducationLevel() == null ? "" : standard.getEducationLevel().getName();
-        String sources = documents.list(standardId).stream()
-                .map(d -> d.documentNo())
+        String sources = standard.getDocuments().stream()
+                .map(EquipmentStandardDocument::getDocumentNo)
                 .collect(Collectors.joining(", "));
         byte[] body = XlsxWriter.write(new XlsxWriter.Sheet(
                 "Danh mục thiết bị dạy học tối thiểu cấp " + level,
@@ -142,7 +138,6 @@ public class EquipmentNormExcel {
 
         List<EquipmentNormRequest> requests = new ArrayList<>();
         List<String> errors = new ArrayList<>();
-        String batchCode = UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         for (int r = headerAt + 1; r < sheet.size(); r++) {
             List<String> cells = sheet.get(r);
             Map<String, String> v = new HashMap<>();
@@ -179,13 +174,12 @@ public class EquipmentNormExcel {
             Long catalog = catalogs.get(subject + "|" + fold(name));
             String audience = v.get("audience") == null ? "" : fold(v.get("audience"));
             Quantity q = parseQuantity(v.get("quantity"));
-            requests.add(new EquipmentNormRequest("DM-THPT-I-" + batchCode + "-" + line,
-                    name, null, Boolean.TRUE, v.get("note"),
-                    new IdRef(standardId), catalog == null ? null : new IdRef(catalog), null, null,
-                    new IdRef(subject), null, null, q.min(), q.size(), v.get("quantity"), unitText,
-                    unit == null ? null : new IdRef(unit), q.basis(), null, parseGrades(v.get("note")),
-                    null, v.get("topic"), v.get("purpose"), v.get("description"),
-                    audience.contains("GIAO_VIEN"), audience.contains("HOC_SINH"), Boolean.FALSE));
+            requests.add(new EquipmentNormRequest(null, name, null, Boolean.TRUE, v.get("note"),
+                    new IdRef(standardId), catalog == null ? null : new IdRef(catalog), null, new IdRef(subject),
+                    null, null, q.min(), unit == null ? null : new IdRef(unit), q.basis(), q.size(),
+                    v.get("quantity"), unitText, parseGrades(v.get("note")), null, null, v.get("topic"),
+                    v.get("purpose"), v.get("description"), audience.contains("GIAO_VIEN"),
+                    audience.contains("HOC_SINH"), Boolean.FALSE, null));
         }
         if (!errors.isEmpty()) {
             String shown = String.join("; ", errors.subList(0, Math.min(MAX_REPORTED, errors.size())));
@@ -266,7 +260,7 @@ public class EquipmentNormExcel {
             return null;
         }
         String grades = Arrays.stream(m.group(1).split("[^0-9]+"))
-                .filter(g -> !g.isEmpty() && Integer.parseInt(g) >= 10 && Integer.parseInt(g) <= 12)
+                .filter(g -> !g.isEmpty() && Integer.parseInt(g) >= 1 && Integer.parseInt(g) <= 12)
                 .distinct()
                 .collect(Collectors.joining(","));
         return grades.isEmpty() ? null : grades;

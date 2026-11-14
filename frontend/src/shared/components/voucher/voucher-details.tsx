@@ -45,11 +45,10 @@ const STAFF_PREFER: Record<string, StaffPrefer> = {
 type Lookups = { staff: StaffRow[]; rooms: Option[]; schools: Option[]; refs: Record<string, Option[]> };
 
 /** Danh sách cho ô chọn cán bộ / phòng / trường — theo trường của phiếu. */
-function useLookups(schoolId: number | null | undefined, needsSchools: boolean, refResources: string[], needsRooms = false): Lookups {
+function useLookups(schoolId: number | null | undefined, needsSchools: boolean, refResources: string[]): Lookups {
   const filters = schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }, { field: "active", operator: "eq" as const, value: true }] : [];
-  // Hệ thống chưa có danh mục cán bộ (`/api/staff`): ô "cán bộ" chỉ là ô gõ tên, không có gợi ý. Bật lại khi có.
-  const staff = useList<any>({ resource: "staff", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: false } });
-  const rooms = useList<any>({ resource: "rooms", filters: schoolId ? [filters[0]] : [], pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId && needsRooms } });
+  const staff = useList<any>({ resource: "staff", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
+  const rooms = useList<any>({ resource: "rooms", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
   const schools = useList<any>({ resource: "schools", pagination: { pageSize: 200 }, queryOptions: { enabled: needsSchools } });
   const reasons = useList<any>({ resource: "movement_reasons", pagination: { pageSize: 200 }, queryOptions: { enabled: refResources.includes("movement_reasons") } });
   const pick = (r: any): Option[] => (r?.result?.data ?? []).map((x: any) => ({ id: x.id, name: x.name }));
@@ -98,7 +97,7 @@ export function detailError(field: DetailField, value: DetailValue | undefined):
   switch (f.kind) {
     case "text":
     case "textarea":
-      return textError(textRuleOf(f), f.label, value, textMaxOf(f));
+      return textError(textRuleOf(f), f.label, value, textMaxOf(f), f.min);
     case "date":
       return dateError(f.date === "past" ? "PAST_OR_TODAY" : "ANY", f.label, value);
     case "integer":
@@ -249,7 +248,9 @@ function fieldSpan(f: DetailField, compact?: boolean) {
  * <p>Vẽ thẳng trên form, không sau nút và không gập: một lưới phẳng, ô bắt buộc trước, đoạn văn dài
  * xuống cuối. Dấu * là trường phải có trước khi TRÌNH phiếu — lưu nháp thì chưa bắt buộc.
  */
-export function VoucherDetailsFields({ config, value, onChange, schoolId, stage, variant, compact, title = "Thông tin bổ sung", hint = "Không bắt buộc" }: {
+export function VoucherDetailsFields({ config, value, onChange, schoolId, stage, variant, compact, maxColumns = 4, title = "Thông tin bổ sung", hint = "Không bắt buộc" }: {
+  /** Tối đa bao nhiêu cột khi khung rộng — 3 cho khối có sáu ô (biên bản phiếu ghi tăng): đủ 2 hàng, không chừa ô trống. */
+  maxColumns?: 3 | 4;
   config: VoucherFormConfig | undefined;
   value: Details | undefined;
   onChange: (next: Details) => void;
@@ -264,7 +265,7 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
   const sections = visibleSections(config, stage, variant);
   const kinds = sections.flatMap((s) => s.fields);
   const lookups = useLookups(schoolId, kinds.some((f) => f.kind === "school"),
-    kinds.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""), kinds.some((f) => f.kind === "room" || f.suggest === "room"));
+    kinds.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
   if (!config || sections.length === 0) return null;
   const values = value ?? {};
   const set = (key: string, v: DetailValue) => {
@@ -273,7 +274,13 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
     else next[key] = v;
     onChange(next);
   };
-  const grid = compact ? "grid grid-flow-row-dense items-start gap-4 sm:grid-cols-2" : "grid grid-flow-row-dense items-start gap-x-4 gap-y-4 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4";
+  // Số cột theo số ô của khối (ô đoạn văn tính hai cột), tối đa `maxColumns`: khối ba ô chia ba cột — chia bốn thì
+  // chừa một cột trống bên phải. Ô ngày giãn theo cột (bỏ trần max-w-40 của DateInput) cho thẳng mép với các ô khác.
+  const all = sections.flatMap((s) => s.fields);
+  const units = all.reduce((n, f) => n + (f.kind === "textarea" ? 2 : 1), 0);
+  const cols = all.length <= FLAT_LIMIT ? Math.min(maxColumns, Math.max(1, units)) : maxColumns;
+  const grid = compact ? "grid grid-flow-row-dense items-start gap-4 sm:grid-cols-2" : cn("grid grid-flow-row-dense items-start gap-x-4 gap-y-4 [&_[data-date-input]]:max-w-none",
+    cols >= 2 && "@md:grid-cols-2", cols >= 3 && "@2xl:grid-cols-3", cols === 4 && "@4xl:grid-cols-4");
   const fieldsOf = (section: DetailSection) => (
     <div className={grid}>
       {section.fields.map((f) => (
@@ -310,7 +317,6 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
   //   - ô ĐOẠN VĂN: hai cột, xếp SAU các ô ngắn và lấp luôn chỗ còn trống của hàng cuối — không xuống
   //     hàng riêng để lại nửa hàng trắng phía trên. Nó cao bằng một ô (tự giãn khi gõ) nên không lệch.
   // Nhãn luôn một dòng (cắt ba chấm, rê chuột thấy đủ): nhãn hai dòng đẩy ô của nó lệch khỏi hàng.
-  const all = sections.flatMap((s) => s.fields);
   const field = (f: DetailField) => (
     <div key={f.key} className={cn("min-w-0 space-y-1.5", f.kind === "textarea" && "@md:col-span-2")}>
       <Label className="min-w-0 gap-1.5" title={f.label}>
@@ -503,8 +509,7 @@ export function LineDetailsFields({ config, value, onChange, schoolId, stage }: 
 }) {
   const fields = useMemo(() => (config?.line ?? []).filter((f) => (f.stage ?? null) === (stage ?? null)), [config, stage]);
   const tables = Object.entries(config?.lineTables ?? {});
-  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""),
-    fields.some((f) => f.kind === "room" || f.suggest === "room"));
+  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
   if (!config || (!fields.length && !tables.length)) return null;
   const values = value ?? {};
   const set = (key: string, v: DetailValue) => {
@@ -566,8 +571,7 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
   const [draft, setDraft] = useState<Details>({});
   const fields = useMemo(() => (config?.line ?? []).filter((f) => (f.stage ?? null) === (stage ?? null)), [config, stage]);
   const tables = Object.entries(config?.lineTables ?? {});
-  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""),
-    fields.some((f) => f.kind === "room" || f.suggest === "room"));
+  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
   if (!config || (!fields.length && !tables.length)) return null;
   const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length;
   // Trường bắt buộc của DÒNG nằm sau cái nút này, nên nút phải tự nói là còn
@@ -597,7 +601,7 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
       </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="form" className="overflow-y-auto">
+        <DialogContent className="overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chi tiết dòng</DialogTitle>
             <DialogDescription>{title}</DialogDescription>

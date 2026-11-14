@@ -1,53 +1,70 @@
 package com.g123.sfems.module.catalog.movementreason;
 
-import com.g123.sfems.domain.catalog.movementreason.MovementDirection;
 import com.g123.sfems.domain.catalog.movementreason.MovementReason;
+import com.g123.sfems.domain.catalog.movementreason.ReasonType;
 import com.g123.sfems.module.catalog.base.CatalogService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.web.ListParams;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+/**
+ * Lý do biến động. Phần chung ở {@link CatalogService}; lớp này gán loại lý do
+ * và lọc theo nó — bộ lọc mà phiếu ghi tăng/ghi giảm sẽ dùng để chỉ đưa ra
+ * đúng loại lý do của mình.
+ */
 @Service
-public class MovementReasonService
-        extends CatalogService<MovementReason, MovementReasonRequest, MovementReasonPatchRequest> {
+public class MovementReasonService extends CatalogService<
+        MovementReason, MovementReasonRequest, MovementReasonPatchRequest> {
 
     public MovementReasonService(MovementReasonRepository repository, RowLevelSecurity rowLevel) {
         super(repository, rowLevel, MovementReason.class, MovementReason::new, "Lý do biến động");
     }
 
     @Override
-    protected boolean uniqueName() {
-        return true;
-    }
-
-    @Override
     protected void applyCreate(MovementReason item, MovementReasonRequest request) {
-        item.setDirection(request.direction());
+        item.setReasonType(request.reasonType());
     }
 
     @Override
     protected void applyUpdate(MovementReason item, MovementReasonPatchRequest request) {
-        if (request.direction() != null) {
-            item.setDirection(request.direction());
+        if (request.reasonType() != null) {
+            item.setReasonType(request.reasonType());
         }
     }
 
     /**
-     * Lọc {@code direction=increase|decrease}. Phiếu nhập chỉ cho chọn lý do TĂNG (DR-21), nên ô chọn
-     * lý do ở phiếu nhập gọi danh sách kèm bộ lọc này.
+     * {@code reasonType=ghi_tang} (hoặc {@code reasonType_ne=...}). Giá trị lạ là
+     * câu hỏi hợp lệ với câu trả lời rỗng, không phải request sai.
      */
     @Override
     protected Specification<MovementReason> extraFilters(ListParams params) {
-        Specification<MovementReason> spec = Specification.unrestricted();
+        List<Specification<MovementReason>> specs = new ArrayList<>();
         for (ListParams.Criterion criterion : params.filters()) {
-            if (criterion.field().equals("direction")) {
-                MovementDirection direction = MovementDirection.parse(criterion.value());
-                spec = spec.and((root, query, cb) -> direction == null
-                        ? cb.disjunction()
-                        : cb.equal(root.get("direction"), direction));
+            if (!criterion.field().equals("reasonType")) {
+                continue;
             }
+            ReasonType type;
+            try {
+                type = ReasonType.from(criterion.value());
+            } catch (IllegalArgumentException e) {
+                specs.add((root, query, cb) -> cb.disjunction());
+                continue;
+            }
+            if (type == null) {
+                continue;
+            }
+            specs.add(criterion.operator() == ListParams.Operator.NE
+                    ? (root, query, cb) -> cb.notEqual(root.get("reasonType"), type)
+                    : (root, query, cb) -> cb.equal(root.get("reasonType"), type));
         }
-        return spec;
+        return Specification.allOf(specs);
+    }
+
+    @Override
+    protected boolean uniqueName() {
+        return true;
     }
 }

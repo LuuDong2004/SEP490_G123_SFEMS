@@ -1,17 +1,24 @@
 package com.g123.sfems.module.school.procurement;
 
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
+import com.g123.sfems.module.school.intake.EquipmentIntakeService;
+import com.g123.sfems.module.school.intake.EquipmentIntakeService.PurchasedItem;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
 import com.g123.sfems.module.school.voucher.VoucherSpecs;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.shared.web.ListParams;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,7 +30,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Đề xuất mua sắm (NC-02..NC-04). Vòng đời:
+ * Đề xuất mua sắm. Vòng đời:
  *
  * <pre>
  * Nháp → Chờ duyệt (lãnh đạo trường → cơ quan quản lý) → Đã duyệt
@@ -31,18 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
  *      → [hàng về] Lập phiếu nhập
  * </pre>
  *
- * <p>Đề xuất KHÔNG tự hoàn tất: không có nút "hoàn tất" nào trên nó. Có tiền hay không là quyết định của
- * kế hoạch, và chỉ {@link ProcurementPlanService} đóng nó lại. Làm khác đi thì trường tự ghi "đã được cấp"
- * cho thứ chưa ai duyệt chi.
- *
- * <p>Phần trình / duyệt / trả lại / từ chối / huỷ lấy nguyên từ {@link VoucherService}: đề xuất là một
- * loại phiếu như phiếu nhập và phiếu kiểm kê, chỉ khác hình payload và luật riêng.
- *
- * <p><b>NC-07 chưa nối:</b> "lập phiếu nhập từ đề xuất" cần hai hàm của {@code EquipmentIntakeService}
- * ({@code receivedBySource}, {@code createFromPurchase}) và {@code record PurchasedItem} — cả ba có trong
- * repo nguồn nhưng chưa có trong bản của nhóm, và {@code module/school/intake} là vùng của DongLV. Hành
- * động {@code intake} trên đề xuất, đường {@code /{id}/intake-lines} và {@code POST /{id}/intake} làm
- * ngay khi ba thứ đó có.
+ * <p>Đề xuất KHÔNG tự hoàn tất: không có nút "hoàn tất" nào trên nó. Có tiền hay
+ * không là quyết định của kế hoạch, và chỉ {@link ProcurementPlanService} đóng
+ * nó lại. Làm khác đi thì trường tự ghi "đã được cấp" cho thứ chưa ai duyệt chi.
  */
 @Service
 public class PurchaseProposalService
@@ -52,15 +50,15 @@ public class PurchaseProposalService
 
     private final EquipmentCatalogService catalogs;
     private final AdequacyService adequacy;
+    private final EquipmentIntakeService intakes;
 
     public PurchaseProposalService(VoucherServiceDeps deps, PurchaseProposalRepository repository,
-            EquipmentCatalogService catalogs, AdequacyService adequacy) {
-        super(deps, repository, PurchaseProposal.class, PurchaseProposal::new);
+            EquipmentCatalogService catalogs, AdequacyService adequacy, EquipmentIntakeService intakes) {
+        super(deps, repository, PurchaseProposal.class, RESOURCE, PurchaseProposal::new);
         this.catalogs = catalogs;
         this.adequacy = adequacy;
+        this.intakes = intakes;
     }
-
-    // ------------------------------------------------------------------ ghi
 
     @Override
     protected void applyCreate(PurchaseProposal voucher, PurchaseProposalApi.Request request) {
@@ -94,8 +92,6 @@ public class PurchaseProposalService
             voucher.replaceLines(buildLines(voucher, request.lines()));
         }
     }
-
-    // ------------------------------------------------------------------ luật
 
     @Override
     protected void validate(PurchaseProposal voucher) {
@@ -136,17 +132,99 @@ public class PurchaseProposalService
         return super.cancel(id, note);
     }
 
-    /** Không có "hoàn tất" bằng tay: kế hoạch đóng đề xuất. */
-    @Override
-    @Transactional
-    public PurchaseProposal complete(Long id, String note) {
-        throw new FieldValidationException("status",
-                "Đề xuất hoàn tất khi kế hoạch mua sắm chứa nó được duyệt, không hoàn tất bằng tay");
+    /** Một dòng của đề xuất khi nhập hàng: số đưa vào kế hoạch, số đã ghi tăng, số còn phải nhập. */
+    public record IntakeLine(Long lineId, Long catalogId, String catalogCode, String name, String unitName,
+            int planned, int received, int remaining, BigDecimal unitPrice) {
+    }
+
+    /** Dòng chọn nhập đợt này. */
+    public record IntakePick(Long lineId,
+            @Num(value = NumberRule.QUANTITY_OR_ZERO, label = "Số lượng nhập") Integer quantity) {
     }
 
     /**
-     * Các nút bấm được trên một đề xuất. Không có "hoàn tất"; đang nằm trong kế hoạch thì không huỷ. Còn
-     * hàng chưa nhập thì có "intake" — lập phiếu ghi tăng.
+     * Các dòng của đề xuất với số còn phải nhập (QLTB-556). Số đã nhập cộng từ các phiếu ghi tăng lập từ đề xuất này
+     * theo THIẾT BỊ; hai dòng cùng thiết bị thì phần đã nhập trừ lần lượt từ dòng trên xuống.
+     */
+    public List<IntakeLine> intakeLines(Long id) {
+        return intakeLines(get(id));
+    }
+
+    private List<IntakeLine> intakeLines(PurchaseProposal voucher) {
+        Map<Long, Integer> received = new HashMap<>(intakes.receivedBySource(RESOURCE, voucher.getId()));
+        List<IntakeLine> result = new ArrayList<>();
+        for (PurchaseProposalLine l : voucher.getLines()) {
+            int planned = l.effectiveQuantity();
+            if (planned <= 0) {
+                continue;
+            }
+            Long catalogId = l.getCatalog().getId();
+            int got = Math.min(planned, received.getOrDefault(catalogId, 0));
+            received.merge(catalogId, -got, Integer::sum);
+            result.add(new IntakeLine(l.getId(), catalogId, l.getCatalog().getCode(), l.getName(),
+                    l.getUnitName() != null ? l.getUnitName()
+                            : l.getCatalog().getUnit() != null ? l.getCatalog().getUnit().getName() : null,
+                    planned, got, planned - got, l.getUnitPrice()));
+        }
+        return result;
+    }
+
+    /**
+     * Lập phiếu ghi tăng nháp từ đề xuất. Hàng về nhiều đợt (QLTB-556): {@code picks} là các dòng và số nhập ĐỢT NÀY
+     * (không quá số còn phải nhập); vắng thì nhập hết phần còn lại. Đề xuất còn lập được phiếu ghi tăng tiếp cho tới
+     * khi mọi dòng đã nhập đủ.
+     */
+    @Transactional
+    public EquipmentIntake createIntake(Long id, List<IntakePick> picks) {
+        PurchaseProposal voucher = writable(id);
+        lockAndReread(voucher);
+        if (voucher.getStatus() != VoucherStatus.COMPLETED) {
+            throw new FieldValidationException("status",
+                    "Chỉ lập phiếu ghi tăng cho đề xuất đã vào kế hoạch được duyệt");
+        }
+        // Số ĐƯA VÀO KẾ HOẠCH (126), không phải số trường xin: dòng cơ quan bỏ (0) không thành dòng phiếu ghi tăng.
+        List<IntakeLine> lines = intakeLines(voucher);
+        List<PurchasedItem> items = new ArrayList<>();
+        if (picks == null) {
+            for (IntakeLine l : lines) {
+                if (l.remaining() > 0) {
+                    items.add(new PurchasedItem(l.catalogId(), l.name(), l.remaining(), l.unitPrice()));
+                }
+            }
+        } else {
+            Map<Long, IntakeLine> byId = new HashMap<>();
+            lines.forEach(l -> byId.put(l.lineId(), l));
+            for (IntakePick pick : picks) {
+                IntakeLine l = pick == null ? null : byId.get(pick.lineId());
+                if (l == null) {
+                    throw new FieldValidationException("lines", "Dòng không thuộc đề xuất này");
+                }
+                int qty = pick.quantity() == null ? l.remaining() : pick.quantity();
+                if (qty <= 0) {
+                    continue;
+                }
+                if (qty > l.remaining()) {
+                    throw new FieldValidationException("lines", "\"%s\" chỉ còn %d chưa nhập".formatted(l.name(), l.remaining()));
+                }
+                items.add(new PurchasedItem(l.catalogId(), l.name(), qty, l.unitPrice()));
+            }
+        }
+        if (items.isEmpty()) {
+            throw new FieldValidationException("lines", lines.stream().allMatch(l -> l.remaining() == 0)
+                    ? "Đề xuất này đã nhập đủ hàng" : "Chọn ít nhất một thiết bị để nhập");
+        }
+        EquipmentIntake intake = intakes.createFromPurchase(voucher.getSchool().getId(), voucher.getFundingSource(),
+                items, "Nhập hàng mua theo đề xuất " + voucher.getCode(), voucher.getId(), voucher.getCode());
+        if (voucher.getIntakeId() == null) {
+            voucher.setIntakeId(intake.getId());
+        }
+        repository.persist(voucher);
+        return intake;
+    }
+
+    /**
+     * Không có "hoàn tất" — kế hoạch đóng đề xuất; "lập phiếu nhập" khi đề xuất
+     * đã hoàn tất và chưa có phiếu nhập.
      */
     @Override
     @Transactional(propagation = Propagation.SUPPORTS)
@@ -156,23 +234,39 @@ public class PurchaseProposalService
         if (voucher.getPlan() != null) {
             actions.remove("cancel");
         }
-        // Chưa có phiếu ghi tăng nào thì còn nhập được ngay; đã có thì xem còn thiết bị chưa nhập đủ không
-        // (chỉ đề xuất đã hoàn tất và đã nhập một phần mới phải đếm — không tốn truy vấn cho mỗi dòng danh sách).
-        // Hành động "intake" (lập phiếu nhập) chờ NC-07: cần bộ đếm số đã nhập của EquipmentIntakeService.
+        // Chưa có phiếu ghi tăng nào thì còn nhập được ngay; đã có thì xem còn thiết bị chưa nhập đủ không (chỉ
+        // đề xuất đã hoàn tất và đã nhập một phần mới phải đếm — không tốn truy vấn cho mỗi dòng danh sách).
+        if (voucher.getStatus() == VoucherStatus.COMPLETED && Boolean.TRUE.equals(can.get("write"))
+                && (voucher.getIntakeId() == null || intakeLines(voucher).stream().anyMatch(l -> l.remaining() > 0))) {
+            actions.add("intake");
+        }
         return actions;
     }
 
-    // ------------------------------------------------------------------ xin trùng
+    @Override
+    @Transactional
+    public PurchaseProposal complete(Long id, String note) {
+        throw new FieldValidationException("status",
+                "Đề xuất hoàn tất khi kế hoạch mua sắm chứa nó được duyệt, không hoàn tất bằng tay");
+    }
+
+    /**
+     * Một thiết bị đang nằm trong một đề xuất khác của trường (QLTB-495). {@code returned}: phiếu nháp bị trả
+     * về. {@code code} trống với phiếu nháp chưa từng trình.
+     */
+    public record Overlap(Long catalogId, Long proposalId, String code, VoucherStatus status,
+            ApprovalStep approvalStep, boolean returned, int quantity, String unitName) {
+    }
 
     /** Đề xuất còn "đang xin": chưa bị từ chối / huỷ và hàng chưa về (chưa lập phiếu ghi tăng). */
     private static final Set<VoucherStatus> LIVE = Set.of(VoucherStatus.DRAFT, VoucherStatus.PENDING,
             VoucherStatus.APPROVED, VoucherStatus.COMPLETED);
 
     /**
-     * Các thiết bị đang được xin ở những đề xuất CÒN HIỆU LỰC khác của một trường — để form và màn duyệt
-     * cảnh báo xin trùng. Chỉ cảnh báo, không chặn: trường có lý do xin thêm (phiếu trước bị cắt số lượng…).
-     * Tính cả phiếu nháp. Đọc qua phạm vi dòng như mọi lần đọc phiếu, nên Sở / UBND chỉ thấy đề xuất đã
-     * trình tới mình.
+     * Các thiết bị đang được xin ở những đề xuất CÒN HIỆU LỰC khác của một trường — để form và màn duyệt cảnh
+     * báo xin trùng. Chỉ cảnh báo, không chặn: trường có lý do xin thêm (phiếu trước bị cắt số lượng…). Tính
+     * cả phiếu nháp, vì hai bản nháp trùng nhau là đúng chỗ cột "Đề xuất" của bảng định mức không thấy. Đọc
+     * qua phạm vi dòng như mọi lần đọc phiếu, nên Sở / UBND chỉ thấy đề xuất đã trình tới mình.
      */
     public List<Overlap> overlaps(Long schoolId, Long excludeId) {
         Specification<PurchaseProposal> spec = rowLevel.<PurchaseProposal>scope(PurchaseProposal.class,
@@ -193,16 +287,6 @@ public class PurchaseProposalService
         }
         return result;
     }
-
-    /**
-     * Một thiết bị đang nằm trong một đề xuất khác của trường. {@code returned}: phiếu nháp bị trả về.
-     * {@code code} trống với phiếu nháp chưa từng trình.
-     */
-    public record Overlap(Long catalogId, Long proposalId, String code, VoucherStatus status,
-            ApprovalStep approvalStep, boolean returned, int quantity, String unitName) {
-    }
-
-    // ------------------------------------------------------------------ đọc
 
     @Override
     protected PurchaseProposal initialize(PurchaseProposal voucher) {
@@ -243,8 +327,6 @@ public class PurchaseProposalService
         return Set.of("id", "code", "status", "proposalDate", "budgetYear", "createdAt", "updatedAt");
     }
 
-    // ------------------------------------------------------------------ nội bộ
-
     private List<PurchaseProposalLine> buildLines(PurchaseProposal voucher, List<PurchaseProposalApi.LineInput> inputs) {
         List<PurchaseProposalLine> result = new ArrayList<>();
         if (inputs == null) {
@@ -275,6 +357,7 @@ public class PurchaseProposalService
             line.setUnitPrice(input.unitPrice());
             line.setPriority(input.priority());
             line.setNote(trimToNull(input.note()));
+            line.setDetails(lineDetails(input.details(), voucher.getSchool(), lineNo));
             AdequacyService.Snapshot snapshot = adequacy.snapshot(voucher.getSchool().getId(), catalog.getId());
             line.setCurrentQuantity(snapshot.current());
             line.setRequiredQuantity(snapshot.required());

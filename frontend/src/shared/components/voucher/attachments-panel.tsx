@@ -10,7 +10,11 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { FilePreviewDialog, previewable, type PreviewSource } from "@/shared/components/voucher/file-preview";
+import { FileDrop, FileTypeIcon } from "@/shared/components/voucher/file-drop";
 import type { AttachmentInfo } from "@/domains/voucher/types";
+import { LoadingText } from "@/shared/components/spinner";
+import { EmptyState } from "@/shared/components/data-table/table-empty";
+import { useFillPanel } from "@/shared/components/layout/fill-panel";
 
 function size(bytes: number) {
   if (bytes < 1024) return `${bytes} byte`;
@@ -58,7 +62,13 @@ export function AttachmentsPanel({
   note,
   className,
   section,
+  field,
+  hint,
 }: {
+  /** Vẽ như một trường form (nhãn + vùng kéo thả, `FileDrop`) — cùng dáng với `PendingAttachments field` trước khi lưu. */
+  field?: boolean;
+  /** Dòng phụ trong vùng kéo thả khi chưa có tệp (chỉ khi `field`). */
+  hint?: string;
   /** Bắt buộc có ít nhất một tệp lúc trình — tiêu đề có dấu * như ô bắt buộc. */
   required?: boolean;
   resource: string;
@@ -79,6 +89,7 @@ export function AttachmentsPanel({
    */
   section?: boolean;
 }) {
+  const fill = useFillPanel();
   const { open } = useNotification();
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
@@ -155,11 +166,42 @@ export function AttachmentsPanel({
     }
   }
 
+  if (field) {
+    return (
+      <>
+        {isLoading ? <LoadingText /> : (
+          <FileDrop label={title} required={required} hint={hint ?? "Tệp được lưu ngay khi chọn"} busy={busy} disabled={!canWrite}
+            onAdd={(list) => void upload(list)}
+            items={files.map((file) => ({
+              key: String(file.id),
+              name: file.fileName,
+              meta: `${size(file.sizeBytes)} · ${shortDateTime(file.createdAt)}`,
+              icon: <FileTypeIcon name={file.fileName} type={file.contentType} />,
+              onOpen: () => void (previewable(file.fileName, file.contentType) ? view(file) : download(file)),
+              actions: (
+                <>
+                  <Button type="button" variant="ghost" size="icon" className="size-8" title="Tải về" onClick={() => void download(file)}>
+                    <Download />
+                  </Button>
+                  {canWrite ? (
+                    <Button type="button" variant="ghost" size="icon" className="size-8" title="Xoá tệp" disabled={busy} onClick={() => void remove(file)}>
+                      <Trash2 className="text-destructive" />
+                    </Button>
+                  ) : null}
+                </>
+              ),
+            }))} />
+        )}
+        <FilePreviewDialog source={preview} onClose={() => setPreview(null)} />
+      </>
+    );
+  }
+
   return (
-    <Card className={cn(compact ? "gap-3 py-4" : undefined, section && "gap-2 rounded-none border-0 bg-transparent py-0 shadow-none", className)}>
+    <Card className={cn(compact ? "gap-3 py-4" : undefined, section &&"gap-2 rounded-none border-0 bg-transparent py-0 shadow-none", fill && "flex-1", className)}>
       <CardHeader className={cn(compact || section ? "flex flex-row items-center justify-between gap-4 px-4" : "flex flex-row items-start justify-between gap-4", section && "min-h-8 px-0")}>
         <div className="space-y-1.5">
-          {section ? (
+          {section && fill ? null : section ? (
             <h3 className="text-overline text-muted-foreground" title={description}>
               {title}
               {files.length ? <span className="text-foreground ms-1.5">{files.length}</span> : null}
@@ -195,9 +237,12 @@ export function AttachmentsPanel({
           </>
         ) : null}
       </CardHeader>
-      <CardContent className={cn(compact ? "px-4" : undefined, section && "px-0")}>
+      <CardContent className={cn(compact ? "px-4" : undefined, section && "px-0", fill && "flex flex-1 flex-col")}>
         {isLoading ? (
-          <p className="text-muted-foreground text-sm">Đang tải…</p>
+          <LoadingText />
+        ) : files.length === 0 && fill ? (
+          // Trang riêng cao kín khung (hộp phòng → Hồ sơ, bản vẽ): biểu tượng + chữ đứng chính giữa (13/11/2026).
+          <EmptyState icon={<Paperclip />} title="Chưa có tệp nào" />
         ) : files.length === 0 ? (
           <p className={cn("text-muted-foreground text-sm", section && "rounded-lg border border-dashed px-3 py-2.5")}>Chưa có tệp nào.</p>
         ) : (

@@ -1,7 +1,9 @@
 package com.g123.sfems.module.security.auth.api.dto;
 
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.service.MfaService;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
 import java.time.Instant;
 
 /**
@@ -24,6 +26,8 @@ public record CurrentUserResponse(
         String username,
         String email,
         String fullName,
+        /** Loại tài khoản — khung giao diện người dùng được vào (docs/kien-truc/11). */
+        UserType userType,
         /** Đã bật xác thực hai yếu tố. */
         boolean mfaEnabled,
         /** Tài khoản đặc quyền — phải bật; màn hình nhắc cho tới khi bật. */
@@ -31,17 +35,26 @@ public record CurrentUserResponse(
         /** Đã có lớp xác thực thứ hai nào chưa — ứng dụng (TOTP) hoặc mã qua email. */
         boolean secondFactor,
         /** Lần đổi mật khẩu gần nhất — màn hình nhắc đổi khi quá lâu (QLTB-243). */
-        Instant passwordChangedAt) {
+        Instant passwordChangedAt,
+        /**
+         * Tài khoản quản trị chưa có lớp thứ hai trong khi cổng Admin bắt buộc: mọi API khác {@code /api/auth/**} trả
+         * 403 tới khi bật — màn hình đưa thẳng tới bước bật.
+         */
+        boolean mfaSetupRequired) {
 
-    public static CurrentUserResponse from(User user) {
+    /** @param adminPortal luật cổng Admin — để biết tài khoản này còn phải bật lớp thứ hai không */
+    public static CurrentUserResponse from(User user, AdminPortalPolicy adminPortal) {
+        boolean secondFactor = user.isMfaEnabled() || user.isMfaEmail();
         return new CurrentUserResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
+                user.getUserType(),
                 user.isMfaEnabled(),
                 MfaService.required(user),
-                user.isMfaEnabled() || user.isMfaEmail(),
-                user.getPasswordChangedAt());
+                secondFactor,
+                user.getPasswordChangedAt(),
+                adminPortal.secondFactorMissing(user.getUserType(), secondFactor));
     }
 }

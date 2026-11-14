@@ -1,18 +1,40 @@
 package com.g123.sfems.module.catalog.grade;
 
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.g123.sfems.domain.catalog.grade.Grade;
-import com.g123.sfems.module.catalog.base.dto.CatalogResponse;
-import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.Instant;
+import java.util.Map;
 
-/** Khối lớp trên đường truyền: các trường chung được trải phẳng, cộng cấp học rút gọn và số khối. */
-public record GradeResponse(@JsonUnwrapped CatalogResponse base, RefSummary educationLevel, Integer gradeNumber) {
+/** Hình dạng trên đường truyền của một khối lớp. */
+public record GradeResponse(
+        Long id,
+        String code,
+        String name,
+        Integer sortOrder,
+        Boolean active,
+        String note,
+        String teachingCode,
+        EducationLevelSummary educationLevel,
+        Instant createdAt,
+        Instant updatedAt,
+        @JsonProperty("_can") Map<String, Boolean> can) {
+
+    /**
+     * Cấp học rút gọn. Khai ngay ở đây chứ không import DTO của feature cấp học:
+     * nới rộng payload bên đó không được lặng lẽ nới rộng payload bên này.
+     */
+    public record EducationLevelSummary(Long id, String code, String name) {
+    }
 
     public static GradeResponse from(Grade item, RowLevelSecurity rowLevel) {
+        var level = item.getEducationLevel();
         return new GradeResponse(
-                CatalogResponse.from(item, rowLevel),
-                RefSummary.of(item.getEducationLevel()),
-                item.getGradeNumber());
+                item.getId(), item.getCode(), item.getName(), item.getSortOrder(),
+                item.getActive(), item.getNote(), item.getTeachingCode(),
+                level == null ? null
+                        : new EducationLevelSummary(level.getId(), level.getCode(), level.getName()),
+                item.getCreatedAt(), item.getUpdatedAt(),
+                rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }
 }

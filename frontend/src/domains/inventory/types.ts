@@ -1,38 +1,22 @@
-/**
- * Kiểm kê (KK-01 – KK-07). Khớp với phản hồi của `module/school/inventory` ở backend.
- */
+import type { Details } from "@/domains/voucher/form-types";
+import type { EquipmentRef, VoucherBase } from "@/domains/voucher/types";
 
-import type { EquipmentCondition } from "@/domains/equipment/types";
-import type { VoucherBase } from "@/domains/voucher/types";
+type Ref = { id: number; code: string | null; name: string };
 
-/** Tham chiếu rút gọn (id, mã, tên). */
-export type InventoryRef = {
-  id: number;
-  code: string;
-  name: string;
-};
-
-/** Đợt kiểm kê do Sở phát động. */
+/** Đợt kiểm kê do Sở / UBND phát động. */
 export type InventoryCampaign = {
   id: number;
-  managingBody: InventoryRef;
+  managingBody: Ref;
   title: string;
-  /** Lặp lại `title` để ô chọn tham chiếu dùng chung đọc được. */
-  name: string;
-  /** Ngày chốt số liệu, dạng "2026-12-31". */
   cutoffDate: string;
-  /** Hạn các trường nộp biên bản. */
   deadline: string;
   note: string | null;
   closed: boolean;
-  /** Đợt còn mở mà đã quá hạn nộp. */
   overdue: boolean;
   createdAt: string;
-  /** Người đang đăng nhập được sửa, xoá đợt này không. */
   _can?: { write?: boolean; delete?: boolean };
 };
 
-/** Một trường trong đợt và phiếu kiểm kê mới nhất của nó — `GET /inventory_campaigns/{id}/progress`. */
 export type CampaignProgressRow = {
   schoolId: number;
   schoolCode: string;
@@ -40,8 +24,11 @@ export type CampaignProgressRow = {
   sessionId: number | null;
   sessionCode: string | null;
   status: string | null;
-  /** Người xem mở được biên bản — Sở không đọc biên bản còn ở bàn hiệu trưởng. */
+  /** Người xem mở được biên bản — Sở / UBND không đọc biên bản còn ở bàn hiệu trưởng. */
   canOpen: boolean;
+  /** Hạng mục CSVC đã kiểm / tổng của biên bản (QLTB-655). */
+  facilityChecked?: number;
+  facilityTotal?: number;
 };
 
 export type CampaignProgress = {
@@ -53,27 +40,73 @@ export type CampaignProgress = {
   schools: CampaignProgressRow[];
 };
 
-/** Loại chênh lệch của một dòng: mất, sai phòng, hỏng. Một dòng có thể vừa sai phòng vừa hỏng. */
-export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED";
+export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED" | "SHORTAGE";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
   MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
   DAMAGED: "Hỏng",
+  SHORTAGE: "Thiếu số lượng",
 };
 
-/** Số tóm tắt của một biên bản kiểm kê. */
-export type InventorySummary = {
-  total: number;
-  checked: number;
-  matched: number;
-  missing: number;
-  wrongRoom: number;
-  damaged: number;
-  surplus: number;
+/** Mỗi chênh lệch sinh ra phiếu gì khi biên bản được duyệt. */
+/** Thiếu số lượng (hoá chất, vật tư theo lô) không sinh phiếu — xử lý tay theo biên bản. */
+export const DISCREPANCY_OUTCOMES: Record<Exclude<Discrepancy, "SHORTAGE"> | "SURPLUS", string> = {
+  MISSING: "Đề nghị ghi giảm do mất",
+  WRONG_ROOM: "Phiếu điều chuyển nội bộ",
+  DAMAGED: "Phiếu báo hỏng",
+  SURPLUS: "Phiếu ghi tăng",
 };
 
-/** Số chênh lệch của một nhóm (phòng hoặc môn) — `GET /inventory_sessions/{id}/breakdown`. */
+export type InventoryLine = {
+  details?: Details;
+  id: number;
+  lineNo: number;
+  equipment: EquipmentRef;
+  expectedRoom: Ref | null;
+  expectedCondition: string | null;
+  found: boolean | null;
+  foundRoom: Ref | null;
+  foundCondition: string | null;
+  discrepancies: Discrepancy[];
+  /** Hoá chất, vật tư theo lô: số trên sổ lúc lập phiếu và số đếm được (QLTB-574). */
+  expectedQuantity?: number | null;
+  countedQuantity?: number | null;
+  note: string | null;
+};
+
+export type InventorySurplus = {
+  id: number;
+  lineNo: number;
+  catalog: Ref;
+  name: string;
+  quantity: number;
+  room: Ref | null;
+  note: string | null;
+};
+
+export type InventorySession = VoucherBase & {
+  campaign: Ref | null;
+  title: string;
+  inventoryDate: string;
+  room: Ref | null;
+  council: string | null;
+  conclusion: string | null;
+  summary: {
+    total: number;
+    checked: number;
+    matched: number;
+    missing: number;
+    wrongRoom: number;
+    damaged: number;
+    surplus: number;
+  };
+  lines: InventoryLine[];
+  surplus: InventorySurplus[];
+  lineCount: number;
+};
+
+/** Số chênh lệch của một nhóm (phòng, môn học hoặc trường) — `InventoryDiscrepancies.Row` ở máy chủ. */
 export type DiscrepancyCounts = {
   id: number | null;
   name: string | null;
@@ -87,6 +120,7 @@ export type DiscrepancyCounts = {
   damaged: number;
 };
 
+/** `GET /inventory_sessions/{id}/breakdown`. */
 export type SessionBreakdown = { rooms: DiscrepancyCounts[]; subjects: DiscrepancyCounts[] };
 
 /** `GET /inventory_campaigns/{id}/discrepancies` — `counts` trống khi người xem chưa mở được biên bản. */
@@ -102,7 +136,7 @@ export type CampaignDiscrepancyRow = {
 };
 
 /** Tiêu đề các cột số của bảng chênh lệch. */
-export const COUNT_HEADS = ["Theo sổ", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
+export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
 
 /** Cộng các nhóm thành một hàng tổng. */
 export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
@@ -118,44 +152,32 @@ export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
   return total;
 }
 
-/** Một tài sản trên sổ: sổ ghi ở đâu, tình trạng gì; tổ kiểm kê thấy gì. */
-export type InventoryLine = {
+/** Hạng mục CSVC của biên bản kiểm kê (QLTB-654): khối nhà hoặc phòng / hạng mục, kết cấu và hiện trạng sổ → thực tế. */
+export type InventoryFacilityLine = {
   id: number;
-  lineNo: number;
-  equipment: InventoryRef;
-  catalog: InventoryRef | null;
-  expectedRoom: InventoryRef | null;
-  expectedCondition: EquipmentCondition | null;
-  found: boolean | null;
-  foundRoom: InventoryRef | null;
-  foundCondition: EquipmentCondition | null;
-  discrepancies: Discrepancy[];
-  note: string | null;
-};
-
-/** Tài sản thấy khi kiểm kê mà sổ không có. */
-export type InventorySurplus = {
-  id: number;
-  lineNo: number;
-  catalog: InventoryRef;
+  roomId: number | null;
+  buildingId: number | null;
+  code: string;
   name: string;
-  quantity: number;
-  room: InventoryRef | null;
+  typeName: string;
+  typeKind: string | null;
+  buildingName: string | null;
+  structureBefore: string | null;
+  conditionBefore: string | null;
+  structureFound: string | null;
+  conditionFound: string | null;
+  checked: boolean;
   note: string | null;
+  appliedAt: string | null;
 };
 
-/** Phiếu kiểm kê (cũng là biên bản kiểm kê) của một trường. */
-export type InventorySession = VoucherBase & {
-  campaign: { id: number; code: string | null; name: string } | null;
-  title: string;
-  inventoryDate: string;
-  /** Kiểm kê một phòng; trống là cả trường. */
-  room: InventoryRef | null;
-  council: string | null;
-  conclusion: string | null;
-  summary: InventorySummary;
-  /** Danh sách không trả dòng (mảng rỗng); màn chi tiết trả đủ. */
-  lines: InventoryLine[];
-  surplus: InventorySurplus[];
-  lineCount: number;
+/** `GET /inventory_sessions/{id}/facility-lines`. `editable` — phiếu còn nháp; `applicable` — đã duyệt, còn dòng khác sổ chưa áp. */
+export type InventoryFacilityLines = {
+  lines: InventoryFacilityLine[];
+  total: number;
+  checked: number;
+  changed: number;
+  applied: number;
+  editable: boolean;
+  applicable: boolean;
 };

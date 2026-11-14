@@ -7,6 +7,10 @@ import com.g123.sfems.module.catalog.base.dto.CatalogRequest;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.stereotype.Service;
 
+/**
+ * Loại thiết bị. Toàn bộ logic ở {@link CatalogService}; feature khác cần phân
+ * giải một mục thì gọi {@code get(id)} của lớp này.
+ */
 @Service
 public class EquipmentTypeService extends CatalogService<EquipmentType, CatalogRequest, CatalogPatchRequest> {
 
@@ -14,7 +18,6 @@ public class EquipmentTypeService extends CatalogService<EquipmentType, CatalogR
         super(repository, rowLevel, EquipmentType.class, EquipmentType::new, "Loại thiết bị");
     }
 
-    /** Danh mục lựa chọn: hai mục cùng tên thì không phân biệt được trong ô chọn. */
     @Override
     protected boolean uniqueName() {
         return true;
