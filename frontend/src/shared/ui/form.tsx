@@ -136,7 +136,7 @@ const useFormField = () => {
     throw new Error("useFormField should be used within <FormField>");
   }
 
-  const { id } = itemContext;
+  const { id, typing } = itemContext;
 
   return {
     id,
@@ -145,25 +145,43 @@ const useFormField = () => {
     formDescriptionId: `${id}-form-item-description`,
     formMessageId: `${id}-form-item-message`,
     ...fieldState,
+    // Đang gõ trong ô thì chưa báo lỗi (chữ đỏ, viền đỏ) — rời ô mới báo (trưởng nhóm 14/11/2026).
+    error: typing ? undefined : fieldState.error,
   };
 };
 
 type FormItemContextValue = {
   id: string;
+  /** Người dùng đang gõ trong ô này (từ lần gõ đầu tới khi con trỏ rời ô). */
+  typing?: boolean;
 };
 
 const FormItemContext = React.createContext<FormItemContextValue>(
   {} as FormItemContextValue
 );
 
-function FormItem({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Một ô của form. Lỗi của ô KHÔNG hiện khi người dùng đang gõ trong đó — chỉ hiện khi con trỏ rời ô (trưởng nhóm
+ * 14/11/2026). "Đang gõ" tính từ lần gõ đầu (`input`), không từ lúc con trỏ vào ô: lưu hỏng thì form đưa con trỏ tới ô
+ * sai và lỗi vẫn phải hiện ở đó.
+ */
+function FormItem({ className, onInput, onBlur, ...props }: React.ComponentProps<"div">) {
   const id = React.useId();
+  const [typing, setTyping] = React.useState(false);
 
   return (
-    <FormItemContext.Provider value={{ id }}>
+    <FormItemContext.Provider value={{ id, typing }}>
       <div
         data-slot="form-item"
         className={cn("grid gap-2", className)}
+        onInput={(e) => {
+          if (!typing) setTyping(true);
+          onInput?.(e);
+        }}
+        onBlur={(e) => {
+          if (typing && !e.currentTarget.contains(e.relatedTarget as Node | null)) setTyping(false);
+          onBlur?.(e);
+        }}
         {...props}
       />
     </FormItemContext.Provider>
