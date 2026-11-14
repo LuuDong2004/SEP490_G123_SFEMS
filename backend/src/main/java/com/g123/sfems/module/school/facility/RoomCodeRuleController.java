@@ -1,8 +1,10 @@
 package com.g123.sfems.module.school.facility;
 
+import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.RoomCodeService.RuleView;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -12,6 +14,7 @@ import jakarta.validation.constraints.Size;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,8 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Đường {@code /next} trả mã sẽ cấp cho phòng kế tiếp — form thêm phòng điền sẵn ô Mã từ đây.
  *
- * <p>Bản gốc đặt controller này trong {@code module/school/coderule}, cạnh bộ sinh mã tài sản. Ở đây nó nằm
- * cùng lát phòng vì nó chỉ phục vụ phòng: phần số của mã TÀI SẢN do
+ * <p>Controller nằm cùng lát phòng chứ không ở {@code module/school/coderule} vì nó chỉ phục vụ phòng: phần
+ * số của mã TÀI SẢN do
  * {@link com.g123.sfems.module.school.coderule.AssetCodeService} giữ, và hai bộ dùng chung bảng
  * {@code school_code_rules} theo {@code target} khác nhau ({@code rooms} và {@code equipment}) nên không dẫm
  * lên nhau.
@@ -41,10 +44,13 @@ public class RoomCodeRuleController {
 
     private final RoomCodeService codes;
     private final RowLevelPrincipalResolver principals;
+    private final VisibleSchools visibleSchools;
 
-    public RoomCodeRuleController(RoomCodeService codes, RowLevelPrincipalResolver principals) {
+    public RoomCodeRuleController(RoomCodeService codes, RowLevelPrincipalResolver principals,
+            VisibleSchools visibleSchools) {
         this.codes = codes;
         this.principals = principals;
+        this.visibleSchools = visibleSchools;
     }
 
     public record RuleRequest(
@@ -93,12 +99,22 @@ public class RoomCodeRuleController {
         return body;
     }
 
+    /**
+     * Trường mà yêu cầu này được phép chạm tới. {@code school.id} do máy khách gửi nên KHÔNG tin được: bảng
+     * {@code schools} không có dòng chính sách dòng nào, nên {@code SchoolService#get} một id bất kỳ vẫn trả
+     * về trường của người khác. Vì vậy id gửi lên phải nằm trong tập trường người gọi thấy được — trường chỉ
+     * thấy đúng trường mình, Sở và quản trị thấy mọi trường.
+     */
     private Long schoolOf(Long requested) {
-        if (requested != null) {
-            return requested;
+        if (requested == null) {
+            return principals.current()
+                    .map(RowLevelPrincipal::schoolId)
+                    .orElseThrow(() -> new FieldValidationException("school", "Chọn trường"));
         }
-        return principals.current()
-                .map(RowLevelPrincipal::schoolId)
-                .orElseThrow(() -> new FieldValidationException("school", "Chọn trường"));
+        Set<Long> visible = visibleSchools.current();
+        if (visible != null && !visible.contains(requested)) {
+            throw new ResourceNotFoundException("School", requested);
+        }
+        return requested;
     }
 }
