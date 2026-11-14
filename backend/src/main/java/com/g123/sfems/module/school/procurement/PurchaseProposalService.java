@@ -39,8 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
  * loại phiếu như phiếu nhập và phiếu kiểm kê, chỉ khác hình payload và luật riêng.
  *
  * <p><b>NC-07 chưa nối:</b> "lập phiếu nhập từ đề xuất" cần hai hàm của {@code EquipmentIntakeService}
- * ({@code receivedBySource}, {@code createFromPurchase}) và {@code record PurchasedItem} — cả ba có trong
- * repo nguồn nhưng chưa có trong bản của nhóm, và {@code module/school/intake} là vùng của DongLV. Hành
+ * (đọc số đã nhận theo đề xuất, lập phiếu nhập nháp từ danh sách hàng mua) — chưa có, và
+ * {@code module/school/intake} là vùng của DongLV. Hành
  * động {@code intake} trên đề xuất, đường {@code /{id}/intake-lines} và {@code POST /{id}/intake} làm
  * ngay khi ba thứ đó có.
  */
@@ -171,7 +171,7 @@ public class PurchaseProposalService
     /**
      * Các thiết bị đang được xin ở những đề xuất CÒN HIỆU LỰC khác của một trường — để form và màn duyệt
      * cảnh báo xin trùng. Chỉ cảnh báo, không chặn: trường có lý do xin thêm (phiếu trước bị cắt số lượng…).
-     * Tính cả phiếu nháp. Đọc qua phạm vi dòng như mọi lần đọc phiếu, nên Sở / UBND chỉ thấy đề xuất đã
+     * Tính cả phiếu nháp. Đọc qua phạm vi dòng như mọi lần đọc phiếu, nên tài khoản Sở chỉ thấy đề xuất đã
      * trình tới mình.
      */
     public List<Overlap> overlaps(Long schoolId, Long excludeId) {

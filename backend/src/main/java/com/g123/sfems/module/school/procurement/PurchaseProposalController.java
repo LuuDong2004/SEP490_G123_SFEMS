@@ -24,16 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET /adequacy?schoolId=} — mức đáp ứng định mức của một trường (NC-01),</li>
  *   <li>{@code GET /adequacy-summary} — tổng hợp mọi trường người xem được thấy,</li>
  *   <li>{@code GET /overlaps} — thiết bị đang được xin ở các đề xuất còn hiệu lực khác của trường,</li>
- *   <li>{@code GET /{id}/intake-lines} và {@code POST /{id}/intake} — hàng về, lập phiếu nhập nháp từ đề
- *       xuất (NC-07, xem ghi chú ở {@link PurchaseProposalService}).</li>
  * </ul>
  *
  * <p>Hai đường dẫn chữ ({@code adequacy}, {@code adequacy-summary}, {@code overlaps}) khai trước
  * {@code /{id}} để thắng biến đường dẫn.
  *
- * <p>Bản gốc gắn {@code @HeavyQuery} cho {@code adequacy-summary} và có thêm ba đường Excel. Repo nhóm
- * chưa có {@code HeavyQuery} lẫn {@code shared/office/XlsxWriter} (đều là {@code shared/**}), nên ở đây
- * bỏ hai thứ đó; phần xuất Excel làm sau khi nhóm có bộ ghi tệp dùng chung.
+ * <p>Chưa có xuất Excel: cần bộ ghi tệp dùng chung trong {@code shared/**}, làm sau khi nhóm có.
+ * Lập phiếu nhập từ đề xuất (NC-07) chưa có — xem ghi chú ở {@link PurchaseProposalService}.
  */
 @RestController
 @RequestMapping("/api/purchase_proposals")

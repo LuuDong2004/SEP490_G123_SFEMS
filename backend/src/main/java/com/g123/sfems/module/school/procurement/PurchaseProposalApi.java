@@ -23,18 +23,11 @@ import java.util.Set;
 /**
  * Payload và DTO của đề xuất mua sắm (NC-02..NC-06).
  *
- * <p>Bản gốc đặt hình này trong {@code PurchaseProposalApi}, dùng bộ kiểm tra {@code shared/validation}
- * ({@code @Text}, {@code @Num}, {@code @DateValue}) và trần dòng {@code VoucherLimits} — ba thứ repo nhóm
- * chưa có, và cả ba đều là của {@code shared/**}. Ở đây chúng được thay bằng ràng buộc Jakarta chuẩn
- * cùng giới hạn viết thẳng ra, giữ nguyên con số và câu báo lỗi của bản gốc. Khi nhóm có
- * {@code shared/validation} thì đổi lại cho khớp nguồn.
- *
- * <p>Trường {@code details} của bản gốc (JSONB, hình dạng do {@code resources/voucher-forms/*.json}
- * quyết định) bỏ khỏi payload: repo nhóm chưa có cột, và đề xuất mua sắm không dùng tới nó.
+ * <p>Kiểm tra dữ liệu bằng ràng buộc Jakarta chuẩn, giới hạn viết thẳng ra tại đây.
  */
 public final class PurchaseProposalApi {
 
-    /** Trần số dòng một lần gửi — con số của bản gốc ({@code VoucherLimits.MAX_LINES}). */
+    /** Trần số dòng một lần gửi. */
     public static final int MAX_LINES = 1000;
     public static final String TOO_MANY_LINES = "Một phiếu tối đa 1.000 dòng";
 

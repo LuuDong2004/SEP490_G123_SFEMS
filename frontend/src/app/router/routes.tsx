@@ -45,6 +45,13 @@ import { SchoolList } from "@/features/organization/schools/list";
 import { SchoolCreate } from "@/features/organization/schools/create";
 import { SchoolEdit } from "@/features/organization/schools/edit";
 import { SchoolShow } from "@/features/organization/schools/show";
+import {
+  EquipmentAdequacy,
+  PurchaseProposalCreate,
+  PurchaseProposalEdit,
+  PurchaseProposalList,
+  PurchaseProposalShow,
+} from "@/features/organization/purchase-proposals";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -142,8 +149,13 @@ export function AppRoutes() {
         </Route>
 
         {/* Mua sắm (NC-01 – NC-07) */}
-        {listRoute("/equipment-adequacy", "equipment_adequacy")}
-        {crudRoutes("/purchase-proposals", "purchase_proposals")}
+        {listRoute("/equipment-adequacy", "equipment_adequacy", <EquipmentAdequacy />)}
+        {crudRoutes("/purchase-proposals", "purchase_proposals", {
+          list: <PurchaseProposalList />,
+          create: <PurchaseProposalCreate />,
+          edit: <PurchaseProposalEdit />,
+          show: <PurchaseProposalShow />,
+        })}
         {crudRoutes("/procurement-plans", "procurement_plans")}
 
         {/* Nhập thiết bị – ghi tăng (PN-01 – PN-03) */}
