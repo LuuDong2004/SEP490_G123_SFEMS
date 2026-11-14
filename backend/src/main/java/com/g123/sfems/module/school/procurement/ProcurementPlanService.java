@@ -376,8 +376,11 @@ public class ProcurementPlanService {
             Map<Long, Long> lockedPlan = new HashMap<>();
             jdbc.query("SELECT id, plan_id FROM purchase_proposals WHERE id = ANY (?) ORDER BY id FOR UPDATE",
                     rs -> {
+                        // wasNull() nói về cột đọc SAU CÙNG: đọc id trước, plan_id sau rồi mới hỏi. Đảo thứ tự
+                        // thì đề xuất chưa vào kế hoạch nào bị coi như đang thuộc kế hoạch id 0.
+                        long proposalId = rs.getLong(1);
                         long planId = rs.getLong(2);
-                        lockedPlan.put(rs.getLong(1), rs.wasNull() ? null : planId);
+                        lockedPlan.put(proposalId, rs.wasNull() ? null : planId);
                     }, (Object) wanted.toArray(Long[]::new));
             List<PurchaseProposal> adding = proposals.findAll(rowLevel.<PurchaseProposal>scope(PurchaseProposal.class,
                     Action.READ).and((root, q, cb) -> root.get("id").in(wanted)));
