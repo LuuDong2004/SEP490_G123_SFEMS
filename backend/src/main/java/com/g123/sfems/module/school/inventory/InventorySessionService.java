@@ -229,6 +229,7 @@ public class InventorySessionService
                 InventorySurplus item = new InventorySurplus();
                 item.setLineNo(lineNo++);
                 item.setCatalog(catalogs.get(input.catalog().id()));
+                catalogs.requireOwnedBy(item.getCatalog(), voucher.getSchool(), lineNo - 1);
                 item.setName(input.name() == null || input.name().isBlank() ? item.getCatalog().getName() : input.name().trim());
                 item.setQuantity(input.quantity() == null ? 1 : input.quantity());
                 item.setRoom(input.room() == null || input.room().id() == null ? null : rooms.get(input.room().id()));

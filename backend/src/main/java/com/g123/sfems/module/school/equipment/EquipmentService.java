@@ -234,6 +234,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         // Tên: gộp khoảng trắng thừa giữa các chữ (hai đầu lớp cha đã cắt).
         item.setName(item.getName().replaceAll("\\s+", " "));
         item.setCatalog(catalogs.get(request.catalog().id()));
+        catalogs.requireOwnedBy(item.getCatalog(), item.getSchool(), 0);
         // Vắng thì lấy của nhóm thiết bị — xem chú thích ở generateFromIntakeLine.
         item.setPhysicalOrDigital(request.physicalOrDigital() != null
                 ? request.physicalOrDigital()
@@ -489,6 +490,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             return;
         }
         EquipmentCatalog next = catalogs.get(request.catalog().id());
+        catalogs.requireOwnedBy(next, item.getSchool(), 0);
         if (next.getTrackingType() != item.getCatalog().getTrackingType()) {
             throw new FieldValidationException("catalog",
                     "Không đổi được sang mục danh mục có cách quản lý khác (từng cái / theo lô) — ghi giảm thiết bị này"
@@ -599,6 +601,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private void applyPatch(Equipment item, EquipmentPatchRequest request) {
         if (present(request.catalog())) {
             item.setCatalog(catalogs.get(request.catalog().id()));
+            catalogs.requireOwnedBy(item.getCatalog(), item.getSchool(), 0);
         }
         if (request.physicalOrDigital() != null) {
             item.setPhysicalOrDigital(request.physicalOrDigital());

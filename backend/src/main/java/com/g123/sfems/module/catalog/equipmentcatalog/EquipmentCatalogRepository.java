@@ -16,7 +16,6 @@ public interface EquipmentCatalogRepository extends CatalogRepository<EquipmentC
     Optional<EquipmentCatalog> findFirstByNameIgnoreCaseAndOwnerSchoolIsNull(String name);
 
     /** Thiết bị ngoài danh mục trùng tên của chính trường đó — chặn thêm hai lần. */
-    Optional<EquipmentCatalog> findFirstByNameIgnoreCaseAndOwnerSchool_Id(String name, Long schoolId);
 
     /** Số thiết bị ngoài danh mục của một trường — điểm bắt đầu dò mã kế tiếp. */
     long countByOwnerSchool_Id(Long schoolId);

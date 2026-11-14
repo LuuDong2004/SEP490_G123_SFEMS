@@ -104,14 +104,7 @@ public class EquipmentCatalogService extends CatalogService<
         }
         School school = schools.get(schoolId);
         String name = request.name().trim();
-        catalogTree.findFirstByNameIgnoreCaseAndOwnerSchoolIsNull(name).ifPresent(existing -> {
-            throw new ConflictException("Danh mục của Sở đã có thiết bị \"%s\" (mã %s) — chọn thiết bị đó"
-                    .formatted(existing.getName(), existing.getCode()));
-        });
-        catalogTree.findFirstByNameIgnoreCaseAndOwnerSchool_Id(name, schoolId).ifPresent(existing -> {
-            throw new ConflictException("Trường đã thêm thiết bị ngoài danh mục \"%s\" (mã %s) — chọn thiết bị đó"
-                    .formatted(existing.getName(), existing.getCode()));
-        });
+        rejectSameName(name, school, null, "chọn thiết bị đó");
 
         EquipmentCatalog item = new EquipmentCatalog();
         item.setCode(nextSchoolCode(school));
@@ -133,16 +126,7 @@ public class EquipmentCatalogService extends CatalogService<
             throw new ResourceNotFoundException("EquipmentCatalog", id);
         }
         String name = request.name().trim();
-        catalogTree.findFirstByNameIgnoreCaseAndOwnerSchoolIsNull(name).ifPresent(existing -> {
-            throw new ConflictException("Danh mục của Sở đã có thiết bị \"%s\" (mã %s) — đặt tên khác"
-                    .formatted(existing.getName(), existing.getCode()));
-        });
-        catalogTree.findFirstByNameIgnoreCaseAndOwnerSchool_Id(name, schoolId)
-                .filter(existing -> !existing.getId().equals(id))
-                .ifPresent(existing -> {
-                    throw new ConflictException("Trường đã có thiết bị ngoài danh mục \"%s\" (mã %s) — đặt tên khác"
-                            .formatted(existing.getName(), existing.getCode()));
-                });
+        rejectSameName(name, item.getOwnerSchool(), id, "đặt tên khác");
         TrackingType wanted = request.trackingType() == null ? item.getTrackingType() : request.trackingType();
         if (wanted != item.getTrackingType() && assetCount(id) > 0) {
             throw new FieldValidationException("trackingType",
@@ -151,6 +135,104 @@ public class EquipmentCatalogService extends CatalogService<
         item.getExtraSubjects().clear();
         applySchoolItem(item, request, name);
         return item;
+    }
+
+    /** Kết quả so tên: thiết bị TRÙNG (cùng bộ từ — chặn) và tối đa ba thiết bị GẦN GIỐNG (chỉ gợi ý). */
+    public record NameMatches(EquipmentCatalog same, List<EquipmentCatalog> similar) {
+        static final NameMatches NONE = new NameMatches(null, List.of());
+    }
+
+    /**
+     * Ô kiểm tên của hộp "Thêm thiết bị ngoài danh mục" — cùng luật với lúc lưu ({@link #rejectSameName}), nên điều
+     * màn hình báo và điều máy chủ chặn không lệch nhau. {@code excludeId}: thiết bị đang sửa.
+     */
+    @Transactional(readOnly = true)
+    public NameMatches checkSchoolItemName(String name, Long schoolId, Long excludeId) {
+        if (schoolId == null) {
+            return NameMatches.NONE;
+        }
+        NameMatches found = nameMatches(name, schools.get(schoolId), excludeId);
+        if (found.same() != null) {
+            loadForResponse(found.same());
+        }
+        found.similar().forEach(this::loadForResponse);
+        return found;
+    }
+
+    /** Lúc lưu: trùng bộ từ với một thiết bị trường chọn được (của Sở hoặc của chính trường) thì từ chối và nêu tên. */
+    private void rejectSameName(String name, School school, Long excludeId, String advice) {
+        EquipmentCatalog existing = nameMatches(name, school, excludeId).same();
+        if (existing != null) {
+            throw new ConflictException((existing.getOwnerSchool() == null
+                    ? "Danh mục của Sở đã có thiết bị \"%s\" (mã %s) — %s"
+                    : "Trường đã thêm thiết bị ngoài danh mục \"%s\" (mã %s) — %s")
+                    .formatted(existing.getName(), existing.getCode(), advice));
+        }
+    }
+
+    /**
+     * So tên theo từ ({@link CatalogNames}) với các thiết bị ĐANG DÙNG mà trường này chọn được: của Sở đúng cấp học
+     * của trường (cấp thêm của thiết bị, hoặc không gắn cấp — cùng phạm vi với ô chọn {@link #levelScope()} và
+     * {@link #requireLevelFits}), cộng thiết bị ngoài danh mục của chính trường. Trước đây so cả ba cấp — trường Tiểu
+     * học thêm "Ampe kế một chiều" (chỉ có ở THCS) bị bảo "chọn thiết bị đó" mà không chọn được — và so cả chuỗi,
+     * nên "Al bột" lọt qua "Al (Bột)".
+     *
+     * <p>CSDL lọc sơ những tên chứa ít nhất một từ của tên mới (bỏ dấu, như ô tìm — {@link ListParams#foldedLike});
+     * độ giống tính ở đây. Trùng ở cả Sở lẫn trường thì báo cái của Sở trước.
+     */
+    private NameMatches nameMatches(String name, School school, Long excludeId) {
+        Set<String> words = CatalogNames.words(name);
+        if (words.isEmpty() || school == null) {
+            return NameMatches.NONE;
+        }
+        Long level = school.getEducationLevel() == null ? null : school.getEducationLevel().getId();
+        List<String> terms = CatalogNames.searchWords(words);
+        StringBuilder jpql = new StringBuilder(
+                "select c from EquipmentCatalog c left join c.ownerSchool os where c.active = true"
+                        + " and (os.id = :school or (os is null");
+        if (level != null) {
+            jpql.append(" and (c.educationLevel is null or c.educationLevel.id = :level"
+                    + " or exists (select 1 from EquipmentCatalog o join o.extraLevels l where o.id = c.id and l.id = :level))");
+        }
+        jpql.append("))");
+        if (excludeId != null) {
+            jpql.append(" and c.id <> :exclude");
+        }
+        jpql.append(" and (");
+        for (int i = 0; i < terms.size(); i++) {
+            jpql.append(i == 0 ? "" : " or ")
+                    .append("cast(function('translate', lower(c.name), :accented, :plain) as String) like :w").append(i);
+        }
+        jpql.append(") order by c.id");
+        var query = entityManager().createQuery(jpql.toString(), EquipmentCatalog.class)
+                .setParameter("school", school.getId())
+                .setParameter("accented", ListParams.VN_ACCENTED)
+                .setParameter("plain", ListParams.VN_PLAIN);
+        if (level != null) {
+            query.setParameter("level", level);
+        }
+        if (excludeId != null) {
+            query.setParameter("exclude", excludeId);
+        }
+        for (int i = 0; i < terms.size(); i++) {
+            query.setParameter("w" + i, "%" + terms.get(i) + "%");
+        }
+        List<EquipmentCatalog> candidates = query.setMaxResults(500).getResultList();
+
+        EquipmentCatalog same = candidates.stream()
+                .filter(c -> words.equals(CatalogNames.words(c.getName())))
+                .min(java.util.Comparator.comparing((EquipmentCatalog c) -> c.getOwnerSchool() != null)
+                        .thenComparing(EquipmentCatalog::getId))
+                .orElse(null);
+        List<EquipmentCatalog> similar = candidates.stream()
+                .filter(c -> c != same)
+                .map(c -> java.util.Map.entry(c, CatalogNames.similarity(words, CatalogNames.words(c.getName()))))
+                .filter(e -> e.getValue() >= CatalogNames.SIMILAR)
+                .sorted(java.util.Map.Entry.<EquipmentCatalog, Double>comparingByValue().reversed())
+                .limit(3)
+                .map(java.util.Map.Entry::getKey)
+                .toList();
+        return new NameMatches(same, similar);
     }
 
     /** Các ô của thiết bị ngoài danh mục — chung cho thêm và sửa. */
@@ -533,6 +615,7 @@ public class EquipmentCatalogService extends CatalogService<
      * đồ ngoài danh mục của trường thì cấp nào cũng dùng được; trường chưa khai cấp học thì không kiểm.
      */
     public void requireLevelFits(EquipmentCatalog catalog, School school, int lineNo) {
+        requireOwnedBy(catalog, school, lineNo);
         if (catalog.getEducationLevel() == null || catalog.getOwnerSchool() != null
                 || school == null || school.getEducationLevel() == null) {
             return;
@@ -544,6 +627,23 @@ public class EquipmentCatalogService extends CatalogService<
                     "Dòng %d: \"%s\" (%s) thuộc danh mục cấp %s, không dùng cho trường cấp %s"
                             .formatted(lineNo, catalog.getName(), catalog.getCode(),
                                     catalog.getEducationLevel().getName(), school.getEducationLevel().getName()));
+        }
+    }
+
+    /**
+     * Thiết bị ngoài danh mục chỉ TRƯỜNG SỞ HỮU dùng được — trên phiếu ghi tăng, đề xuất mua sắm, tài sản thừa khi
+     * kiểm kê, hồ sơ thiết bị. Ô chọn đã không mời đồ của trường khác; đây chặn một payload tự dựng mang id của nó
+     * (trước đây trường A ghi tăng được bằng mục NDM của trường B). {@code lineNo} 0 là không thuộc dòng nào.
+     */
+    public void requireOwnedBy(EquipmentCatalog catalog, School school, int lineNo) {
+        if (catalog.getOwnerSchool() == null) {
+            return;
+        }
+        if (school == null || !catalog.getOwnerSchool().getId().equals(school.getId())) {
+            String where = lineNo > 0 ? "Dòng %d: ".formatted(lineNo) : "";
+            throw new FieldValidationException(lineNo > 0 ? "lines" : "catalog",
+                    "%s\"%s\" (%s) là thiết bị ngoài danh mục của trường khác — chọn thiết bị của trường mình"
+                            .formatted(where, catalog.getName(), catalog.getCode()));
         }
     }
 

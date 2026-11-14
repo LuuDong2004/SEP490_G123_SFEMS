@@ -344,6 +344,7 @@ public class PurchaseProposalService
                 throw new FieldValidationException("lines", "Dòng %d: mức ưu tiên từ 1 đến 3".formatted(lineNo));
             }
             EquipmentCatalog catalog = catalogs.get(input.catalog().id());
+            catalogs.requireOwnedBy(catalog, voucher.getSchool(), lineNo);
             PurchaseProposalLine line = new PurchaseProposalLine();
             line.setLineNo(lineNo);
             line.setKind(input.kind());
