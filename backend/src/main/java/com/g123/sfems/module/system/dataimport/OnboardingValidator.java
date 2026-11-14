@@ -177,6 +177,8 @@ public class OnboardingValidator {
                     "TRUONG_MUA", "MUA_SAM", "CAP_PHAT", "PHAN_BO", "DUOC_CAP", "PHAN_BO", "SO_CAP", "PHAN_BO",
                     "CAP_TREN_CAP", "PHAN_BO", "TREN_CAP", "PHAN_BO", "PHONG_GD_CAP", "PHAN_BO",
                     "PHAN_BO", "PHAN_BO", "DIEU_CHUYEN", "PHAN_BO", "DUOC_SO_PHAN_BO", "PHAN_BO", "SO_PHAN_BO", "PHAN_BO", "TIEP_NHAN", "PHAN_BO",
+                    "DUOC_DIEU_CHUYEN", "PHAN_BO", "BAN_GIAO", "PHAN_BO", "DUOC_BAN_GIAO", "PHAN_BO", "DUOC_CAP_PHAT", "PHAN_BO",
+                    "CAP_TREN_BAN_GIAO", "PHAN_BO",
                     "TANG", "TANG_TAI_TRO", "DUOC_TANG", "TANG_TAI_TRO", "TAI_TRO", "TANG_TAI_TRO",
                     "XA_HOI_HOA", "TANG_TAI_TRO", "XHH", "TANG_TAI_TRO", "TAI_TRO_XA_HOI_HOA", "TANG_TAI_TRO",
                     "TU_LAM", "TU_LAM", "TU_TAO", "TU_LAM", "TU_CHE", "TU_LAM", "THUA", "KIEM_KE_THUA",

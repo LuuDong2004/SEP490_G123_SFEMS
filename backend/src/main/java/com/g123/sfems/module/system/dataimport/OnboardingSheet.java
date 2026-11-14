@@ -134,7 +134,7 @@ public enum OnboardingSheet {
             col("year", "Năm đưa vào sử dụng", false, "Năm bốn chữ số; mỗi dòng một năm", "Năm sử dụng",
                     "Năm SD", "Năm đưa vào SD", "Năm cấp", "Năm mua", "Năm nhận", "Năm trang bị", "Năm"),
             col("origin", "Nguồn hình thành", false,
-                    "Kế hoạch mua sắm; Được điều chuyển; Được tặng, tài trợ; Kiểm kê thừa; Đơn vị tự làm; Khác",
+                    "Kế hoạch mua sắm; Được cấp phát, bàn giao; Được tặng, tài trợ; Kiểm kê thừa; Đơn vị tự làm; Khác",
                     "Nguồn gốc", "Hình thức hình thành", "Nguồn cấp", "Nguồn"),
             col("funding", "Nguồn kinh phí", false, "Ngân sách; Học phí; Nguồn thu sự nghiệp; "
                     + "Quỹ phát triển sự nghiệp; Tài trợ; Nguồn khác; Chưa xác định nguồn. Để trống = Chưa xác định nguồn",

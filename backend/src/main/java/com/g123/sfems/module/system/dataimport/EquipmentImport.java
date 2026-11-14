@@ -92,7 +92,7 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
                 new Column("receivedDate", "Ngày tiếp nhận", true, "dd/mm/yyyy — ngày thiết bị về trường; không nhớ ngày thì ghi 01/01 của năm"),
                 new Column("usageStartYear", "Năm đưa vào sử dụng", false, ""),
                 new Column("originSource", "Nguồn hình thành", false,
-                        "Kế hoạch mua sắm, Được điều chuyển, Được tặng, tài trợ, Kiểm kê thừa, Đơn vị tự làm, Khác"),
+                        "Kế hoạch mua sắm, Được cấp phát, bàn giao, Được tặng, tài trợ, Kiểm kê thừa, Đơn vị tự làm, Khác"),
                 new Column("fundingSource", "Nguồn kinh phí", true,
                         "Ngân sách, Học phí, Nguồn thu sự nghiệp, Quỹ phát triển sự nghiệp, Tài trợ, Chưa xác định nguồn"),
                 new Column("condition", "Tình trạng", false, "Tốt, Khá, Trung bình, Kém, Hỏng"),
