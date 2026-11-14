@@ -80,7 +80,7 @@ public class DepartmentOfEducationService {
         // trường hợp.
         repository.flush();
         rowLevel.checkWritable(saved);
-        // Loại cơ quan (Sở / UBND) nằm trong bộ nhớ đệm của VisibleSchools.
+        // Loại cơ quan (Sở / khác) nằm trong bộ nhớ đệm của VisibleSchools.
         managedSchools.invalidateAfterCommit();
         return saved;
     }

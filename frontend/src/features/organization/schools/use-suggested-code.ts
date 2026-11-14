@@ -8,8 +8,7 @@ import { API_URL } from "@/shared/api/constants";
 /**
  * Điền sẵn ô Mã ở form tạo mới bằng mã gợi ý của quy tắc sinh mã.
  *
- * <p>Bản cục bộ của `shared/components/catalog/use-suggested-code.ts` (repo nguồn). Giữ trong
- * `features/organization/schools` thay vì `shared/**` vì `shared/**` là vùng dùng chung: sửa ở đó phải
+ * <p>Giữ trong `features/organization/schools` thay vì `shared/**` vì `shared/**` là vùng dùng chung: sửa ở đó phải
  * báo DongLV trước. Cùng cách TuTN đã làm với `features/catalogs/use-suggested-code.ts`.
  *
  * <p>Chỉ là gợi ý: bộ đếm KHÔNG tăng ở đây. Lúc lưu, backend so mã gửi lên với

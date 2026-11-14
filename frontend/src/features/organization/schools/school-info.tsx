@@ -86,7 +86,11 @@ export function SchoolInfoSections({
   record?: School;
   /** Lấy từ danh sách cán bộ theo chức vụ — trường không có cột "hiệu trưởng" riêng. */
   leaders?: { principal: SchoolPerson[]; vice: SchoolPerson[]; equipment: SchoolPerson[] };
-  scale?: { classes: number; students: number; staff: number; rooms: number };
+  /**
+   * Quy mô của trường. `staff` vắng thì ô "Cán bộ, GV" không hiện — hệ thống chưa có bảng cán bộ, và một
+   * con số 0 ở đó là số SAI chứ không phải số chưa có.
+   */
+  scale?: { classes: number; students: number; staff?: number; rooms: number };
   photo?: React.ReactNode;
   year?: string;
   /** Nút bên phải tên trường (vd. Sửa). */
@@ -121,7 +125,7 @@ export function SchoolInfoSections({
               { icon: <Users />, label: "Học sinh", value: scale.students },
               { icon: <UserRound />, label: "Cán bộ, GV", value: scale.staff },
               { icon: <DoorOpen />, label: "Phòng", value: scale.rooms },
-            ].map((f) => (
+            ].flatMap((f) => (f.value == null ? [] : [f as { icon: React.ReactNode; label: string; value: number }])).map((f) => (
               <div key={f.label} className="flex items-center gap-2">
                 <span className="text-primary flex shrink-0 [&_svg]:size-5">{f.icon}</span>
                 <div>

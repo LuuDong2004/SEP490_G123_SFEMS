@@ -27,7 +27,7 @@ public record DepartmentOfEducationRequest(
         String address,
 
         /**
-         * Sở, UBND hay cơ quan khác. Bắt buộc, không có mặc định: loại quyết
+         * Sở hay cơ quan khác. Bắt buộc, không có mặc định: loại quyết
          * định phạm vi dữ liệu của mọi tài khoản thuộc cơ quan này, nên đoán
          * hộ người dùng ở đây là đoán hộ họ quyền truy cập.
          */
