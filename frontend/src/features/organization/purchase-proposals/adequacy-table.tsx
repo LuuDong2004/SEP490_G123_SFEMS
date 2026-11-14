@@ -297,7 +297,8 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, initia
         {r.quantityText ?? (r.minQuantity == null ? "Không ghi" : r.minQuantity)}
       </TableCell>
       <TableCell className="py-2 text-right font-medium tabular-nums">
-        {r.required == null ? <span className="text-muted-foreground font-normal">—</span> : r.required}
+        {/* Dòng tự chọn không tính đủ / thiếu: số "phải có" theo cả trường chỉ gây hiểu nhầm. */}
+        {r.required == null || r.optional ? <span className="text-muted-foreground font-normal">—</span> : r.required}
       </TableCell>
       <TableCell className={cn("py-2 text-right tabular-nums", r.current === 0 && "text-muted-foreground/60")}>
         {r.current}
