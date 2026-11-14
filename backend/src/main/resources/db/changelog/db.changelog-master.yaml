@@ -49,6 +49,8 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/038-van-ban-dinh-muc-thpt.sql
   - include:
+      file: db/changelog/changes/053-ma-hai-ky-tu-truong.sql
+  - include:
       file: db/changelog/changes/039-don-vi-tinh-so-le.sql
   - include:
       file: db/changelog/changes/040-nguon-hinh-thanh-co-dinh.sql
@@ -66,5 +68,3 @@ databaseChangeLog:
       file: db/changelog/changes/015-anh-dai-dien-vung-cat.sql
   - include:
       file: db/changelog/changes/016-phieu-nhap-han-dung-quy-cach.sql
-  - include:
-      file: db/changelog/changes/053-ma-hai-ky-tu-truong.sql

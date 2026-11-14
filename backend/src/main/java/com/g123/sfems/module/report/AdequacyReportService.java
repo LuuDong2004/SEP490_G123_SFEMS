@@ -23,20 +23,38 @@ public class AdequacyReportService {
     @Transactional(readOnly = true)
     public AdequacyReportResponse get(Long requestedSchoolId, Long subjectId, Long gradeId, Long typeId) {
         String scope = visible.level();
-        String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
-                + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
-                + "WHERE s.status = 'ACTIVE' " + visible.sqlFilter("s.id")
-                + (requestedSchoolId == null ? "" : " AND s.id = " + requestedSchoolId) + " ORDER BY s.name";
-        List<SchoolInfo> schools = jdbc.query(schoolSql, (rs, n) -> new SchoolInfo(rs.getLong(1), rs.getString(2),
-                rs.getString(3), rs.getString(4), rs.getObject(5, Long.class), rs.getObject(6, Integer.class),
-                rs.getObject(7, Integer.class)));
-        Integer yearOrder = jdbc.query("SELECT sort_order FROM school_years WHERE start_date <= CURRENT_DATE "
-                        + "AND end_date >= CURRENT_DATE ORDER BY sort_order DESC LIMIT 1",
-                rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
-        if (yearOrder == null) {
-            yearOrder = jdbc.query("SELECT MAX(sort_order) FROM school_years", rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
-        }
+        List<SchoolInfo> schools = loadSchools(requestedSchoolId);
+        List<AdequacyReportResponse.Row> rows = calculateRows(schools, subjectId, gradeId, typeId, currentYearOrder());
+        List<AdequacyReportResponse.DetailRow> details = schools.size() == 1
+                ? calculateDetails(schools.get(0), subjectId, gradeId, typeId, currentYearOrder()) : List.of();
 
+        int knownSchools = (int) rows.stream().filter(r -> r.percent() != null).count();
+        int average = knownSchools == 0 ? 0 : (int) Math.round(rows.stream().filter(r -> r.percent() != null)
+                .mapToInt(AdequacyReportResponse.Row::percent).average().orElse(0));
+        BigDecimal shortage = rows.stream().map(AdequacyReportResponse.Row::shortageTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal surplus = rows.stream().map(AdequacyReportResponse.Row::surplusTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int unknown = rows.stream().mapToInt(AdequacyReportResponse.Row::unknown).sum();
+        List<AdequacyReportResponse.Band> bands = List.of(
+                new AdequacyReportResponse.Band("high", "Đạt từ 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 80).count()),
+                new AdequacyReportResponse.Band("middle", "50% – dưới 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 50 && r.percent() < 80).count()),
+                new AdequacyReportResponse.Band("low", "Dưới 50%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() < 50).count()),
+                new AdequacyReportResponse.Band("unknown", "Chưa tính được", (int) rows.stream().filter(r -> r.percent() == null).count()));
+
+        return new AdequacyReportResponse(scope, new AdequacyReportResponse.Filters(
+                "SCHOOL".equals(scope) ? List.of() : schoolOptions(), subjectOptions(), gradeOptions(), typeOptions()),
+                new AdequacyReportResponse.Summary(rows.size(), knownSchools, average, shortage, surplus, unknown),
+                bands, rows, details);
+    }
+
+    /** BC-01 dùng cùng phép tính định mức với BC-03, nhưng theo năm học được chọn. */
+    public List<AdequacyReportResponse.Row> rowsForVisibleSchools(Integer yearOrder) {
+        return calculateRows(loadSchools(null), null, null, null, yearOrder);
+    }
+
+    private List<AdequacyReportResponse.Row> calculateRows(List<SchoolInfo> schools, Long subjectId, Long gradeId,
+            Long typeId, Integer yearOrder) {
         List<Norm> allNorms = norms(subjectId, gradeId, typeId, yearOrder);
         java.util.Map<Long, List<Norm>> normsByLevel = allNorms.stream().filter(norm -> norm.educationLevelId() != null)
                 .collect(java.util.stream.Collectors.groupingBy(Norm::educationLevelId));
@@ -73,24 +91,56 @@ public class AdequacyReportService {
                     shortageTotal, surplusNorms, surplusTotal, percent));
         }
 
-        int knownSchools = (int) rows.stream().filter(r -> r.percent() != null).count();
-        int average = knownSchools == 0 ? 0 : (int) Math.round(rows.stream().filter(r -> r.percent() != null)
-                .mapToInt(AdequacyReportResponse.Row::percent).average().orElse(0));
-        BigDecimal shortage = rows.stream().map(AdequacyReportResponse.Row::shortageTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal surplus = rows.stream().map(AdequacyReportResponse.Row::surplusTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        int unknown = rows.stream().mapToInt(AdequacyReportResponse.Row::unknown).sum();
-        List<AdequacyReportResponse.Band> bands = List.of(
-                new AdequacyReportResponse.Band("high", "Đạt từ 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 80).count()),
-                new AdequacyReportResponse.Band("middle", "50% – dưới 80%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() >= 50 && r.percent() < 80).count()),
-                new AdequacyReportResponse.Band("low", "Dưới 50%", (int) rows.stream().filter(r -> r.percent() != null && r.percent() < 50).count()),
-                new AdequacyReportResponse.Band("unknown", "Chưa tính được", (int) rows.stream().filter(r -> r.percent() == null).count()));
+        return rows;
+    }
 
-        return new AdequacyReportResponse(scope, new AdequacyReportResponse.Filters(
-                "SCHOOL".equals(scope) ? List.of() : schoolOptions(), subjectOptions(), gradeOptions(), typeOptions()),
-                new AdequacyReportResponse.Summary(rows.size(), knownSchools, average, shortage, surplus, unknown),
-                bands, rows);
+    /** Detailed norm rows are returned only for a single visible/selected school to keep the city report compact. */
+    private List<AdequacyReportResponse.DetailRow> calculateDetails(SchoolInfo school, Long subjectId, Long gradeId,
+            Long typeId, Integer yearOrder) {
+        List<Norm> norms = norms(subjectId, gradeId, typeId, yearOrder).stream()
+                .filter(norm -> school.educationLevelId() != null
+                        && school.educationLevelId().equals(norm.educationLevelId()))
+                .toList();
+        List<Availability> equipment = fetchAvailability(List.of(school)).getOrDefault(school.id(), List.of());
+        List<RoomCount> rooms = roomCounts(List.of(school)).getOrDefault(school.id(), List.of());
+        List<AdequacyReportResponse.DetailRow> details = new ArrayList<>(norms.size());
+        for (Norm norm : norms) {
+            Integer base = base(school, norm, rooms);
+            Integer required = base == null ? null : norm.quantity().multiply(BigDecimal.valueOf(base))
+                    .divide(BigDecimal.valueOf(Math.max(norm.basisSize(), 1)), 0, RoundingMode.CEILING).intValue();
+            BigDecimal available = available(equipment, norm);
+            BigDecimal shortage = required == null ? null
+                    : BigDecimal.valueOf(required).subtract(available).max(BigDecimal.ZERO);
+            BigDecimal surplus = required == null ? null
+                    : available.subtract(BigDecimal.valueOf(required)).max(BigDecimal.ZERO);
+            Integer percent = required == null || required == 0 ? null
+                    : available.multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(required), 0,
+                            RoundingMode.HALF_UP).min(BigDecimal.valueOf(100)).intValue();
+            details.add(new AdequacyReportResponse.DetailRow(school.id(), school.code(), school.name(), norm.code(),
+                    norm.name(), norm.itemNo(), norm.catalogCode(), norm.catalogName(), norm.subjectName(),
+                    norm.gradeName(), norm.gradeLevels(), norm.typeName(), required, available, shortage, surplus,
+                    percent));
+        }
+        return details;
+    }
+
+    private List<SchoolInfo> loadSchools(Long requestedSchoolId) {
+        String schoolSql = "SELECT s.id, s.code, s.name, el.name, s.education_level_id, s.class_count, s.student_count "
+                + "FROM schools s LEFT JOIN education_levels el ON el.id = s.education_level_id "
+                + "WHERE s.status = 'ACTIVE' " + visible.sqlFilter("s.id")
+                + (requestedSchoolId == null ? "" : " AND s.id = ?") + " ORDER BY s.name";
+        return jdbc.query(schoolSql, (rs, n) -> new SchoolInfo(rs.getLong(1), rs.getString(2), rs.getString(3),
+                rs.getString(4), rs.getObject(5, Long.class), rs.getObject(6, Integer.class),
+                rs.getObject(7, Integer.class)), requestedSchoolId == null ? new Object[0] : new Object[] { requestedSchoolId });
+    }
+
+    private Integer currentYearOrder() {
+        Integer yearOrder = jdbc.query("SELECT sort_order FROM school_years WHERE start_date <= CURRENT_DATE "
+                        + "AND end_date >= CURRENT_DATE ORDER BY sort_order DESC LIMIT 1",
+                rs -> rs.next() ? rs.getObject(1, Integer.class) : null);
+        return yearOrder == null
+                ? jdbc.query("SELECT MAX(sort_order) FROM school_years", rs -> rs.next() ? rs.getObject(1, Integer.class) : null)
+                : yearOrder;
     }
 
     private List<Norm> norms(Long subjectId, Long gradeId, Long typeId, Integer yearOrder) {
@@ -98,13 +148,17 @@ public class AdequacyReportService {
         return jdbc.query("""
                 SELECT st.education_level_id, n.catalog_id, COALESCE(n.equipment_type_id, c.equipment_type_id),
                        COALESCE(n.subject_id, c.subject_id), COALESCE(n.grade_id, c.grade_id), n.room_type_id,
-                       n.min_quantity, COALESCE(n.basis_size, 1), n.norm_basis
+                       n.min_quantity, COALESCE(n.basis_size, 1), n.norm_basis, n.code, n.name, n.item_no,
+                       c.code, c.name, sub.name, g.name, n.grade_levels, et.name
                 FROM equipment_standards st
                 JOIN school_years sy_start ON sy_start.id = st.start_school_year_id
                 LEFT JOIN school_years sy_end ON sy_end.id = st.end_school_year_id
                 JOIN equipment_norms n ON n.standard_id = st.id AND n.active AND NOT n.optional
                     AND n.min_quantity IS NOT NULL
                 LEFT JOIN equipment_catalogs c ON c.id = n.catalog_id
+                LEFT JOIN subjects sub ON sub.id = COALESCE(n.subject_id, c.subject_id)
+                LEFT JOIN grades g ON g.id = COALESCE(n.grade_id, c.grade_id)
+                LEFT JOIN equipment_types et ON et.id = COALESCE(n.equipment_type_id, c.equipment_type_id)
                 WHERE st.active AND st.status = 'ACTIVE'
                   AND sy_start.sort_order <= ? AND (sy_end.id IS NULL OR sy_end.sort_order >= ?)
                   AND (CAST(? AS BIGINT) IS NULL OR COALESCE(n.subject_id, c.subject_id) = CAST(? AS BIGINT))
@@ -113,7 +167,9 @@ public class AdequacyReportService {
                 ORDER BY st.education_level_id, n.sort_order, n.name
                 """, (rs, n) -> new Norm(rs.getObject(1, Long.class), rs.getObject(2, Long.class),
                 rs.getObject(3, Long.class), rs.getObject(4, Long.class), rs.getObject(5, Long.class),
-                rs.getObject(6, Long.class), rs.getBigDecimal(7), rs.getInt(8), rs.getString(9)), yearOrder,
+                rs.getObject(6, Long.class), rs.getBigDecimal(7), rs.getInt(8), rs.getString(9), rs.getString(10),
+                rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14), rs.getString(15),
+                rs.getString(16), rs.getString(17), rs.getString(18)), yearOrder,
                 yearOrder, subjectId, subjectId, gradeId, gradeId, typeId, typeId);
     }
 
@@ -132,7 +188,8 @@ public class AdequacyReportService {
 
     private java.util.Map<Long, List<Availability>> fetchAvailability(List<SchoolInfo> schools) {
         if (schools.isEmpty()) return java.util.Map.of();
-        String schoolIds = schools.stream().map(school -> String.valueOf(school.id())).collect(java.util.stream.Collectors.joining(","));
+        String schoolIds = placeholders(schools.size());
+        Object[] schoolIdsArg = schools.stream().map(SchoolInfo::id).toArray();
         String sql = "SELECT e.school_id, c.id, c.equipment_type_id, c.subject_id, c.grade_id, COALESCE(SUM(e.quantity), 0) "
                 + "FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id "
                 + "WHERE e.school_id IN (" + schoolIds + ") " + visible.sqlFilter("e.school_id")
@@ -140,8 +197,9 @@ public class AdequacyReportService {
                 + "AND COALESCE(e.condition, 'TOT') NOT IN ('HONG', 'KHONG_SU_DUNG') "
                 + "GROUP BY e.school_id, c.id, c.equipment_type_id, c.subject_id, c.grade_id";
         return jdbc.query(sql, (rs, n) -> new Availability(rs.getLong(1), rs.getLong(2), rs.getObject(3, Long.class),
-                rs.getObject(4, Long.class), rs.getObject(5, Long.class), rs.getBigDecimal(6)))
-                .stream().collect(java.util.stream.Collectors.groupingBy(Availability::schoolId));
+                rs.getObject(4, Long.class), rs.getObject(5, Long.class), rs.getBigDecimal(6)), schoolIdsArg)
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(Availability::schoolId));
     }
 
     private BigDecimal available(List<Availability> equipment, Norm norm) {
@@ -155,12 +213,18 @@ public class AdequacyReportService {
 
     private java.util.Map<Long, List<RoomCount>> roomCounts(List<SchoolInfo> schools) {
         if (schools.isEmpty()) return java.util.Map.of();
-        String schoolIds = schools.stream().map(school -> String.valueOf(school.id())).collect(java.util.stream.Collectors.joining(","));
+        String schoolIds = placeholders(schools.size());
+        Object[] schoolIdsArg = schools.stream().map(SchoolInfo::id).toArray();
         return jdbc.query("SELECT r.school_id, r.room_type_id, r.subject_id, COUNT(*) FROM rooms r "
                         + "WHERE r.school_id IN (" + schoolIds + ") " + visible.sqlFilter("r.school_id")
                         + "AND r.active GROUP BY r.school_id, r.room_type_id, r.subject_id",
-                (rs, n) -> new RoomCount(rs.getLong(1), rs.getObject(2, Long.class), rs.getObject(3, Long.class), rs.getInt(4)))
+                (rs, n) -> new RoomCount(rs.getLong(1), rs.getObject(2, Long.class), rs.getObject(3, Long.class), rs.getInt(4)),
+                schoolIdsArg)
                 .stream().collect(java.util.stream.Collectors.groupingBy(RoomCount::schoolId));
+    }
+
+    private static String placeholders(int count) {
+        return java.util.Collections.nCopies(count, "?").stream().collect(java.util.stream.Collectors.joining(","));
     }
 
     private List<AdequacyReportResponse.Option> schoolOptions() {
@@ -182,8 +246,10 @@ public class AdequacyReportService {
 
     private record SchoolInfo(Long id, String code, String name, String level, Long educationLevelId,
             Integer classCount, Integer studentCount) {}
-    private record Norm(Long educationLevelId, Long catalogId, Long typeId, Long subjectId, Long gradeId, Long roomTypeId,
-            BigDecimal quantity, int basisSize, String basis) {}
+    private record Norm(Long educationLevelId, Long catalogId, Long typeId, Long subjectId, Long gradeId,
+            Long roomTypeId, BigDecimal quantity, int basisSize, String basis, String code, String name,
+            String itemNo, String catalogCode, String catalogName, String subjectName, String gradeName,
+            String gradeLevels, String typeName) {}
     private record Availability(Long schoolId, Long catalogId, Long typeId, Long subjectId, Long gradeId, BigDecimal quantity) {}
     private record RoomCount(Long schoolId, Long roomTypeId, Long subjectId, int count) {}
 }

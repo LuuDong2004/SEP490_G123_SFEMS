@@ -16,6 +16,7 @@ import { Login, Profile } from "@/features/identity";
 import { catalogScreens, ENUM_CATALOGS, EnumCatalogList, MinimumCatalogPage } from "@/features/catalogs";
 import { Dashboard } from "@/features/dashboard";
 import { AdequacyReportPage, AssetsReport, InventoryReportPage, PurchaseReportPage } from "@/features/reports";
+import { NotificationList } from "@/features/notifications";
 import { CampaignPage, CampaignShow } from "@/features/organization/inventory-campaigns";
 import {
   InventorySessionCreate,
@@ -29,8 +30,10 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentEdit, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import { EquipmentEdit, EquipmentImport, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
+import { SchoolCreate } from "@/features/organization/schools/create";
+import { SchoolEdit } from "@/features/organization/schools/edit";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -123,7 +126,7 @@ export function AppRoutes() {
         })}
         {listRoute("/equipment-lookup", "equipment_lookup", <EquipmentLookup />)}
         <Route path="/data-imports" element={guarded("data_imports")}>
-          <Route index element={<PlaceholderScreen />} />
+          <Route index element={<EquipmentImport />} />
           <Route path="show/:id" element={<PlaceholderScreen />} />
         </Route>
 
@@ -152,6 +155,8 @@ export function AppRoutes() {
         {/* Trường học & cơ sở vật chất (TC-01, TC-02) */}
         {crudRoutes("/schools", "schools", {
           list: <SchoolList />,
+          create: <SchoolCreate />,
+          edit: <SchoolEdit />,
         })}
         {crudRoutes("/rooms", "rooms")}
 
@@ -199,7 +204,7 @@ export function AppRoutes() {
         })}
 
         {/* Thông báo (HT-06) */}
-        {listRoute("/notifications", "notifications")}
+        {listRoute("/notifications", "notifications", <NotificationList />)}
 
         <Route path="*" element={<ErrorComponent />} />
       </Route>

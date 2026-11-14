@@ -49,11 +49,17 @@ export function AdequacyReportPage() {
   const report = query.data;
   const searchTerm = fold(search.trim());
   const visibleRows = (report?.rows ?? []).filter((row) => !searchTerm || fold(`${row.schoolCode} ${row.schoolName}`).includes(searchTerm));
+  const visibleDetails = (report?.details ?? []).filter((row) => !searchTerm || fold(
+    `${row.schoolCode} ${row.schoolName} ${row.normCode} ${row.normName} ${row.catalogCode ?? ""} ${row.catalogName ?? ""} ${row.subjectName ?? ""} ${row.gradeName ?? ""} ${row.gradeLevels ?? ""}`,
+  ).includes(searchTerm));
   const summary = report?.summary;
   const bands = (report?.distribution ?? []).map((band) => ({ key: band.key, label: band.label, count: band.count }));
   const lowest = [...(report?.rows ?? [])].filter((row) => row.percent != null).sort((a, b) => a.percent! - b.percent!).slice(0, 10)
     .map((row) => ({ school: row.schoolName, percent: row.percent ?? 0 }));
   const scope = report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố";
+  const issuingUnit = report?.scope === "CITY" ? "Sở Giáo dục và Đào tạo Thành phố Hồ Chí Minh"
+    : report?.scope === "SCHOOL" ? report.rows[0]?.schoolName ?? report.details[0]?.schoolName ?? "Trường của bạn"
+      : "Cơ quan quản lý của bạn";
   const exportData = {
     filename: "bao-cao-dap-ung-danh-muc-toi-thieu",
     title: "Đáp ứng danh mục thiết bị tối thiểu",
@@ -71,7 +77,7 @@ export function AdequacyReportPage() {
   };
 
   return <main className="space-y-4 p-4 md:p-6">
-    {report && <ReportPrintSheet title={exportData.title} scope={scope} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
+    {report && <ReportPrintSheet title={exportData.title} scope={scope} issuingUnit={issuingUnit} subtitle={exportData.subtitle} columns={exportData.columns} rows={exportData.rows} />}
     <div className="space-y-4 print:hidden">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><p className="text-muted-foreground text-sm">{report?.scope === "SCHOOL" ? "Trường của bạn" : report?.scope === "BODY" ? "Các trường thuộc đơn vị" : "Toàn thành phố"}</p>
@@ -82,7 +88,9 @@ export function AdequacyReportPage() {
     </header>
 
     <ReportFilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Tìm trường hoặc mã trường"
-      exportData={exportData}
+      exportQuery={{ report: "ADEQUACY", search, ...(school !== ALL ? { schoolId: school } : {}),
+        ...(subject !== ALL ? { subjectId: subject } : {}), ...(grade !== ALL ? { gradeId: grade } : {}),
+        ...(type !== ALL ? { equipmentTypeId: type } : {}) }}
       onReset={() => { setSchool(ALL); setSubject(ALL); setGrade(ALL); setType(ALL); setSearch(""); }}
       filters={<>
         {perspective !== "school" && <DimensionFilter label="Trường" value={school} onChange={setSchool} options={report?.filters.schools ?? []} />}
@@ -110,7 +118,7 @@ export function AdequacyReportPage() {
       {lowest.length > 1 && <ChartCard title="Trường đáp ứng thấp nhất" description="Tỷ lệ định mức đạt · 10 trường thấp nhất">
         <GroupedBars data={lowest} xKey="school" series={[{ key: "percent", label: "Đạt (%)" }]} />
       </ChartCard>}
-      <Card><CardHeader><CardTitle className="text-base">Số liệu chi tiết</CardTitle><p className="text-muted-foreground text-xs">{count.format(visibleRows.length)} trường đang hiển thị trong phạm vi dữ liệu của bạn</p></CardHeader>
+      <Card><CardHeader><CardTitle className="text-base">Tổng hợp theo trường</CardTitle><p className="text-muted-foreground text-xs">{count.format(visibleRows.length)} trường trong phạm vi dữ liệu của bạn</p></CardHeader>
         <CardContent className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><TableRow>
           <TableHead>Mã trường</TableHead><TableHead>Trường</TableHead><TableHead>Cấp học</TableHead><TableHead className="text-right">Số định mức</TableHead><TableHead className="text-right">Đã đạt</TableHead><TableHead className="text-right">Chưa tính</TableHead><TableHead className="text-right">Định mức thiếu</TableHead><TableHead className="text-right">Thiết bị thiếu</TableHead><TableHead className="text-right">Thiết bị thừa</TableHead><TableHead className="text-right">Tỷ lệ đạt</TableHead>
         </TableRow></TableHeader><TableBody>
@@ -119,6 +127,27 @@ export function AdequacyReportPage() {
             <TableCell className="text-right tabular-nums">{count.format(row.norms)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.met)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.unknown)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.shortageNorms)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.shortageTotal)}</TableCell><TableCell className="text-right tabular-nums">{count.format(row.surplusTotal)}</TableCell><TableCell className="text-right tabular-nums">{row.percent == null ? "—" : `${row.percent}%`}</TableCell>
           </TableRow>) : <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">Không có trường hoặc định mức phù hợp với bộ lọc.</TableCell></TableRow>}
         </TableBody></Table></CardContent>
+      </Card>
+      <Card><CardHeader><CardTitle className="text-base">Chi tiết định mức theo môn học và khối lớp</CardTitle>
+        <p className="text-muted-foreground text-xs">{report.details.length
+          ? `${count.format(visibleDetails.length)} dòng định mức · ${report.details[0]?.schoolName}`
+          : "Chọn một trường để xem số định mức, hiện có, thiếu và thừa theo từng môn học và khối lớp."}</p>
+      </CardHeader>
+        {report.details.length > 0 && <CardContent className="overflow-x-auto"><Table className="min-w-[1250px]"><TableHeader><TableRow>
+          <TableHead>Mã định mức</TableHead><TableHead>Thiết bị / định mức</TableHead><TableHead>Môn học</TableHead><TableHead>Khối lớp</TableHead><TableHead>Loại thiết bị</TableHead>
+          <TableHead className="text-right">Định mức</TableHead><TableHead className="text-right">Hiện có</TableHead><TableHead className="text-right">Thiếu</TableHead><TableHead className="text-right">Thừa</TableHead><TableHead className="text-right">Đáp ứng</TableHead>
+        </TableRow></TableHeader><TableBody>
+          {visibleDetails.length ? visibleDetails.map((row) => <TableRow key={`${row.schoolId}-${row.normCode}`}>
+            <TableCell className="font-mono text-xs">{row.itemNo || row.normCode}</TableCell>
+            <TableCell><div className="font-medium">{row.catalogName ?? row.normName}</div><div className="text-muted-foreground text-xs">{row.catalogCode ?? row.normName}</div></TableCell>
+            <TableCell>{row.subjectName ?? "Dùng chung"}</TableCell><TableCell>{row.gradeName ?? row.gradeLevels ?? "Mọi khối"}</TableCell><TableCell>{row.equipmentTypeName ?? "—"}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.required == null ? "Chưa tính" : count.format(row.required)}</TableCell>
+            <TableCell className="text-right tabular-nums">{count.format(row.available)}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.shortage == null ? "—" : count.format(row.shortage)}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.surplus == null ? "—" : count.format(row.surplus)}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.percent == null ? "—" : `${row.percent}%`}</TableCell>
+          </TableRow>) : <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">Không có định mức phù hợp với nội dung tìm kiếm.</TableCell></TableRow>}
+        </TableBody></Table></CardContent>}
       </Card>
     </>}
     </div>
