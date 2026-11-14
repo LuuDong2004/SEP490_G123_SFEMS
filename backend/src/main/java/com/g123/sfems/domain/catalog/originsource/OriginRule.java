@@ -20,7 +20,7 @@ import java.util.Optional;
  *
  * <p>Danh mục {@code origin_sources} vẫn là bảng (tài sản và phiếu trỏ tới nó bằng khoá ngoại), nhưng
  * là danh mục CỐ ĐỊNH: bảy dòng mang đúng bảy {@link #name() mã} dưới đây, do changelog {@code 109} (và
- * {@code 251} cho "Mua sắm ngoài kế hoạch") đặt, không thêm - sửa - xoá được qua màn hình. Luật rẽ nhánh theo từng giá trị nên nó phải nằm
+ * {@code 251} cho nguồn trường tự mua, 255 đổi tên "Trường tự mua sắm") đặt, không thêm - sửa - xoá được qua màn hình. Luật rẽ nhánh theo từng giá trị nên nó phải nằm
  * trong code; màn hình đọc luật qua {@code GET /api/origin_sources/rules} chứ không chép lại, để hai
  * bên không lệch nhau.
  */
@@ -35,7 +35,7 @@ public enum OriginRule {
      * Trường tự mua KHÔNG nằm trong kế hoạch mua sắm (mua gấp, mua lẻ bằng kinh phí tự chủ — trưởng nhóm 14/11/2026):
      * vẫn là hàng mua — hoá đơn, đơn giá, hình thức mua sắm như {@link #MUA_SAM} — nhưng không phải chọn kế hoạch.
      */
-    MUA_NGOAI_KH("Mua sắm ngoài kế hoạch", FundingRequired.ALWAYS, false, true,
+    MUA_NGOAI_KH("Trường tự mua sắm", FundingRequired.ALWAYS, false, true,
             STATE_BUDGET, TUITION, REVENUE, DEVELOPMENT_FUND, SPONSORSHIP, OTHER),
     /** Nhận theo quyết định điều chuyển (Sở mua tập trung rồi giao về, đơn vị khác chuyển sang): tiền ngân sách. */
     PHAN_BO("Được điều chuyển", FundingRequired.ALWAYS, false, false,
@@ -45,9 +45,12 @@ public enum OriginRule {
     /** Thấy khi kiểm kê mà sổ không có: thường không còn biết tiền từ đâu — không bắt buộc, không lọc. */
     KIEM_KE_THUA("Kiểm kê thừa", FundingRequired.NEVER, false, false,
             STATE_BUDGET, TUITION, REVENUE, DEVELOPMENT_FUND, SPONSORSHIP, OTHER),
-    /** Giáo viên, học sinh tự làm: chỉ khi có mua vật tư thì mới có nguồn kinh phí để khai. */
+    /**
+     * Giáo viên, học sinh tự làm: chỉ khi có mua vật tư thì mới có nguồn kinh phí để khai. Tiền vật tư thường từ chi
+     * thường xuyên (ngân sách), cũng có khi phụ huynh / doanh nghiệp góp (tài trợ) — đủ sáu nguồn (trưởng nhóm 14/11/2026).
+     */
     TU_LAM("Đơn vị tự làm", FundingRequired.WHEN_COST, false, false,
-            TUITION, REVENUE, DEVELOPMENT_FUND, OTHER),
+            STATE_BUDGET, TUITION, REVENUE, DEVELOPMENT_FUND, SPONSORSHIP, OTHER),
     KHAC("Khác", FundingRequired.ALWAYS, true, false,
             STATE_BUDGET, TUITION, REVENUE, DEVELOPMENT_FUND, SPONSORSHIP, OTHER);
 

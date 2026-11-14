@@ -30,7 +30,7 @@ const money = new Intl.NumberFormat("vi-VN");
  * cuộn bên trong, có STT, số phiếu chữ đơn cách; nhấp đúp một dòng mở hồ sơ phiếu.
  */
 export const EquipmentIntakeList = () => {
-  const { show } = useNavigation();
+  const { show, edit } = useNavigation();
   const offset = useRef(0);
   const fillBox = useFillHeight();
 
@@ -57,8 +57,11 @@ export const EquipmentIntakeList = () => {
         },
       }),
       h.accessor("intakeDate", {
-        id: "intakeDate", header: "Ngày nhập", size: 112, enableSorting: true,
-        cell: ({ getValue }) => <span className="tabular-nums">{formatPlainDate(getValue())}</span>,
+        id: "intakeDate", header: "Ngày ghi tăng", size: 112, enableSorting: true,
+        // Ngày ghi tăng = ngày duyệt; phiếu chưa duyệt chưa có (cùng kiểu "Chưa cấp số" của cột số phiếu).
+        cell: ({ getValue, row }) => row.original.status === "COMPLETED"
+          ? <span className="tabular-nums">{formatPlainDate(getValue())}</span>
+          : <span className="text-muted-foreground text-xs">Chưa ghi tăng</span>,
       }),
       h.display({
         id: "supplier", header: "Nhà cung cấp / nội dung", size: 220, meta: { fill: true },
@@ -113,7 +116,9 @@ export const EquipmentIntakeList = () => {
         ...ROW_ACTIONS_COLUMN,
         cell: ({ row }) => (
           <RowActions>
-            <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
+            {/* Phiếu nháp không có màn chi tiết — mở thẳng form sửa; chỉ phiếu đã trình (chờ duyệt, hoàn tất…) mới xem chi tiết
+                (trưởng nhóm 14/11/2026). */}
+            {row.original.status !== "DRAFT" ? <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" /> : null}
             {/* Nút chỉ hiện ở nơi nó làm được việc — server nói qua `_actions`, không hiện rồi trả 422. */}
             {row.original._actions?.includes("edit") ? (
               <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
@@ -166,7 +171,7 @@ export const EquipmentIntakeList = () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             table={table as any}
             fill
-            onRowDoubleClick={(r: EquipmentIntake) => show("equipment_intakes", r.id)}
+            onRowDoubleClick={(r: EquipmentIntake) => (r.status === "DRAFT" ? edit("equipment_intakes", r.id) : show("equipment_intakes", r.id))}
             toolbar={
               <>
                 <ListToolbar

@@ -24,8 +24,6 @@ import java.util.Map;
  */
 public record EquipmentIntakePatchRequest(
         IdRef school,
-        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày nhập")
-        LocalDate intakeDate,
         // Số hoá đơn khi mua sắm (1–30, chữ không dấu, số, / - .) kiểm ở service — nguồn khác ghi số quyết định, biên bản.
         @Text(value = FieldRule.SHORT_TEXT, label = "Số chứng từ", max = 100)
         String documentNo,
@@ -46,5 +44,7 @@ public record EquipmentIntakePatchRequest(
         @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
         @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid EquipmentIntakeLineInput> lines,
-        Map<String, Object> details) {
+        Map<String, Object> details,
+        // Hoá đơn của phiếu (254) — có mặt thì THAY toàn bộ (cùng các dòng); vắng thì giữ như cũ.
+        @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid EquipmentIntakeDocumentInput> documents) {
 }

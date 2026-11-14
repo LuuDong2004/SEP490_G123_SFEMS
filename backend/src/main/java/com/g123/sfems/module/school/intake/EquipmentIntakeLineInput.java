@@ -94,5 +94,7 @@ public record EquipmentIntakeLineInput(
         @Size(max = 10000, message = "Quá nhiều dòng")
         List<@Num(value = NumberRule.COUNT, label = "Bảo hành (tháng)") Integer> unitWarrantyMonths,
         @Size(max = 10000, message = "Quá nhiều dòng")
-        List<@Text(value = FieldRule.NOTE, label = "Thông tin khác") String> unitOtherInfos) {
+        List<@Text(value = FieldRule.NOTE, label = "Thông tin khác") String> unitOtherInfos,
+        // Vị trí (từ 0) của hoá đơn của dòng trong `documents` của phiếu (254); vắng thì theo hoá đơn đầu tiên.
+        Integer documentIndex) {
 }

@@ -3,12 +3,39 @@ import { todayLocal } from "@/shared/lib/format";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/** Một hoá đơn (chứng từ) trên form (254). `key` chỉ có trên form — dòng chỉ tới hoá đơn của nó bằng `docKey`. */
+export type DocumentForm = {
+  id?: number | null;
+  key: string;
+  supplier: string;
+  taxCode: string;
+  contact: string;
+  documentNo: string;
+  documentDate: string | null;
+  fundingSource: string | null;
+  fundingNote: string;
+  acquisitionMethod: { id: number | null; code?: string | null; name?: string | null };
+  acquisitionNote: string;
+  /** Chỉ trên form: tệp chọn khi hoá đơn chưa lưu — tải lên ngay sau khi lưu phiếu. */
+  pendingFiles: File[];
+};
+
+let seq = 0;
+/** Hoá đơn trống. */
+export function newDocument(over: Partial<DocumentForm> = {}): DocumentForm {
+  seq += 1;
+  return {
+    id: null, key: `n${Date.now().toString(36)}${seq}`, supplier: "", taxCode: "", contact: "", documentNo: "", documentDate: null,
+    fundingSource: null, fundingNote: "", acquisitionMethod: { id: null }, acquisitionNote: "", pendingFiles: [], ...over,
+  };
+}
+
 /**
  * Các ô THÔNG TIN CHUNG của phiếu nhập.
  *
- * <p>Chứng từ (nhà cung cấp, số / ngày hoá đơn, nguồn kinh phí, hình thức mua sắm) khai MỘT LẦN ở đầu phiếu và áp
- * cho mọi dòng — máy chủ đọc dòng theo đầu phiếu khi dòng để trống (`EquipmentIntakeLine.effective*`). Dòng nào có
- * hoá đơn riêng thì bật "Hoá đơn riêng" trong chi tiết dòng.
+ * <p>Chứng từ đi theo HOÁ ĐƠN (254, trưởng nhóm 14/11/2026): mỗi hoá đơn có nhà cung cấp, mã số thuế, số, ngày, nguồn kinh
+ * phí, hình thức mua sắm và tệp; thiết bị nằm dưới hoá đơn của nó (`docKey`). Máy chủ chép chứng từ của hoá đơn xuống
+ * từng dòng khi lưu.
  */
 export const INTAKE_DEFAULT_VALUES = {
   school: { id: null },
@@ -32,6 +59,10 @@ export const INTAKE_DEFAULT_VALUES = {
   note: "",
   details: {},
   lines: [] as unknown[],
+  // Getter: mỗi form mới một hoá đơn trống với khoá riêng.
+  get documents(): DocumentForm[] {
+    return [newDocument()];
+  },
 };
 
 export type IntakeFormValues = typeof INTAKE_DEFAULT_VALUES;
@@ -40,7 +71,7 @@ export type IntakeFormValues = typeof INTAKE_DEFAULT_VALUES;
 const LINE_DOCUMENT_KEYS = ["supplier", "documentNo", "documentDate", "fundingSource", "fundingNote", "acquisitionMethod", "acquisitionNote"] as const;
 
 /** Chỉ có trên form, không gửi lên máy chủ. */
-const FORM_ONLY_LINE_KEYS = ["ownDocuments", "differs", "serialText", "unitRooms", "units", "fromExcel", "pendingFiles"] as const;
+const FORM_ONLY_LINE_KEYS = ["ownDocuments", "differs", "serialText", "unitRooms", "units", "fromExcel", "pendingFiles", "docKey"] as const;
 
 /** Thông tin của TỪNG cái (256): model, hãng, bảo hành, thông tin khác — vắng ô nào thì theo ô cùng tên của dòng. */
 export type UnitInfo = { model?: string | null; manufacturer?: string | null; warrantyMonths?: number | null; otherInfo?: string | null };
@@ -69,13 +100,31 @@ export function parseSerials(text: unknown): string[] {
  * - các khoá chỉ có trên form được bỏ đi.
  */
 export function toPayload(values: any) {
-  const { fundingNoteHead, acquisitionNoteHead, ...head } = values ?? {};
-  const lines = ((values?.lines ?? []) as any[]).map((l) => {
+  const { fundingNoteHead: _fn, acquisitionNoteHead: _an, supplier: _s, documentNo: _d, documentDate: _dd, fundingSource: _f, acquisitionMethod: _a, ...head } = values ?? {};
+  void _fn; void _an; void _s; void _d; void _dd; void _f; void _a;
+  const docs = ((values?.documents ?? []) as DocumentForm[]);
+  const docIndex = new Map(docs.map((d, i) => [d.key, i]));
+  // Dòng xếp theo hoá đơn (thứ tự hoá đơn, rồi thứ tự trên form) — số dòng và mã tài sản đi theo thứ tự này.
+  const ordered = ((values?.lines ?? []) as any[])
+    .map((l, i) => ({ l, i, d: docIndex.get(l?.docKey) ?? 0 }))
+    .sort((a, b) => a.d - b.d || a.i - b.i);
+  const documents = docs.map((d) => ({
+    id: d.id ?? null,
+    supplier: String(d.supplier ?? "").trim() || null,
+    taxCode: String(d.taxCode ?? "").trim() || null,
+    contact: String(d.contact ?? "").trim() || null,
+    documentNo: String(d.documentNo ?? "").trim() || null,
+    documentDate: d.documentDate || null,
+    fundingSource: d.fundingSource || null,
+    fundingNote: String(d.fundingNote ?? "").trim() || null,
+    acquisitionMethod: d.acquisitionMethod?.id ? { id: d.acquisitionMethod.id } : null,
+    acquisitionNote: String(d.acquisitionNote ?? "").trim() || null,
+  }));
+  const lines = ordered.map(({ l, d }) => {
     const out: any = { ...l };
-    // Nguồn kinh phí, hình thức mua sắm luôn theo đầu phiếu; dòng "theo hoá đơn khác" chỉ giữ bên giao, số, ngày.
-    for (const k of LINE_DOCUMENT_KEYS) if (!l?.ownDocuments || !["supplier", "documentNo", "documentDate"].includes(k)) out[k] = null;
-    out.fundingNote = fundingNoteHead ? String(fundingNoteHead).trim() || null : null;
-    out.acquisitionNote = acquisitionNoteHead ? String(acquisitionNoteHead).trim() || null : null;
+    // Chứng từ của dòng là của hoá đơn nó thuộc — máy chủ chép xuống khi lưu.
+    for (const k of LINE_DOCUMENT_KEYS) out[k] = null;
+    out.documentIndex = d;
     out.serialNumbers = parseSerials(l?.serialText);
     // Phòng riêng của từng cái theo vị trí (255); null = theo phòng nhận của dòng.
     out.unitRoomIds = ((l?.unitRooms ?? []) as (number | null)[]).map((x) => (x == null ? null : Number(x)));
@@ -95,18 +144,14 @@ export function toPayload(values: any) {
       out.documentQuantity = l?.receivedQuantity;
       out.varianceReason = null;
     }
-    if (!out.packUnit?.id) out.packUnit = null;
+    // Không quy đổi bao bì nữa: lưu lại một phiếu cũ thì gỡ quy cách đã khai.
+    out.packUnit = null;
+    out.packSize = null;
     if (!out.room?.id) out.room = null;
     for (const k of FORM_ONLY_LINE_KEYS) delete out[k];
     return out;
   });
-  return {
-    ...head,
-    // PATCH: null là "để nguyên" — chuỗi rỗng mới xoá được ô chữ ở đầu phiếu.
-    supplier: head.supplier ?? "",
-    documentNo: head.documentNo ?? "",
-    lines,
-  };
+  return { ...head, documents, lines };
 }
 
 /** Chứng từ "thật" của một dòng: của dòng nếu có, không thì của đầu phiếu. */
@@ -132,61 +177,67 @@ const sameDocument = (a: any, b: any) =>
   && (a.acquisitionNote ?? "") === (b.acquisitionNote ?? "");
 
 /**
- * Bản ghi đã lưu → giá trị form của màn SỬA. Chứng từ được đưa LÊN đầu phiếu:
- *
- * - mọi dòng cùng một chứng từ (kể cả phiếu cũ đã chép chứng từ xuống từng dòng): chứng từ đó thành của đầu phiếu, các
- *   dòng để trống (theo phiếu);
- * - các dòng KHÁC nhau thật (phiếu cũ gom nhiều hoá đơn): đầu phiếu giữ chứng từ của phiếu (trống thì lấy của dòng
- *   đầu), dòng nào khác đầu phiếu thì bật "Hoá đơn riêng" và giữ nguyên chứng từ của nó — không mất dữ liệu.
+ * Bản ghi đã lưu → giá trị form của màn SỬA. Hoá đơn lấy từ `documents` (254); phiếu chưa có (lập từ đề xuất mua sắm,
+ * biên bản kiểm kê) thì gom các dòng theo chứng từ THẬT của dòng — mỗi bộ chứng từ khác nhau thành một hoá đơn.
  */
 export function toFormValues(record: any) {
   const head = record ?? {};
   const raw = (head.lines ?? []) as any[];
-  const docs = raw.map((l) => effectiveDocument(l, head));
-  // Chứng từ của đầu phiếu = chứng từ (thật) mà NHIỀU dòng mang nhất — mọi dòng giống nhau thì chính là nó; hoà
-  // thì lấy của dòng trên. Chưa có dòng thì giữ của đầu phiếu.
-  const headDoc = docs.length
-    ? docs.reduce((best, d) => (docs.filter((x) => sameDocument(x, d)).length > docs.filter((x) => sameDocument(x, best)).length ? d : best), docs[0])
-    : effectiveDocument({}, head);
-  // Ghi rõ của nguồn kinh phí / hình thức mua sắm ở đầu phiếu: đọc ngược từ dòng theo phiếu.
-  const firstSame = docs.find((d) => sameDocument({ ...d, fundingNote: null, acquisitionNote: null }, { ...headDoc, fundingNote: null, acquisitionNote: null }));
-  const headWithNotes = { ...headDoc, fundingNote: firstSame?.fundingNote ?? null, acquisitionNote: firstSame?.acquisitionNote ?? null };
-  const lines = raw.map((l, i) => {
-    const own = !sameDocument(docs[i], headWithNotes);
-    const base = {
-      ...l,
-      warrantyMonths: l.warrantyMonths ?? head.warrantyMonths ?? null,
-      packUnit: l.packUnit ?? { id: null },
-      room: l.room ?? { id: null },
-      differs: false,
-      serialText: ((l.serialNumbers ?? []) as string[]).join("\n"),
-      unitRooms: ((l.unitRoomIds ?? []) as (number | null)[]),
-      units: [l.unitModels, l.unitManufacturers, l.unitWarrantyMonths, l.unitOtherInfos].some((x) => (x ?? []).length)
-        ? Array.from({ length: Number(l.receivedQuantity ?? 0) }, (_, i) => ({
-          model: l.unitModels?.[i] || l.model || null,
-          manufacturer: l.unitManufacturers?.[i] || l.manufacturer || null,
-          warrantyMonths: l.unitWarrantyMonths?.[i] ?? l.warrantyMonths ?? head.warrantyMonths ?? null,
-          otherInfo: l.unitOtherInfos?.[i] || l.otherInfo || null,
-        }))
-        : [],
-      ownDocuments: own,
-    };
-    return own
-      ? { ...base, ...docs[i], acquisitionMethod: docs[i].acquisitionMethod ?? { id: null } }
-      : { ...base, supplier: null, documentNo: null, documentDate: null, fundingSource: null, fundingNote: null, acquisitionMethod: { id: null }, acquisitionNote: null };
-  });
+  let documents: DocumentForm[];
+  let keyOf: (l: any, i: number) => string;
+  if ((head.documents ?? []).length) {
+    documents = (head.documents as any[]).map((d) => newDocument({
+      id: d.id, key: `d${d.id}`, supplier: d.supplier ?? "", taxCode: d.taxCode ?? "", contact: d.contact ?? "", documentNo: d.documentNo ?? "",
+      documentDate: d.documentDate ?? null, fundingSource: d.fundingSource ?? null, fundingNote: d.fundingNote ?? "",
+      acquisitionMethod: d.acquisitionMethod?.id ? d.acquisitionMethod : { id: null }, acquisitionNote: d.acquisitionNote ?? "",
+    }));
+    const first = documents[0].key;
+    keyOf = (l) => (l.documentId ? `d${l.documentId}` : first);
+  } else {
+    const effs = raw.map((l) => effectiveDocument(l, head));
+    const groups: { doc: ReturnType<typeof effectiveDocument>; key: string }[] = [];
+    const lineKeys = effs.map((e) => {
+      let g = groups.find((x) => sameDocument(x.doc, e));
+      // Khoá CỐ ĐỊNH theo thứ tự nhóm: hàm này chạy lại mỗi lần truy vấn \`select\`; khoá ngẫu nhiên làm dữ liệu "khác" mỗi
+      // lần → form bị reset liên tục (vòng lặp vẽ lại ở phiếu lập từ kế hoạch mua sắm).
+      if (!g) {
+        g = { doc: e, key: `g${groups.length + 1}` };
+        groups.push(g);
+      }
+      return g.key;
+    });
+    if (!groups.length) groups.push({ doc: effectiveDocument({}, head), key: "g1" });
+    documents = groups.map(({ doc, key }) => newDocument({
+      key, supplier: doc.supplier ?? "", documentNo: doc.documentNo ?? "", documentDate: doc.documentDate ?? null,
+      fundingSource: doc.fundingSource ?? null, fundingNote: doc.fundingNote ?? "",
+      acquisitionMethod: doc.acquisitionMethod ?? { id: null }, acquisitionNote: doc.acquisitionNote ?? "",
+    }));
+    keyOf = (_l, i) => lineKeys[i] ?? groups[0].key;
+  }
+  const lines = raw.map((l, i) => ({
+    ...l,
+    warrantyMonths: l.warrantyMonths ?? head.warrantyMonths ?? null,
+    room: l.room ?? { id: null },
+    differs: false,
+    serialText: ((l.serialNumbers ?? []) as string[]).join("\n"),
+    unitRooms: ((l.unitRoomIds ?? []) as (number | null)[]),
+    units: [l.unitModels, l.unitManufacturers, l.unitWarrantyMonths, l.unitOtherInfos].some((x) => (x ?? []).length)
+      ? Array.from({ length: Number(l.receivedQuantity ?? 0) }, (_, k) => ({
+        model: l.unitModels?.[k] || l.model || null,
+        manufacturer: l.unitManufacturers?.[k] || l.manufacturer || null,
+        warrantyMonths: l.unitWarrantyMonths?.[k] ?? l.warrantyMonths ?? head.warrantyMonths ?? null,
+        otherInfo: l.unitOtherInfos?.[k] || l.otherInfo || null,
+      }))
+      : [],
+    docKey: keyOf(l, i),
+    supplier: null, documentNo: null, documentDate: null, fundingSource: null, fundingNote: null, acquisitionMethod: { id: null }, acquisitionNote: null,
+  }));
   return {
     ...record,
-    supplier: headDoc.supplier ?? "",
-    documentNo: headDoc.documentNo ?? "",
-    documentDate: headDoc.documentDate ?? null,
-    fundingSource: headDoc.fundingSource ?? null,
-    fundingNoteHead: headWithNotes.fundingNote ?? "",
-    acquisitionMethod: headDoc.acquisitionMethod ?? { id: null },
-    acquisitionNoteHead: headWithNotes.acquisitionNote ?? "",
     originSource: head.originSource ?? { id: null },
     originNote: head.originNote ?? "",
     details: head.details ?? {},
+    documents,
     lines,
   };
 }

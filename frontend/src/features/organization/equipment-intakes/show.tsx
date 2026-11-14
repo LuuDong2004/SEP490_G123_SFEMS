@@ -11,7 +11,7 @@ import {
   QrCode,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode, Fragment } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
@@ -43,7 +43,7 @@ import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import type { EquipmentIntake, IntakeLine } from "@/domains/equipment-intake/types";
 import type { VoucherFormConfig } from "@/domains/voucher/form-types";
 import type { VoucherStatus } from "@/domains/voucher/types";
-import { LINES_GRID, LineStatus } from "./lines-editor";
+import { documentNoun, LINES_GRID, LineStatus } from "./lines-editor";
 import { AssetCodeList, AssetCodesCell } from "./asset-codes";
 import { useIntakeAssets, type IntakeAsset } from "./use-intake-assets";
 
@@ -478,8 +478,28 @@ export const EquipmentIntakeShow = () => {
             </div>
             {lines.map((line, i) => {
               const supplier = effective(line, record).supplier;
+              // Phiếu theo hoá đơn (254): mỗi hoá đơn một dòng tiêu đề ngay trên các thiết bị của nó.
+              const docs = (record?.documents ?? []) as any[];
+              const docAt = docs.findIndex((d) => d.id === line.documentId);
+              const doc = docAt >= 0 ? docs[docAt] : null;
+              const firstOfDoc = !!doc && lines.findIndex((x: any) => x.documentId === line.documentId) === i;
+              const docNoun = documentNoun(record?.originSource?.code) ?? "chứng từ";
               const mismatch = line.receivedQuantity !== line.documentQuantity;
               return (
+                <Fragment key={line.id ?? line.lineNo}>
+                {firstOfDoc ? (
+                  <div className="bg-surface-subtle flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 text-sm">
+                    <span className="bg-primary text-primary-foreground rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap">
+                      {docNoun.charAt(0).toUpperCase() + docNoun.slice(1)} {docAt + 1}
+                    </span>
+                    <span className="text-muted-foreground min-w-0 flex-1">
+                      {[doc.supplier, doc.contact ?? null, doc.documentNo ? `Số ${doc.documentNo}` : null,
+                        doc.documentDate ? formatPlainDate(doc.documentDate) : null,
+                        doc.fundingSource ? FUNDING_LABELS[doc.fundingSource] ?? doc.fundingSource : null,
+                        doc.acquisitionMethod?.name ?? null].filter(Boolean).join(" · ") || "Chưa khai"}
+                    </span>
+                  </div>
+                ) : null}
                 <div
                   key={line.id ?? line.lineNo}
                   role="button"
@@ -531,6 +551,7 @@ export const EquipmentIntakeShow = () => {
                     <AssetCodeList assets={assets.byLine.get(line.id)!} />
                   ) : null}
                 </div>
+                </Fragment>
               );
             })}
             {/* Tổng tiền ở chân bảng, ngay dưới cột Thành tiền (trưởng nhóm 13/11/2026) — cột phải là số thiết bị. */}
@@ -550,6 +571,19 @@ export const EquipmentIntakeShow = () => {
           </div>
         </div>
       </Card>
+
+      {record && (record.documents ?? []).length ? (
+        <div className={cn("grid gap-4", (record.documents ?? []).length > 1 && "lg:grid-cols-2")}>
+          {(record.documents ?? []).map((d, i) => {
+            const n = documentNoun(record?.originSource?.code) ?? "chứng từ";
+            return (
+              <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={draft} compact
+                title={`Tệp ${n} ${(record.documents ?? []).length > 1 ? i + 1 : ""}`.trim()}
+                description={[d.supplier, d.documentNo ? `số ${d.documentNo}` : null].filter(Boolean).join(" · ") || undefined} />
+            );
+          })}
+        </div>
+      ) : null}
 
       <HandoverCard config={config} details={record?.details} draft={draft} />
 
@@ -594,7 +628,10 @@ export const EquipmentIntakeShow = () => {
         </SideFact>
         <SideFact label="Người lập">{record?.createdBy?.name}</SideFact>
         <SideFact label="Trường">{record?.school?.name}</SideFact>
-        <SideFact label="Ngày nhập">{formatPlainDate(record?.intakeDate)}</SideFact>
+        <SideFact label="Ngày lập phiếu">{formatDateTime(record?.createdAt)}</SideFact>
+        <SideFact label="Ngày ghi tăng">
+          {record?.status === "COMPLETED" ? formatPlainDate(record?.intakeDate) : <span className="text-muted-foreground font-normal">Khi phiếu được duyệt</span>}
+        </SideFact>
         <SideFact label="Năm học">{record?.schoolYear?.name ?? <span className="text-warning-text font-normal">Chưa chọn</span>}</SideFact>
         <SideFact label="Nguồn hình thành">
           {record?.originSource

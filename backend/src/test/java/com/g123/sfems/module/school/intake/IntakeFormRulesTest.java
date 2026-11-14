@@ -96,13 +96,14 @@ class IntakeFormRulesTest {
     }
 
     @Test
-    void invoiceDateMustNotBeAfterIntakeDate() {
-        EquipmentIntake intake = intake(OriginRule.MUA_SAM, LocalDate.of(2026, 11, 10));
-        intake.setDocumentDate(LocalDate.of(2026, 11, 11));
+    void invoiceDateMustNotBeInTheFuture() {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        EquipmentIntake intake = intake(OriginRule.MUA_SAM, today);
+        intake.setDocumentDate(today.plusDays(1));
         assertThatThrownBy(() -> EquipmentIntakeService.checkDocuments(intake))
                 .isInstanceOf(FieldValidationException.class)
-                .hasMessageContaining("không được sau ngày nhập");
-        intake.setDocumentDate(LocalDate.of(2026, 11, 10));
+                .hasMessageContaining("không được sau hôm nay");
+        intake.setDocumentDate(today);
         assertThatCode(() -> EquipmentIntakeService.checkDocuments(intake)).doesNotThrowAnyException();
     }
 
@@ -127,11 +128,11 @@ class IntakeFormRulesTest {
         EquipmentIntake manual = intake(OriginRule.MUA_SAM, LocalDate.of(2026, 11, 13));
         assertThatThrownBy(() -> EquipmentIntakeService.requirePlanLink(manual))
                 .isInstanceOf(FieldValidationException.class)
-                .hasMessageContaining("chọn nguồn Mua sắm ngoài kế hoạch");
+                .hasMessageContaining("chọn nguồn Trường tự mua sắm");
         manual.setSource("purchase_proposals", 7L, "DXMS-2026-0007");
         assertThatCode(() -> EquipmentIntakeService.requirePlanLink(manual)).doesNotThrowAnyException();
 
-        // Mua sắm ngoài kế hoạch không đòi kế hoạch, nhưng vẫn là hàng mua.
+        // Trường tự mua sắm không đòi kế hoạch, nhưng vẫn là hàng mua.
         assertThatCode(() -> EquipmentIntakeService.requirePlanLink(intake(OriginRule.MUA_NGOAI_KH, LocalDate.of(2026, 11, 13))))
                 .doesNotThrowAnyException();
         EquipmentIntake outside = intake(OriginRule.MUA_NGOAI_KH, LocalDate.of(2026, 11, 10));

@@ -1,11 +1,13 @@
 import { useCan, useInvalidate, useList, useMany, useNavigation, useNotification } from "@refinedev/core";
-import { Check, CircleAlert, Loader2, Save, Send } from "lucide-react";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Check, CircleAlert, Loader2, Save, Send, TriangleAlert } from "lucide-react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { useFormContext, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { kyInstance } from "@/shared/api/data";
 import { SelectField, TextField, TextareaField } from "@/shared/components/form/simple-fields";
+import { useLeaveOptions } from "@/shared/components/form/unsaved-changes-guard";
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { PendingAttachments, usePendingAttachments } from "@/shared/components/voucher/pending-attachments";
 import { usePerspective } from "@/shared/hooks/use-perspective";
@@ -19,13 +21,13 @@ import { Card } from "@/shared/ui/card";
 import { RequiredFieldsProvider } from "@/shared/ui/form";
 import { FUNDING_LABELS } from "@/domains/equipment/types";
 import { toPayload } from "./fields";
-import { docMetaOf, headFieldsOf } from "./head-fields";
+import { docMetaOf } from "./head-fields";
 import { SectionHead } from "./section-head";
 import { ReceiverField, ReceiverPositionField } from "./receiver-field";
-import { formatPlainDate } from "@/shared/lib/format";
+import { formatPlainDate, localIsoDate, todayLocal } from "@/shared/lib/format";
 import { IntakeSourceCard } from "./head-documents";
-import { InvoiceDrawer, useIntakeFiles } from "./invoice-drawer";
-import { IntakeLinesEditor, lineSaveProblem } from "./lines-editor";
+import { useDocumentFileCounts, useIntakeFiles } from "./invoice-drawer";
+import { countText, documentNoun, IntakeLinesEditor, lineSaveProblem } from "./lines-editor";
 import { intakeReadiness, isPurchaseCode, type ReadinessGroup, type ReadinessItem } from "./readiness";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -33,7 +35,7 @@ import { intakeReadiness, isPurchaseCode, type ReadinessGroup, type ReadinessIte
 const money = new Intl.NumberFormat("vi-VN");
 
 const GROUP_LABELS: Record<ReadinessGroup, string> = {
-  source: "Nguồn và chứng từ",
+  source: "Thông tin phiếu",
   lines: "Danh sách thiết bị ghi tăng",
   handover: "Giao nhận và tệp đính kèm",
 };
@@ -72,10 +74,18 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const form = useFormContext();
   const { control } = form;
   useDefaultSchoolYear();
-  const { show } = useNavigation();
+  const { show, list } = useNavigation();
   const invalidate = useInvalidate();
   const { open } = useNotification();
   const config = useVoucherForm("equipment_intakes");
+  // Phiếu hệ thống VỪA LẬP SẴN khi chọn kế hoạch mua sắm (`?fresh=1`): người dùng chưa quyết lưu. Rời màn thì hỏi
+  // "Lưu nháp?" — không lưu thì xoá phiếu đó (trưởng nhóm 14/11/2026: thoát không tự lưu nháp, về danh sách).
+  const [params] = useSearchParams();
+  const saved = useRef(false);
+  const markSaved = () => { saved.current = true; };
+  // Ghi nhận NGAY lúc mở: đường dẫn bị viết lại sau khi trang tải (mất `?fresh=1`).
+  const openedFresh = useRef(params.get("fresh") === "1");
+  const isFresh = () => openedFresh.current && record?.status === "DRAFT" && !saved.current;
   const values = useWatch({ control }) as any;
   const lines = (values.lines ?? []) as any[];
   const { origins, ruleOf } = useOriginRules();
@@ -84,13 +94,15 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
   const [busy, setBusy] = useState<"save" | "submit" | null>(null);
   const [reveal, setReveal] = useState<{ index: number; at: number } | null>(null);
-  const [viewing, setViewing] = useState(false);
   // Ba khối thu gọn được (trưởng nhóm 13/11/2026). Bấm một mục "Trước khi trình" hay lưu hỏng thì mở hết ra rồi
   // mới tới ô — ô nằm trong khối đang thu gọn thì không cuộn tới được.
   const [opened, setOpened] = useState({ info: true, lines: true, handover: true });
   const toggle = (key: keyof typeof opened) => setOpened((o) => ({ ...o, [key]: !o[key] }));
+  // Mở mọi hoá đơn đang thu gọn: ô cần tới có thể nằm trong một hoá đơn.
+  const [expandAt, setExpandAt] = useState(0);
   const openAll = (then: () => void) => {
     setOpened({ info: true, lines: true, handover: true });
+    setExpandAt(Date.now());
     setTimeout(then, 0);
   };
   // Lãnh đạo trường là người DUYỆT phiếu nhập — không có nút Trình (QLTB-386); phiếu đã lưu thì theo
@@ -110,35 +122,12 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const catalogs = new Map<number, any>((catalogList?.data ?? []).map((c: any) => [c.id, c]));
 
   const pending = usePendingAttachments("equipment_intakes");
-  const lineIds = lines.map((l) => Number(l?.id)).filter((id) => Number.isFinite(id) && id > 0);
-  const files = useIntakeFiles(record?.id, lineIds, pending.files);
+  const documents = (values.documents ?? []) as any[];
+  const documentIds = documents.map((d) => Number(d?.id)).filter((id) => Number.isFinite(id) && id > 0);
+  const files = useIntakeFiles(record?.id, documentIds, pending.files);
+  const docFileCounts = useDocumentFileCounts(documentIds);
   const queryClient = useQueryClient();
-  /**
-   * Nút "Tải tệp" ở khối chứng từ (khi chưa có tệp nào): cùng chỗ với ô tệp cuối khối Giao nhận — phiếu chưa lưu thì
-   * tệp chờ, tải lên khi lưu; phiếu đã lưu thì tải lên ngay.
-   */
-  const uploadFiles = async (list: File[]) => {
-    const tooBig = list.filter((f) => f.size > 10 * 1024 * 1024);
-    if (tooBig.length) open?.({ type: "error", message: `${tooBig.map((f) => f.name).join(", ")} vượt quá 10 MB`, description: "Không thêm được tệp" });
-    const ok = list.filter((f) => f.size <= 10 * 1024 * 1024);
-    if (!ok.length) return;
-    if (!record?.id) {
-      pending.setFiles([...pending.files, ...ok.filter((f) => !pending.files.some((x) => x.name === f.name && x.size === f.size))]);
-      return;
-    }
-    for (const file of ok) {
-      const body = new FormData();
-      body.append("resource", "equipment_intakes");
-      body.append("recordId", String(record.id));
-      body.append("file", file);
-      try {
-        await kyInstance.post("attachments", { body });
-      } catch (error) {
-        open?.({ type: "error", message: await errorMessage(error), description: `Không đính kèm được ${file.name}` });
-      }
-    }
-    await queryClient.invalidateQueries({ queryKey: ["attachments", "equipment_intakes", record.id] });
-  };
+  const noun = documentNoun(originCode);
 
   // "Trước khi trình": luật máy chủ kiểm lúc trình + lỗi của từng ô đang có trên form + tệp đính kèm.
   const errors = form.formState.errors as any;
@@ -147,7 +136,10 @@ export function IntakeFormBody({ record, onFinish, header }: {
     const e = field.split(".").reduce((v: any, k) => v?.[k], errors);
     if (e?.message) fieldErrors.push({ key: `err:${field}`, label: String(e.message), ok: false, group, field });
   };
-  for (const f of ["supplier", "documentNo", "documentDate", "intakeDate", "originNote", "fundingNoteHead", "acquisitionNoteHead"]) pushError(f, "source");
+  for (const f of ["originNote"]) pushError(f, "source");
+  documents.forEach((_, i) => {
+    for (const k of ["supplier", "contact", "documentNo", "documentDate", "fundingNote", "acquisitionNote"]) pushError(`documents.${i}.${k}`, "lines");
+  });
   for (const f of (config?.sections ?? []).flatMap((s) => s.fields)) pushError(`details.${f.key}`, "handover");
   pushError("note", "handover");
   const lineErrorIndexes = Array.isArray(errors.lines) ? errors.lines.map((e: any, i: number) => (e ? i : -1)).filter((i: number) => i >= 0) : [];
@@ -156,8 +148,15 @@ export function IntakeFormBody({ record, onFinish, header }: {
   }
   const items: ReadinessItem[] = [
     ...(chooseSchool ? [{ key: "school", label: "Trường", ok: values.school?.id != null && values.school?.id !== "", group: "source" as const, field: "school" }] : []),
-    ...intakeReadiness(values, (l) => (l?.catalog?.id ? catalogs.get(Number(l.catalog.id)) : undefined), config, rule),
-    { key: "files", label: "Đính kèm hoá đơn hoặc biên bản", ok: files.length > 0, group: "handover", field: "attachments" },
+    ...intakeReadiness(values, (l) => (l?.catalog?.id ? catalogs.get(Number(l.catalog.id)) : undefined), config, rule, {
+      noun,
+      hasFile: (d) => (d?.id ? (docFileCounts.get(Number(d.id)) ?? 0) > 0 : (d?.pendingFiles ?? []).length > 0),
+    }),
+    // Hàng mua: tệp theo từng hoá đơn (mục ở trên). Nguồn khác: ít nhất một tệp — của chứng từ hoặc ở khối Giao nhận.
+    ...(isPurchaseCode(originCode) ? [] : [{
+      key: "files", label: "Đính kèm biên bản hoặc chứng từ", group: "handover" as const, field: "attachments",
+      ok: files.length > 0 || documents.some((d) => (d?.pendingFiles ?? []).length > 0),
+    }]),
     ...fieldErrors,
   ];
   const missing = items.filter((i) => !i.ok);
@@ -167,13 +166,16 @@ export function IntakeFormBody({ record, onFinish, header }: {
     chooseSchool && (values.school?.id == null || values.school?.id === "") ? "trường" : null,
     originId == null || originId === "" ? "nguồn hình thành" : null,
     rule?.noteRequired && !String(values.originNote ?? "").trim() ? "ghi rõ nguồn hình thành" : null,
-    rule?.fundingRequired === "ALWAYS" && !values.fundingSource ? "nguồn kinh phí" : null,
-    values.intakeDate ? null : "ngày nhập",
   ].filter(Boolean);
   const linesLocked = headMissing.length ? `Khai ${headMissing.join(", ")} trước` : undefined;
-  const units = lines.reduce((s, l) => s + Number(l?.receivedQuantity ?? 0), 0);
   const total = lines.reduce((s, l) => s + Number(l?.unitPrice ?? 0) * Number(l?.receivedQuantity ?? 0), 0);
   const linesError = errors.lines?.root?.message as string | undefined;
+  const fundingTotals = new Map<string, number>();
+  for (const l of lines) {
+    const f = documents.find((d) => d?.key === l?.docKey)?.fundingSource ?? "";
+    fundingTotals.set(f, (fundingTotals.get(f) ?? 0) + Number(l?.unitPrice ?? 0) * Number(l?.receivedQuantity ?? 0));
+  }
+  const byFunding = [...fundingTotals.entries()];
 
   const go = (i: ReadinessItem) => openAll(() => {
     if (i.lines?.length) setReveal({ index: i.lines[0], at: Date.now() });
@@ -198,23 +200,21 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const finish = async (formValues: any) => {
     const res: any = await onFinish(toPayload(formValues));
     await pending.uploadTo(res?.data?.id);
-    await uploadLineFiles(formValues, res?.data);
+    await uploadDocumentFiles(formValues, res?.data);
     return res;
   };
-  /** Tệp chọn trong hộp chứng từ riêng của dòng CHƯA lưu: dòng thứ i của form ↔ dòng số i+1 của phiếu vừa lưu. */
-  const uploadLineFiles = async (formValues: any, saved: any) => {
-    const savedLines: any[] = saved?.lines ?? [];
-    const formLines: any[] = formValues?.lines ?? [];
-    for (let i = 0; i < formLines.length; i++) {
-      const fl = formLines[i];
-      const list: File[] = fl?.ownDocuments ? fl?.pendingFiles ?? [] : [];
-      if (!list.length) continue;
-      const lineId = savedLines.find((x) => Number(x?.lineNo) === i + 1)?.id ?? savedLines[i]?.id;
-      if (lineId == null) continue;
+  /** Tệp chọn ở hoá đơn CHƯA lưu: hoá đơn thứ i của form ↔ hoá đơn số i+1 của phiếu vừa lưu. */
+  const uploadDocumentFiles = async (formValues: any, saved: any) => {
+    const savedDocs: any[] = saved?.documents ?? [];
+    const formDocs: any[] = formValues?.documents ?? [];
+    for (let i = 0; i < formDocs.length; i++) {
+      const list: File[] = formDocs[i]?.pendingFiles ?? [];
+      const docId = savedDocs.find((x) => Number(x?.docNo) === i + 1)?.id ?? savedDocs[i]?.id;
+      if (!list.length || docId == null) continue;
       for (const file of list) {
         const body = new FormData();
-        body.append("resource", "equipment_intake_lines");
-        body.append("recordId", String(lineId));
+        body.append("resource", "equipment_intake_documents");
+        body.append("recordId", String(docId));
         body.append("file", file);
         try {
           await kyInstance.post("attachments", { body });
@@ -222,19 +222,47 @@ export function IntakeFormBody({ record, onFinish, header }: {
           open?.({ type: "error", message: await errorMessage(error), description: `Phiếu đã lưu nhưng chưa đính kèm được ${file.name}` });
         }
       }
-      form.setValue(`lines.${i}.pendingFiles`, []);
-      await queryClient.invalidateQueries({ queryKey: ["attachments", "equipment_intake_lines", lineId] });
+      form.setValue(`documents.${i}.pendingFiles`, []);
+      await queryClient.invalidateQueries({ queryKey: ["attachments", "equipment_intake_documents", docId] });
     }
   };
 
   const save = form.handleSubmit(async (formValues) => {
     setBusy("save");
     try {
-      await finish(formValues);
+      const res = await finish(formValues).catch(() => null);
+      if (res) {
+        markSaved();
+        list("equipment_intakes");
+      }
     } finally {
       setBusy(null);
     }
   }, onInvalid);
+
+  // Hộp hỏi khi rời màn: thêm nút "Lưu nháp" (lưu rồi đi tiếp); phiếu lập sẵn mà chọn không lưu thì xoá nó.
+  useLeaveOptions({
+    save: () => new Promise<boolean>((resolve) => {
+      void form.handleSubmit(async (formValues) => {
+        const res = await finish(formValues).catch(() => null);
+        if (res) markSaved();
+        resolve(!!res);
+      }, (errs) => {
+        onInvalid(errs);
+        resolve(false);
+      })();
+    }),
+    discard: async () => {
+      if (!isFresh() || !record?.id) return;
+      markSaved();
+      await kyInstance.delete(`equipment_intakes/${record.id}`);
+      invalidate({ resource: "equipment_intakes", invalidates: ["list"] });
+    },
+    force: isFresh,
+    // Một câu, không dòng phụ (trưởng nhóm 14/11/2026).
+    title: "Thông tin phiếu ghi tăng chưa được lưu",
+    message: "",
+  });
 
   const saveAndSubmit = form.handleSubmit(async (formValues) => {
     setBusy("submit");
@@ -244,6 +272,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
       const res: any = await finish(formValues).catch(() => null);
       id = res?.data?.id ?? record?.id;
       if (!res || !id) return;
+      markSaved();
       await kyInstance.post(`equipment_intakes/${id}/submit`, { json: { note: null } });
       open?.({ type: "success", message: "Đã trình phiếu, chờ lãnh đạo trường duyệt" });
       invalidate({ resource: "equipment_intakes", invalidates: ["list", "detail"], id });
@@ -256,10 +285,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
   }, onInvalid);
 
   // Dấu * của ô bắt buộc LÚC TRÌNH (lưu nháp không đòi): biên bản giao nhận và, với hàng mua sắm, chứng từ.
-  const head = headFieldsOf(originCode);
   const submitRequired = new Set<string>([
     ...(config?.sections ?? []).flatMap((s) => s.fields).filter((f) => f.required && !f.stage).map((f) => `details.${f.key}`),
-    ...(isPurchaseCode(originCode) && head.supplier ? ["supplier", "documentNo", "documentDate"] : []),
   ]);
   const handoverFields = (config?.sections ?? []).filter((s) => !s.stage && !s.when).flatMap((s) => s.fields);
 
@@ -268,8 +295,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const serialUnits = lines.filter((l) => trackingOf(l) !== "bulk").reduce((s, l) => s + Number(l?.receivedQuantity ?? 0), 0);
   const bulkLines = lines.filter((l) => trackingOf(l) === "bulk" && Number(l?.receivedQuantity ?? 0) > 0).length;
   const outcome = [
-    serialUnits ? `${money.format(serialUnits)} hồ sơ thiết bị, mỗi cái một mã` : null,
-    bulkLines ? `${bulkLines} lô vật tư, mỗi lô một mã chung` : null,
+    serialUnits ? `${money.format(serialUnits)} hồ sơ thiết bị` : null,
+    bulkLines ? `${bulkLines} lô vật tư` : null,
   ].filter(Boolean).join(" và ");
   const originName = origins.find((o) => String(o.id) === String(originId ?? ""))?.name;
   const doc = docMetaOf(originCode);
@@ -279,9 +306,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const missingText = (text: string) => <span className="text-destructive">{text}</span>;
   const infoParts: ReactNode[] = [
     originName ? (values.originNote ? `${originName} (${values.originNote})` : originName) : missingText("Chưa chọn nguồn hình thành"),
-    values.fundingSource ? FUNDING_LABELS[values.fundingSource] ?? values.fundingSource : null,
-    values.intakeDate ? `Ngày nhập ${formatPlainDate(values.intakeDate)}` : null,
-    values.supplier || null, values.documentNo || null,
+    `Lập ngày ${formatPlainDate(record?.createdAt ? localIsoDate(new Date(record.createdAt)) : todayLocal())}`,
   ].filter((x) => x != null);
   const dotted = (parts: ReactNode[]) => parts.map((p, i) => <Fragment key={i}>{i ? " · " : null}{p}</Fragment>);
   const infoSummary = dotted(infoParts);
@@ -345,19 +370,17 @@ export function IntakeFormBody({ record, onFinish, header }: {
       <RequiredFieldsProvider names={submitRequired}>
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="grid min-w-0 gap-4">
-            <Card className="gap-0 py-0">
+            {/* MỘT khung cho cả phiếu (trưởng nhóm 14/11/2026: ba thẻ rời rối mắt) — ba phần ngăn bằng đường kẻ, mỗi phần
+                vẫn thu gọn được. */}
+            <Card className="gap-0 divide-y overflow-visible py-0">
               <IntakeSourceCard control={control} record={record} chooseSchool={chooseSchool}
-                open={opened.info} onToggle={() => toggle("info")} summary={infoSummary}
-                onViewFiles={() => setViewing(true)} filesCount={files.length} onUpload={(list) => void uploadFiles(list)} />
-            </Card>
+                open={opened.info} onToggle={() => toggle("info")} summary={infoSummary} />
 
-            <Card className="gap-0 overflow-visible py-0">
-              <IntakeLinesEditor control={control} catalogs={catalogs} reveal={reveal} headFunding={values.fundingSource} locked={linesLocked}
+              <IntakeLinesEditor control={control} catalogs={catalogs} reveal={reveal} locked={linesLocked} intakeId={record?.id ?? null} expandAll={expandAt}
                 open={opened.lines} onToggle={() => toggle("lines")} />
-            </Card>
 
-            <Card className={cn("@container gap-5 px-5", opened.handover ? "pt-4 pb-6" : "py-4")}>
-              <SectionHead title="Giao nhận" open={opened.handover} onToggle={() => toggle("handover")} summary={handoverSummary} />
+              <div className={cn("@container grid gap-5 px-5", opened.handover ? "pt-4 pb-6" : "py-4")}>
+              <SectionHead title="Thông tin giao nhận" open={opened.handover} onToggle={() => toggle("handover")} summary={handoverSummary} />
               {/* Hai bên ký biên bản đứng cạnh nhau (trưởng nhóm 13/11/2026): bên giao — họ tên, số điện thoại để liên hệ khi
                   hàng có vấn đề; bên nhận — người nhận, chức vụ theo hồ sơ cán bộ. Dưới là phần chung của biên bản. */}
               <div className={cn("grid items-start gap-4 lg:grid-cols-2", !opened.handover && "hidden")}>
@@ -379,12 +402,13 @@ export function IntakeFormBody({ record, onFinish, header }: {
                   kèm" của "Trước khi trình". Dạng trường form, trước và sau khi lưu cùng một dáng; chỉ khác tệp lưu lúc nào. */}
               <div data-field="attachments" className={cn(!opened.handover && "hidden")}>
                 {record?.id ? (
-                  <AttachmentsPanel field resource="equipment_intakes" recordId={record.id} canWrite required title={doc.files}
+                  <AttachmentsPanel field compact resource="equipment_intakes" recordId={record.id} canWrite required={!noun} title={noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
                     hint="Bản đã ký, đóng dấu · lưu ngay khi chọn" />
                 ) : (
-                  <PendingAttachments field files={pending.files} onChange={pending.setFiles} required title={doc.files}
+                  <PendingAttachments field compact files={pending.files} onChange={pending.setFiles} required={!noun} title={noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
                     hint="Bản đã ký, đóng dấu · tải lên khi lưu phiếu" />
                 )}
+              </div>
               </div>
             </Card>
           </div>
@@ -397,9 +421,20 @@ export function IntakeFormBody({ record, onFinish, header }: {
               </div>
               <dl className="space-y-2 border-t px-4 py-3.5 text-sm">
                 <SummaryFact label="Nguồn hình thành">{originName}</SummaryFact>
-                <SummaryFact label="Nguồn kinh phí">{values.fundingSource ? FUNDING_LABELS[values.fundingSource] ?? values.fundingSource : null}</SummaryFact>
-                <SummaryFact label="Thiết bị">{lines.length ? `${lines.length} thiết bị · ${money.format(units)} đơn vị` : null}</SummaryFact>
+                <SummaryFact label="Thiết bị">{lines.length ? countText(lines) : null}</SummaryFact>
               </dl>
+              {/* Một phiếu nhiều nguồn kinh phí (theo hoá đơn): cộng tiền theo từng nguồn. */}
+              {byFunding.length ? (
+                <dl className="space-y-1.5 border-t px-4 py-3.5 text-sm">
+                  <dt className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Theo nguồn kinh phí</dt>
+                  {byFunding.map(([f, v]) => (
+                    <div key={f} className="flex items-baseline justify-between gap-3">
+                      <dd className="text-muted-foreground min-w-0 truncate">{f ? FUNDING_LABELS[f] ?? f : "Chưa chọn nguồn"}</dd>
+                      <dd className="font-medium tabular-nums">{money.format(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
             </Card>
 
             <Card className="gap-3 px-4 py-4">
@@ -415,22 +450,23 @@ export function IntakeFormBody({ record, onFinish, header }: {
                 <div className={cn("h-full rounded-full transition-[width]", missing.length ? "bg-warning" : "bg-success")}
                   style={{ width: `${Math.max(6, Math.round((done / Math.max(items.length, 1)) * 100))}%` }} />
               </div>
-              <Checklist items={items} onGo={go} />
+              <Checklist items={items} onGo={go}
+                labels={{ ...GROUP_LABELS, lines: noun ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)} và thiết bị` : GROUP_LABELS.lines }} />
             </Card>
 
             {actions}
 
             {outcome ? (
-              <div className="bg-info-subtle space-y-1 rounded-xl border px-4 py-3.5">
-                <p className="text-info-text text-sm font-semibold">Khi được duyệt</p>
-                <p className="text-sm leading-relaxed">Hệ thống cấp số phiếu và sinh {outcome}. Sau đó phiếu không sửa được nữa.</p>
+              // Màu cảnh báo (trưởng nhóm 14/11/2026): duyệt rồi là không sửa được — kiểm tra kỹ trước khi trình.
+              <div className="bg-warning-subtle border-warning/30 space-y-1 rounded-xl border px-4 py-3.5">
+                <p className="text-warning-text flex items-center gap-1.5 text-sm font-semibold"><TriangleAlert className="size-4 shrink-0" />Kiểm tra kỹ trước khi trình</p>
+                <p className="text-sm leading-relaxed">Phiếu được duyệt sẽ không sửa được nữa. Hệ thống tự cấp số phiếu và tạo {outcome}.</p>
               </div>
             ) : null}
           </aside>
         </div>
       </RequiredFieldsProvider>
 
-      <InvoiceDrawer open={viewing} onClose={() => setViewing(false)} files={files} />
     </form>
   );
 }
@@ -449,10 +485,10 @@ function SummaryFact({ label, children }: { label: string; children: ReactNode }
  * "Trước khi trình" theo ba khối của form: khối nào đủ thì một dòng xanh mang tên khối, khối nào thiếu thì liệt kê
  * đúng chỗ thiếu — bấm là tới ô đó (hoặc mở dòng đó).
  */
-function Checklist({ items, onGo }: { items: ReadinessItem[]; onGo: (i: ReadinessItem) => void }) {
+function Checklist({ items, onGo, labels = GROUP_LABELS }: { items: ReadinessItem[]; onGo: (i: ReadinessItem) => void; labels?: Record<ReadinessGroup, string> }) {
   return (
     <ul className="-mx-2 space-y-0.5">
-      {(Object.keys(GROUP_LABELS) as ReadinessGroup[]).map((group) => {
+      {(Object.keys(labels) as ReadinessGroup[]).map((group) => {
         const bad = items.filter((i) => !i.ok && (i.group ?? "lines") === group);
         if (!bad.length) {
           return (
@@ -460,7 +496,7 @@ function Checklist({ items, onGo }: { items: ReadinessItem[]; onGo: (i: Readines
               <span className="bg-success-subtle text-success-text flex size-5 shrink-0 items-center justify-center rounded-full">
                 <Check className="size-3" strokeWidth={3} />
               </span>
-              {GROUP_LABELS[group]}
+              {labels[group]}
             </li>
           );
         }

@@ -26,7 +26,25 @@ export function intakeLineOutcome(trackingType: string | undefined, quantity: nu
     : `Ghi tăng ${quantity} thiết bị, mỗi cái một mã`;
 }
 
+/** Một hoá đơn (chứng từ) của phiếu ghi tăng (254). */
+export type IntakeDocument = {
+  id: number;
+  docNo: number;
+  supplier: string | null;
+  taxCode: string | null;
+  /** Liên hệ của nhà cung cấp — số điện thoại hoặc email (256, 257). */
+  contact: string | null;
+  documentNo: string | null;
+  documentDate: string | null;
+  fundingSource: string | null;
+  fundingNote: string | null;
+  acquisitionMethod: { id: number; code?: string | null; name?: string | null } | null;
+  acquisitionNote: string | null;
+};
+
 export type IntakeLine = {
+  /** Hoá đơn của dòng (254). */
+  documentId?: number | null;
   id: number | null;
   lineNo: number;
   catalog: { id: number; code: string; name: string } | null;
@@ -61,8 +79,8 @@ export type IntakeLine = {
   /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất (QLTB-391); dòng thiết bị từng cái luôn null. */
   expiryDate: string | null;
   /**
-   * Quy cách bao bì của vật tư, hoá chất (QLTB-501): 1 `packUnit` = `packSize` đơn vị của thiết bị. Có quy cách thì
-   * số lượng của dòng đếm theo bao bì, đơn giá là giá một bao bì, và lô vào sổ mang `stockQuantity` đã quy đổi.
+   * Quy cách bao bì (QLTB-501) — ĐÃ BỎ quy đổi: phiếu mới luôn trống, số lượng theo đơn vị của danh mục. Chỉ phiếu cũ
+   * còn mang: khi đó số lượng đếm theo bao bì và `stockQuantity` là số đã quy đổi (màn xem phiếu vẫn hiện).
    */
   packUnit: { id: number; code?: string; name: string } | null;
   packSize: number | null;
@@ -70,11 +88,6 @@ export type IntakeLine = {
   /** Số serial khai lúc nhận hàng (thiết bị từng cái), theo thứ tự cấp cho thiết bị sinh ra lúc duyệt. */
   serialNumbers?: string[];
 };
-
-/** Số lượng vào sổ của một dòng: số nhận × quy cách (QLTB-501), hoặc số nhận khi không quy đổi. */
-export function stockQuantityOf(received: number, packSize: number | null | undefined): number {
-  return packSize ? Math.round(received * Number(packSize) * 1000) / 1000 : received;
-}
 
 /** Phiếu nghiệp vụ đã sinh ra phiếu ghi tăng (đề xuất mua sắm, biên bản kiểm kê). */
 export type IntakeSource = { resource: string; id: number | null; code: string | null };
@@ -97,6 +110,8 @@ export type EquipmentIntake = VoucherBase & {
   /** Lúc lãnh đạo trường duyệt — cũng là lúc ghi tăng. */
   confirmedAt: string | null;
   lines: IntakeLine[];
+  /** Hoá đơn (chứng từ) của phiếu (254). */
+  documents?: IntakeDocument[];
   lineCount: number;
   totalReceived: number;
   totalAmount: number | null;

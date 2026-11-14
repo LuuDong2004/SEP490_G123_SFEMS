@@ -1,4 +1,6 @@
 import { useForm } from "@refinedev/react-hook-form";
+import { useNavigation } from "@refinedev/core";
+import { useConfirmDiscard } from "@/shared/components/form/unsaved-changes-guard";
 import { useSearchParams } from "react-router";
 
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
@@ -14,13 +16,17 @@ import { INTAKE_DEFAULT_VALUES, type IntakeFormValues } from "./fields";
  */
 export const EquipmentIntakeCreate = () => {
   const [params] = useSearchParams();
+  // Quay lại: về danh sách (trưởng nhóm 14/11/2026), không lùi lịch sử.
+  const { list } = useNavigation();
+  // Hỏi TRƯỚC rồi mới đi (lưu nháp / bỏ) — lệnh đi của Refine không chặn được giữa chừng.
+  const confirmLeave = useConfirmDiscard();
   const presetSchool = Number(params.get("school.id"));
 
   const {
     refineCore: { onFinish },
     ...form
   } = useForm({
-    refineCoreProps: { redirect: "show" },
+    refineCoreProps: { redirect: false },
     // Báo lỗi khi rời ô (mẫu chốt: gõ sai là thấy ngay), không đợi bấm Lưu.
     mode: "onTouched",
     defaultValues: {
@@ -34,7 +40,7 @@ export const EquipmentIntakeCreate = () => {
   return (
     <CreateView>
       <Form {...form}>
-        <IntakeFormBody onFinish={onFinish} header={(actions) => <CreateViewHeader actionsSlot={actions} />} />
+        <IntakeFormBody onFinish={onFinish} header={(actions) => <CreateViewHeader actionsSlot={actions} onBack={() => confirmLeave(() => list("equipment_intakes"))} />} />
       </Form>
     </CreateView>
   );

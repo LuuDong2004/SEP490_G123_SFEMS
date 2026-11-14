@@ -10,7 +10,6 @@ import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,9 +24,6 @@ import java.util.Map;
  */
 public record EquipmentIntakeRequest(
         IdRef school,
-        @NotNull(message = "Nhập ngày nhập")
-        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày nhập")
-        LocalDate intakeDate,
         // Số hoá đơn khi mua sắm (1–30, chữ không dấu, số, / - .) kiểm ở service — nguồn khác ghi số quyết định, biên bản.
         @Text(value = FieldRule.SHORT_TEXT, label = "Số chứng từ", max = 100)
         String documentNo,
@@ -48,5 +44,7 @@ public record EquipmentIntakeRequest(
         @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
         @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid EquipmentIntakeLineInput> lines,
-        Map<String, Object> details) {
+        Map<String, Object> details,
+        // Hoá đơn của phiếu (254) — có mặt thì THAY toàn bộ (cùng các dòng); vắng thì giữ như cũ.
+        @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid EquipmentIntakeDocumentInput> documents) {
 }

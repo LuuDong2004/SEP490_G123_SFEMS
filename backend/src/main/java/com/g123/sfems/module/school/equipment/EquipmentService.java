@@ -714,7 +714,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         EquipmentIntake intake = line.getIntake();
         School school = intake.getSchool();
         Integer warranty = line.effectiveWarrantyMonths();
-        LocalDate warrantyExpiry = warranty == null ? null : intake.getIntakeDate().plusMonths(warranty);
+        LocalDate received = receivedDateOf(line);
+        LocalDate warrantyExpiry = warranty == null ? null : received.plusMonths(warranty);
 
         // Cả dòng chung một bộ mã (trường, môn, loại, năm): chốt N số trong MỘT câu thay vì N câu.
         List<String> reserved = reserveCodes(school, line, line.getReceivedQuantity());
@@ -753,14 +754,14 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             item.setFundingNote(line.getFundingNote());
         item.setAcquisitionNote(line.getAcquisitionNote());
             item.setAcquisitionNote(line.getAcquisitionNote());
-            item.setReceivedDate(intake.getIntakeDate());
+            item.setReceivedDate(received);
             // Model, hãng, bảo hành, thông tin khác: của riêng cái thứ i (256), không thì của dòng.
             Integer ownWarranty = line.warrantyMonthsOf(i);
-            item.setWarrantyExpiry(ownWarranty == null ? null : intake.getIntakeDate().plusMonths(ownWarranty));
+            item.setWarrantyExpiry(ownWarranty == null ? null : received.plusMonths(ownWarranty));
             item.setModel(line.modelOf(i));
             item.setManufacturer(line.manufacturerOf(i));
             item.setOtherInfo(line.otherInfoOf(i));
-            item.setUsageStartYear(intake.getIntakeDate().getYear());
+            item.setUsageStartYear(received.getYear());
             // Nguyên giá = đơn giá của dòng; giá trị còn lại bằng nguyên giá
             // vì tài sản vừa về, chưa có kỳ khấu hao nào chạy qua.
             item.setOriginalValue(line.getUnitPrice());
@@ -825,9 +826,9 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setFundingSource(line.effectiveFundingSource());
         item.setOriginNote(intake.getOriginNote());
         item.setFundingNote(line.getFundingNote());
-        item.setReceivedDate(intake.getIntakeDate());
+        item.setReceivedDate(receivedDateOf(line));
         item.setPurchaseDate(line.effectiveDocumentDate());
-        item.setUsageStartYear(intake.getIntakeDate().getYear());
+        item.setUsageStartYear(receivedDateOf(line).getYear());
         item.setModel(line.getModel());
         item.setManufacturer(line.getManufacturer());
         item.setOtherInfo(line.getOtherInfo());
@@ -1115,6 +1116,15 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                                 .formatted(firstLine.get(e.getKey()), e.getValue(), parts.mask(), left));
             }
         }
+    }
+
+    /**
+     * Ngày nhận hàng của thiết bị = ngày hoá đơn (chứng từ) của dòng (trưởng nhóm 14/11/2026); dòng không có chứng từ
+     * (tự làm, kiểm kê thừa…) thì ngày ghi tăng — ngày phiếu được duyệt. Bảo hành và năm bắt đầu sử dụng tính từ đây.
+     */
+    private static LocalDate receivedDateOf(EquipmentIntakeLine line) {
+        LocalDate document = line.effectiveDocumentDate();
+        return document != null ? document : line.getIntake().getIntakeDate();
     }
 
     /** {@link #reserveCode} cho {@code count} tài sản của cùng một dòng, một câu. */

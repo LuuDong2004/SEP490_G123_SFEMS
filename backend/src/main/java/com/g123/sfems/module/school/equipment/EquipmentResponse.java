@@ -113,7 +113,8 @@ public record EquipmentResponse(
     }
 
     /** Chứng từ của dòng phiếu nhập; {@code lineId} để đọc tệp hoá đơn gắn theo dòng. */
-    public record IntakeDocument(Long lineId, String supplier, String documentNo, LocalDate documentDate) {
+    /** {@code documentId}: hoá đơn của phiếu (254) — tệp hoá đơn gắn vào đó; phiếu trước 254 còn tệp theo {@code lineId}. */
+    public record IntakeDocument(Long lineId, String supplier, String documentNo, LocalDate documentDate, Long documentId) {
     }
 
     private static IntakeDocument documentOf(Equipment item) {
@@ -122,7 +123,7 @@ public record EquipmentResponse(
             return null;
         }
         return new IntakeDocument(line.getId(), line.effectiveSupplier(), line.effectiveDocumentNo(),
-                line.effectiveDocumentDate());
+                line.effectiveDocumentDate(), line.documentId());
     }
 
     /**

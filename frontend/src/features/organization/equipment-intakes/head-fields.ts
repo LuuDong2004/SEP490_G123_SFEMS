@@ -1,7 +1,6 @@
-import { dateRules, mergeRules, textRules } from "@/shared/lib/field-rules";
+import { dateRules, textRules } from "@/shared/lib/field-rules";
 import { PURCHASE_CODE } from "./readiness";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export type HeadFields = {
   supplier?: string;
@@ -34,13 +33,8 @@ export function headFieldsOf(code: string | undefined): HeadFields {
 export const documentNoRules = (head: HeadFields) =>
   head.documentNo?.invoice ? textRules("INVOICE_NO", "Số hoá đơn") : textRules("SHORT_TEXT", head.documentNo?.label ?? "Số chứng từ", { max: 100 });
 
-/** Ngày chứng từ không sau hôm nay và không sau ngày nhập. */
-export const documentDateRules = (label: string) =>
-  mergeRules(dateRules("PAST_OR_TODAY", label), {
-    validate: {
-      afterIntake: (v: unknown, values: any) => !v || !values?.intakeDate || String(v) <= String(values.intakeDate) || `${label} không được sau ngày nhập`,
-    },
-  });
+/** Ngày chứng từ không sau hôm nay (ngày ghi tăng là ngày duyệt — luôn sau đó). */
+export const documentDateRules = (label: string) => dateRules("PAST_OR_TODAY", label);
 
 export type DocMeta = { title: string; files: string };
 

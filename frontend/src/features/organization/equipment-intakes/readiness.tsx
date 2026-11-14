@@ -24,6 +24,7 @@ export type ReadinessItem = {
   field?: string;
 };
 
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const filled = (v: unknown) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
 
 /** Mã nguồn hình thành "Mua sắm" — nguồn duy nhất bắt buộc hoá đơn và đơn giá. */
@@ -125,15 +126,8 @@ export function lineIssues(line: any, catalog: ReturnType<CatalogOf>, config: Vo
   const issue = fundingIssue(line, headFunding, rule);
   if (issue) out.push(issue);
   if (serial && catalog && !catalog.unit) out.push("Thiết bị chưa có đơn vị tính (sửa ở danh mục)");
-  if (Number(line.documentQuantity ?? 0) !== Number(line.receivedQuantity ?? 0) && !filled(line.varianceReason)) {
-    out.push("Nhận khác hoá đơn, chưa ghi lý do");
-  }
   for (const f of (config?.line ?? []).filter((f) => f.required && !f.stage)) {
     if (!filled(line.details?.[f.key])) out.push(`Thiếu ${f.label.toLowerCase()}`);
-  }
-  // Quy cách khai dở thì máy chủ từ chối ngay lúc lưu — nói trước ở đây.
-  if (!serial && Boolean(line.packUnit?.id) !== (line.packSize != null && line.packSize !== "")) {
-    out.push("Quy cách chưa đủ (bao bì và lượng)");
   }
   const serialProblem = serial ? serialError(line) : undefined;
   if (serialProblem) out.push(serialProblem);
@@ -166,10 +160,14 @@ export function intakeReadiness(
     intakeDate?: string | null;
     /** Phiếu nghiệp vụ phiếu ghi tăng đi từ đó (đề xuất mua sắm, biên bản kiểm kê) — có khi phiếu đã lưu. */
     source?: { resource?: string | null } | null;
+    /** Hoá đơn (chứng từ) của phiếu (254); dòng thuộc hoá đơn qua `docKey`. */
+    documents?: any[];
   },
   catalogOf: CatalogOf,
   config: VoucherFormConfig | undefined,
   rule?: OriginRule,
+  /** `noun`: tên chứng từ theo nguồn ("hoá đơn"…); `hasFile`: hoá đơn đã có tệp chưa (chỉ form biết). */
+  opts?: { noun?: string | null; hasFile?: (doc: any, index: number) => boolean },
 ): ReadinessItem[] {
   const lines = (values.lines ?? []).filter(Boolean);
   const numbered = lines.map((l, i) => ({ l, i, c: catalogOf(l) }));
@@ -185,55 +183,77 @@ export function intakeReadiness(
   if (rule?.noteRequired) {
     items.push({ key: "originNote", label: "Ghi rõ nguồn hình thành", ok: filled(values.originNote), origin: true, group: "source", field: "originNote" });
   }
-  if (isPurchase(rule)) {
+  // Chỉ "Kế hoạch mua sắm" phải đi từ kế hoạch — "Trường tự mua sắm" thì không (cùng `requirePlanLink`).
+  if (rule?.code === PURCHASE_CODE) {
     // "Kế hoạch mua sắm" phải đi từ một đề xuất trong kế hoạch — cùng `requirePlanLink` ở máy chủ. Bấm mục này mở
     // ô Nguồn hình thành, dưới ô có nút chọn đề xuất.
     items.push({
       key: "planLink", label: "Chọn kế hoạch mua sắm", ok: values.source?.resource === "purchase_proposals",
       origin: true, group: "source", field: "originSource.id",
     });
-    // Chứng từ của phiếu, hoặc của dòng có hoá đơn riêng — mỗi dòng có nhận hàng phải có đủ.
-    const receiving = numbered.filter((x) => Number(x.l?.receivedQuantity ?? 0) > 0);
-    const lacks = (k: "supplier" | "documentNo" | "documentDate") =>
-      receiving.length ? receiving.some((x) => !filled(x.l?.[k]) && !filled(values[k])) : !filled(values[k]);
-    items.push({ key: "supplier", label: "Nhà cung cấp", ok: !lacks("supplier"), group: "source", field: "supplier" });
-    items.push({ key: "documentNo", label: "Số hoá đơn", ok: !lacks("documentNo"), group: "source", field: "documentNo" });
-    const late = values.intakeDate && values.documentDate && String(values.documentDate) > String(values.intakeDate);
-    items.push({
-      key: "documentDate", label: late ? "Ngày hoá đơn sau ngày nhập" : "Ngày hoá đơn", ok: !lacks("documentDate") && !late,
-      group: "source", field: "documentDate",
-    });
   }
-  if (rule?.acquisitionMethod && filled(values.acquisitionMethod?.id) && values.acquisitionMethod?.code === OTHER_ACQUISITION_CODE) {
-    items.push({ key: "acquisitionNote", label: "Ghi rõ hình thức mua sắm", ok: filled(values.acquisitionNoteHead), origin: true, group: "source", field: "acquisitionNoteHead" });
-  }
-  if (rule && values.fundingSource === "OTHER" && "fundingNoteHead" in values) {
-    items.push({ key: "fundingNote", label: "Ghi rõ nguồn kinh phí", ok: filled(values.fundingNoteHead), group: "source", field: "fundingNoteHead" });
-  }
-  if (rule && lines.length) {
-    // Một mục cho mỗi KIỂU lỗi về nguồn kinh phí, để câu nhắc nói đúng việc phải làm.
-    const issues = numbered.map((x) => ({ ...x, issue: fundingIssue(x.l, values.fundingSource, rule) }));
-    for (const label of ["Thiếu nguồn kinh phí", "Nguồn kinh phí không đi với nguồn hình thành", "Chưa ghi rõ nguồn kinh phí", "Chưa ghi rõ hình thức mua sắm"]) {
-      const bad = issues.filter((x) => x.issue === label);
-      // Mục luôn có là "Nguồn kinh phí"; các mục sai còn lại chỉ hiện khi có dòng sai.
-      if (bad.length || label === "Thiếu nguồn kinh phí") {
-        items.push({ ...item(`funding:${label}`, label === "Thiếu nguồn kinh phí" ? "Nguồn kinh phí" : label, bad, "source"), field: "fundingSource" });
+  const docs = (values.documents ?? []) as any[];
+  const noun = cap(opts?.noun ?? "chứng từ");
+  /** "Hoá đơn 1, 3" — một chứng từ thì chỉ "Hoá đơn". */
+  const docTitle = (idx: number[]) => (docs.length > 1 ? `${noun} ${idx.map((i) => i + 1).join(", ")}` : noun);
+  // Khối bên phải phải NGẮN (trưởng nhóm 14/11/2026, hai lần): chứng từ chưa có thiết bị thì chưa đòi ô nào của nó —
+  // chỉ một mục "chưa có thiết bị" chung cho mọi chứng từ trống; các chứng từ thiếu CÙNG những ô thì gộp một mục.
+  const docState = docs.map((d, i) => {
+    // Form: dòng thuộc hoá đơn qua `docKey`; màn xem (bản ghi đã lưu): qua `documentId`.
+    const own = numbered.filter((x) => (d?.key != null && x.l?.docKey === d.key) || (d?.id != null && x.l?.documentId === d.id));
+    const checks: { label: string; ok: boolean; field: string; wrong?: boolean }[] = [];
+    if (isPurchase(rule)) {
+      checks.push({ label: "nhà cung cấp", ok: filled(String(d?.supplier ?? "").trim()), field: `documents.${i}.supplier` });
+      checks.push({ label: "số", ok: filled(String(d?.documentNo ?? "").trim()), field: `documents.${i}.documentNo` });
+      checks.push({ label: "ngày", ok: filled(d?.documentDate), field: `documents.${i}.documentDate` });
+      if (opts?.hasFile) checks.push({ label: "tệp", ok: !!opts?.hasFile?.(d, i), field: `documents.${i}.files` });
+    }
+    if (rule) {
+      const issues = own.map((x) => fundingIssue(x.l, d?.fundingSource, rule)).filter(Boolean);
+      const needFunding = rule.fundingRequired === "ALWAYS" || issues.includes("Thiếu nguồn kinh phí");
+      if (issues.includes("Nguồn kinh phí không đi với nguồn hình thành") && filled(d?.fundingSource)) {
+        checks.push({ label: "nguồn kinh phí không đi với nguồn hình thành", ok: false, wrong: true, field: `documents.${i}.fundingSource` });
+      } else if (needFunding || filled(d?.fundingSource)) {
+        checks.push({ label: "nguồn kinh phí", ok: filled(d?.fundingSource), field: `documents.${i}.fundingSource` });
+      }
+      if (d?.fundingSource === "OTHER") {
+        checks.push({ label: "ghi rõ nguồn kinh phí", ok: filled(String(d?.fundingNote ?? "").trim()), field: `documents.${i}.fundingSource` });
+      }
+      if (rule.acquisitionMethod && d?.acquisitionMethod?.code === OTHER_ACQUISITION_CODE) {
+        checks.push({ label: "ghi rõ hình thức mua sắm", ok: filled(String(d?.acquisitionNote ?? "").trim()), field: `documents.${i}.acquisitionMethod` });
       }
     }
-  }
+    const missing = checks.filter((c) => !c.ok && !c.wrong).map((c) => c.label);
+    const wrong = checks.filter((c) => c.wrong).map((c) => c.label);
+    const parts = [missing.length ? `thiếu ${missing.join(", ")}` : null, ...wrong].filter(Boolean).join("; ");
+    return { i, empty: own.length === 0, checked: checks.length > 0, parts, field: checks.find((c) => !c.ok)?.field ?? checks[0]?.field };
+  });
 
+  // Chưa có dòng nào: chỉ nói "thêm thiết bị" và các ô của chứng từ đầu — chưa nhắc các chứng từ trống còn lại.
+  const relevant = docState.filter((s) => s.checked && (!s.empty || docs.length === 1 || (lines.length === 0 && s.i === 0)));
+  const byParts = new Map<string, typeof relevant>();
+  for (const s of relevant) byParts.set(s.parts, [...(byParts.get(s.parts) ?? []), s]);
+  for (const [parts, group] of byParts) {
+    const title = docTitle(group.map((s) => s.i));
+    items.push({
+      key: `doc${group[0].i}:doc`, label: parts ? `${title}: ${parts}` : title, ok: !parts, group: "lines",
+      field: group[0].field,
+    });
+  }
   items.push({ key: "lines", label: "Thêm ít nhất một thiết bị", ok: lines.length > 0, group: "lines" });
+  const emptyDocs = docState.filter((s) => s.empty);
+  if (lines.length > 0 && docs.length > 1 && emptyDocs.length) {
+    items.push({
+      key: `doc${emptyDocs[0].i}:empty`, label: `${docTitle(emptyDocs.map((s) => s.i))}: chưa có thiết bị — thêm hoặc xoá`,
+      ok: false, group: "lines", field: `documents.${emptyDocs[0].i}`,
+    });
+  }
   // Mục của từng dòng chỉ có khi đã có dòng — chưa có dòng thì "đã đủ" là sai.
   if (lines.length) items.push(item("catalog", "Thiết bị của từng dòng", numbered.filter((x) => !x.l?.catalog?.id)));
   if (isPurchase(rule) && lines.length) items.push(item("price", "Đơn giá lớn hơn 0", numbered.filter((x) => unpriced(x.l))));
   const expiry = numbered.filter((x) => missingChemicalExpiry(x.l, x.c));
   if (expiry.length) items.push(item("expiry", "Hạn sử dụng của hoá chất", expiry));
   if (serial.length) items.push(item("unit", "Đơn vị tính của thiết bị", serial.filter((x) => !x.c?.unit)));
-  if (lines.length) {
-    items.push(item("variance", "Lý do nhận khác hoá đơn", numbered.filter(
-      (x) => Number(x.l?.documentQuantity ?? 0) !== Number(x.l?.receivedQuantity ?? 0) && !filled(x.l?.varianceReason),
-    )));
-  }
   const dupAcross = crossLineDuplicates(lines);
   const badSerial = serial.filter((x) => serialError(x.l) || dupAcross.has(x.i));
   if (badSerial.length) items.push(item("serial", "Số serial", badSerial));

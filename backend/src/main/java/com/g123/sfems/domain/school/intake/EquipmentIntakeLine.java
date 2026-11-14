@@ -123,6 +123,14 @@ public class EquipmentIntakeLine extends BaseEntity {
     private Integer generatedCount = 0;
 
     // Khai riêng của dòng — null = theo đầu phiếu.
+    /**
+     * Hoá đơn mà dòng thuộc về (254). Chứng từ của hoá đơn được chép xuống các cột chứng từ của dòng mỗi lần lưu, nên
+     * mọi chỗ đọc dòng vẫn đọc {@code effective*}; cột này chỉ để gom dòng theo hoá đơn và tìm tệp hoá đơn.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id")
+    private EquipmentIntakeDocument document;
+
     @Column(length = 255)
     private String supplier;
 
@@ -177,7 +185,8 @@ public class EquipmentIntakeLine extends BaseEntity {
     private LocalDate expiryDate;
 
     /**
-     * Quy cách của vật tư, hoá chất mua theo bao bì (QLTB-501): đơn vị bao bì (Lọ, Chai…) và lượng trong một bao
+     * Quy cách bao bì (QLTB-501) — ĐÃ BỎ quy đổi: phiếu lưu từ nay luôn để trống, số lượng của dòng theo đơn vị tính của
+     * danh mục (g, ml…). Chỉ dòng cũ còn mang: đơn vị bao bì (Lọ, Chai…) và lượng trong một bao
      * bì tính theo đơn vị của thiết bị (100 ml). Có quy cách thì số lượng của dòng đếm theo bao bì và đơn giá
      * là giá một bao bì; lô vào sổ mang số lượng đã quy đổi ({@link #stockQuantity()}). Cùng trống hoặc cùng có.
      */
@@ -428,6 +437,19 @@ public class EquipmentIntakeLine extends BaseEntity {
 
     public void setWarrantyMonths(Integer warrantyMonths) {
         this.warrantyMonths = warrantyMonths;
+    }
+
+    public EquipmentIntakeDocument getDocument() {
+        return document;
+    }
+
+    public void setDocument(EquipmentIntakeDocument document) {
+        this.document = document;
+    }
+
+    /** Id hoá đơn của dòng mà không nạp hoá đơn (proxy LAZY trả id không cần truy vấn). */
+    public Long documentId() {
+        return document == null ? null : document.getId();
     }
 
     public String effectiveSupplier() {

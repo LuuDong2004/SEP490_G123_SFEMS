@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- bản ghi phiếu cũ đọc cả trường đầu phiếu lẫn trường dòng. */
+import { useNavigation } from "@refinedev/core";
+import { useConfirmDiscard } from "@/shared/components/form/unsaved-changes-guard";
 import { useForm } from "@refinedev/react-hook-form";
 import { Lock } from "lucide-react";
 import { useEffect } from "react";
@@ -23,6 +25,10 @@ import { INTAKE_DEFAULT_VALUES, toFormValues, type IntakeFormValues } from "./fi
  */
 export const EquipmentIntakeEdit = () => {
   const navigate = useNavigate();
+  // Quay lại: về danh sách (trưởng nhóm 14/11/2026), không lùi lịch sử.
+  const { list } = useNavigation();
+  // Hỏi TRƯỚC rồi mới đi (lưu nháp / bỏ) — lệnh đi của Refine không chặn được giữa chừng.
+  const confirmLeave = useConfirmDiscard();
   const {
     refineCore: { onFinish, query },
     ...form
@@ -33,7 +39,7 @@ export const EquipmentIntakeEdit = () => {
     // Đưa chứng từ LÊN đầu phiếu NGAY TRONG dữ liệu truy vấn (`toFormValues`): Refine tự `reset` form bằng dữ liệu
     // này, nên làm ở một effect riêng thì bị lần reset của Refine ghi đè.
     refineCoreProps: {
-      redirect: "show",
+      redirect: false,
       queryOptions: { select: (res: any) => ({ ...res, data: toFormValues(res.data) }) },
     },
   });
@@ -94,7 +100,7 @@ export const EquipmentIntakeEdit = () => {
     <EditView>
       <Form {...form}>
         <IntakeFormBody record={record} onFinish={onFinish}
-          header={(actions) => <EditViewHeader meta={<VoucherStatusBadge status="DRAFT" />} actionsSlot={actions} />} />
+          header={(actions) => <EditViewHeader meta={<VoucherStatusBadge status="DRAFT" />} actionsSlot={actions} onBack={() => confirmLeave(() => list("equipment_intakes"))} />} />
       </Form>
     </EditView>
   );

@@ -6,6 +6,7 @@ import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.intake.EquipmentIntakeDocument;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
@@ -56,7 +57,20 @@ public record EquipmentIntakeResponse(
         RefSummary createdBy,
         Map<String, Object> details,
         @JsonProperty("_can") Map<String, Boolean> can,
-        @JsonProperty("_actions") Set<String> actions) {
+        @JsonProperty("_actions") Set<String> actions,
+        /** Hoá đơn (chứng từ) của phiếu (254); dòng chỉ tới hoá đơn của nó qua {@code Line.documentId}. */
+        List<Document> documents) {
+
+    /** Một hoá đơn của phiếu (254). */
+    public record Document(Long id, Integer docNo, String supplier, String taxCode, String documentNo, LocalDate documentDate,
+            FundingSource fundingSource, String fundingNote, RefSummary acquisitionMethod, String acquisitionNote, String contact) {
+
+        static Document from(EquipmentIntakeDocument d) {
+            return new Document(d.getId(), d.getDocNo(), d.getSupplier(), d.getTaxCode(), d.getDocumentNo(), d.getDocumentDate(),
+                    d.getFundingSource(), d.getFundingNote(), RefSummary.of(d.getAcquisitionMethod()), d.getAcquisitionNote(),
+                    d.getContact());
+        }
+    }
 
     /** Phiếu nguồn: {@code resource} là tên tài nguyên (đường dẫn màn chi tiết suy ra từ nó). */
     public record Source(String resource, Long id, String code) {
@@ -112,7 +126,9 @@ public record EquipmentIntakeResponse(
             List<String> unitModels,
             List<String> unitManufacturers,
             List<Integer> unitWarrantyMonths,
-            List<String> unitOtherInfos) {
+            List<String> unitOtherInfos,
+            // Hoá đơn của dòng (254).
+            Long documentId) {
 
         static Line from(EquipmentIntakeLine line) {
             BigDecimal price = line.getUnitPrice();
@@ -153,7 +169,8 @@ public record EquipmentIntakeResponse(
                     line.unitModels(),
                     line.unitManufacturers(),
                     line.unitWarrantyMonths(),
-                    line.unitOtherInfos());
+                    line.unitOtherInfos(),
+                    line.documentId());
         }
     }
 
@@ -185,6 +202,7 @@ public record EquipmentIntakeResponse(
                 lines, lines.size(), totalReceived, totalAmount, generated,
                 item.getCreatedAt(), item.getUpdatedAt(), createdBy,
                 VoucherForms.read(item.getDetails()),
-                can, actions);
+                can, actions,
+                item.getDocuments().stream().map(Document::from).toList());
     }
 }

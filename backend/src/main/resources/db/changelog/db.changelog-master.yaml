@@ -470,3 +470,11 @@ databaseChangeLog:
       file: db/changelog/changes/255-intake-unit-rooms.sql
   - include:
       file: db/changelog/changes/256-intake-unit-details.sql
+  - include:
+      file: db/changelog/changes/257-intake-documents.sql
+  - include:
+      file: db/changelog/changes/258-origin-school-purchase-name.sql
+  - include:
+      file: db/changelog/changes/259-intake-document-phone.sql
+  - include:
+      file: db/changelog/changes/260-intake-document-contact.sql

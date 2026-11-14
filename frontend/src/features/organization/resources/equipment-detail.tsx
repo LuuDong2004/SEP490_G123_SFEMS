@@ -147,11 +147,11 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
 
             {tab === "files" ? (
               <div className="grid items-start gap-4 lg:grid-cols-2">
-                {r.intakeDocument?.lineId ? (
+                {r.intakeDocument?.documentId || r.intakeDocument?.lineId ? (
                   <AttachmentsPanel
-                    resource="equipment_intake_lines"
+                    resource={r.intakeDocument.documentId ? "equipment_intake_documents" : "equipment_intake_lines"}
                     title="Hoá đơn / chứng từ nhập"
-                    recordId={r.intakeDocument.lineId}
+                    recordId={r.intakeDocument.documentId ?? r.intakeDocument.lineId}
                     canWrite={false}
                     compact
                     description={`Hoá đơn, hợp đồng từ phiếu ghi tăng ${r.intake?.code ?? ""}. Thêm hoặc xoá ở phiếu ghi tăng.`}
@@ -162,7 +162,7 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
                   recordId={r.id}
                   canWrite={false}
                   compact
-                  className={r.intakeDocument?.lineId ? undefined : "lg:col-span-2"}
+                  className={r.intakeDocument?.documentId || r.intakeDocument?.lineId ? undefined : "lg:col-span-2"}
                   description={canWrite ? "Ảnh thiết bị, hồ sơ kỹ thuật, phiếu bảo hành. Thêm hoặc xoá tệp ở trang Sửa." : "Ảnh thiết bị, hồ sơ kỹ thuật, phiếu bảo hành."}
                 />
               </div>

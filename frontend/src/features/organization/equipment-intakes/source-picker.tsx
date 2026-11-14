@@ -1,4 +1,5 @@
 import { useList, useNavigation, useNotification } from "@refinedev/core";
+import { useNavigate } from "react-router";
 import { ArrowLeft, FileSearch, Loader2, Search, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -106,10 +107,6 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
   }, [row]);
   const open = (lines ?? []).filter((l) => l.remaining > 0);
   const chosen = Object.entries(picked).filter(([, q]) => q > 0).map(([id, q]) => ({ lineId: Number(id), quantity: q }));
-  const total = chosen.reduce((sum, c) => {
-    const l = lines?.find((x) => x.lineId === c.lineId);
-    return sum + (l?.unitPrice ?? 0) * c.quantity;
-  }, 0);
   const allOn = open.length > 0 && open.every((l) => (picked[l.lineId] ?? 0) > 0);
   return (
     <>
@@ -117,6 +114,7 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
         <Table className="table-fixed">
           <colgroup>
             <col className="w-10" />
+            <col className="w-36" />
             <col />
             <col className="w-24" />
             <col className="w-24" />
@@ -128,6 +126,7 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
                 <Checkbox aria-label="Chọn tất cả" checked={allOn} disabled={!open.length}
                   onCheckedChange={(v) => setPicked(v ? Object.fromEntries(open.map((l) => [l.lineId, l.remaining])) : {})} />
               </TableHead>
+              <TableHead className="px-3">Mã DM thiết bị</TableHead>
               <TableHead className="px-3">Thiết bị</TableHead>
               <TableHead className="px-3 text-end">Kế hoạch</TableHead>
               <TableHead className="px-3 text-end">Đã nhập</TableHead>
@@ -136,7 +135,7 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
           </TableHeader>
           <TableBody>
             {error || !lines ? (
-              <TableEmpty colSpan={5} loading={!error} title={error} />
+              <TableEmpty colSpan={6} loading={!error} title={error} />
             ) : lines.map((l) => {
               const done = l.remaining === 0;
               const qty = picked[l.lineId] ?? 0;
@@ -146,10 +145,8 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
                     <Checkbox aria-label={l.name} checked={qty > 0} disabled={done}
                       onCheckedChange={(v) => setPicked((p) => ({ ...p, [l.lineId]: v ? l.remaining : 0 }))} />
                   </TableCell>
-                  <TableCell className="px-3">
-                    <div className="truncate font-medium" title={l.name}>{l.name}</div>
-                    <div className="text-muted-foreground truncate font-mono text-xs">{l.catalogCode}</div>
-                  </TableCell>
+                  <TableCell className="text-muted-foreground truncate px-3 font-mono text-xs">{l.catalogCode}</TableCell>
+                  <TableCell className="truncate px-3 font-medium" title={l.name}>{l.name}</TableCell>
                   <TableCell className="px-3 text-end tabular-nums">{l.planned} {l.unitName ?? ""}</TableCell>
                   <TableCell className="px-3 text-end tabular-nums">{l.received}</TableCell>
                   <TableCell className="px-3 text-end">
@@ -172,7 +169,8 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
       <div className="flex flex-wrap items-center gap-3 border-t pt-4">
         <Button type="button" variant="ghost" onClick={onBack} disabled={busy}><ArrowLeft />Chọn kế hoạch khác</Button>
         <span className="text-muted-foreground me-auto text-sm">
-          <span className="text-foreground font-medium tabular-nums">{chosen.length}</span> thiết bị · {money.format(total)} đ
+          {/* Chỉ số thiết bị — không tiền (trưởng nhóm 14/11/2026: phiếu ghi tăng quan tâm thiết bị nhận về). */}
+          <span className="text-foreground font-medium tabular-nums">{chosen.length}</span> thiết bị
         </span>
         <Button type="button" disabled={busy || chosen.length === 0} onClick={() => onConfirm(chosen)}>
           {busy ? <Loader2 className="animate-spin" /> : null}
@@ -214,7 +212,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
     onCancel?.();
     onOpenChange(false);
   };
-  const { edit } = useNavigation();
+  const { edit, editUrl } = useNavigation();
+  const navigate = useNavigate();
   const { open: notify } = useNotification();
   const [busy, setBusy] = useState<string | null>(null);
   // Kế hoạch (đề xuất của trường) đã chọn — sang bước chọn thiết bị nhập đợt này.
@@ -299,8 +298,9 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
     setBusy(row.key);
     try {
       const res = await kyInstance.post(`purchase_proposals/${row.proposal.id}/intake`, { json: { lines: picks } }).json<{ intakeId: number }>();
-      notify?.({ type: "success", message: `Đã lập phiếu ghi tăng nháp theo kế hoạch ${row.info || row.code}` });
-      openDraft(res.intakeId);
+      // Phiếu lập sẵn chưa tính là đã lưu: màn sửa hỏi "Lưu nháp?" khi rời đi, không lưu thì bỏ (`?fresh=1`).
+      onOpenChange(false);
+      navigate(`${editUrl("equipment_intakes", res.intakeId)}?fresh=1`, { replace: true });
     } catch (error) {
       notify?.({ type: "error", message: await errorMessage(error) });
     } finally {
@@ -315,12 +315,17 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
       {/* Cùng khuôn với hộp chọn cán bộ: hàng tìm + xếp, bảng trong khung cao cố định, thanh chân. */}
       <DialogContent size="picker">
         <DialogHeader>
-          <DialogTitle>{chosen ? `Chọn thiết bị nhập đợt này — ${chosen.info || chosen.code}` : text.title}</DialogTitle>
+          <DialogTitle>{chosen ? "Chọn thiết bị nhập đợt này" : text.title}</DialogTitle>
           {/* Hộp chọn kế hoạch không có dòng phụ (trưởng nhóm 13/11/2026) — tiêu đề và bảng đã đủ; giữ cho trình đọc màn hình. */}
-          <DialogDescription className={cn(!chosen && kind === "MUA_SAM" && "sr-only")}>
-            {chosen
-              ? "Bỏ chọn hoặc giảm số lượng với thiết bị chưa về. Phần còn lại lập phiếu ghi tăng ở đợt sau."
-              : text.description}
+          {/* Bước hai: tiêu đề ngắn, dòng phụ chỉ là tên kế hoạch (trưởng nhóm 14/11/2026: đơn giản lại). */}
+          <DialogDescription className={cn(chosen && "truncate", !chosen && kind === "MUA_SAM" && "sr-only")} title={chosen ? chosen.info || chosen.code : undefined}>
+            {chosen ? (
+              <>
+                {/* Nhãn cơ quan lập kế hoạch (Sở / UBND) trước tên kế hoạch — trưởng nhóm 14/11/2026. */}
+                {chosen.body ? <span className="bg-info-subtle text-info-text me-2 rounded-md px-1.5 py-0.5 text-xs font-medium">{chosen.body}</span> : null}
+                {chosen.info || chosen.code}
+              </>
+            ) : text.description}
           </DialogDescription>
         </DialogHeader>
 

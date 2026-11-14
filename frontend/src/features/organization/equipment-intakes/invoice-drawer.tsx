@@ -16,10 +16,10 @@ export type IntakeFile = { key: string; name: string; type?: string | null; load
  * Tệp của phiếu ghi tăng: tệp của phiếu và tệp hoá đơn riêng của từng dòng (đã lưu), cộng tệp đang chờ tải lên
  * của form lập. Cùng khoá truy vấn với `AttachmentsPanel`, nên thêm / xoá tệp ở đó là danh sách này đổi theo.
  */
-export function useIntakeFiles(recordId: number | undefined, lineIds: number[], pending: File[]): IntakeFile[] {
+export function useIntakeFiles(recordId: number | undefined, documentIds: number[], pending: File[]): IntakeFile[] {
   const sources = [
     ...(recordId ? [{ resource: "equipment_intakes", id: recordId }] : []),
-    ...lineIds.map((id) => ({ resource: "equipment_intake_lines", id })),
+    ...documentIds.map((id) => ({ resource: "equipment_intake_documents", id })),
   ];
   const results = useQueries({
     queries: sources.map((s) => ({
@@ -40,6 +40,17 @@ export function useIntakeFiles(recordId: number | undefined, lineIds: number[], 
     ...pending.map((f) => ({ key: `p${f.name}:${f.size}`, name: f.name, type: f.type, load: () => Promise.resolve(f as Blob) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [savedKey, pendingKey]);
+}
+
+/** Số tệp đã lưu của từng hoá đơn (254) — cùng khoá truy vấn với `AttachmentsPanel`, thêm / xoá tệp là số đổi theo. */
+export function useDocumentFileCounts(documentIds: number[]): Map<number, number> {
+  const results = useQueries({
+    queries: documentIds.map((id) => ({
+      queryKey: ["attachments", "equipment_intake_documents", id],
+      queryFn: () => kyInstance.get("attachments", { searchParams: { resource: "equipment_intake_documents", recordId: String(id) } }).json<AttachmentInfo[]>(),
+    })),
+  });
+  return new Map(documentIds.map((id, i) => [id, Array.isArray(results[i]?.data) ? results[i].data!.length : 0]));
 }
 
 const kindOf = (name: string, type?: string | null) =>

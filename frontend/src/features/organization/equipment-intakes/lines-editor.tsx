@@ -1,5 +1,5 @@
 import { useCustom, useList, useNotification } from "@refinedev/core";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, FileSpreadsheet, FileText, ListPlus, PackageSearch, Plus, Trash2, Upload } from "lucide-react";
+import { Check, ChevronDown, Copy, ChevronLeft, ChevronRight, CircleAlert, Download, FileSpreadsheet, ListPlus, PackageSearch, Plus, Trash2, Upload } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useFieldArray, useFormContext, useWatch, type Control } from "react-hook-form";
 
@@ -14,9 +14,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { API_URL } from "@/shared/api/constants";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { DateInput } from "@/shared/components/form/date-input";
-import { FormHint, HelpHint } from "@/shared/components/form/help-hint";
+import { HelpHint } from "@/shared/components/form/help-hint";
 import { MoneyInput } from "@/shared/components/form/money-input";
-import { RefField } from "@/shared/components/catalog/ref-field";
 import { customResult } from "@/shared/hooks/use-custom-result";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
@@ -27,7 +26,6 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Input } from "@/shared/ui/input";
@@ -36,11 +34,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { SectionHead } from "./section-head";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
-import { intakeLineOutcome, stockQuantityOf } from "@/domains/equipment-intake/types";
-import { EMPTY_DOCUMENT, LineOwnDocumentFields } from "./line-documents";
+import { intakeLineOutcome } from "@/domains/equipment-intake/types";
+import { DocumentFields, DocumentFiles } from "./document-fields";
+import { InvoiceXmlButton, type InvoiceImport } from "./invoice-xml";
 import { headFieldsOf } from "./head-fields";
 import { isChemical, isPurchaseCode, lineIssues, serialError, serialsOf } from "./readiness";
-import { UNIT_KEYS, unitValue, type UnitInfo } from "./fields";
+import { newDocument, UNIT_KEYS, unitValue, type DocumentForm, type UnitInfo } from "./fields";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -61,13 +60,10 @@ export const EMPTY_LINE = {
   /** Cấu hình, công suất, xuất xứ… — chữ tự do, chép xuống từng tài sản khi duyệt. */
   otherInfo: null,
   expiryDate: null,
-  // Quy cách bao bì là của từng lô (lọ 100 ml lần này, chai 500 ml lần sau).
-  packUnit: { id: null },
-  packSize: null,
   room: { id: null },
-  ...EMPTY_DOCUMENT,
-  /** Chỉ trên form: dòng có hoá đơn riêng (khác đầu phiếu). */
-  ownDocuments: false,
+  warrantyMonths: null,
+  /** Chỉ trên form: hoá đơn (chứng từ) mà dòng thuộc về — `key` của một mục trong `documents` (254). */
+  docKey: "",
   /** Chỉ trên form: số nhận khác số trên hoá đơn. */
   differs: false,
   /** Chỉ trên form: số serial, mỗi dòng một số. */
@@ -198,6 +194,7 @@ function SeqCode({ code }: { code: string }) {
 
 type Preview = { counter: string | null; code: string | null; reason: string | null };
 
+
 // ------------------------------------------------------------------ ô trong bảng
 
 /** Ô trong DÒNG của bảng không có khung: khung chỉ hiện khi rê chuột hoặc đang gõ; ô sai thì viền đỏ luôn. */
@@ -224,18 +221,6 @@ function IntInput({ value, onChange, className, ...rest }: {
   );
 }
 
-/** Ô số thập phân (quy cách bao bì). */
-function DecimalInput({ value, onChange, ...rest }: {
-  value: unknown;
-  onChange: (v: number | null) => void;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
-  return (
-    <Input {...rest} type="number" inputMode="decimal" step="any" className={cn("text-right tabular-nums", rest.className)}
-      value={value == null || value === "" ? "" : String(value)}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />
-  );
-}
-
 type Room = { id: number; name: string; roomType?: { code?: string } | null };
 
 /** Kho của trường: phòng loại KHO — cùng quy tắc `isStoreroom` ở máy chủ; không có mã loại thì theo tên. */
@@ -247,14 +232,16 @@ const NO_ROOM = "__store__";
 
 /** `placeholder`: ô chọn để ÁP một lượt (thanh chọn nhiều cái) — luôn trống, chọn xong là áp. */
 function RoomCell({ value, onChange, rooms, label, placeholder }: { value: any; onChange: (v: { id: number | null }) => void; rooms: Room[]; label: string; placeholder?: string }) {
-  const id = value?.id ? String(value.id) : "";
+  // Chưa chọn phòng = về kho: trường có phòng kho thật thì hiện đúng phòng đó (không thì ô trống — trưởng nhóm 14/11/2026).
+  const store = storeroomOf(rooms);
+  const id = value?.id ? String(value.id) : store ? String(store.id) : "";
   const options = [
     ...(id && !rooms.some((r) => String(r.id) === id) ? [{ id: Number(id), name: value?.name ?? "…" }] : []),
     ...rooms,
   ];
   return (
     <Select value={placeholder ? "" : id || NO_ROOM} onValueChange={(v) => { if (v) onChange({ id: v === NO_ROOM ? null : Number(v) }); }}>
-      <SelectTrigger size="sm" aria-label={label} className="bg-surface-subtle h-8 w-full rounded-full border-transparent shadow-none">
+      <SelectTrigger size="sm" aria-label={label} className="bg-card h-8 w-full shadow-none">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-72">
@@ -393,7 +380,10 @@ const COLS = 9;
  * Một dòng của bảng lưới: số lượng, đơn giá, phòng nhận gõ thẳng tại chỗ; ⌄ mở ngay dưới dòng phần chi tiết (model,
  * hãng, bảo hành, hạn dùng / quy cách của vật tư, số serial, nhận khác hoá đơn, hoá đơn riêng).
  */
-function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expanded, onToggle, onRemove, onSplit, separate, priceNo, preview, offset, onPreview }: {
+function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expanded, onToggle, onRemove, onSplit, separate, priceNo, preview, offset, onPreview, moveTargets, onMove }: {
+  /** Hoá đơn khác của phiếu — chuyển thiết bị sang (khai nhầm hoá đơn). */
+  moveTargets: { key: string; label: string }[];
+  onMove: (key: string) => void;
   control: Control<any>;
   path: string;
   index: number;
@@ -428,7 +418,9 @@ function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expan
   const serialBad = tracking === "serial" && !!serialError(line);
   const serialCount = serialsOf(line).length;
   const name = line?.name || catalog?.name;
-  const unitName = line?.packUnit?.id ? (line.packUnit.name ?? catalog?.unit?.name) : catalog?.unit?.name;
+  // Lô vật tư, hoá chất không quy đổi bao bì: số lượng luôn theo đơn vị tính của danh mục (g, ml…).
+  const unitName = catalog?.unit?.name;
+  const expiryMissing = tracking === "bulk" && isChemical(line, catalog) && received > 0 && !line?.expiryDate;
 
   return (
     <>
@@ -499,12 +491,13 @@ function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expan
             chi tiết (model, hãng, bảo hành, serial từng máy / hạn dùng, nhận khác hoá đơn, hoá đơn riêng). */}
         <TableCell className="p-1">
           <button type="button" onClick={onToggle} aria-expanded={expanded}
-            title={tracking === "serial" ? `${serialCount}/${received} máy đã có serial — bấm để xem chi tiết` : "Model, hãng, bảo hành, nhận khác hoá đơn, hoá đơn riêng"}
+            title={tracking === "serial" ? `${serialCount}/${received} máy đã có serial — bấm để xem chi tiết`
+              : tracking === "bulk" ? "Hạn sử dụng, model, hãng, nơi nhận của lô" : "Model, hãng, bảo hành, nhận khác hoá đơn, hoá đơn riêng"}
             className={cn("hover:bg-muted ms-auto flex h-8 max-w-full items-center gap-1 rounded-md px-2 text-xs tabular-nums",
-              serialBad ? "text-warning-text font-medium" : "text-muted-foreground")}>
+              serialBad || expiryMissing ? "text-warning-text font-medium" : "text-muted-foreground")}>
             <span className="truncate">
               {tracking === "serial" ? `${serialCount}/${received}`
-                : tracking === "bulk" ? (line?.expiryDate ? `HSD ${formatPlainDate(line.expiryDate)}` : "Theo lô") : "Chi tiết"}
+                : tracking === "bulk" ? (line?.expiryDate ? `HSD ${formatPlainDate(line.expiryDate)}` : expiryMissing ? "Thiếu HSD" : "Chi tiết") : "Chi tiết"}
             </span>
             <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
           </button>
@@ -516,9 +509,10 @@ function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expan
         </TableCell>
       </TableRow>
       {expanded ? (
-        <TableRow className="bg-info-subtle hover:bg-info-subtle">
+        <TableRow className="bg-muted/60 hover:bg-muted/60">
           <TableCell colSpan={COLS} className="px-4 pt-2 pb-5 whitespace-normal">
-            <LineDetail control={control} path={path} line={line} catalog={catalog} preview={preview} offset={offset} onSplit={onSplit} rooms={rooms} priceNo={priceNo} />
+            <LineDetail control={control} path={path} line={line} catalog={catalog} preview={preview} offset={offset} onSplit={onSplit} rooms={rooms} priceNo={priceNo}
+              moveTargets={moveTargets} onMove={onMove} />
           </TableCell>
         </TableRow>
       ) : null}
@@ -527,8 +521,10 @@ function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expan
 }
 
 /** Phần mở ngay dưới dòng. */
-function LineDetail({ control, path, line, catalog, preview, offset, onSplit, rooms, priceNo }: {
+function LineDetail({ control, path, line, catalog, preview, offset, onSplit, rooms, priceNo, moveTargets, onMove }: {
   priceNo?: number;
+  moveTargets: { key: string; label: string }[];
+  onMove: (key: string) => void;
   control: Control<any>;
   path: string;
   line: any;
@@ -538,12 +534,7 @@ function LineDetail({ control, path, line, catalog, preview, offset, onSplit, ro
   onSplit: (positions: number[]) => void;
   rooms: Room[];
 }) {
-  const { setValue, getValues, trigger } = useFormContext();
-  const { origins } = useOriginRules();
-  const originId = useWatch({ control, name: "originSource.id" });
-  const head = headFieldsOf(origins.find((o) => String(o.id) === String(originId ?? ""))?.code);
-  // Tên chứng từ theo nguồn: hoá đơn, biên bản tặng, quyết định điều chuyển, chứng từ.
-  const noun = (head.documentNo?.label ?? "Số chứng từ").replace(/^Số /, "");
+  const { setValue } = useFormContext();
   const tracking: string | undefined = catalog?.trackingType;
   const received = Number(line?.receivedQuantity ?? 0);
   const unitCount = tracking === "bulk" ? Math.min(received, 1) : received;
@@ -564,32 +555,12 @@ function LineDetail({ control, path, line, catalog, preview, offset, onSplit, ro
       )}
     />
   );
-  // Hộp chứng từ riêng (trưởng nhóm 14/11/2026): "Xong" chỉ bấm được khi đủ ô bắt buộc; đóng bằng X / Esc là bỏ thay đổi vừa gõ;
-  // "Bỏ" thôi dùng chứng từ riêng.
-  const DOC_KEYS = ["ownDocuments", "supplier", "documentNo", "documentDate", "pendingFiles"] as const;
-  const docRequired = [head.supplier && "supplier", head.documentNo && "documentNo", head.documentDate && "documentDate"].filter(Boolean) as string[];
-  const [docOpen, setDocOpen] = useState(false);
-  const docSnapshot = useRef<Record<string, unknown> | null>(null);
-  const openDoc = () => {
-    docSnapshot.current = Object.fromEntries(DOC_KEYS.map((k) => [k, getValues(`${path}.${k}`)]));
-    if (!line?.ownDocuments) setValue(`${path}.ownDocuments`, true, { shouldDirty: true });
-    setDocOpen(true);
-  };
-  const cancelDoc = () => {
-    const snap = docSnapshot.current;
-    if (snap) for (const k of DOC_KEYS) setValue(`${path}.${k}`, snap[k], { shouldDirty: true });
-    setDocOpen(false);
-  };
-  const docComplete = docRequired.every((k) => String(line?.[k] ?? "").trim() !== "");
-  const finishDoc = async () => {
-    if (await trigger(docRequired.map((k) => `${path}.${k}`))) setDocOpen(false);
-  };
-  const docSummary = [line?.documentNo, line?.documentDate ? formatPlainDate(line.documentDate) : null].filter(Boolean).join(" · ");
   return (
     // Dạng HÀNG VÀ CỘT (phương án A, trưởng nhóm 14/11/2026): một hàng ô chung của cả mục, hai liên kết mở ô hiếm dùng,
     // rồi bảng từng thiết bị — không khung thẻ trái / phải.
     <div className="grid gap-3">
-      {tracking !== "serial" ? (
+      {/* Chưa chọn thiết bị (chưa biết cách quản lý) thì còn hàng ô chung; từng cái và theo lô đều là BẢNG ở dưới. */}
+      {tracking !== "serial" && tracking !== "bulk" ? (
       <div className="grid items-start gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
         <FormField
           control={control}
@@ -619,60 +590,27 @@ function LineDetail({ control, path, line, catalog, preview, offset, onSplit, ro
               onChange={(v) => { setValue(`${path}.room`, v, { shouldDirty: true }); setValue(`${path}.unitRooms`, [], { shouldDirty: true }); }} />
           </div>
         </div>
-        {tracking === "bulk" ? (
-          <>
-            <FormField
-              control={control}
-              name={`${path}.expiryDate`}
-              rules={dateRules("ANY", "Hạn sử dụng")}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required={isChemical(line, catalog) || undefined}>Hạn sử dụng</FormLabel>
-                  <FormControl>
-                    <DateInput className="max-w-none" value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <PackField control={control} path={path} line={line} catalog={catalog} />
-          </>
-        ) : null}
       </div>
       ) : null}
 
-      <div className="flex flex-wrap justify-end gap-x-6 gap-y-2">
-        <span className="flex w-fit items-center gap-1">
-          <button type="button" onClick={openDoc}
-            className="text-primary flex items-center gap-1 text-sm font-medium hover:underline">
-            {line?.ownDocuments ? <FileText className="size-3.5" /> : <Plus className="size-3.5" />}
-            {line?.ownDocuments ? `Theo ${noun} khác${docSummary ? `: ${docSummary}` : ""}` : `Thiết bị này theo ${noun} khác`}
-          </button>
-          <HelpHint>{`VD: phiếu gom 2 ${noun}, thiết bị này thuộc ${noun} thứ hai.`}</HelpHint>
-        </span>
-      </div>
-      <Dialog open={docOpen} onOpenChange={(o) => { if (!o) cancelDoc(); }}>
-        <DialogContent size="formFit">
-          <DialogHeader>
-            <DialogTitle>{`Thiết bị này theo ${noun} khác`}</DialogTitle>
-            <DialogDescription>{`Thay cho ${noun} ở đầu phiếu, chỉ áp cho mục này.`}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 overflow-y-auto">
-            <LineOwnDocumentFields control={control} path={path} lineId={line?.id} required />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" title={`Thiết bị này theo ${noun} ở đầu phiếu`}
-              onClick={() => { setValue(`${path}.ownDocuments`, false, { shouldDirty: true }); setDocOpen(false); }}>
-              Bỏ
-            </Button>
-            <Button type="button" disabled={!docComplete} title={docComplete ? undefined : "Điền đủ các ô có dấu *"} onClick={finishDoc}>Xong</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {moveTargets.length ? (
+        <div className="flex items-center justify-end gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">Chuyển sang</span>
+          <Select value="" onValueChange={(v) => { if (v) onMove(v); }}>
+            <SelectTrigger size="sm" className="h-8 w-56" aria-label="Chuyển thiết bị sang chứng từ khác"><SelectValue placeholder="Chọn chứng từ khác…" /></SelectTrigger>
+            <SelectContent>{moveTargets.map((t) => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
-      <UnitsPanel control={control} path={path} tracking={tracking} count={unitCount} received={received}
-        outcome={intakeLineOutcome(tracking, stockQuantityOf(received, line?.packUnit?.id ? line?.packSize : null), line?.packUnit?.id && line?.packSize ? catalog?.unit?.name : undefined)}
-        code={preview?.code ?? null} reason={line?.catalog?.id ? preview?.reason ?? null : null} offset={offset} onSplit={onSplit} rooms={rooms} lineRoomId={line?.room?.id ?? null} priceNo={priceNo} />
+      {tracking === "bulk" ? (
+        <LotPanel control={control} path={path} line={line} catalog={catalog} rooms={rooms} received={received}
+          code={preview?.code ?? null} reason={line?.catalog?.id ? preview?.reason ?? null : null} offset={offset} priceNo={priceNo} />
+      ) : (
+        <UnitsPanel control={control} path={path} tracking={tracking} count={unitCount} received={received}
+          outcome={intakeLineOutcome(tracking, received)}
+          code={preview?.code ?? null} reason={line?.catalog?.id ? preview?.reason ?? null : null} offset={offset} onSplit={onSplit} rooms={rooms} lineRoomId={line?.room?.id ?? null} priceNo={priceNo} />
+      )}
     </div>
   );
 }
@@ -709,9 +647,11 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
     setValue(`${path}.unitRooms`, next, { shouldDirty: true });
   };
   // Cột của bảng từng cái: [chọn] # · mã dự kiến · serial · model · hãng · bảo hành · thông tin khác · nhận vào.
-  const cols = received >= 2
-    ? "grid-cols-[1.75rem_2rem_10.5rem_minmax(7rem,1fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_6.5rem_minmax(8rem,1.4fr)_12rem]"
-    : "grid-cols-[2rem_10.5rem_minmax(7rem,1fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_6.5rem_minmax(8rem,1.4fr)_12rem]";
+  // Tiêu đề và ô dùng CÙNG một lưới, cùng khoảng cách cột (gap-x-2); chữ tiêu đề thụt px-3 = lề trong của ô nhập, nên
+  // tiêu đề thẳng cột với chữ trong ô (trưởng nhóm 14/11/2026: cột lệch). Cột cuối hẹp dành cho nút chép cả hàng.
+  const cols = cn("gap-x-2", received >= 2
+    ? "grid-cols-[1.25rem_1.5rem_10rem_minmax(7rem,1fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_6rem_minmax(8rem,1.4fr)_11rem_1.5rem]"
+    : "grid-cols-[1.5rem_10rem_minmax(7rem,1fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_6rem_minmax(8rem,1.4fr)_11rem_1.5rem]");
   const units = (useWatch({ control, name: `${path}.units` }) ?? []) as UnitInfo[];
   const lineNow = { ...(useWatch({ control, name: path }) ?? {}), units };
   const valueAt = (i: number, key: (typeof UNIT_KEYS)[number]) => unitValue(lineNow, i, key);
@@ -724,11 +664,12 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
     for (const p of positions) if (p < received) next[p] = { ...next[p], [key]: v === "" ? null : v };
     setValue(`${path}.units`, next, { shouldDirty: true });
   };
+  const roomName = (id: number | null) => (id == null ? "Kho thiết bị" : rooms.find((r) => r.id === id)?.name ?? "…");
   // Sao chép chỉ dùng khi đã ĐÁNH DẤU thiết bị (trưởng nhóm 14/11/2026): giá trị ô bấm chép sang đúng các cái đã chọn.
+  // Biểu tượng ở từng ô (chép ô đó) và ở cột cuối (chép cả hàng) — như bản 178c8759; không có hàng "Áp cho".
   const targets = (i: number) => chosen.filter((k) => k !== i);
   /** Cột cuối: chép cả hàng (model, hãng, bảo hành, thông tin khác, nơi nhận) sang các cái đã chọn. */
-  const copyRow = (i: number) => {
-    const t = targets(i);
+  const copyRow = (i: number, t: number[]) => {
     const vals = Object.fromEntries(UNIT_KEYS.map((k) => [k, valueAt(i, k)])) as UnitInfo;
     const next: UnitInfo[] = Array.from({ length: received }, (_, k) => {
       const cur = units[k] ?? {};
@@ -738,23 +679,41 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
     setValue(`${path}.units`, next, { shouldDirty: true });
     setRooms(t, roomAt(i));
   };
-  /** Nút sao chép chỉ ở hàng ĐÃ CHỌN, ô ĐÃ CÓ giá trị, và còn cái khác được chọn để điền sang (trưởng nhóm 14/11/2026). */
-  const canCopy = (i: number, value: unknown) => picked.has(i) && targets(i).length > 0 && value != null && String(value).trim() !== "";
-  // Bấm sao chép thì hỏi lại trước khi ghi đè (trưởng nhóm 14/11/2026); có chọn thì biểu tượng hiện sẵn.
-  // Hộp hỏi nói rõ chép TỪ cái nào SANG cái nào, và từng ô sẽ thành giá trị gì (trưởng nhóm 14/11/2026: câu chung chung khó hiểu).
-  const [copying, setCopying] = useState<{ from: number; to: number[]; what: string; facts: [string, unknown][]; run: () => void } | null>(null);
-  const copyDown = (from: number, what: string, facts: [string, unknown][], onCopy: () => void) => {
-    const label = `Chép ${what} sang ${targets(from).length} thiết bị đã chọn`;
+  const same = (a: unknown, b: unknown) => String(a ?? "").trim() === String(b ?? "").trim();
+  /**
+   * Nút sao chép chỉ ở hàng ĐÃ CHỌN, ô ĐÃ CÓ giá trị, và còn ít nhất một cái chọn KHÁC giá trị — các cái đã giống hết
+   * thì không hiện nữa, tránh nhầm là chưa chép (trưởng nhóm 14/11/2026).
+   */
+  /** Chép chỉ sang những cái chọn CÒN KHÁC giá trị — cái đã giống thì bỏ khỏi danh sách (trưởng nhóm 14/11/2026). */
+  const cellTargets = (i: number, key: (typeof UNIT_KEYS)[number]) => targets(i).filter((k) => !same(valueAt(k, key), valueAt(i, key)));
+  const rowTargets = (i: number) => targets(i).filter((k) => UNIT_KEYS.some((key) => !same(valueAt(k, key), valueAt(i, key))) || roomAt(k) !== roomAt(i));
+  const canCopy = (i: number, key: (typeof UNIT_KEYS)[number]) => {
+    const v = valueAt(i, key);
+    return picked.has(i) && v != null && String(v).trim() !== "" && cellTargets(i, key).length > 0;
+  };
+  /** Cột cuối: hiện khi còn cái chọn khác ở bất kỳ ô nào (kể cả nơi nhận). */
+  const canCopyRow = (i: number) => picked.has(i) && rowTargets(i).length > 0;
+  // Bấm sao chép thì hỏi lại trước khi ghi đè; hộp hỏi nói rõ chép TỪ cái nào SANG cái nào, từng ô thành giá trị gì.
+  const [copying, setCopying] = useState<{ from: number; to: number[]; what: string; facts: [string, unknown][]; run: (to: number[]) => void } | null>(null);
+  const copyButton = (from: number, to: number[], what: string, facts: [string, unknown][], onCopy: (to: number[]) => void, inline = false) => {
+    const label = `Chép ${what} sang ${to.length} thiết bị đã chọn`;
     return (
-    <button type="button" onClick={() => setCopying({ from, to: targets(from), what, facts, run: onCopy })}
-      title={label} aria-label={label}
-      className="text-primary hover:bg-info-subtle absolute top-1/2 right-1 -translate-y-1/2 rounded p-0.5">
-      <Copy className="size-3.5" />
-    </button>
+      <button type="button" onClick={() => setCopying({ from, to, what, facts, run: onCopy })}
+        title={label} aria-label={label}
+        className={cn("text-primary hover:bg-info-subtle rounded p-0.5", inline ? "mx-auto block" : "absolute top-1/2 right-1 -translate-y-1/2")}>
+        <Copy className="size-3.5" />
+      </button>
     );
   };
   const listNo = (t: number[]) => (t.length <= 6 ? t.map((k) => k + 1).join(", ") : `${t.slice(0, 5).map((k) => k + 1).join(", ")} và ${t.length - 5} cái khác`);
-  const roomName = (id: number | null) => (id == null ? "Kho thiết bị" : rooms.find((r) => r.id === id)?.name ?? "…");
+  /** Enter ở ô serial (máy quét mã vạch tự gõ Enter): xuống ô serial của cái tiếp theo, sang trang nếu cần. */
+  const serialId = (i: number) => `${path}-serial-${i}`.replace(/\./g, "-");
+  const nextSerial = (i: number) => {
+    if (i + 1 >= received) return;
+    const p = Math.floor((i + 1) / PAGE);
+    if (p !== page) setPageNo(p);
+    requestAnimationFrame(() => document.getElementById(serialId(i + 1))?.focus());
+  };
   // Tách đơn giá khác (thay "Tách dòng" / "Khai riêng", trưởng nhóm 14/11/2026): đánh dấu những cái khác model / hãng / đơn giá rồi bấm
   // nút ở thanh dưới — chúng thành một mục riêng ngay dưới, serial đã nhập đi theo đúng cái đó.
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -823,7 +782,7 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
                 <span>Giá trị đang có ở đó bị thay. Số serial giữ nguyên.</span>
               </div>
             }
-            cancelLabel="Không chép" confirmLabel="Chép" onConfirm={() => { copying.run(); setCopying(null); }} />
+            cancelLabel="Không chép" confirmLabel="Chép" onConfirm={() => { copying.run(copying.to); setCopying(null); }} />
         ) : null}
       </AlertDialog>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
@@ -851,7 +810,7 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
       </div>
       {serial && received > 0 ? (
         <div className="border-t">
-          <div className={cn("bg-surface-subtle text-muted-foreground sticky top-0 z-10 grid items-center border-b px-4 py-1.5 text-xs font-semibold", cols)}>
+          <div className={cn("bg-muted text-foreground/80 sticky top-0 z-10 grid items-center border-b px-4 py-1.5 text-xs font-semibold", cols)}>
             {canPick ? (
               <Checkbox aria-label="Chọn tất cả" checked={chosen.length === received ? true : chosen.length ? "indeterminate" : false}
                 onCheckedChange={(v) => setPicked(v === true ? new Set(Array.from({ length: received }, (_, i) => i)) : new Set())} />
@@ -859,12 +818,13 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
             <span>#</span>
             <span className="flex items-center gap-1">Mã dự kiến <HelpHint>{why}</HelpHint></span>
             {/* Thụt bằng lề trong của ô nhập (px-3) để tiêu đề thẳng với chữ trong ô. */}
-            <span className="ps-3">Số serial</span>
-            <span className="ps-5">Model</span>
-            <span className="ps-5">Hãng</span>
-            <span className="ps-5">Bảo hành (tháng)</span>
-            <span className="ps-5">Thông tin khác</span>
-            <span className="ps-5">Nhận vào</span>
+            <span className="truncate px-3">Số serial</span>
+            <span className="truncate px-3">Model</span>
+            <span className="truncate px-3">Hãng</span>
+            <span className="truncate px-3" title="Bảo hành (tháng)">Bảo hành</span>
+            <span className="truncate px-3">Thông tin khác</span>
+            <span className="truncate px-3">Nhận vào</span>
+            <span />
           </div>
           {shown.map((i) => (
             <div key={i} className={cn("grid items-center border-b px-4 py-0.5 last:border-b-0", cols, picked.has(i) && "bg-info-subtle")}>
@@ -873,7 +833,8 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
               <span className="truncate font-mono text-xs">
                 {split && first != null && first + i <= 999 ? <SeqCode code={withSeq(code!, first + i)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
               </span>
-              <Input value={slots[i] ?? ""} aria-label={`Số serial thiết bị ${i + 1}`} placeholder="Nhập serial" maxLength={50}
+              <Input id={serialId(i)} value={slots[i] ?? ""} aria-label={`Số serial thiết bị ${i + 1}`} placeholder="Quét hoặc nhập serial" maxLength={50}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); nextSerial(i); } }}
                 aria-invalid={!!slotError(i) || undefined} title={slotError(i)}
                 className={cn(CELL_INPUT, "font-mono text-xs uppercase placeholder:font-sans placeholder:normal-case", UNIT_PH)}
                 onChange={(e) => setAt(i, e.target.value)}
@@ -883,33 +844,35 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
                   e.preventDefault();
                   pasteAt(i, t);
                 }} />
-              <div className="group/cell relative ps-2">
-                <Input value={String(valueAt(i, "model") ?? "")} aria-label={`model thiết bị ${i + 1}`} maxLength={maxLengthOf("SHORT_TEXT", 50)}
+              <div className="relative min-w-0">
+                <Input value={String(valueAt(i, "model") ?? "")} aria-label={`Model thiết bị ${i + 1}`} maxLength={maxLengthOf("SHORT_TEXT", 50)}
                   className={cn(CELL_INPUT, "pe-6 text-xs", UNIT_PH, units[i]?.model === undefined && "text-muted-foreground")} placeholder="Nhập model"
                   onChange={(e) => setUnit([i], "model", e.target.value)} />
-                {canCopy(i, valueAt(i, "model")) ? copyDown(i, "model", [["Model", valueAt(i, "model")]], () => setUnit(targets(i), "model", valueAt(i, "model"))) : null}
+                {canCopy(i, "model") ? copyButton(i, cellTargets(i, "model"), "model", [["Model", valueAt(i, "model")]], (to) => setUnit(to, "model", valueAt(i, "model"))) : null}
               </div>
-              <div className="group/cell relative ps-2">
-                <Input value={String(valueAt(i, "manufacturer") ?? "")} aria-label={`manufacturer thiết bị ${i + 1}`} maxLength={maxLengthOf("SHORT_TEXT", 100)}
+              <div className="relative min-w-0">
+                <Input value={String(valueAt(i, "manufacturer") ?? "")} aria-label={`Hãng thiết bị ${i + 1}`} maxLength={maxLengthOf("SHORT_TEXT", 100)}
                   className={cn(CELL_INPUT, "pe-6 text-xs", UNIT_PH, units[i]?.manufacturer === undefined && "text-muted-foreground")} placeholder="Nhập hãng"
                   onChange={(e) => setUnit([i], "manufacturer", e.target.value)} />
-                {canCopy(i, valueAt(i, "manufacturer")) ? copyDown(i, "hãng", [["Hãng", valueAt(i, "manufacturer")]], () => setUnit(targets(i), "manufacturer", valueAt(i, "manufacturer"))) : null}
+                {canCopy(i, "manufacturer") ? copyButton(i, cellTargets(i, "manufacturer"), "hãng", [["Hãng", valueAt(i, "manufacturer")]], (to) => setUnit(to, "manufacturer", valueAt(i, "manufacturer"))) : null}
               </div>
-              <div className="group/cell relative ps-2">
+              <div className="relative min-w-0">
                 <IntInput value={valueAt(i, "warrantyMonths")} aria-label={`Bảo hành thiết bị ${i + 1}`} placeholder="Số tháng"
                   className={cn(CELL_INPUT, "pe-6 text-left text-xs", UNIT_PH)} onChange={(v) => setUnit([i], "warrantyMonths", v)} />
-                {canCopy(i, valueAt(i, "warrantyMonths")) ? copyDown(i, "bảo hành", [["Bảo hành (tháng)", valueAt(i, "warrantyMonths")]], () => setUnit(targets(i), "warrantyMonths", valueAt(i, "warrantyMonths"))) : null}
+                {canCopy(i, "warrantyMonths") ? copyButton(i, cellTargets(i, "warrantyMonths"), "bảo hành", [["Bảo hành (tháng)", valueAt(i, "warrantyMonths")]], (to) => setUnit(to, "warrantyMonths", valueAt(i, "warrantyMonths"))) : null}
               </div>
-              <div className="group/cell relative ps-2">
-                <Input value={String(valueAt(i, "otherInfo") ?? "")} aria-label={`otherInfo thiết bị ${i + 1}`} maxLength={maxLengthOf("NOTE", undefined)}
+              <div className="relative min-w-0">
+                <Input value={String(valueAt(i, "otherInfo") ?? "")} aria-label={`Thông tin khác thiết bị ${i + 1}`} maxLength={maxLengthOf("NOTE", undefined)}
                   className={cn(CELL_INPUT, "pe-6 text-xs", UNIT_PH, units[i]?.otherInfo === undefined && "text-muted-foreground")} placeholder="Ghi thêm nếu cần"
                   onChange={(e) => setUnit([i], "otherInfo", e.target.value)} />
-                {canCopy(i, valueAt(i, "otherInfo")) ? copyDown(i, "thông tin khác", [["Thông tin khác", valueAt(i, "otherInfo")]], () => setUnit(targets(i), "otherInfo", valueAt(i, "otherInfo"))) : null}
+                {canCopy(i, "otherInfo") ? copyButton(i, cellTargets(i, "otherInfo"), "thông tin khác", [["Thông tin khác", valueAt(i, "otherInfo")]], (to) => setUnit(to, "otherInfo", valueAt(i, "otherInfo"))) : null}
               </div>
-              <div className={cn("group/cell relative ps-2 pe-5", unitRooms[i] != null && "[&_button]:text-primary [&_button]:font-medium")} title={unitRooms[i] != null ? "Khác nơi nhận chung của lô" : undefined}>
+              <div className={cn("min-w-0", unitRooms[i] != null && "[&_button]:text-primary [&_button]:font-medium")} title={unitRooms[i] != null ? "Khác nơi nhận chung của lô" : undefined}>
                 <RoomCell value={{ id: roomAt(i), name: roomName(roomAt(i)) }} rooms={rooms} label={`Nhận vào, thiết bị ${i + 1}`}
                   onChange={(v) => setRooms([i], v.id)} />
-                {picked.has(i) && targets(i).length ? copyDown(i, "tất cả thông tin", [["Model", valueAt(i, "model")], ["Hãng", valueAt(i, "manufacturer")], ["Bảo hành (tháng)", valueAt(i, "warrantyMonths")], ["Thông tin khác", valueAt(i, "otherInfo")], ["Nhận vào", roomName(roomAt(i))]], () => copyRow(i)) : null}
+              </div>
+              <div>
+                {canCopyRow(i) ? copyButton(i, rowTargets(i), "tất cả thông tin", [["Model", valueAt(i, "model")], ["Hãng", valueAt(i, "manufacturer")], ["Bảo hành (tháng)", valueAt(i, "warrantyMonths")], ["Thông tin khác", valueAt(i, "otherInfo")], ["Nhận vào", roomName(roomAt(i))]], (to) => copyRow(i, to), true) : null}
               </div>
             </div>
           ))}
@@ -966,86 +929,158 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
   );
 }
 
+/**
+ * Chi tiết của dòng THEO LÔ (vật tư, hoá chất): cùng dạng bảng với "Từng thiết bị" — một hàng, vì cả lô là một mã.
+ * Không quy đổi bao bì: số lượng của dòng đã là số theo đơn vị tính của danh mục (g, ml…), lọ / chai chỉ là đồ đựng.
+ * Cột riêng của lô là Hạn sử dụng (bắt buộc với hoá chất), thay cho Số serial của thiết bị từng cái.
+ */
+function LotPanel({ control, path, line, catalog, rooms, received, code, reason, offset, priceNo }: {
+  control: Control<any>;
+  path: string;
+  line: any;
+  catalog: any;
+  rooms: Room[];
+  received: number;
+  code: string | null;
+  reason: string | null;
+  offset: number;
+  priceNo?: number;
+}) {
+  const { setValue } = useFormContext();
+  const unit: string = catalog?.unit?.name ?? "";
+  const chemical = isChemical(line, catalog);
+  const split = code ? splitCode(code) : null;
+  const first = split ? split.seq + offset : null;
+  const pad = (n: number) => String(n).padStart(3, "0");
+  const why = split && first != null
+    ? (split.seq > 1 ? `Đã có ${split.seq - 1} thiết bị cùng loại` : "Chưa có thiết bị nào cùng loại")
+      + (offset ? `, dòng trên dùng ${offset} số` : "") + ` và STT sẽ bắt đầu là ${pad(first)}`
+    : "Mã sinh tự động sau khi duyệt";
+  // Lưới giống bảng từng thiết bị, nhưng chỉ những cột có nghĩa với vật tư, hoá chất: không model, không bảo hành.
+  // # · mã dự kiến · hạn sử dụng · hãng sản xuất · thông tin khác (quy cách đóng gói, độ tinh khiết…) · nhận vào.
+  const cols = "gap-x-2 grid-cols-[1.5rem_10rem_9.5rem_minmax(9rem,1fr)_minmax(12rem,2fr)_11rem]";
+  const text = (key: "manufacturer" | "otherInfo", label: string, rule: "SHORT_TEXT" | "NOTE", max: number | undefined, placeholder: string) => (
+    <FormField
+      control={control}
+      name={`${path}.${key}`}
+      rules={textRules(rule, label, max ? { max } : undefined)}
+      render={({ field, fieldState }) => (
+        <Input value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} onBlur={field.onBlur} name={field.name} ref={field.ref}
+          maxLength={maxLengthOf(rule, max)} placeholder={placeholder} aria-label={label}
+          aria-invalid={!!fieldState.error || undefined} title={fieldState.error?.message}
+          className={cn(CELL_INPUT, "text-xs", UNIT_PH)} />
+      )}
+    />
+  );
+  return (
+    <section className="bg-card overflow-hidden rounded-md border">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+        <h4 className="text-muted-foreground flex-1 text-xs font-semibold tracking-wide uppercase">
+          {priceNo ? `Đơn giá số ${priceNo}` : "Lô vật tư"} · {received.toLocaleString("vi-VN")} {unit}
+        </h4>
+        <span className="text-muted-foreground text-xs">Cả lô chung một mã</span>
+      </div>
+      {received > 0 ? (
+        <div className="border-t">
+          <div className={cn("bg-muted text-foreground/80 grid items-center border-b px-4 py-1.5 text-xs font-semibold", cols)}>
+            <span>#</span>
+            <span className="flex items-center gap-1">Mã dự kiến <HelpHint>{why}</HelpHint></span>
+            <span className="truncate px-3">Hạn sử dụng{chemical ? <span className="text-destructive"> *</span> : null}</span>
+            <span className="truncate px-3">Hãng sản xuất</span>
+            <span className="truncate px-3">Thông tin khác</span>
+            <span className="truncate px-3">Nhận vào</span>
+          </div>
+          <div className={cn("grid items-center px-4 py-0.5", cols)}>
+            <span className="text-muted-foreground text-sm tabular-nums">1</span>
+            <span className="truncate font-mono text-xs">
+              {split && first != null && first <= 999 ? <SeqCode code={withSeq(code!, first)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
+            </span>
+            <FormField
+              control={control}
+              name={`${path}.expiryDate`}
+              rules={mergeRules(dateRules("ANY", "Hạn sử dụng"), chemical ? { required: "Hoá chất phải có hạn sử dụng" } : {})}
+              render={({ field, fieldState }) => (
+                // Ô ngày như mọi ô của bảng: không khung tới khi rê chuột / đang gõ; thiếu thì viền đỏ.
+                <div title={fieldState.error?.message} className={cn(fieldState.error && "[&_input]:border-destructive [&_input]:bg-destructive-subtle")}>
+                  <DateInput className="max-w-none" inputClassName={cn(CELL_INPUT, "text-xs", UNIT_PH)}
+                    value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
+                </div>
+              )}
+            />
+            {text("manufacturer", "Hãng sản xuất", "SHORT_TEXT", 100, "Nhập hãng")}
+            {text("otherInfo", "Thông tin khác", "NOTE", undefined, "VD: lọ 500 g, độ tinh khiết 99%")}
+            <div className="min-w-0">
+              <RoomCell value={line?.room} rooms={rooms} label="Nhận vào"
+                onChange={(v) => { setValue(`${path}.room`, v, { shouldDirty: true }); setValue(`${path}.unitRooms`, [], { shouldDirty: true }); }} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-muted-foreground border-t px-4 py-3 text-sm">{intakeLineOutcome("bulk", received)}</div>
+      )}
+    </section>
+  );
+}
+
 /** `values.lines.3` theo đường dẫn "lines.3". */
 function pathValue(values: any, path: string) {
   return path.split(".").reduce((v, k) => v?.[k], values);
 }
 
-/**
- * Quy cách bao bì của vật tư, hoá chất (QLTB-501): "1 [Lọ] = [100] ml". Hoá chất mua theo lọ nhưng dùng theo ml, gam —
- * khai quy cách thì SL và đơn giá của dòng tính theo LỌ, còn lô vào sổ mang số đã quy đổi. Bỏ chọn đơn vị bao bì là
- * không quy đổi.
- */
-function PackField({ control, path, line, catalog }: { control: Control<any>; path: string; line: any; catalog: any }) {
-  const { setValue } = useFormContext();
-  const baseUnit: string = catalog?.unit?.name ?? "đơn vị tính";
-  const hasPack = Boolean(line?.packUnit?.id);
-  const size = line?.packSize == null || line?.packSize === "" ? null : Number(line.packSize);
-  const received = Number(line?.receivedQuantity ?? 0);
-  const hadPack = useRef(hasPack);
-  useEffect(() => {
-    if (hadPack.current && !hasPack && line?.packSize != null) setValue(`${path}.packSize`, null, { shouldDirty: true });
-    hadPack.current = hasPack;
-  }, [hasPack, line?.packSize, path, setValue]);
-  return (
-    <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
-      <span className="flex min-h-5 items-center gap-1 text-sm font-medium">
-        Quy cách
-        <FormHint>{`Mua theo lọ, chai, hộp… thì khai một bao bì chứa bao nhiêu ${baseUnit}. Số lượng và đơn giá khi đó tính theo bao bì; hệ thống ghi theo ${baseUnit} để xuất dùng lẻ được.`}</FormHint>
-      </span>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_7rem_auto_minmax(0,1fr)] items-center gap-2">
-        <span className="text-muted-foreground text-sm">1</span>
-        <RefField control={control} name={`${path}.packUnit`} resource="units" label="Đơn vị bao bì" hideLabel
-          placeholder="Không quy đổi" current={line?.packUnit?.id ? line.packUnit : undefined}
-          filters={[{ field: "allowsFraction", operator: "eq", value: false }]} />
-        <span className="text-muted-foreground text-sm">=</span>
-        <FormField
-          control={control}
-          name={`${path}.packSize`}
-          rules={numberRules("DECIMAL_QUANTITY", "Quy cách")}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <DecimalInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} placeholder={hasPack ? "Bắt buộc" : "—"} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <span className="text-muted-foreground max-w-24 truncate text-sm">{baseUnit}</span>
-        <span className="text-muted-foreground truncate text-right text-sm tabular-nums">
-          {hasPack && size ? `= ${stockQuantityOf(received, size).toLocaleString("vi-VN")} ${baseUnit} vào hệ thống` : null}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ------------------------------------------------------------------ cả bảng
 
+/** "hoá đơn" / "biên bản tặng" / "quyết định điều chuyển" / "chứng từ" — tên chứng từ theo nguồn; null = nguồn không có chứng từ. */
 /**
- * Bảng "Danh sách thiết bị ghi tăng" của phiếu ghi tăng: nút chọn từ danh mục / nhập Excel ở đầu bảng, bảng lưới một dòng một thiết bị,
- * chân bảng là số thiết bị, số đơn vị và tổng tiền.
+ * "3 loại thiết bị · số lượng 25" (trưởng nhóm 14/11/2026): loại = số thiết bị danh mục KHÁC NHAU (một thiết bị tách
+ * nhiều đơn giá vẫn là một loại), số lượng = tổng số nhận.
+ */
+export function countText(rows: any[], short = false): string {
+  const kinds = new Set(rows.map((l) => l?.catalog?.id).filter((id) => id != null && id !== "")).size;
+  const units = rows.reduce((s, l) => s + Number(l?.receivedQuantity ?? 0), 0);
+  return `${kinds} loại${short ? "" : " thiết bị"} · số lượng ${money.format(units)}`;
+}
+
+export function documentNoun(code: string | undefined): string | null {
+  const label = headFieldsOf(code).documentNo?.label;
+  return label ? label.replace(/^Số /, "") : null;
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * "Hoá đơn và thiết bị" của phiếu ghi tăng (254, bản mẫu chốt 14/11/2026): mỗi HOÁ ĐƠN một khối — nhà cung cấp, mã số
+ * thuế, số, ngày, nguồn kinh phí, hình thức mua sắm, tệp — và bảng thiết bị của nó ngay dưới; "+ Thêm hoá đơn" ở cuối.
+ * Thiết bị khai nhầm hoá đơn thì chuyển sang hoá đơn khác trong phần chi tiết của dòng.
+ *
+ * <p>Các dòng vẫn là MỘT mảng \`lines\` (mỗi dòng mang \`docKey\`), xếp theo thứ tự hoá đơn — số dòng, mã dự kiến nối
+ * tiếp đúng như máy chủ cấp lúc duyệt.
  *
  * @param reveal dòng mà khối "Trước khi trình" muốn mở ({@code at} đổi mỗi lần bấm, để bấm lại vẫn mở)
  */
-export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name = "lines", open = true, onToggle, locked }: {
+export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", open = true, onToggle, locked, intakeId, actions, expandAll }: {
   control: Control<any>;
   /** Khối đang mở (form phiếu cho thu gọn); thu gọn thì chỉ còn tên khối và số thiết bị, tổng tiền. */
   open?: boolean;
   onToggle?: () => void;
   catalogs: Map<number, any>;
   reveal: { index: number; at: number } | null;
-  headFunding?: string | null;
   name?: string;
   /** Thông tin phiếu chưa khai xong — lý do, hiện cạnh nút; khi đó chưa thêm thiết bị được. */
   locked?: string;
+  /** Phiếu đang sửa (kiểm trùng hoá đơn bỏ qua chính nó). */
+  intakeId?: number | null;
+  /** Nút thêm ở đầu khối (vd. "Đọc hoá đơn điện tử"). */
+  actions?: React.ReactNode;
+  /** Đổi giá trị = mở mọi hoá đơn đang thu gọn (form cần tới một ô bên trong). */
+  expandAll?: number;
 }) {
   const config = useVoucherForm("equipment_intakes");
   const originId = useWatch({ control, name: "originSource.id" });
-  const rule = useOriginRules().ruleOf(originId);
+  const { origins, ruleOf } = useOriginRules();
+  const rule = ruleOf(originId);
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const noun = documentNoun(originCode);
   const { setValue, getValues } = useFormContext();
-  const { fields, append, insert, remove } = useFieldArray({
+  const { fields, insert, remove, move } = useFieldArray({
     control,
     name,
     rules: {
@@ -1055,11 +1090,47 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
       },
     },
   });
+  const { fields: docFields, append: appendDoc, remove: removeDoc } = useFieldArray({ control, name: "documents" });
   // Phiếu mới chưa có trường trên form (máy chủ tự gán khi lưu): lấy trường của tài khoản — không thì mã dự kiến không ra.
   const schoolId = (useWatch({ control, name: "school.id" }) as number | null | undefined) ?? getAuthorities()?.schoolId ?? null;
   const lines = (useWatch({ control, name }) ?? []) as any[];
+  const documents = (useWatch({ control, name: "documents" }) ?? []) as DocumentForm[];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [browsing, setBrowsing] = useState(false);
+  // Hoá đơn đang THU GỌN (theo khoá hoá đơn) — mặc định mở hết; ô bên trong vẫn gắn với form khi thu gọn.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const fold = (key: string) => setFolded((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  });
+  // Mở ngay TRONG lần vẽ này (không chờ effect): form trao con trỏ cho ô bên trong ngay sau đó.
+  const [seenExpand, setSeenExpand] = useState(expandAll);
+  if (expandAll !== seenExpand) {
+    setSeenExpand(expandAll);
+    if (folded.size) setFolded(new Set());
+  }
+  const [browsing, setBrowsing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<number | null>(null);
+  const docIndex = (key: string | undefined) => {
+    const i = documents.findIndex((d) => d.key === key);
+    return i < 0 ? 0 : i;
+  };
+  const labelOf = (i: number) => {
+    const d = documents[i];
+    return `${cap(noun ?? "chứng từ")} ${i + 1}${d?.supplier ? ` · ${d.supplier}` : d?.documentNo ? ` · số ${d.documentNo}` : ""}`;
+  };
+
+  // Luôn có ít nhất một hoá đơn; dòng chưa thuộc hoá đơn nào (lập từ kế hoạch, Excel, phiếu cũ) vào hoá đơn đầu.
+  useEffect(() => {
+    if (!documents.length) {
+      appendDoc(newDocument(), { shouldFocus: false });
+      return;
+    }
+    const keys = new Set(documents.map((d) => d.key));
+    lines.forEach((l, i) => {
+      if (l && !keys.has(l.docKey)) setValue(`${name}.${i}.docKey`, documents[0].key);
+    });
+  }, [documents, lines, name, setValue, appendDoc]);
 
   const { result: roomList } = useList<Room>({
     resource: "rooms",
@@ -1073,11 +1144,15 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
   const rooms = (roomList?.data ?? []) as Room[];
   const store = storeroomOf(rooms);
 
+
+
   // Khối "Trước khi trình" bấm vào một dòng: mở dòng đó và cuộn tới.
   useEffect(() => {
     if (!reveal || !fields[reveal.index]) return;
     const id = fields[reveal.index].id;
     setExpanded((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    const docKey = getValues(`${name}.${reveal.index}.docKey`);
+    if (docKey) setFolded((prev) => (prev.has(docKey) ? new Set([...prev].filter((k) => k !== docKey)) : prev));
     requestAnimationFrame(() => document.querySelector(`[data-row="${reveal.index}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
@@ -1107,8 +1182,8 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
   };
 
   /**
-   * Tách đơn giá khác: những cái ĐÃ CHỌN thành một mục mới ngay dưới, cùng mã DM — chép model, hãng, đơn giá, chứng từ, nơi
-   * nhận để sửa phần khác; serial đi theo đúng cái đó. Số trên hoá đơn: mục mới bằng số khai riêng, mục cũ bớt đi.
+   * Tách đơn giá khác: những cái ĐÃ CHỌN thành một mục mới ngay dưới, cùng mã DM, cùng hoá đơn — chép model, hãng, đơn
+   * giá, nơi nhận để sửa phần khác; serial đi theo đúng cái đó.
    */
   const [opening, setOpening] = useState<number | null>(null);
   const pendingNested = useRef<{ index: number; unitRooms: (number | null)[]; units: UnitInfo[] } | null>(null);
@@ -1130,7 +1205,7 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
     const { id: _id, lineNo: _lineNo, ...rest } = l ?? {};
     void _id; void _lineNo;
     setValue(`${name}.${index}.receivedQuantity`, keep, { shouldDirty: true });
-    setValue(`${name}.${index}.documentQuantity`, l?.differs ? Math.max(Number(l?.documentQuantity ?? 0) - k, 0) : keep, { shouldDirty: true });
+    setValue(`${name}.${index}.documentQuantity`, keep, { shouldDirty: true });
     setValue(`${name}.${index}.serialText`, trim(all.filter((i) => !pick.has(i)).map(at)), { shouldDirty: true });
     const roomsOf = (l?.unitRooms ?? []) as (number | null)[];
     setValue(`${name}.${index}.unitRooms`, all.filter((i) => !pick.has(i)).map((i) => roomsOf[i] ?? null), { shouldDirty: true });
@@ -1140,11 +1215,9 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
       ...rest,
       receivedQuantity: k,
       documentQuantity: k,
-      differs: false,
-      varianceReason: "",
       serialText: trim(all.filter((i) => pick.has(i)).map(at)),
-      unitRooms: all.filter((i) => pick.has(i)).map((i) => ((l?.unitRooms ?? []) as (number | null)[])[i] ?? null),
-      units: ((l?.units ?? []) as UnitInfo[]).length ? all.filter((i) => pick.has(i)).map((i) => ((l?.units ?? []) as UnitInfo[])[i] ?? {}) : [],
+      unitRooms: all.filter((i) => pick.has(i)).map((i) => roomsOf[i] ?? null),
+      units: unitsOf.length ? all.filter((i) => pick.has(i)).map((i) => unitsOf[i] ?? {}) : [],
     }, { shouldFocus: false });
     // Mảng lồng (từng cái) chèn kèm insert() bị field array bỏ qua: ghi lại sau khi dòng mới đã có.
     pendingNested.current = {
@@ -1170,23 +1243,31 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
     requestAnimationFrame(() => document.querySelector(`[data-row="${at}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
   }, [opening, fields, name, setValue]);
 
+  /** Chỗ chèn dòng mới của hoá đơn \`key\`: ngay sau dòng cuối của hoá đơn đó (hoặc của các hoá đơn trước nó). */
+  const insertAt = (current: any[], key: string) => {
+    const di = docIndex(key);
+    let pos = 0;
+    current.forEach((l, i) => { if (docIndex(l?.docKey) <= di) pos = i + 1; });
+    return pos;
+  };
+
   /**
-   * Thêm thiết bị: đã có ĐÚNG MỘT dòng (theo hoá đơn của phiếu) cùng thiết bị, cùng đơn giá thì cộng số lượng; còn lại
-   * (chưa có, đã tách thành nhiều dòng, khác đơn giá, dòng Excel có model / hãng / thông tin khác) thì thêm dòng.
+   * Thêm thiết bị vào hoá đơn \`key\`: hoá đơn đó đã có ĐÚNG MỘT dòng cùng thiết bị, cùng đơn giá thì cộng số lượng; còn lại
+   * (chưa có, đã tách nhiều dòng, khác đơn giá, dòng Excel có model / hãng / thông tin khác) thì thêm dòng.
    */
-  const add = (rows: Added[], roomId?: number | null) => {
-    const current = (getValues(name) ?? []) as any[];
+  const add = (rows: Added[], key: string, roomId?: number | null) => {
+    const current = [...((getValues(name) ?? []) as any[])];
     for (const { catalog, quantity = 1, unitPrice, model, manufacturer, otherInfo, fromExcel } of rows) {
-      const same = current.filter((l) => Number(l?.catalog?.id) === catalog.id);
-      const at = same.length === 1 && !same[0]?.ownDocuments && !otherInfo && !model && !manufacturer
+      const same = current.filter((l) => Number(l?.catalog?.id) === catalog.id && l?.docKey === key);
+      const at = same.length === 1 && !otherInfo && !model && !manufacturer
         && (unitPrice == null || same[0]?.unitPrice == null || Number(same[0].unitPrice) === Number(unitPrice))
         ? current.indexOf(same[0]) : -1;
       if (at >= 0) {
         const l = current[at];
         const q = Number(l.receivedQuantity ?? 0) + quantity;
         setValue(`${name}.${at}.receivedQuantity`, q, { shouldDirty: true });
+        setValue(`${name}.${at}.documentQuantity`, q, { shouldDirty: true });
         if (fromExcel) setValue(`${name}.${at}.fromExcel`, true);
-        if (!l.differs) setValue(`${name}.${at}.documentQuantity`, q, { shouldDirty: true });
         if (unitPrice != null) setValue(`${name}.${at}.unitPrice`, unitPrice, { shouldDirty: true });
         current[at] = { ...l, receivedQuantity: q };
         continue;
@@ -1205,105 +1286,218 @@ export function IntakeLinesEditor({ control, catalogs, reveal, headFunding, name
         manufacturer: manufacturer ?? null,
         otherInfo: otherInfo ?? null,
         room: { id: roomId ?? store?.id ?? null },
+        docKey: key,
       };
-      append(line, { shouldFocus: false });
-      current.push(line);
+      const pos = insertAt(current, key);
+      insert(pos, line, { shouldFocus: false });
+      current.splice(pos, 0, line);
     }
   };
 
-  const units = lines.reduce((s, l) => s + Number(l?.receivedQuantity ?? 0), 0);
-  const total = lines.reduce((s, l) => s + Number(l?.unitPrice ?? 0) * Number(l?.receivedQuantity ?? 0), 0);
-  const chosen = new Set<number>(lines.map((l) => Number(l?.catalog?.id)).filter((id) => Number.isFinite(id)));
+  /** Chuyển một thiết bị sang hoá đơn khác: đổi \`docKey\` và dời dòng xuống cuối hoá đơn đó. */
+  const moveLine = (index: number, key: string) => {
+    const current = [...((getValues(name) ?? []) as any[])];
+    setValue(`${name}.${index}.docKey`, key, { shouldDirty: true });
+    const rest = current.filter((_, i) => i !== index);
+    const pos = insertAt(rest, key);
+    if (pos !== index) move(index, pos);
+  };
+
+  /** Xoá hoá đơn cùng các thiết bị của nó. */
+  const dropDocument = (di: number) => {
+    const key = documents[di]?.key;
+    const idx = lines.map((l, i) => (l?.docKey === key ? i : -1)).filter((i) => i >= 0);
+    if (idx.length) remove(idx);
+    removeDoc(di);
+  };
+
+  /** Hoá đơn điện tử: điền vào hoá đơn đầu nếu còn trống, không thì thêm hoá đơn mới; tệp XML là tệp hoá đơn. */
+  const importInvoice = (r: InvoiceImport) => {
+    const first = documents[0];
+    const head = { supplier: r.supplier, taxCode: r.taxCode, contact: r.contact, documentNo: r.documentNo, documentDate: r.documentDate };
+    const firstEmpty = documents.length === 1 && !first?.supplier && !first?.documentNo && !lines.some((l) => l?.docKey === first?.key);
+    let key: string;
+    if (firstEmpty && first) {
+      key = first.key;
+      for (const [k, v] of Object.entries(head)) setValue(`documents.0.${k}`, v, { shouldDirty: true, shouldValidate: true });
+      setValue("documents.0.pendingFiles", [...(first.pendingFiles ?? []), r.file], { shouldDirty: true });
+    } else {
+      const d = newDocument({ ...head, pendingFiles: [r.file] });
+      appendDoc(d, { shouldFocus: false });
+      key = d.key;
+    }
+    add(r.rows.map((x) => ({ catalog: x.catalog, quantity: x.quantity, unitPrice: x.unitPrice })), key);
+  };
+
+  const browsingDoc = browsing ? documents.find((d) => d.key === browsing) : undefined;
+  const chosen = new Set<number>(lines.filter((l) => l?.docKey === browsing).map((l) => Number(l?.catalog?.id)).filter((id) => Number.isFinite(id)));
+  const purchase = isPurchaseCode(rule?.code);
 
   return (
     <div>
       <div className={cn("px-5", open ? "pt-4 pb-3" : "py-4")}>
-        {/* Ô tìm đứng cùng hàng tên khối, không kéo dài hết bề ngang. */}
-        <SectionHead title="Danh sách thiết bị ghi tăng" open={open} onToggle={() => onToggle?.()}
-          aside={lines.length ? `${lines.length} thiết bị · ${money.format(units)} đơn vị` : undefined}
-          summary={lines.length ? `${lines.length} thiết bị · ${money.format(units)} đơn vị · ${money.format(total)} đ` : <span className="text-destructive">Chưa có thiết bị</span>}
-          actions={<LinesToolbar locked={locked} onAdd={(rows) => add(rows)} onBrowse={() => setBrowsing(true)} />} />
+        <SectionHead title={noun ? `Thông tin ${noun} và thiết bị` : "Thông tin thiết bị ghi tăng"} open={open} onToggle={() => onToggle?.()}
+          aside={lines.length ? `${noun && documents.length > 1 ? `${documents.length} ${noun} · ` : ""}${countText(lines)}` : undefined}
+          summary={lines.length ? countText(lines) : <span className="text-destructive">Chưa có thiết bị</span>}
+          actions={<div className="flex flex-wrap items-center gap-2">
+            {purchase && !locked ? <InvoiceXmlButton onImport={importInvoice} /> : null}
+            {actions}
+          </div>} />
       </div>
       <CatalogPickerDialog
-        open={browsing}
-        onOpenChange={setBrowsing}
+        open={browsing != null}
+        onOpenChange={(o) => { if (!o) setBrowsing(null); }}
         schoolId={schoolId}
         exclude={chosen}
+        title={browsingDoc && noun && documents.length > 1 ? `Chọn thiết bị cho ${labelOf(docIndex(browsing ?? undefined)).toLowerCase()}` : undefined}
         onPick={(rows, roomId) => {
-          add(rows.map((c) => ({ catalog: c })), roomId);
-          setBrowsing(false);
+          if (browsing) add(rows.map((c) => ({ catalog: c })), browsing, roomId);
+          setBrowsing(null);
         }}
       />
-      <div className={cn("border-t", !open && "hidden")}>
-        <Table className="min-w-[62rem] table-fixed">
-          <colgroup>
-            <col className="w-10" />
-            <col className="w-32" />
-            <col />
-            <col className="w-24" />
-            <col className="w-16" />
-            <col className="w-32" />
-            <col className="w-32" />
-            <col className="w-28" />
-            <col className="w-10" />
-          </colgroup>
-          <TableHeader className="bg-surface-subtle">
-            <TableRow>
-              <TableHead className="text-center">#</TableHead>
-              <TableHead>Mã DM thiết bị</TableHead>
-              <TableHead>Thiết bị <span className="text-destructive">*</span></TableHead>
-              <TableHead className="pe-4 text-right">Số lượng <span className="text-destructive">*</span></TableHead>
-              <TableHead>ĐVT</TableHead>
-              <TableHead className="pe-4 text-right" title={isPurchaseCode(rule?.code) ? "Hàng mua phải có đơn giá" : undefined}>
-                Đơn giá{isPurchaseCode(rule?.code) ? <span className="text-destructive"> *</span> : null}
-              </TableHead>
-              <TableHead className="text-right">Thành tiền</TableHead>
-              {/* Chi tiết bắt buộc mở: nơi nhận của thiết bị chọn ở trong (trưởng nhóm 14/11/2026). */}
-              <TableHead className="pe-3 text-right" title="Chọn nơi nhận của thiết bị trong phần chi tiết">Chi tiết <span className="text-destructive">*</span></TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {fields.length === 0 ? (
-              <TableEmpty colSpan={COLS} compact icon={<PackageSearch />} title="Chưa có thiết bị"
-                description={locked ?? "Chọn thiết bị trong danh mục, hoặc nhập Excel theo tệp mẫu."} />
-            ) : fields.map((field, index) => {
-              const l = lines[index];
-              const catalog = l?.catalog?.id ? catalogs.get(Number(l.catalog.id)) : undefined;
-              return (
-                <Fragment key={field.id}>
-                  <LineRow
-                    control={control}
-                    path={`${name}.${index}`}
-                    index={index}
-                    catalog={catalog}
-                    rooms={rooms}
-                    schoolId={schoolId}
-                    issues={lineIssues(l, catalog, config, headFunding, rule)}
-                    expanded={expanded.has(field.id)}
-                    onToggle={() => setExpanded((prev) => {
-                      const next = new Set(prev);
-                      if (!next.delete(field.id)) next.add(field.id);
-                      return next;
-                    })}
-                    onRemove={() => remove(index)}
-                    onSplit={(positions) => split(index, positions)}
-                    separate={lines.slice(0, index).some((x) => x?.catalog?.id != null && Number(x.catalog.id) === Number(l?.catalog?.id))}
-                    priceNo={(() => {
-                      const same = (x: typeof l) => l?.catalog?.id != null && x?.catalog?.id != null && Number(x.catalog.id) === Number(l.catalog.id);
-                      return lines.filter(same).length > 1 ? lines.slice(0, index).filter(same).length + 1 : undefined;
-                    })()}
-                    preview={previews[field.id]}
-                    offset={offsetOf(index)}
-                    onPreview={reporter(field.id)}
-                  />
-                </Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
+      <AlertDialog open={removing != null} onOpenChange={(o) => { if (!o) setRemoving(null); }}>
+        {removing != null ? (
+          <ConfirmContent tone="danger" title={`Xoá ${labelOf(removing).toLowerCase()}?`}
+            description={`${lines.filter((l) => l?.docKey === documents[removing]?.key).length} thiết bị của ${noun ?? "chứng từ"} này cũng bị xoá khỏi phiếu. Muốn giữ thiết bị thì chuyển chúng sang ${noun ?? "chứng từ"} khác trước.`}
+            cancelLabel="Không xoá" confirmLabel="Xoá" onConfirm={() => { dropDocument(removing); setRemoving(null); }} />
+        ) : null}
+      </AlertDialog>
+      <div className={cn("grid gap-4 px-5 pt-1 pb-5", !open && "hidden")}>
+        {docFields.map((docField, di) => {
+          const doc = documents[di];
+          if (!doc) return null;
+          const docLines = fields.map((f, i) => ({ f, i })).filter(({ i }) => lines[i]?.docKey === doc.key);
+          const isFolded = !!noun && folded.has(doc.key);
+          const others = documents.map((d, j) => ({ key: d.key, label: labelOf(j) })).filter((d) => d.key !== doc.key);
+          return (
+            <section key={docField.id} className="bg-card @container overflow-hidden rounded-lg border" data-field={`documents.${di}`}>
+              {noun ? (
+                <header className={cn("bg-surface-subtle flex items-center gap-3 px-4 py-2", !isFolded && "border-b")}>
+                  <button type="button" onClick={() => fold(doc.key)} aria-expanded={!isFolded}
+                    title={isFolded ? `Mở ${noun} này` : `Thu gọn ${noun} này`}
+                    className="hover:bg-muted -ms-1.5 me-auto flex min-w-0 items-center gap-2 rounded-md px-1.5 py-0.5 text-start">
+                    <ChevronDown className={cn("text-muted-foreground size-4 shrink-0 transition-transform", isFolded && "-rotate-90")} />
+                    <span className="bg-primary text-primary-foreground rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap">{cap(noun)} {di + 1}</span>
+                    {/* Không nhắc lại các ô ngay bên dưới (trưởng nhóm 14/11/2026, CLAUDE.md): tóm tắt chỉ khi THU GỌN — lúc đó
+                        các ô bị ẩn, cần biết hoá đơn nào. */}
+                    {isFolded ? (
+                      <span className="text-muted-foreground min-w-0 truncate text-sm">
+                        {[doc.supplier, doc.documentNo ? `Số ${doc.documentNo}` : null].filter(Boolean).join(" · ") || "Chưa khai"}
+                      </span>
+                    ) : null}
+                  </button>
+                  <span className="text-muted-foreground hidden text-sm whitespace-nowrap tabular-nums sm:inline">
+                    {docLines.length ? countText(docLines.map(({ i }) => lines[i])) : "Chưa có thiết bị"}
+                  </span>
+                  {documents.length > 1 ? (
+                    <Button type="button" variant="ghost" size="icon" className="hover:text-destructive size-8" title={`Xoá ${noun} này`}
+                      onClick={() => (docLines.length ? setRemoving(di) : removeDoc(di))}>
+                      <Trash2 />
+                    </Button>
+                  ) : null}
+                </header>
+              ) : null}
+              <div className={cn(isFolded && "hidden")}>
+                <div className="p-4">
+                  <DocumentFields control={control} index={di} schoolId={schoolId} intakeId={intakeId} />
+                </div>
+                {/* Nút thêm thiết bị ở ĐẦU bảng (trưởng nhóm 14/11/2026). */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5">
+                  <span className="text-sm font-medium">
+                    Thiết bị
+                    {docLines.length ? <span className="text-muted-foreground ms-1.5 font-normal tabular-nums">({countText(docLines.map(({ i }) => lines[i]), true)})</span> : null}
+                  </span>
+                  <LinesToolbar locked={locked} onAdd={(rows) => add(rows, doc.key)} onBrowse={() => setBrowsing(doc.key)} />
+                </div>
+                <div className="overflow-x-auto border-t">
+                  <Table className="min-w-[62rem] table-fixed">
+                    <colgroup>
+                      <col className="w-10" />
+                      <col className="w-32" />
+                      <col />
+                      <col className="w-24" />
+                      <col className="w-16" />
+                      <col className="w-32" />
+                      <col className="w-32" />
+                      <col className="w-28" />
+                      <col className="w-10" />
+                    </colgroup>
+                    <TableHeader className="bg-surface-subtle">
+                      <TableRow>
+                        <TableHead className="text-center">#</TableHead>
+                        <TableHead>Mã DM thiết bị</TableHead>
+                        <TableHead>Thiết bị <span className="text-destructive">*</span></TableHead>
+                        <TableHead className="pe-4 text-right">Số lượng <span className="text-destructive">*</span></TableHead>
+                        <TableHead>ĐVT</TableHead>
+                        <TableHead className="pe-4 text-right" title={purchase ? "Hàng mua phải có đơn giá" : undefined}>
+                          Đơn giá{purchase ? <span className="text-destructive"> *</span> : null}
+                        </TableHead>
+                        <TableHead className="text-right">Thành tiền</TableHead>
+                        {/* Chi tiết bắt buộc mở: nơi nhận của thiết bị chọn ở trong (trưởng nhóm 14/11/2026). */}
+                        <TableHead className="pe-3 text-right" title="Chọn nơi nhận của thiết bị trong phần chi tiết">Chi tiết <span className="text-destructive">*</span></TableHead>
+                        <TableHead />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {docLines.length === 0 ? (
+                        <TableEmpty colSpan={COLS} compact icon={<PackageSearch />} title="Chưa có thiết bị"
+                          description={locked ?? "Chọn thiết bị trong danh mục, hoặc nhập Excel theo tệp mẫu."} />
+                      ) : docLines.map(({ f: field, i: index }) => {
+                        const l = lines[index];
+                        const catalog = l?.catalog?.id ? catalogs.get(Number(l.catalog.id)) : undefined;
+                        const same = (x: any) => l?.catalog?.id != null && x?.catalog?.id != null && Number(x.catalog.id) === Number(l.catalog.id) && x?.docKey === l?.docKey;
+                        return (
+                          <Fragment key={field.id}>
+                            <LineRow
+                              control={control}
+                              path={`${name}.${index}`}
+                              index={index}
+                              catalog={catalog}
+                              rooms={rooms}
+                              schoolId={schoolId}
+                              issues={lineIssues(l, catalog, config, doc.fundingSource, rule)}
+                              expanded={expanded.has(field.id)}
+                              onToggle={() => setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (!next.delete(field.id)) next.add(field.id);
+                                return next;
+                              })}
+                              onRemove={() => remove(index)}
+                              onSplit={(positions) => split(index, positions)}
+                              separate={lines.slice(0, index).some(same)}
+                              priceNo={lines.filter(same).length > 1 ? lines.slice(0, index).filter(same).length + 1 : undefined}
+                              preview={previews[field.id]}
+                              offset={offsetOf(index)}
+                              onPreview={reporter(field.id)}
+                              moveTargets={noun ? others : []}
+                              onMove={(key) => moveLine(index, key)}
+                            />
+                          </Fragment>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Tệp của hoá đơn: sau bảng thiết bị, vùng thả một dòng. */}
+                {noun ? (
+                  <div className="border-t px-4 py-3">
+                    <DocumentFiles control={control} index={di} />
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+        {/* Thêm hoá đơn: ngay dưới hoá đơn cuối — chỗ người dùng vừa khai xong (trưởng nhóm 14/11/2026). */}
+        {noun ? (
+          <div className="flex justify-center">
+            <Button type="button" variant="outline" className="h-9" onClick={() => appendDoc(newDocument(), { shouldFocus: false })}>
+              <Plus />
+              Thêm {noun}
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {/* Không còn dòng tổng ở chân bảng (trưởng nhóm 13/11/2026): số thiết bị ở tiêu đề khối, tổng tiền ở cột phải. */}
     </div>
   );
 }

@@ -65,11 +65,39 @@ public class EquipmentIntakeController {
     private final EquipmentIntakeService service;
     private final RowLevelSecurity rowLevel;
     private final UserService users;
+    private final IntakeLookups lookups;
 
-    public EquipmentIntakeController(EquipmentIntakeService service, RowLevelSecurity rowLevel, UserService users) {
+    public EquipmentIntakeController(EquipmentIntakeService service, RowLevelSecurity rowLevel, UserService users,
+            IntakeLookups lookups) {
         this.service = service;
         this.rowLevel = rowLevel;
         this.users = users;
+        this.lookups = lookups;
+    }
+
+    /** Danh bạ nhà cung cấp của trường (254): gõ tên hoặc mã số thuế ở ô Nhà cung cấp. */
+    @GetMapping("/suppliers")
+    @PreAuthorize("hasAuthority('equipment_intakes:read')")
+    public List<IntakeLookups.SupplierHint> suppliers(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) String q) {
+        return lookups.suppliers(schoolId, q);
+    }
+
+    /** Hoá đơn này đã ghi tăng ở phiếu khác chưa (cảnh báo, không chặn). */
+    @GetMapping("/duplicate-documents")
+    @PreAuthorize("hasAuthority('equipment_intakes:read')")
+    public List<IntakeLookups.DuplicateDocument> duplicateDocuments(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) String documentNo, @RequestParam(required = false) String taxCode,
+            @RequestParam(required = false) String supplier, @RequestParam(required = false) Long excludeId) {
+        return lookups.duplicates(schoolId, documentNo, taxCode, supplier, excludeId);
+    }
+
+    /** Lần nhập trước của các thiết bị (đơn giá, model, hãng, bảo hành) — gợi ý khi lập phiếu. */
+    @GetMapping("/catalog-history")
+    @PreAuthorize("hasAuthority('equipment_intakes:read')")
+    public List<IntakeLookups.CatalogHistory> catalogHistory(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) List<Long> catalogIds) {
+        return lookups.history(schoolId, catalogIds);
     }
 
     /** Phục vụ cả {@code getList} lẫn {@code getMany} — chỉ khác ở query string. */

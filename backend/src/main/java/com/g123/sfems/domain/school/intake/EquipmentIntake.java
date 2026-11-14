@@ -159,6 +159,15 @@ public class EquipmentIntake extends SchoolVoucher {
     @BatchSize(size = 50)
     private List<EquipmentIntakeLine> lines = new ArrayList<>();
 
+    /**
+     * Hoá đơn (chứng từ) của phiếu (254) — thiết bị nằm dưới hoá đơn của nó. Thành phần như các dòng: bỏ khỏi danh sách
+     * là xoá. LAZY + nạp tường minh như {@link #lines}.
+     */
+    @OneToMany(mappedBy = "intake", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("docNo ASC")
+    @BatchSize(size = 50)
+    private List<EquipmentIntakeDocument> documents = new ArrayList<>();
+
     public LocalDate getIntakeDate() {
         return intakeDate;
     }
@@ -259,6 +268,21 @@ public class EquipmentIntake extends SchoolVoucher {
 
     public List<EquipmentIntakeLine> getLines() {
         return lines;
+    }
+
+    public List<EquipmentIntakeDocument> getDocuments() {
+        return documents;
+    }
+
+    /** Thay toàn bộ các hoá đơn (giữ instance đã có — tệp gắn theo id). */
+    public void replaceDocuments(List<EquipmentIntakeDocument> replacement) {
+        documents.clear();
+        if (replacement != null) {
+            for (EquipmentIntakeDocument document : replacement) {
+                document.setIntake(this);
+                documents.add(document);
+            }
+        }
     }
 
     /** Thay toàn bộ các dòng, giữ đúng một chiều của quan hệ hai chiều. */

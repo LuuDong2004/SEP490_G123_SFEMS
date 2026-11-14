@@ -9,6 +9,7 @@ import com.g123.sfems.domain.catalog.originsource.OriginSource;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.intake.EquipmentIntakeDocument;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.acquisitionmethod.AcquisitionMethodService;
@@ -17,8 +18,6 @@ import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
 import com.g123.sfems.module.catalog.originsource.OriginSourceService;
 import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
-import com.g123.sfems.module.catalog.unit.UnitService;
-import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.equipment.EquipmentService;
 import com.g123.sfems.module.school.facility.RoomService;
@@ -82,6 +81,9 @@ import com.g123.sfems.shared.validation.FieldRule;
 @Service
 public class EquipmentIntakeService implements RecordAccess {
 
+    /** Ngày theo giờ Việt Nam: ngày ghi tăng, ngày chứng từ "không sau hôm nay". */
+    private static final java.time.ZoneId VIETNAM = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+
     public static final String RESOURCE = "equipment_intakes";
 
 
@@ -105,7 +107,6 @@ public class EquipmentIntakeService implements RecordAccess {
     private final EntityManager entityManager;
     private final VoucherForms forms;
     private final SchoolYearService schoolYears;
-    private final UnitService units;
 
     public EquipmentIntakeService(
             EquipmentIntakeRepository repository,
@@ -120,8 +121,7 @@ public class EquipmentIntakeService implements RecordAccess {
             VoucherWorkflow workflow,
             EntityManager entityManager,
             VoucherForms forms,
-            SchoolYearService schoolYears,
-            UnitService units) {
+            SchoolYearService schoolYears) {
         this.repository = repository;
         this.rowLevel = rowLevel;
         this.schools = schools;
@@ -135,7 +135,6 @@ public class EquipmentIntakeService implements RecordAccess {
         this.entityManager = entityManager;
         this.forms = forms;
         this.schoolYears = schoolYears;
-        this.units = units;
     }
 
     public Page<EquipmentIntake> list(ListParams params) {
@@ -175,6 +174,7 @@ public class EquipmentIntakeService implements RecordAccess {
      */
     private static EquipmentIntake withLines(EquipmentIntake intake) {
         intake.getLines().size();
+        intake.getDocuments().size();
         return intake;
     }
 
@@ -183,20 +183,25 @@ public class EquipmentIntakeService implements RecordAccess {
         EquipmentIntake intake = new EquipmentIntake();
         intake.setSchool(resolveSchool(request.school()));
         intake.setStatus(VoucherStatus.DRAFT);
-        intake.setIntakeDate(request.intakeDate());
+        // Ngày ghi tăng do HỆ THỐNG đặt (trưởng nhóm 14/11/2026): lúc lập là hôm nay (tạm, để năm học có giá trị), lúc
+        // DUYỆT đặt lại bằng ngày duyệt (`receive`). Ngày lập phiếu là `createdAt`; ngày nhận hàng là ngày hoá đơn.
+        intake.setIntakeDate(LocalDate.now(VIETNAM));
         intake.setDocumentNo(trimToNull(request.documentNo()));
         intake.setDocumentDate(request.documentDate());
         intake.setSupplier(trimToNull(request.supplier()));
         intake.setFundingSource(request.fundingSource());
         intake.setOriginSource(ref(request.originSource(), originSources::get));
         intake.setOriginNote(trimToNull(request.originNote()));
-        // Năm học là HỆ QUẢ của ngày nhập, không phải lựa chọn: phiếu nhập 13/11/2026 không thể thuộc năm học
-        // 2024-2025 — báo cáo theo năm học đếm sai. Giá trị form gửi lên bị bỏ qua.
-        intake.setSchoolYear(schoolYears.forDate(request.intakeDate()));
+        // Năm học là HỆ QUẢ của ngày ghi tăng, không phải lựa chọn — giá trị form gửi lên bị bỏ qua.
+        intake.setSchoolYear(schoolYears.forDate(intake.getIntakeDate()));
         intake.setAcquisitionMethod(ref(request.acquisitionMethod(), acquisitionMethods::get));
         intake.setWarrantyMonths(request.warrantyMonths());
         intake.setNote(trimToNull(request.note()));
+        if (request.documents() != null) {
+            intake.replaceDocuments(buildDocuments(intake, request.documents()));
+        }
         intake.replaceLines(buildLines(intake, request.lines()));
+        syncHeadDocument(intake);
         intake.setDetails(forms.header(RESOURCE, request.details(), null, intake.getSchool().getId(), null));
         checkLines(intake);
         fitSources(intake);
@@ -219,9 +224,6 @@ public class EquipmentIntakeService implements RecordAccess {
         IdRef school = request.school();
         if (school != null && school.id() != null && !school.id().equals(intake.getSchool().getId())) {
             throw new FieldValidationException("school", "Không đổi được trường sau khi tạo");
-        }
-        if (request.intakeDate() != null) {
-            intake.setIntakeDate(request.intakeDate());
         }
         if (request.documentNo() != null) {
             intake.setDocumentNo(trimToNull(request.documentNo()));
@@ -250,7 +252,7 @@ public class EquipmentIntakeService implements RecordAccess {
         if (request.originNote() != null) {
             intake.setOriginNote(trimToNull(request.originNote()));
         }
-        // Năm học luôn theo ngày nhập (kể cả khi chỉ sửa ngày nhập) — không nhận năm học form gửi lên.
+        // Năm học luôn theo ngày ghi tăng — không nhận năm học form gửi lên.
         intake.setSchoolYear(schoolYears.forDate(intake.getIntakeDate()));
         if (request.acquisitionMethod() != null) {
             intake.setAcquisitionMethod(ref(request.acquisitionMethod(), acquisitionMethods::get));
@@ -261,9 +263,17 @@ public class EquipmentIntakeService implements RecordAccess {
         if (request.note() != null) {
             intake.setNote(trimToNull(request.note()));
         }
+        if (request.documents() != null) {
+            // Hoá đơn và dòng đi cùng nhau: dòng chỉ tới hoá đơn theo vị trí trong danh sách mới.
+            if (request.lines() == null) {
+                throw new FieldValidationException("documents", "Gửi kèm danh sách thiết bị khi sửa hoá đơn");
+            }
+            intake.replaceDocuments(buildDocuments(intake, request.documents()));
+        }
         if (request.lines() != null) {
             intake.replaceLines(buildLines(intake, request.lines()));
         }
+        syncHeadDocument(intake);
         if (request.details() != null) {
             intake.setDetails(forms.header(RESOURCE, request.details(), intake.getDetails(),
                     intake.getSchool().getId(), null));
@@ -294,6 +304,7 @@ public class EquipmentIntakeService implements RecordAccess {
         for (EquipmentIntakeLine line : intake.getLines()) {
             forms.requireLineComplete(RESOURCE, line.getDetails(), line.getLineNo(), null, null);
         }
+        requireDocumentLines(intake);
         requireSources(intake);
         requirePlanLink(intake);
         requirePurchaseDocuments(intake);
@@ -367,6 +378,9 @@ public class EquipmentIntakeService implements RecordAccess {
         // Số serial khai lúc lập phiếu: kiểm lại lúc ghi tăng — giữa lúc lập và lúc duyệt, thiết bị khác của trường có
         // thể đã mang số đó.
         checkSerials(intake);
+        // Ngày ghi tăng = ngày DUYỆT (vào hệ thống); năm học theo đó. Ngày nhận của từng thiết bị là ngày hoá đơn của nó.
+        intake.setIntakeDate(LocalDate.now(VIETNAM));
+        intake.setSchoolYear(schoolYears.forDate(intake.getIntakeDate()));
         workflow.complete(intake, RESOURCE, null);
         // Dòng chưa có phòng nhận (phiếu lập từ đề xuất mua sắm, từ kiểm kê, qua API) thì về kho của trường —
         // như form vẫn chọn sẵn — để tài sản có chỗ để và người quản lý là cán bộ phụ trách kho (124).
@@ -573,6 +587,89 @@ public class EquipmentIntakeService implements RecordAccess {
      * đúng thứ tự gửi lên — nó là vị trí trên chứng từ, không phải dữ liệu người
      * dùng nhập.
      */
+    /**
+     * Hoá đơn (chứng từ) của phiếu (254) theo thứ tự gửi lên. Hoá đơn đang có (theo id) được sửa tại chỗ — tệp gắn theo id
+     * đó; hoá đơn bị bỏ thì tệp của nó bị xoá theo.
+     */
+    private List<EquipmentIntakeDocument> buildDocuments(EquipmentIntake intake, List<EquipmentIntakeDocumentInput> inputs) {
+        Map<Long, EquipmentIntakeDocument> existing = new HashMap<>();
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            if (document.getId() != null) {
+                existing.put(document.getId(), document);
+            }
+        }
+        List<EquipmentIntakeDocument> out = new ArrayList<>();
+        int docNo = 1;
+        for (EquipmentIntakeDocumentInput input : inputs) {
+            EquipmentIntakeDocument document = input.id() != null && existing.containsKey(input.id())
+                    ? existing.remove(input.id())
+                    : new EquipmentIntakeDocument();
+            document.setIntake(intake);
+            document.setDocNo(docNo++);
+            document.setSupplier(trimToNull(input.supplier()));
+            document.setTaxCode(trimToNull(input.taxCode()));
+            document.setContact(normalizeContact(input.contact()));
+            document.setDocumentNo(trimToNull(input.documentNo()));
+            document.setDocumentDate(input.documentDate());
+            document.setFundingSource(input.fundingSource());
+            document.setFundingNote(trimToNull(input.fundingNote()));
+            document.setAcquisitionMethod(ref(input.acquisitionMethod(), acquisitionMethods::get));
+            document.setAcquisitionNote(trimToNull(input.acquisitionNote()));
+            // Phiếu đã lưu: ghi hoá đơn mới ngay, để dòng trỏ tới nó không vấp thứ tự ghi lúc flush.
+            if (intake.getId() != null && document.getId() == null) {
+                entityManager.persist(document);
+            }
+            out.add(document);
+        }
+        if (!existing.isEmpty()) {
+            entityManager.createQuery("delete from Attachment a where a.resource = :resource and a.recordId in :ids")
+                    .setParameter("resource", EquipmentIntakeDocumentAccess.RESOURCE)
+                    .setParameter("ids", existing.keySet())
+                    .executeUpdate();
+        }
+        return out;
+    }
+
+    /** Dòng thuộc hoá đơn {@code document}: chép chứng từ của hoá đơn xuống các cột chứng từ của dòng. */
+    private static void applyDocument(EquipmentIntakeLine line, EquipmentIntakeDocument document) {
+        line.setDocument(document);
+        line.setSupplier(document.getSupplier());
+        line.setDocumentNo(document.getDocumentNo());
+        line.setDocumentDate(document.getDocumentDate());
+        line.setFundingSource(document.getFundingSource());
+        line.setFundingNote(document.getFundingNote());
+        line.setAcquisitionMethod(document.getAcquisitionMethod());
+        line.setAcquisitionNote(document.getAcquisitionNote());
+    }
+
+    /**
+     * Đầu phiếu mang chứng từ của hoá đơn ĐẦU TIÊN — chỉ là tóm tắt cho danh sách phiếu và chỗ đỡ của đọc cũ; giá trị
+     * thật của từng thiết bị là của hoá đơn nó thuộc (đã chép xuống dòng).
+     */
+    private static void syncHeadDocument(EquipmentIntake intake) {
+        if (intake.getDocuments().isEmpty()) {
+            return;
+        }
+        EquipmentIntakeDocument first = intake.getDocuments().get(0);
+        intake.setSupplier(first.getSupplier());
+        intake.setDocumentNo(first.getDocumentNo());
+        intake.setDocumentDate(first.getDocumentDate());
+        intake.setFundingSource(first.getFundingSource());
+        intake.setAcquisitionMethod(first.getAcquisitionMethod());
+    }
+
+    /** Trình: chứng từ nào cũng phải có thiết bị — chứng từ trống là khai dở. */
+    static void requireDocumentLines(EquipmentIntake intake) {
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            boolean used = intake.getLines().stream().anyMatch(l -> java.util.Objects.equals(l.documentId(), document.getId())
+                    || l.getDocument() == document);
+            if (!used) {
+                throw new FieldValidationException("documents", "Chứng từ %d%s chưa có thiết bị — thêm thiết bị hoặc xoá chứng từ"
+                        .formatted(document.getDocNo(), document.getDocumentNo() == null ? "" : " (số " + document.getDocumentNo() + ")"));
+            }
+        }
+    }
+
     private List<EquipmentIntakeLine> buildLines(EquipmentIntake intake, List<EquipmentIntakeLineInput> inputs) {
         List<EquipmentIntakeLine> lines = new ArrayList<>();
         if (inputs == null) {
@@ -641,11 +738,25 @@ public class EquipmentIntakeService implements RecordAccess {
             // Hạn sử dụng chỉ có nghĩa với vật tư tiêu hao, hoá chất (quản lý theo số lượng); dòng thiết bị
             // từng cái gửi kèm thì gỡ đi chứ không báo lỗi — cùng cách với các ô nguồn không còn nghĩa.
             line.setExpiryDate(catalog.getTrackingType() == TrackingType.BULK ? input.expiryDate() : null);
-            applyPack(line, input, catalog);
+            // Không quy đổi bao bì nữa: số lượng của dòng theo đơn vị tính của danh mục (g, ml…), lọ / chai chỉ là đồ
+            // đựng. Quy cách gửi kèm (form cũ) thì gỡ. Dòng cũ đã mang quy cách vẫn quy đổi đúng ở `stockQuantity()`.
+            line.setPackUnit(null);
+            line.setPackSize(null);
             // Serial chỉ thiết bị từng cái mới có; dòng theo số lượng gửi kèm thì gỡ đi, như hạn sử dụng ở trên.
             line.setSerialList(catalog.getTrackingType() == TrackingType.SERIAL
                     ? normalizeSerials(input.serialNumbers()) : List.of());
             line.setDetails(forms.line(RESOURCE, input.details(), intake.getSchool().getId(), line.getLineNo()));
+            List<EquipmentIntakeDocument> docs = intake.getDocuments();
+            if (docs.isEmpty()) {
+                line.setDocument(null);
+            } else {
+                int at = input.documentIndex() == null ? 0 : input.documentIndex();
+                if (at < 0 || at >= docs.size()) {
+                    throw new FieldValidationException("lines", "Dòng %d (%s): chứng từ của dòng không có trong phiếu"
+                            .formatted(line.getLineNo(), line.getName()));
+                }
+                applyDocument(line, docs.get(at));
+            }
             lines.add(line);
         }
         return lines;
@@ -714,7 +825,29 @@ public class EquipmentIntakeService implements RecordAccess {
             // Cột đầu phiếu chỉ còn là chỗ đỡ cho phiếu cũ: giá trị không khớp thì bỏ, dòng tự khai.
             intake.setFundingSource(null);
         }
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            if (!rule.acquisitionMethod()) {
+                document.setAcquisitionMethod(null);
+            }
+            FundingSource funding = document.getFundingSource();
+            if (funding != null && !rule.allows(funding)) {
+                throw new FieldValidationException("documents",
+                        "Chứng từ %d: nguồn kinh phí \"%s\" không đi với nguồn hình thành \"%s\". Chọn một trong: %s"
+                                .formatted(document.getDocNo(), funding.label(), rule.label(),
+                                        rule.fundingSources().stream().map(FundingSource::label)
+                                                .collect(Collectors.joining(", "))));
+            }
+            if (funding == null || !funding.requiresNote()) {
+                document.setFundingNote(null);
+            }
+            if (!isOtherMethod(document.getAcquisitionMethod())) {
+                document.setAcquisitionNote(null);
+            }
+        }
         for (EquipmentIntakeLine line : intake.getLines()) {
+            if (line.getDocument() != null) {
+                applyDocument(line, line.getDocument());
+            }
             if (!rule.acquisitionMethod()) {
                 line.setAcquisitionMethod(null);
             }
@@ -774,6 +907,9 @@ public class EquipmentIntakeService implements RecordAccess {
                                             .collect(Collectors.joining(", "))));
                 }
                 line.setFundingSource(FundingSource.UNDETERMINED);
+                if (line.getDocument() != null && line.getDocument().getFundingSource() == null) {
+                    line.getDocument().setFundingSource(FundingSource.UNDETERMINED);
+                }
             } else if (funding.requiresNote() && line.getFundingNote() == null) {
                 throw new FieldValidationException("lines",
                         "%s: nguồn kinh phí \"%s\" phải ghi rõ là nguồn gì".formatted(where, funding.label()));
@@ -805,39 +941,6 @@ public class EquipmentIntakeService implements RecordAccess {
      * từ: phiếu nháp sinh tự động từ đề xuất mua sắm hay từ biên bản kiểm kê
      * chưa có gì để điền.
      */
-    /**
-     * Quy cách bao bì của dòng (QLTB-501). Chỉ vật tư, hoá chất (quản lý theo số lượng) mới có; dòng thiết bị từng
-     * cái gửi kèm thì gỡ đi. Bao bì trùng đơn vị của thiết bị là không quy đổi gì — cũng gỡ.
-     */
-    private void applyPack(EquipmentIntakeLine line, EquipmentIntakeLineInput input,
-            EquipmentCatalog catalog) {
-        Long packUnitId = input.packUnit() == null ? null : input.packUnit().id();
-        BigDecimal size = input.packSize();
-        if (catalog.getTrackingType() != TrackingType.BULK || (packUnitId == null && size == null)) {
-            line.setPackUnit(null);
-            line.setPackSize(null);
-            return;
-        }
-        String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
-        if (packUnitId == null || size == null) {
-            throw new FieldValidationException("lines",
-                    where + ": khai đủ quy cách — đơn vị bao bì và lượng trong một bao bì");
-        }
-        Unit pack = units.get(packUnitId);
-        Unit base = catalog.getUnit();
-        if (base != null && base.getId().equals(pack.getId())) {
-            line.setPackUnit(null);
-            line.setPackSize(null);
-            return;
-        }
-        if (base != null && !Unit.accepts(base, size)) {
-            throw new FieldValidationException("lines",
-                    where + ": %s không chia lẻ được — lượng trong một bao bì phải là số nguyên".formatted(base.getName()));
-        }
-        line.setPackUnit(pack);
-        line.setPackSize(size);
-    }
-
     /** Số serial gửi lên → số đem lưu: bỏ khoảng trắng, viết hoa, bỏ dòng trống; thứ tự giữ nguyên. */
     static List<String> normalizeSerials(List<String> input) {
         if (input == null) {
@@ -904,20 +1007,42 @@ public class EquipmentIntakeService implements RecordAccess {
     }
 
     /** Hàng mua — theo kế hoạch hay ngoài kế hoạch: đòi hoá đơn, đơn giá như nhau. */
+    /**
+     * Liên hệ của nhà cung cấp: số điện thoại HOẶC email (trưởng nhóm 14/11/2026). Có "@" thì kiểm như email, không thì
+     * như số điện thoại — theo bộ quy tắc chuẩn (`FieldRule.PHONE` / `EMAIL`). {@code null} = hợp lệ hoặc trống.
+     */
+    static String contactProblem(String value) {
+        String v = value == null ? "" : value.strip();
+        if (v.isEmpty()) {
+            return null;
+        }
+        String bad = v.contains("@") ? FieldRule.EMAIL.violation(v, 0) : FieldRule.PHONE.violation(v, 0);
+        return bad == null ? null : "không hợp lệ (vd. 0912 345 678 hoặc ten@congty.vn)";
+    }
+
+    /** Lưu liên hệ: số điện thoại bỏ dấu ngăn cách, email chữ thường — cùng cách các ô điện thoại / email khác. */
+    static String normalizeContact(String value) {
+        String v = trimToNull(value);
+        if (v == null || contactProblem(v) != null) {
+            return v;
+        }
+        return v.contains("@") ? FieldRule.EMAIL.normalize(v) : FieldRule.PHONE.normalize(v);
+    }
+
     private static boolean isPurchase(EquipmentIntake intake) {
         return OriginRule.of(intake.getOriginSource()).map(OriginRule::purchase).orElse(false);
     }
 
     /**
-     * Chứng từ — kiểm ở mọi lần lưu: ngày hoá đơn không sau ngày nhập; hàng mua sắm thì số hoá đơn theo luật số hoá
+     * Chứng từ — kiểm ở mọi lần lưu: ngày hoá đơn không sau hôm nay (ngày ghi tăng là ngày duyệt, luôn sau đó); hàng mua sắm thì số hoá đơn theo luật số hoá
      * đơn (1–30 ký tự, chữ không dấu, số, / - . và khoảng trắng). Nguồn khác ghi số quyết định, biên bản — giữ luật
      * chữ ngắn của ô.
      */
     static void checkDocuments(EquipmentIntake intake) {
-        LocalDate intakeDate = intake.getIntakeDate();
+        LocalDate today = LocalDate.now(VIETNAM);
         boolean purchase = isPurchase(intake);
-        if (intakeDate != null && intake.getDocumentDate() != null && intake.getDocumentDate().isAfter(intakeDate)) {
-            throw new FieldValidationException("documentDate", "Ngày hoá đơn không được sau ngày nhập");
+        if (intake.getDocumentDate() != null && intake.getDocumentDate().isAfter(today)) {
+            throw new FieldValidationException("documentDate", "Ngày hoá đơn không được sau hôm nay");
         }
         if (purchase && intake.getDocumentNo() != null) {
             String problem = FieldRule.INVOICE_NO.violation(intake.getDocumentNo(), 0);
@@ -925,10 +1050,26 @@ public class EquipmentIntakeService implements RecordAccess {
                 throw new FieldValidationException("documentNo", "Số hoá đơn " + problem);
             }
         }
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            String where = "Chứng từ %d".formatted(document.getDocNo());
+            String contact = contactProblem(document.getContact());
+            if (contact != null) {
+                throw new FieldValidationException("documents", where + ": điện thoại / email " + contact);
+            }
+            if (document.getDocumentDate() != null && document.getDocumentDate().isAfter(today)) {
+                throw new FieldValidationException("documents", where + ": ngày chứng từ không được sau hôm nay");
+            }
+            if (purchase && document.getDocumentNo() != null) {
+                String problem = FieldRule.INVOICE_NO.violation(document.getDocumentNo(), 0);
+                if (problem != null) {
+                    throw new FieldValidationException("documents", where + ": số hoá đơn " + problem);
+                }
+            }
+        }
         for (EquipmentIntakeLine line : intake.getLines()) {
             String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
-            if (intakeDate != null && line.getDocumentDate() != null && line.getDocumentDate().isAfter(intakeDate)) {
-                throw new FieldValidationException("lines", where + ": ngày hoá đơn không được sau ngày nhập");
+            if (line.getDocumentDate() != null && line.getDocumentDate().isAfter(today)) {
+                throw new FieldValidationException("lines", where + ": ngày hoá đơn không được sau hôm nay");
             }
             if (purchase && line.getDocumentNo() != null) {
                 String problem = FieldRule.INVOICE_NO.violation(line.getDocumentNo(), 0);
@@ -941,14 +1082,14 @@ public class EquipmentIntakeService implements RecordAccess {
 
     /**
      * Nguồn "Kế hoạch mua sắm" phải đi từ một đề xuất của trường nằm trong kế hoạch của Sở / UBND (trưởng nhóm
-     * 13/11/2026) — kiểm lúc TRÌNH, nháp vẫn lưu được. Trường tự mua ngoài kế hoạch thì chọn nguồn "Mua sắm ngoài kế hoạch".
+     * 13/11/2026) — kiểm lúc TRÌNH, nháp vẫn lưu được. Trường tự mua ngoài kế hoạch thì chọn nguồn "Trường tự mua sắm".
      */
     static void requirePlanLink(EquipmentIntake intake) {
-        // Chỉ "Kế hoạch mua sắm" phải đi từ kế hoạch; "Mua sắm ngoài kế hoạch" thì không.
+        // Chỉ "Kế hoạch mua sắm" phải đi từ kế hoạch; "Trường tự mua sắm" thì không.
         if (OriginRule.of(intake.getOriginSource()).orElse(null) == OriginRule.MUA_SAM
                 && !"purchase_proposals".equals(intake.getSourceResource())) {
             throw new FieldValidationException("originSource",
-                    "Nguồn Kế hoạch mua sắm: chọn kế hoạch mua sắm. Hàng tự mua ngoài kế hoạch thì chọn nguồn Mua sắm ngoài kế hoạch");
+                    "Nguồn Kế hoạch mua sắm: chọn kế hoạch mua sắm. Hàng tự mua ngoài kế hoạch thì chọn nguồn Trường tự mua sắm");
         }
     }
 
@@ -984,17 +1125,36 @@ public class EquipmentIntakeService implements RecordAccess {
     private void requireAttachment(EquipmentIntake intake) {
         List<Long> lineIds = intake.getLines().stream().map(EquipmentIntakeLine::getId)
                 .filter(id -> id != null).toList();
+        List<Long> documentIds = intake.getDocuments().stream().map(EquipmentIntakeDocument::getId)
+                .filter(id -> id != null).toList();
         Long count = entityManager.createQuery("""
                         select count(a) from Attachment a
                         where (a.resource = :resource and a.recordId = :id)
-                           or (a.resource = 'equipment_intake_lines' and a.recordId in :lines)""", Long.class)
+                           or (a.resource = 'equipment_intake_lines' and a.recordId in :lines)
+                           or (a.resource = 'equipment_intake_documents' and a.recordId in :documents)""", Long.class)
                 .setParameter("resource", RESOURCE)
                 .setParameter("id", intake.getId())
                 .setParameter("lines", lineIds.isEmpty() ? List.of(-1L) : lineIds)
+                .setParameter("documents", documentIds.isEmpty() ? List.of(-1L) : documentIds)
                 .getSingleResult();
         if (count == null || count == 0) {
             throw new FieldValidationException("attachments",
                     "Đính kèm ít nhất một tệp — hoá đơn hoặc biên bản giao nhận — rồi trình");
+        }
+        // Hàng mua: hoá đơn nào cũng phải có tệp hoá đơn của chính nó.
+        if (!isPurchase(intake)) {
+            return;
+        }
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            Long files = entityManager.createQuery("""
+                            select count(a) from Attachment a
+                            where a.resource = 'equipment_intake_documents' and a.recordId = :id""", Long.class)
+                    .setParameter("id", document.getId())
+                    .getSingleResult();
+            if (files == null || files == 0) {
+                throw new FieldValidationException("documents", "Hoá đơn %d%s: đính kèm tệp hoá đơn".formatted(
+                        document.getDocNo(), document.getDocumentNo() == null ? "" : " (số " + document.getDocumentNo() + ")"));
+            }
         }
     }
 

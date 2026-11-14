@@ -38,18 +38,11 @@ export function IntakeSourceLink({ source }: { source: IntakeSource }) {
     errorNotification: false,
   });
   if (viaProposal && proposal?.plan) {
+    // Chỉ tên kế hoạch (trưởng nhóm 14/11/2026: "Lập từ" + tên kế hoạch) — ô ngay trên đã ghi "Kế hoạch mua sắm".
     return (
-      <>
-        <Link to={`/procurement-plans/show/${proposal.plan.id}`} className="text-primary font-medium hover:underline">
-          kế hoạch mua sắm {proposal.plan.title}
-        </Link>
-        {source.code ? (
-          <>
-            {" · "}
-            <Link to={`/purchase-proposals/show/${source.id}`} className="hover:underline">đề xuất {source.code}</Link>
-          </>
-        ) : null}
-      </>
+      <Link to={`/procurement-plans/show/${proposal.plan.id}`} className="text-primary font-medium hover:underline" title={proposal.plan.title}>
+        {proposal.plan.title}
+      </Link>
     );
   }
   const route = VOUCHER_ROUTES[source.resource];
@@ -176,7 +169,8 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
         control={control}
         name="originSource.id"
         render={({ field, fieldState }) => (
-          <FormItem>
+          // Cột co theo khung: dòng "Lập từ …" dài cắt bớt, không kéo ô đè lên ô bên cạnh.
+          <FormItem className="grid-cols-[minmax(0,1fr)]">
             <FormLabel required>Nguồn hình thành</FormLabel>
             <FormHint>
               {source
@@ -210,7 +204,6 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
             ) : null}
             {source ? (
               <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                <Lock className="size-3 shrink-0" />
                 <span className="min-w-0 truncate">Lập từ <IntakeSourceLink source={source} /></span>
                 {mayRepick ? (
                   <button type="button" aria-label="Bỏ phiếu nguồn để chọn lại" title="Bỏ phiếu nguồn để chọn lại"

@@ -39,6 +39,7 @@ export function DateInput({
   placeholder = "dd/mm/yyyy",
   disabled,
   className,
+  inputClassName,
 }: {
   value: IsoDate;
   onChange: (value: string | null) => void;
@@ -47,6 +48,8 @@ export function DateInput({
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Lớp của chính ô nhập — vd. ô trong bảng không khung (`CELL_INPUT` của bảng dòng phiếu). */
+  inputClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(toText(value));
@@ -89,7 +92,7 @@ export function DateInput({
           inputMode="numeric"
           maxLength={10}
           // Biểu tượng lịch ở MÉP PHẢI như ô chọn (mũi tên ⌄) — ô ngày vừa đủ "dd/mm/yyyy" nên lịch vẫn sát chữ ngày.
-          className="pe-9 tabular-nums"
+          className={cn("pe-9 tabular-nums", inputClassName)}
           onChange={(e) => {
             // Tự chèn "/" sau ngày và tháng khi gõ số.
             const digits = e.target.value.replace(/\D/g, "").slice(0, 8);

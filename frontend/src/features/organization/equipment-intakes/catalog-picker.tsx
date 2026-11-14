@@ -307,9 +307,10 @@ export function CatalogPickerDialog({
           )}
         </div>
 
-        {/* Chiều cao CỐ ĐỊNH, không max-h: lọc ra ít dòng thì bảng chừa trống chứ hộp không co lại. */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
-          <Table>
+        {/* Chiều cao CỐ ĐỊNH, không max-h: lọc ra ít dòng thì bảng chừa trống chứ hộp không co lại.
+            Cột cố định (`table-fixed`), tên dài thì cắt bớt — không cuộn ngang (trưởng nhóm 14/11/2026). */}
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
@@ -328,11 +329,11 @@ export function CatalogPickerDialog({
                     }
                   />
                 </TableHead>
-                <TableHead>Mã DM thiết bị</TableHead>
+                <TableHead className="w-36">Mã DM thiết bị</TableHead>
                 <TableHead>Thiết bị</TableHead>
                 {/* Không có cột Loại thiết bị và Môn học: hai ô lọc ngay trên bảng đã là hai cột đó,
                     và chúng đẩy cột Thiết bị — thứ người ta thực sự đọc để chọn — bị cắt mất chữ. */}
-                <TableHead className="w-20">ĐVT</TableHead>
+                <TableHead className="w-24">ĐVT</TableHead>
                 <TableHead className="w-28">Quản lý</TableHead>
               </TableRow>
             </TableHeader>
@@ -355,16 +356,18 @@ export function CatalogPickerDialog({
                           onCheckedChange={() => toggle(row)}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">{row.code}</TableCell>
+                      <TableCell className="truncate font-mono text-xs" title={row.code}>{row.code}</TableCell>
                       <TableCell>
-                        {row.name}
-                        {row.ownerSchool ? (
-                          <Badge variant="warning" className="ms-2" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
-                            Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin] ?? row.origin}` : ""}
-                          </Badge>
-                        ) : null}
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate" title={row.name}>{row.name}</span>
+                          {row.ownerSchool ? (
+                            <Badge variant="warning" className="shrink-0" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
+                              Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin] ?? row.origin}` : ""}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell>{row.unit?.name ?? "—"}</TableCell>
+                      <TableCell className="truncate" title={row.unit?.name}>{row.unit?.name ?? "—"}</TableCell>
                       <TableCell>
                         {row.trackingType ? (
                           <Badge variant={already ? "warning" : row.trackingType === "bulk" ? "info" : "neutral"}>

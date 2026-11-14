@@ -27,7 +27,7 @@ export function SectionHead({ title, open, onToggle, summary, aside, hint, actio
           title={open ? "Thu gọn khối này" : "Mở khối này"}
           className="hover:bg-muted -ms-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-start">
           <ChevronDown className={cn("text-muted-foreground size-4 shrink-0 transition-transform", !open && "-rotate-90")} />
-          <span className="truncate">{title}</span>
+          <span className="text-primary truncate">{title}</span>
         </button>
         {hint && open ? <HelpHint>{hint}</HelpHint> : null}
       </h3>
