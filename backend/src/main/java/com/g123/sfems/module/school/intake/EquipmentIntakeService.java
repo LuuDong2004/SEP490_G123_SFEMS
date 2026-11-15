@@ -451,6 +451,19 @@ public class EquipmentIntakeService implements RecordAccess {
      */
     @Transactional(readOnly = true)
     public Map<Long, Integer> receivedBySource(String sourceResource, Long sourceId) {
+        return sumBySource(sourceResource, sourceId, List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED));
+    }
+
+    /**
+     * Phần của {@link #receivedBySource} còn nằm ở phiếu CHƯA hoàn tất (nháp, chờ duyệt, bị trả lại): phiếu đang lập
+     * cũng giữ chỗ trong kế hoạch (trưởng nhóm 15/11/2026, B13) — hộp chọn ghi "đang lập" thay vì "đã nhập".
+     */
+    public Map<Long, Integer> pendingBySource(String sourceResource, Long sourceId) {
+        return sumBySource(sourceResource, sourceId,
+                List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED, VoucherStatus.COMPLETED));
+    }
+
+    private Map<Long, Integer> sumBySource(String sourceResource, Long sourceId, List<VoucherStatus> excluded) {
         List<Object[]> rows = entityManager.createQuery("""
                         select l.catalog.id, sum(l.receivedQuantity) from EquipmentIntakeLine l
                         where l.intake.sourceResource = :resource and l.intake.sourceId = :id
@@ -458,7 +471,7 @@ public class EquipmentIntakeService implements RecordAccess {
                         group by l.catalog.id""", Object[].class)
                 .setParameter("resource", sourceResource)
                 .setParameter("id", sourceId)
-                .setParameter("dead", List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED))
+                .setParameter("dead", excluded)
                 .getResultList();
         Map<Long, Integer> result = new HashMap<>();
         for (Object[] row : rows) {
@@ -837,9 +850,19 @@ public class EquipmentIntakeService implements RecordAccess {
             // Cột đầu phiếu chỉ còn là chỗ đỡ cho phiếu cũ: giá trị không khớp thì bỏ, dòng tự khai.
             intake.setFundingSource(null);
         }
+        if (intake.getAcquisitionMethod() != null
+                && rule.excludedAcquisitionMethods().contains(intake.getAcquisitionMethod().getCode())) {
+            intake.setAcquisitionMethod(null);
+        }
         for (EquipmentIntakeDocument document : intake.getDocuments()) {
             if (!rule.acquisitionMethod()) {
                 document.setAcquisitionMethod(null);
+            }
+            if (document.getAcquisitionMethod() != null
+                    && rule.excludedAcquisitionMethods().contains(document.getAcquisitionMethod().getCode())) {
+                throw new FieldValidationException("documents",
+                        "Chứng từ %d: hình thức mua sắm \"%s\" không đi với nguồn hình thành \"%s\""
+                                .formatted(document.getDocNo(), document.getAcquisitionMethod().getName(), rule.label()));
             }
             FundingSource funding = document.getFundingSource();
             if (funding != null && !rule.allows(funding)) {
@@ -860,7 +883,8 @@ public class EquipmentIntakeService implements RecordAccess {
             if (line.getDocument() != null) {
                 applyDocument(line, line.getDocument());
             }
-            if (!rule.acquisitionMethod()) {
+            if (!rule.acquisitionMethod() || line.getAcquisitionMethod() != null
+                    && rule.excludedAcquisitionMethods().contains(line.getAcquisitionMethod().getCode())) {
                 line.setAcquisitionMethod(null);
             }
             FundingSource funding = line.getFundingSource();

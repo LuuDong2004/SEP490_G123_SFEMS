@@ -257,7 +257,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
               rules={doc?.acquisitionMethod?.code === OTHER_ACQUISITION_CODE ? textRules("SHORT_TEXT", "Ghi rõ hình thức mua sắm", { max: 200, min: 5 }) : undefined}
               render={({ fieldState }) => (
                 <>
-                  <AcquisitionChoice label="Hình thức mua sắm" clearable
+                  <AcquisitionChoice label="Hình thức mua sắm" clearable exclude={rule?.excludedAcquisitionMethods}
                     value={doc?.acquisitionMethod?.id ? doc.acquisitionMethod : null}
                     onChange={(m) => {
                       setValue(name("acquisitionMethod"), m ? { id: m.id, code: m.code, name: m.name } : { id: null }, { shouldDirty: true });

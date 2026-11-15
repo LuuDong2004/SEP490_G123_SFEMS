@@ -179,8 +179,15 @@ public record EquipmentIntakeResponse(
         School school = item.getSchool();
         List<Line> lines = item.getLines().stream().map(Line::from).toList();
 
-        int totalReceived = lines.stream().mapToInt(Line::receivedQuantity).sum();
-        int generated = lines.stream().mapToInt(Line::generatedCount).sum();
+        // Cộng số lượng chỉ có nghĩa khi mọi dòng cùng đơn vị tính: 2 cái + 200 gam không phải "202" (test 15/11/2026,
+        // B06) — khác đơn vị thì null, màn hình không ghi tổng số lượng.
+        boolean oneUnit = lines.stream().map(l -> l.unit() == null ? null : l.unit().id()).distinct().count() <= 1;
+        Integer totalReceived = oneUnit ? lines.stream().mapToInt(Line::receivedQuantity).sum() : null;
+        // Số HỒ SƠ đã sinh: thiết bị từng cái một hồ sơ mỗi cái, vật tư theo lô một hồ sơ cho cả dòng.
+        int generated = lines.stream()
+                .mapToInt(l -> l.generatedCount() == null ? 0 : l.trackingType() == TrackingType.SERIAL ? l.generatedCount()
+                        : (l.generatedCount() > 0 ? 1 : 0))
+                .sum();
         BigDecimal totalAmount = lines.stream()
                 .map(Line::amount)
                 .filter(amount -> amount != null)

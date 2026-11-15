@@ -560,7 +560,30 @@ public class EquipmentCatalogService extends CatalogService<
                 primaryOrExtraFilter(params, "educationLevel", "extraLevels"),
                 CatalogSpecifications.<EquipmentCatalog>referenceFilter(params, "unit"),
                 trackingFilter(params),
-                minimumFilter(params)));
+                minimumFilter(params),
+                codesFilter(params)));
+    }
+
+    /**
+     * {@code codes=THCS-27-022,THCS-18-005}: nhiều mã một lần, không phân biệt hoa thường, bỏ khoảng trắng hai đầu —
+     * nhập Excel của phiếu ghi tăng khớp cả tệp trong MỘT lần gọi (trước đây mỗi dòng một lần, 200 dòng dính 429).
+     */
+    private static Specification<EquipmentCatalog> codesFilter(ListParams params) {
+        List<Specification<EquipmentCatalog>> specs = params.filters().stream()
+                .filter(c -> c.field().equals("codes") && c.value() != null)
+                .map(c -> {
+                    List<String> codes = java.util.Arrays.stream(c.value().split(","))
+                            .map(v -> v.trim().toUpperCase(java.util.Locale.ROOT))
+                            .filter(v -> !v.isEmpty())
+                            .distinct()
+                            .limit(1_000)
+                            .toList();
+                    return (Specification<EquipmentCatalog>) (root, q, cb) -> codes.isEmpty()
+                            ? cb.disjunction()
+                            : cb.upper(root.get("code")).in(codes);
+                })
+                .toList();
+        return Specification.allOf(specs);
     }
 
     /**

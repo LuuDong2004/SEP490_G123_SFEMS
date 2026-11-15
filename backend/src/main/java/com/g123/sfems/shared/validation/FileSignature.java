@@ -38,6 +38,9 @@ public final class FileSignature {
             Map.entry("ods", "application/vnd.oasis.opendocument.spreadsheet"),
             Map.entry("txt", "text/plain; charset=UTF-8"),
             Map.entry("csv", "text/csv; charset=UTF-8"),
+            // Hoá đơn điện tử gốc (TT 78/2021) là tệp XML có chữ ký số; PDF chỉ là bản thể hiện. Tải xuống luôn là
+            // `attachment` nên trình duyệt không dựng nó thành trang.
+            Map.entry("xml", "application/xml"),
             Map.entry("zip", "application/zip"));
 
     private FileSignature() {
@@ -56,8 +59,18 @@ public final class FileSignature {
             case "doc", "xls", "ppt" -> startsWith(head, OLE);
             // Văn bản thuần: không có byte 0 (tệp nhị phân đổi đuôi thành .txt luôn có).
             case "txt", "csv" -> !contains(head, (byte) 0);
+            case "xml" -> !contains(head, (byte) 0) && looksLikeXml(head);
             default -> false;
         };
+    }
+
+    /** Bỏ BOM UTF-8 và khoảng trắng đầu tệp, ký tự đầu tiên phải là {@code <} ("<?xml …" hoặc thẻ gốc). */
+    private static boolean looksLikeXml(byte[] head) {
+        int i = head.length >= 3 && head[0] == (byte) 0xEF && head[1] == (byte) 0xBB && head[2] == (byte) 0xBF ? 3 : 0;
+        while (i < head.length && Character.isWhitespace(head[i])) {
+            i++;
+        }
+        return i < head.length && head[i] == '<';
     }
 
     private static boolean startsWith(byte[] data, byte[] prefix) {

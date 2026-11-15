@@ -250,7 +250,7 @@ export function AttachmentsPanel({
         ) : files.length === 0 ? (
           <p className={cn("text-muted-foreground text-sm", section && "rounded-lg border border-dashed px-3 py-2.5")}>Chưa có tệp nào.</p>
         ) : (
-          <ul className={compact ? "grid gap-2 sm:grid-cols-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"}>
+          <ul className={compact ? "grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),20rem))] gap-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"}>
             {files.map((file) => (
               <li
                 key={file.id}

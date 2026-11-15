@@ -78,6 +78,8 @@ type IntakeLine = {
   planned: number;
   received: number;
   remaining: number;
+  /** Phần của `received` còn ở phiếu ghi tăng chưa hoàn tất — giữ chỗ (B13). */
+  pending?: number;
   unitPrice: number | null;
 };
 
@@ -148,9 +150,12 @@ function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
                   <TableCell className="text-muted-foreground truncate px-3 font-mono text-xs">{l.catalogCode}</TableCell>
                   <TableCell className="truncate px-3 font-medium" title={l.name}>{l.name}</TableCell>
                   <TableCell className="px-3 text-end tabular-nums">{l.planned} {l.unitName ?? ""}</TableCell>
-                  <TableCell className="px-3 text-end tabular-nums">{l.received}</TableCell>
+                  <TableCell className="px-3 text-end tabular-nums">
+                    {l.received}
+                    {l.pending ? <div className="text-warning-text text-xs">{l.pending} ở phiếu đang lập</div> : null}
+                  </TableCell>
                   <TableCell className="px-3 text-end">
-                    {done ? "Đã nhập đủ" : (
+                    {done ? (l.pending ? "Đang lập phiếu" : "Đã nhập đủ") : (
                       <Input type="number" min={0} max={l.remaining} value={qty || ""} placeholder="0"
                         className="ms-auto h-8 w-24 text-end tabular-nums"
                         onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}

@@ -90,7 +90,9 @@ export const EquipmentIntakeList = () => {
       }),
       h.display({
         id: "received", header: "SL thực nhận", size: 110,
-        cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.totalReceived}</span>,
+        cell: ({ row }) => row.original.totalReceived == null
+          ? <span className="text-muted-foreground" title="Các dòng khác đơn vị tính">—</span>
+          : <span className="font-semibold tabular-nums">{row.original.totalReceived}</span>,
       }),
       h.display({
         id: "totalAmount", header: "Tổng tiền", size: 140,

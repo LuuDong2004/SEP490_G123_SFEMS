@@ -132,9 +132,12 @@ public class PurchaseProposalService
         return super.cancel(id, note);
     }
 
-    /** Một dòng của đề xuất khi nhập hàng: số đưa vào kế hoạch, số đã ghi tăng, số còn phải nhập. */
+    /**
+     * Một dòng của đề xuất khi nhập hàng: số đưa vào kế hoạch, số đã vào phiếu ghi tăng ({@code received}, gồm cả
+     * {@code pending} — phần ở phiếu chưa hoàn tất, vẫn giữ chỗ), số còn phải nhập.
+     */
     public record IntakeLine(Long lineId, Long catalogId, String catalogCode, String name, String unitName,
-            int planned, int received, int remaining, BigDecimal unitPrice) {
+            int planned, int received, int remaining, BigDecimal unitPrice, int pending) {
     }
 
     /** Dòng chọn nhập đợt này. */
@@ -152,6 +155,10 @@ public class PurchaseProposalService
 
     private List<IntakeLine> intakeLines(PurchaseProposal voucher) {
         Map<Long, Integer> received = new HashMap<>(intakes.receivedBySource(RESOURCE, voucher.getId()));
+        // Phần đã HOÀN TẤT trừ trước, phần còn ở phiếu đang lập trừ sau — để dòng nào "đang lập" thì đúng dòng đó.
+        Map<Long, Integer> pending = intakes.pendingBySource(RESOURCE, voucher.getId());
+        Map<Long, Integer> completedLeft = new HashMap<>();
+        received.forEach((catalog, total) -> completedLeft.put(catalog, total - pending.getOrDefault(catalog, 0)));
         List<IntakeLine> result = new ArrayList<>();
         for (PurchaseProposalLine l : voucher.getLines()) {
             int planned = l.effectiveQuantity();
@@ -161,10 +168,12 @@ public class PurchaseProposalService
             Long catalogId = l.getCatalog().getId();
             int got = Math.min(planned, received.getOrDefault(catalogId, 0));
             received.merge(catalogId, -got, Integer::sum);
+            int done = Math.min(got, Math.max(0, completedLeft.getOrDefault(catalogId, 0)));
+            completedLeft.merge(catalogId, -done, Integer::sum);
             result.add(new IntakeLine(l.getId(), catalogId, l.getCatalog().getCode(), l.getName(),
                     l.getUnitName() != null ? l.getUnitName()
                             : l.getCatalog().getUnit() != null ? l.getCatalog().getUnit().getName() : null,
-                    planned, got, planned - got, l.getUnitPrice()));
+                    planned, got, planned - got, l.getUnitPrice(), got - done));
         }
         return result;
     }

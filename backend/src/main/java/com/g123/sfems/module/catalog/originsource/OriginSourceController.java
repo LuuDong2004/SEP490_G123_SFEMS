@@ -30,7 +30,8 @@ public class OriginSourceController extends CatalogController<OriginSource, Cata
 
     /** Luật của một nguồn hình thành, cho màn hình: {@code code} khớp {@code code} của dòng danh mục. */
     public record Rule(String code, String name, List<FundingSource> fundingSources,
-            OriginRule.FundingRequired fundingRequired, boolean noteRequired, boolean acquisitionMethod) {
+            OriginRule.FundingRequired fundingRequired, boolean noteRequired, boolean acquisitionMethod,
+            java.util.Set<String> excludedAcquisitionMethods) {
     }
 
     /**
@@ -42,7 +43,7 @@ public class OriginSourceController extends CatalogController<OriginSource, Cata
     public List<Rule> rules() {
         return Arrays.stream(OriginRule.values())
                 .map(r -> new Rule(r.name(), r.label(), r.fundingSources(), r.fundingRequired(), r.noteRequired(),
-                        r.acquisitionMethod()))
+                        r.acquisitionMethod(), r.excludedAcquisitionMethods()))
                 .toList();
     }
 }

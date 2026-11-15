@@ -101,6 +101,19 @@ public enum OriginRule {
         return acquisitionMethod;
     }
 
+    /**
+     * Mã hình thức mua sắm (`acquisition_methods`) KHÔNG đi với nguồn này. Hàng mua thì không "Được cấp" hay "Tặng/biếu"
+     * (đó là nguồn hình thành khác); trường tự mua thì không "Mua sắm tập trung" — đó là việc của cấp trên (test
+     * 15/11/2026, B11).
+     */
+    public java.util.Set<String> excludedAcquisitionMethods() {
+        return switch (this) {
+            case MUA_SAM -> java.util.Set.of("DUOC_CAP", "TANG");
+            case MUA_NGOAI_KH -> java.util.Set.of("TAP_TRUNG", "DUOC_CAP", "TANG");
+            default -> java.util.Set.of();
+        };
+    }
+
     /** Hàng MUA (theo hay ngoài kế hoạch): đòi nhà cung cấp, số / ngày hoá đơn, đơn giá lớn hơn 0. */
     public boolean purchase() {
         return this == MUA_SAM || this == MUA_NGOAI_KH;

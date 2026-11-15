@@ -30,7 +30,7 @@ import { CompletionList, SideFact, SideSection, VoucherTwoColumn } from "@/share
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { VoucherTimelineDialog, useVoucherEventCount } from "@/shared/components/voucher/voucher-timeline";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
-import { formatDateTime, formatPlainDate, formatEditedAt } from "@/shared/lib/format";
+import { formatDateTime, formatPlainDate } from "@/shared/lib/format";
 import { HelpHint } from "@/shared/components/form/help-hint";
 import { cn } from "@/shared/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
@@ -43,17 +43,20 @@ import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import type { EquipmentIntake, IntakeLine } from "@/domains/equipment-intake/types";
 import type { VoucherFormConfig } from "@/domains/voucher/form-types";
 import type { VoucherStatus } from "@/domains/voucher/types";
-import { documentNoun, LINES_GRID, LineStatus } from "./lines-editor";
+import { documentNoun, LineStatus } from "./lines-editor";
 import { AssetCodeList, AssetCodesCell } from "./asset-codes";
 import { useIntakeAssets, type IntakeAsset } from "./use-intake-assets";
 
 /**
- * Bảng dòng của phiếu ĐÃ ghi tăng: thêm cột "Mã thiết bị" đứng đầu — người đối chiếu (dán tem, so hoá đơn)
- * cần thấy mã ngay trên phiếu, không phải bấm sang danh sách thiết bị (góp ý của tester). Chỉ màn xem có
- * cột này; form lập phiếu vẫn theo LINES_GRID, vì lúc đó chưa có mã nào.
+ * Bảng dòng của màn xem, cùng thứ tự cột với bảng trên form lập phiếu (trưởng nhóm 15/11/2026): # · Mã DM thiết bị ·
+ * Thiết bị · Số lượng · ĐVT · Đơn giá · Thành tiền — mã DM và ĐVT là CỘT, không phải dòng chữ phụ dưới tên. Phiếu ĐÃ
+ * ghi tăng thêm cột "Mã thiết bị" (mã tài sản đã cấp) đứng đầu — người đối chiếu (dán tem, so hoá đơn) cần thấy mã
+ * ngay trên phiếu (góp ý của tester).
  */
+const SHOW_GRID =
+  "grid grid-cols-[1.75rem_8.5rem_minmax(12rem,1fr)_5.5rem_5rem_7.5rem_8rem_3.25rem] items-center gap-x-4 [&>*]:min-w-0";
 const COMPLETED_GRID =
-  "grid grid-cols-[1.75rem_minmax(11rem,14rem)_minmax(12rem,1fr)_7.5rem_5.5rem_8rem_3.25rem] items-center gap-x-5 [&>*]:min-w-0";
+  "grid grid-cols-[1.75rem_minmax(10rem,13rem)_8.5rem_minmax(12rem,1fr)_5.5rem_5rem_7.5rem_8rem_3.25rem] items-center gap-x-4 [&>*]:min-w-0";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { IntakeSourceLink } from "./origin-field";
 import { intakeReadiness, lineIssues } from "./readiness";
@@ -252,7 +255,8 @@ function LineShowDialog({ line, head, config, issues, canWrite, assets, onClose 
         {assets?.length ? (
           <section className="space-y-1">
             <h4 className="text-overline text-muted-foreground">{assets.length} thiết bị đã ghi tăng</h4>
-            <AssetCodeList assets={assets} />
+            <AssetCodeList assets={assets} unit={line.packUnit?.name ?? line.unit?.name} unitPrice={line.unitPrice}
+              quantityEach={line.trackingType === "serial" ? 1 : line.receivedQuantity} />
           </section>
         ) : serials ? (
           <section className="space-y-2">
@@ -348,7 +352,9 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
           "Tổng cộng (đồng)",
           "",
           "",
-          ...(hasVariance ? [lines.reduce((s, l) => s + l.documentQuantity, 0), record.totalReceived ?? 0] : [record.totalReceived ?? 0]),
+          // Khác đơn vị tính thì không cộng số lượng (2 cái + 200 gam ≠ 202).
+          ...(record.totalReceived == null ? (hasVariance ? ["", ""] : [""])
+            : hasVariance ? [lines.reduce((s, l) => s + l.documentQuantity, 0), record.totalReceived] : [record.totalReceived]),
           "",
           record.lines?.some((l) => l.unitPrice != null) ? money.format(Number(record.totalAmount ?? 0)) : "",
         ],
@@ -413,7 +419,7 @@ export const EquipmentIntakeShow = () => {
   const lines = record?.lines ?? [];
   const assets = useIntakeAssets(record?.id, completed);
   const showCodes = completed && assets.canRead;
-  const grid = showCodes ? COMPLETED_GRID : LINES_GRID;
+  const grid = showCodes ? COMPLETED_GRID : SHOW_GRID;
   const issuesOf = (l: IntakeLine) => (draft ? lineIssues(l, catalogOf(l), config, record?.fundingSource, rule) : []);
   const canWrite = record?._can?.write === true;
   // Hai dạng xem của cùng một phiếu: "Làm việc" (bảng, thẻ, nút) và "Văn bản" (tờ phiếu như bản in).
@@ -464,13 +470,16 @@ export const EquipmentIntakeShow = () => {
           </h3>
         </div>
         <div className="overflow-x-auto border-t">
-          <div className={showCodes ? "min-w-[58rem]" : "min-w-[44rem]"}>
-            <div className={cn(grid, "bg-surface-subtle text-overline text-muted-foreground border-b px-3 py-2")}>
+          <div className={showCodes ? "min-w-[66rem]" : "min-w-[54rem]"}>
+            {/* Dải tiêu đề cột cùng màu bảng chung (`bg-table-head`) — tách hẳn khỏi dải "Hoá đơn" và danh sách con bên dưới. */}
+            <div className={cn(grid, "bg-table-head text-overline text-table-head-text border-b px-3 py-2.5")}>
               <span className="text-center">#</span>
-              {showCodes ? <span>Mã thiết bị</span> : null}
+              {showCodes ? <span>Đã ghi tăng</span> : null}
+              <span>Mã DM thiết bị</span>
               <span>Thiết bị</span>
+              <span className="text-right">Số lượng</span>
+              <span>ĐVT</span>
               <span className="text-right">Đơn giá</span>
-              <span className="text-right">SL</span>
               <span className="text-right">Thành tiền</span>
               {/* Phiếu đã ghi tăng KHÔNG có cột "Tăng": nó lặp lại đúng cột SL. Chỉ khi số ghi tăng khác số
                   nhận thì con số đó hiện thành dòng nhỏ dưới SL. */}
@@ -492,12 +501,9 @@ export const EquipmentIntakeShow = () => {
                     <span className="bg-primary text-primary-foreground rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap">
                       {docNoun.charAt(0).toUpperCase() + docNoun.slice(1)} {docAt + 1}
                     </span>
-                    <span className="text-muted-foreground min-w-0 flex-1">
-                      {[doc.supplier, doc.contact ?? null, doc.documentNo ? `Số ${doc.documentNo}` : null,
-                        doc.documentDate ? formatPlainDate(doc.documentDate) : null,
-                        doc.fundingSource ? FUNDING_LABELS[doc.fundingSource] ?? doc.fundingSource : null,
-                        doc.acquisitionMethod?.name ?? null].filter(Boolean).join(" · ") || "Chưa khai"}
-                    </span>
+                    {/* Chỉ tên nhà cung cấp (trưởng nhóm 15/11/2026): số, ngày, nguồn kinh phí, hình thức nằm ở thẻ
+                        phiếu bên phải và hộp chi tiết của dòng — một dải dài lặp lại thì rối. */}
+                    <span className="text-muted-foreground min-w-0 flex-1 truncate">{doc.supplier || "Chưa khai nhà cung cấp"}</span>
                   </div>
                 ) : null}
                 <div
@@ -522,33 +528,33 @@ export const EquipmentIntakeShow = () => {
                       onToggle={() => line.id != null && toggleCodes(line.id)}
                     />
                   ) : null}
-                  {/* Một dòng chữ: tên thiết bị. Mã, cách quản lý, nhà cung cấp nằm ở chú thích khi rê chuột và
-                      trong hộp chi tiết của dòng — như bảng dòng của form. */}
-                  <div className="min-w-0"
-                    title={[line.name || line.catalog?.name, line.catalog?.code, line.trackingType ? TRACKING_TYPE_LABELS[line.trackingType] : null, supplier].filter(Boolean).join(" · ")}
+                  <span className="text-primary truncate font-mono text-xs" title={line.catalog?.code}>{line.catalog?.code}</span>
+                  {/* Một dòng chữ: tên thiết bị — không dòng chữ phụ (mã DM, ĐVT đã là cột; nơi nhận nằm ở danh sách
+                      mã tài sản và hộp chi tiết của dòng). Cách quản lý, nhà cung cấp ở chú thích khi rê chuột. */}
+                  <div className="truncate font-medium"
+                    title={[line.name || line.catalog?.name, line.trackingType ? TRACKING_TYPE_LABELS[line.trackingType] : null, supplier].filter(Boolean).join(" · ")}
                   >
-                    <div className="truncate font-medium">{line.name || line.catalog?.name}</div>
-                    {/* Mã DM · ĐVT · phòng nhận vào — như bảng dòng của form, khỏi phải rê chuột mới biết. */}
-                    <div className="text-muted-foreground truncate text-xs">
-                      {[line.catalog?.code, line.packUnit?.name ?? line.unit?.name, line.room?.name ? `nhận vào ${line.room.name}` : null].filter(Boolean).join(" · ")}
-                    </div>
+                    {line.name || line.catalog?.name}
                   </div>
-                  <span className="text-right tabular-nums">{money.format(line.unitPrice ?? 0)}</span>
                   <div className="text-right tabular-nums">
-                    <span className={cn("font-medium", mismatch && "text-warning-text")}>{line.receivedQuantity}</span>
+                    <span className={cn("font-medium", mismatch && "text-warning-text")}>{money.format(line.receivedQuantity)}</span>
                     {mismatch ? <div className="text-warning-text text-[0.6875rem]">HĐ {line.documentQuantity}</div> : null}
-                    {completed && line.generatedCount !== line.receivedQuantity ? (
+                    {completed && line.trackingType === "serial" && line.generatedCount !== line.receivedQuantity ? (
                       <div className="text-warning-text text-[0.6875rem]">ghi tăng {line.generatedCount}</div>
                     ) : null}
                   </div>
-                  <span className="text-right font-medium tabular-nums">{money.format(line.amount ?? 0)}</span>
+                  <span className="text-muted-foreground truncate" title={line.packUnit?.name ?? line.unit?.name}>{line.packUnit?.name ?? line.unit?.name ?? ""}</span>
+                  <span className="text-right tabular-nums">{line.unitPrice != null ? money.format(line.unitPrice) : ""}</span>
+                  <span className="text-right font-medium tabular-nums">{line.amount != null ? money.format(line.amount) : ""}</span>
                   {draft ? (
                     <LineStatus issues={issuesOf(line)} />
                   ) : (
                     <span />
                   )}
-                  {showCodes && line.id != null && codesOpen.has(line.id) && (assets.byLine.get(line.id)?.length ?? 0) > 1 ? (
-                    <AssetCodeList assets={assets.byLine.get(line.id)!} />
+                  {showCodes && line.id != null && codesOpen.has(line.id) && (assets.byLine.get(line.id)?.length ?? 0) > 0 ? (
+                    <AssetCodeList assets={assets.byLine.get(line.id)!} grid={grid} lineNo={line.lineNo}
+                      quantityEach={line.trackingType === "serial" ? 1 : line.receivedQuantity}
+                      unit={line.packUnit?.name ?? line.unit?.name} unitPrice={line.unitPrice} />
                   ) : null}
                 </div>
                 </Fragment>
@@ -557,11 +563,15 @@ export const EquipmentIntakeShow = () => {
             {/* Tổng tiền ở chân bảng, ngay dưới cột Thành tiền (trưởng nhóm 13/11/2026) — cột phải là số thiết bị. */}
             {lines.length ? (
               <div className={cn(grid, "bg-surface-subtle border-t px-3 py-2.5 text-sm")}>
+                {/* Số loại thiết bị đứng đầu dòng tổng, dưới cột #, mã — không chen vào cột tên. */}
+                <span className={cn("text-muted-foreground tabular-nums whitespace-nowrap", showCodes ? "col-span-3" : "col-span-2")}>
+                  {record?.lineCount ?? lines.length} loại thiết bị
+                </span>
                 <span />
-                {showCodes ? <span /> : null}
-                <span className="text-muted-foreground tabular-nums">{record?.lineCount ?? lines.length} loại thiết bị</span>
+                {/* Khác đơn vị tính thì không cộng số lượng (2 cái + 200 gam ≠ 202). */}
+                <span className="text-right font-semibold tabular-nums">{record?.totalReceived != null ? money.format(record.totalReceived) : ""}</span>
+                <span />
                 <span className="text-muted-foreground text-right font-medium">Tổng cộng</span>
-                <span className="text-right font-semibold tabular-nums">{record?.totalReceived ?? 0}</span>
                 <span className="text-right text-base font-semibold tabular-nums">
                   {`${money.format(Number(record?.totalAmount ?? 0))} đ`}
                 </span>
@@ -656,11 +666,16 @@ export const EquipmentIntakeShow = () => {
       </SideSection>
 
       <SideSection title="Số lượng thiết bị">
+        {/* Các dòng khác đơn vị tính (cái và gam) thì không có tổng số lượng: số lớn là số loại thiết bị. */}
         <div className="text-2xl font-semibold tracking-tight tabular-nums">
-          {money.format(record?.totalReceived ?? 0)} <span className="text-muted-foreground text-base font-normal">đơn vị</span>
+          {record?.totalReceived != null ? (
+            <>{money.format(record.totalReceived)} <span className="text-muted-foreground text-base font-normal">đơn vị</span></>
+          ) : (
+            <>{record?.lineCount ?? 0} <span className="text-muted-foreground text-base font-normal">loại thiết bị</span></>
+          )}
         </div>
         <p className="text-muted-foreground text-xs tabular-nums">
-          {record?.lineCount ?? 0} loại thiết bị
+          {record?.totalReceived != null ? `${record?.lineCount ?? 0} loại thiết bị` : "Khác đơn vị tính"}
           {completed ? ` · đã sinh ${record?.generatedCount ?? 0} hồ sơ` : ""}
         </p>
         {completed && (record?.generatedCount ?? 0) > 0 && record ? (
@@ -691,18 +706,6 @@ export const EquipmentIntakeShow = () => {
         </SideSection>
       ) : null}
 
-      <SideSection>
-        <dl className="text-muted-foreground space-y-1 text-xs">
-          <div className="flex justify-between gap-2">
-            <dt>Lập lúc</dt>
-            <dd className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt>Sửa lần cuối</dt>
-            <dd className="text-foreground">{formatEditedAt(record)}</dd>
-          </div>
-        </dl>
-      </SideSection>
     </Card>
   );
 
@@ -744,7 +747,9 @@ export const EquipmentIntakeShow = () => {
                       Mỗi thiết bị quản lý từng cái sẽ có một mã riêng. Vật tư tiêu hao thì mỗi dòng một mã chung cho cả lô.
                     </p>
                     <p>
-                      Tổng <span className="text-foreground font-medium">{record?.totalReceived ?? 0}</span> đơn vị trên{" "}
+                      {record?.totalReceived != null ? (
+                        <>Tổng <span className="text-foreground font-medium">{record.totalReceived}</span> đơn vị trên{" "}</>
+                      ) : "Gồm "}
                       <span className="text-foreground font-medium">{record?.lineCount ?? 0}</span> dòng. Sau khi duyệt,
                       phiếu KHÔNG sửa được nữa.
                     </p>
@@ -775,6 +780,9 @@ const HANDOVER_SIDES = {
  * Biên bản giao nhận ở dạng "Làm việc": tách Bên giao / Bên nhận như form lập phiếu (trưởng nhóm 14/11/2026), bên dưới
  * là số biên bản và các trường cấu hình thêm. Phiếu nháp nhắc trường bắt buộc còn thiếu.
  */
+/** Ô của biên bản giao nhận do hệ thống tự suy (không ai gõ): trống nghĩa là không suy ra được, không phải bỏ qua. */
+const DERIVED_KEYS = new Set(["receiverPosition"]);
+
 function HandoverCard({ config, details, draft }: { config: VoucherFormConfig | undefined; details: Details | undefined; draft: boolean }) {
   if (!config) return null;
   const d = (details ?? {}) as Record<string, unknown>;
@@ -797,10 +805,14 @@ function HandoverCard({ config, details, draft }: { config: VoucherFormConfig | 
           <section key={side} className="rounded-md border px-4 py-3">
             <h4 className="text-overline text-muted-foreground mb-2">{side}</h4>
             <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+              {/* "Nhãn: giá trị" trên một hàng (trưởng nhóm 15/11/2026). Ô người dùng bỏ trống: "Không nhập"; ô hệ thống tự
+                  suy mà không suy ra được (chức vụ của người nhận ngoài danh sách cán bộ): "Chưa xác định". */}
               {rows.map(([key, label]) => (
-                <div key={key} className="flex flex-col gap-0.5">
-                  <dt className="text-muted-foreground text-xs">{label}</dt>
-                  <dd className="text-sm font-medium">{text(d[key]) ?? <span className="text-muted-foreground font-normal">Chưa ghi</span>}</dd>
+                <div key={key} className="flex min-w-0 items-baseline gap-1.5 text-sm">
+                  <dt className="text-muted-foreground shrink-0">{label}:</dt>
+                  <dd className="min-w-0 truncate font-medium">
+                    {text(d[key]) ?? <span className="text-muted-foreground font-normal">{DERIVED_KEYS.has(key) ? "Chưa xác định" : "Không nhập"}</span>}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -810,9 +822,9 @@ function HandoverCard({ config, details, draft }: { config: VoucherFormConfig | 
       {rest.length ? (
         <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
           {rest.map((f) => (
-            <div key={f.label} className="flex flex-col gap-0.5">
-              <dt className="text-muted-foreground text-xs">{f.label}</dt>
-              <dd className="text-sm font-medium whitespace-pre-line">{f.value}</dd>
+            <div key={f.label} className="flex min-w-0 items-baseline gap-1.5 text-sm">
+              <dt className="text-muted-foreground shrink-0">{f.label}:</dt>
+              <dd className="min-w-0 font-medium whitespace-pre-line">{f.value}</dd>
             </div>
           ))}
         </dl>

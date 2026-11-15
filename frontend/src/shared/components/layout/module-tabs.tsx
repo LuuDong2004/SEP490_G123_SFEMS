@@ -36,9 +36,9 @@ export function ModuleTabs() {
   // tab là lối rẽ sang việc khác (và làm mất dữ liệu đang gõ), còn breadcrumb và nút quay lại đã
   // đủ để về danh sách.
   if (action === "create" || action === "edit" || action === "clone") return null;
-  // Hồ sơ thiết bị đã vừa một màn, có nút quay lại và breadcrumb — thanh tab phân hệ chỉ chiếm chỗ.
-  // Hồ sơ thiết bị trong danh mục cùng bố cục (thẻ trái + dải ô + tab) — cũng không cần thanh tab phân hệ.
-  if (action === "show" && (resource.name === "equipment" || resource.name === "equipment_catalogs")) return null;
+  // Màn CHI TIẾT (xem một phiếu, một hồ sơ): có nút quay lại và breadcrumb — thanh tab phân hệ chỉ chiếm chỗ và kéo
+  // nội dung xuống (trưởng nhóm 15/11/2026: "view detail thì bỏ thanh menu đi"). Thanh tab chỉ ở các màn danh sách.
+  if (action === "show") return null;
 
   const find = (nodes: TreeMenuItem[]): TreeMenuItem | undefined => {
     for (const n of nodes) {

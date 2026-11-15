@@ -114,6 +114,8 @@ export type OriginRule = {
   fundingRequired: "ALWAYS" | "WHEN_COST" | "NEVER";
   noteRequired: boolean;
   acquisitionMethod: boolean;
+  /** Mã hình thức mua sắm không đi với nguồn này (trường tự mua: không "Mua sắm tập trung"). */
+  excludedAcquisitionMethods?: string[];
 };
 
 /** Nguồn kinh phí này có đi với nguồn hình thành này không — cùng phép với `OriginRule.allows` ở máy chủ. */

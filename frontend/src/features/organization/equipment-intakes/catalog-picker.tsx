@@ -176,7 +176,9 @@ export function CatalogPickerDialog({
       ...(applied ? [{ field: "q", operator: "eq" as const, value: applied }] : []),
       ...(typeId !== ALL ? [{ field: "equipmentType.id", operator: "eq" as const, value: typeId }] : []),
       ...(subjectId !== ALL ? [{ field: "subject.id", operator: "eq" as const, value: subjectId }] : []),
-      ...(levelId !== ALL ? [{ field: "educationLevel.id", operator: "eq" as const, value: levelId }] : []),
+      // Trường đã có cấp học: KHÔNG gửi lọc cấp — máy chủ tự giới hạn đúng cấp của trường (`levelScope`) mà vẫn giữ
+      // thiết bị không gắn cấp và thiết bị ngoài danh mục của trường; so bằng cấp ở đây làm mất hai loại đó (B02).
+      ...(!schoolLevel && levelId !== ALL ? [{ field: "educationLevel.id", operator: "eq" as const, value: levelId }] : []),
     ],
     pagination: { pageSize: PAGE_SIZE },
     sorters: [{ field: "name", order: "asc" }],

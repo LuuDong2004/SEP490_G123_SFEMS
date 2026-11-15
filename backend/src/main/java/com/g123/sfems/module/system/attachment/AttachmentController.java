@@ -64,7 +64,7 @@ public class AttachmentController {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "pdf", "png", "jpg", "jpeg", "webp", "gif",
-            "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip");
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip", "xml");
 
     private final AttachmentRepository repository;
     private final RecordAccessRegistry records;
@@ -119,7 +119,7 @@ public class AttachmentController {
         if (!allowed.contains(extension) || !ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FieldValidationException("file", rules.allowedExtensions() != null
                     ? "Chỉ nhận ảnh " + String.join(", ", allowed.stream().sorted().map(e -> e.toUpperCase(Locale.ROOT)).toList())
-                    : "Chỉ nhận PDF, ảnh, tài liệu văn phòng, CSV hoặc ZIP");
+                    : "Chỉ nhận PDF, ảnh, tài liệu văn phòng, CSV, ZIP hoặc XML hoá đơn điện tử");
         }
         // Đuôi do người gửi đặt; nội dung thì không giả được bằng cách đổi tên.
         byte[] head;

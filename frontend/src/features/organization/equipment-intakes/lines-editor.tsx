@@ -256,9 +256,6 @@ function RoomCell({ value, onChange, rooms, label, placeholder }: { value: any; 
 
 type Added = { fromExcel?: boolean; catalog: PickedCatalog; quantity?: number; unitPrice?: number | null; model?: string | null; manufacturer?: string | null; otherInfo?: string | null };
 
-/** Bỏ dấu, chữ thường — so mã / tên dán từ Excel. */
-const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase().trim();
-
 /**
  * Hàng công cụ đầu bảng: MỘT nút "Thêm thiết bị" (bấm thẳng = mở hộp chọn trong danh mục) và mũi tên bên cạnh mở "Nhập từ
  * Excel" / "Tải tệp mẫu Excel" (bản mẫu 15/11/2026: hai nút ngang nhau cùng thêm dòng thì rối mắt). Không có ô tìm (trưởng
@@ -269,51 +266,53 @@ function LinesToolbar({ onAdd, onBrowse, locked }: { onAdd: (rows: Added[]) => v
   const [pasting, setPasting] = useState(false);
   const { open: notify } = useNotification();
 
-  /** Mỗi dòng của tệp Excel [Mã DM, Số lượng, Đơn giá], khớp mã với danh mục. */
-  async function addRows(rows: string[][], from: string) {
-    setPasting(true);
-    const added: Added[] = [];
-    const missing: string[] = [];
-    for (const [key, qty, price, model, maker, info] of rows) {
-      try {
-        const found = await kyInstance.get("equipment_catalogs", {
-          searchParams: { code: key, active: "true", _start: "0", _end: "1" },
-        }).json<PickedCatalog[]>();
-        const row = Array.isArray(found) ? found.find((c) => plain(String(c.code ?? "")) === plain(key)) : undefined;
-        if (!row) {
-          missing.push(key);
-          continue;
-        }
-        const q = Number(String(qty ?? "").replace(/\D/g, ""));
-        const p = String(price ?? "").replace(/\D/g, "");
-        added.push({ fromExcel: true, catalog: row, quantity: q > 0 ? q : 1, unitPrice: p ? Number(p) : undefined,
-          model: String(model ?? "").trim() || null, manufacturer: String(maker ?? "").trim() || null, otherInfo: String(info ?? "").trim() || null });
-      } catch {
-        missing.push(key);
-      }
-    }
-    setPasting(false);
-    if (added.length) onAdd(added);
-    notify?.({
-      type: missing.length ? "error" : "success",
-      message: `Đã thêm ${added.length} thiết bị từ ${from}`,
-      description: missing.length ? `Không tìm thấy mã: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""}` : undefined,
-    });
-  }
-
   const fileInput = useRef<HTMLInputElement>(null);
-  /** Nhập tệp Excel theo mẫu: máy chủ chỉ đọc tệp, form khớp mã như khi dán. */
+  /**
+   * Nhập tệp Excel theo mẫu. Máy chủ đọc và KIỂM từng dòng (số lượng nguyên, đơn giá) rồi trả lỗi theo số dòng Excel;
+   * form khớp mã với danh mục trong MỘT lần gọi cho cả tệp (`codes=`, 100 mã một lượt) — trước đây mỗi dòng một lần
+   * gọi, 200 dòng mất 11 giây và dính giới hạn tần suất. Dòng lỗi hoặc không có mã thì không thêm, báo theo dòng.
+   */
   async function importFile(file: File) {
     const form = new FormData();
     form.append("file", file);
     setPasting(true);
     try {
       const lines = await kyInstance.post("equipment_intakes/lines-file", { body: form, timeout: DOWNLOAD_TIMEOUT })
-        .json<{ code: string; quantity: string; unitPrice: string; model: string | null; manufacturer: string | null; otherInfo: string | null }[]>();
-      await addRows(lines.map((l) => [l.code, l.quantity, l.unitPrice, l.model ?? "", l.manufacturer ?? "", l.otherInfo ?? ""]), `tệp ${file.name}`);
+        .json<{ row: number; code: string; quantity: number | null; unitPrice: number | null; model: string | null;
+          manufacturer: string | null; otherInfo: string | null; error: string | null }[]>();
+      const codes = [...new Set(lines.filter((l) => !l.error).map((l) => l.code))];
+      const byCode = new Map<string, PickedCatalog>();
+      for (let i = 0; i < codes.length; i += 100) {
+        const chunk = codes.slice(i, i + 100);
+        const found = await kyInstance.get("equipment_catalogs", {
+          searchParams: { codes: chunk.join(","), active: "true", _start: "0", _end: String(chunk.length * 2) },
+        }).json<PickedCatalog[]>();
+        for (const c of Array.isArray(found) ? found : []) byCode.set(String(c.code ?? "").toUpperCase(), c);
+      }
+      const added: Added[] = [];
+      const problems: string[] = [];
+      for (const l of lines) {
+        const row = l.error ? undefined : byCode.get(l.code);
+        if (l.error) problems.push(`Dòng ${l.row}: ${l.error}`);
+        else if (!row) problems.push(`Dòng ${l.row}: không có mã ${l.code} trong danh mục`);
+        if (!row) continue;
+        added.push({ fromExcel: true, catalog: row, quantity: l.quantity ?? 1, unitPrice: l.unitPrice ?? undefined,
+          model: l.model, manufacturer: l.manufacturer, otherInfo: l.otherInfo });
+      }
+      if (added.length) onAdd(added);
+      notify?.({
+        type: problems.length ? "error" : "success",
+        message: problems.length
+          ? `Đã thêm ${added.length}/${lines.length} dòng từ tệp ${file.name}, ${problems.length} dòng chưa nhận`
+          : `Đã thêm ${added.length} dòng từ tệp ${file.name}`,
+        description: problems.length
+          ? `${problems.slice(0, 6).join(" · ")}${problems.length > 6 ? ` · và ${problems.length - 6} dòng khác` : ""}. Sửa trong tệp rồi nhập lại các dòng đó.`
+          : undefined,
+      });
     } catch (error) {
-      setPasting(false);
       notify?.({ type: "error", message: "Không nhập được tệp Excel", description: await errorMessage(error) });
+    } finally {
+      setPasting(false);
     }
   }
   async function downloadTemplate() {
@@ -1277,7 +1276,11 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
     for (const { catalog, quantity = 1, unitPrice, model, manufacturer, otherInfo, fromExcel } of rows) {
       const same = current.filter((l) => Number(l?.catalog?.id) === catalog.id && l?.docKey === key);
       const at = same.length === 1 && !otherInfo && !model && !manufacturer
-        && (unitPrice == null || same[0]?.unitPrice == null || Number(same[0].unitPrice) === Number(unitPrice))
+        // Dòng Excel chỉ gộp khi CÙNG đơn giá (cùng trống hoặc cùng số): dòng trống giá không nhận giá của dòng khác
+        // (B12). Chọn từ danh mục (không kèm giá) thì vẫn cộng vào dòng sẵn có.
+        && (fromExcel
+          ? (unitPrice ?? null) === (same[0]?.unitPrice == null || same[0]?.unitPrice === "" ? null : Number(same[0].unitPrice))
+          : unitPrice == null || same[0]?.unitPrice == null || Number(same[0].unitPrice) === Number(unitPrice))
         ? current.indexOf(same[0]) : -1;
       if (at >= 0) {
         const l = current[at];

@@ -338,7 +338,7 @@ class DataDictionaryGenerator {
         standard.add(Map.of("name", "CHUẨN HOÁ", "kind", "Mọi ô chữ", "limit", "",
                 "rule", "Bỏ khoảng trắng hai đầu, Unicode dựng sẵn (NFC), bỏ ký tự vô hình — trước khi kiểm và lưu", "regex", ""));
         standard.add(Map.of("name", "TỆP ĐÍNH KÈM", "kind", "Tệp", "limit", "Tối đa 10 MB",
-                "rule", "PDF, ảnh, Word/Excel/PowerPoint/ODF, TXT, CSV, ZIP; nội dung phải khớp đuôi tệp", "regex", ""));
+                "rule", "PDF, ảnh, Word/Excel/PowerPoint/ODF, TXT, CSV, ZIP, XML (hoá đơn điện tử); nội dung phải khớp đuôi tệp", "regex", ""));
 
         String subtitle = "Sinh tự động ngày " + LocalDate.now() + " từ CSDL và quy tắc kiểm tra của API";
         byte[] xlsx = XlsxWriter.writeAll(List.of(

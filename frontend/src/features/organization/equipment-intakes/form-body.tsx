@@ -85,6 +85,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const markSaved = () => { saved.current = true; };
   // Ghi nhận NGAY lúc mở: đường dẫn bị viết lại sau khi trang tải (mất `?fresh=1`).
   const openedFresh = useRef(params.get("fresh") === "1");
+  // Cùng giá trị, đọc được lúc render: phiếu lập sẵn từ kế hoạch điền người nhận mặc định như lập tay (B10).
+  const [freshAtOpen] = useState(() => params.get("fresh") === "1");
   const isFresh = () => openedFresh.current && record?.status === "DRAFT" && !saved.current;
   const values = useWatch({ control }) as any;
   const lines = (values.lines ?? []) as any[];
@@ -326,7 +328,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const commonFields = handoverFields.filter((f) => !GIVER_KEYS.includes(f.key) && !RECEIVER_KEYS.includes(f.key));
   const noteSpan = ["lg:col-span-4", "lg:col-span-3", "lg:col-span-2", "lg:col-span-1"][commonFields.length % 4];
   const handoverField = (f: (typeof handoverFields)[number]) => f.key === "receiverName" ? (
-    <ReceiverField key={f.key} control={control} schoolId={values.school?.id ?? null} creating={!record}
+    <ReceiverField key={f.key} control={control} schoolId={values.school?.id ?? null} creating={!record || freshAtOpen}
       label={f.label} max={f.max} min={f.min} />
   ) : f.key === "receiverPosition" ? (
     <ReceiverPositionField key={f.key} control={control} label={f.label} />
