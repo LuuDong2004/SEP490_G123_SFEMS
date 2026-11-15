@@ -396,9 +396,9 @@ export function DataTable<TData extends BaseRecord>({
                           spread,
                         }),
                       }}
-                      className={getPinnedClasses({ column: header.column })}
+                      className={cn(getPinnedClasses({ column: header.column }), header.column.columnDef.meta?.numeric && "pe-6 text-right")}
                     >
-                      <div className="flex max-w-full items-center gap-1">
+                      <div className={cn("flex max-w-full items-center gap-1", header.column.columnDef.meta?.numeric && "justify-end")}>
                       {isPlaceholder ? null : sortable ? (
                         // `getToggleSortingHandler`: giữ shift-click sắp nhiều cột và vòng tăng → giảm → bỏ.
                         <button
@@ -528,7 +528,7 @@ export function DataTable<TData extends BaseRecord>({
                               spread,
                             }),
                           }}
-                          className={getPinnedClasses({ column: cell.column })}
+                          className={cn(getPinnedClasses({ column: cell.column }), cell.column.columnDef.meta?.numeric && "pe-6 text-right")}
                         >
                           {/*
                             `truncate` on the wrapper alone only ellipsises
@@ -814,6 +814,11 @@ declare module "@tanstack/react-table" {
     fill?: boolean;
     /** Lời giải thích cột — hiện thành dấu "?" cạnh tiêu đề. */
     hint?: ReactNode;
+    /**
+     * Cột SỐ: tiêu đề và giá trị cùng căn phải, để các con số thẳng hàng đơn vị dưới chữ tiêu đề; chừa khoảng bên phải
+     * để cột chữ đứng sau (trạng thái…) không dính sát con số.
+     */
+    numeric?: boolean;
     /** Giữ mở cho meta riêng của từng màn. */
     [key: string]: unknown;
   }
@@ -830,7 +835,9 @@ function TruncateTip({ children }: { children: ReactNode }) {
     <Tooltip delayDuration={300} open={open}
       onOpenChange={(o) => setOpen(o && !!ref.current && ref.current.scrollWidth > ref.current.clientWidth + 1)}>
       <TooltipTrigger asChild>
-        <span ref={ref} className="min-w-0 truncate">{children}</span>
+        {/* `py-1 -my-1`: `truncate` cắt theo hộp chữ, mà dòng 1rem không đủ cao cho dấu chồng trên chữ HOA ("SỐ PHIẾU",
+            "TỔNG TIỀN" mất dấu) — nới hộp lên trên / dưới mà không đổi chiều cao hàng tiêu đề. */}
+        <span ref={ref} className="-my-1 min-w-0 truncate py-1">{children}</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={4} tone="light" className={TAB_HINT}>{children}</TooltipContent>
     </Tooltip>

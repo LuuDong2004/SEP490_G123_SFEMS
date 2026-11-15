@@ -113,6 +113,8 @@ export type EquipmentIntake = VoucherBase & {
   /** Hoá đơn (chứng từ) của phiếu (254). */
   documents?: IntakeDocument[];
   lineCount: number;
+  /** Số loại thiết bị (thiết bị danh mục khác nhau) — một thiết bị tách hai đơn giá vẫn là một loại. */
+  kindCount?: number;
   /** Tổng số lượng thực nhận — `null` khi các dòng khác đơn vị tính (2 cái + 200 gam không cộng được). */
   totalReceived: number | null;
   totalAmount: number | null;

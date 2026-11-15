@@ -2,6 +2,13 @@ import type { BaseRecord, HttpError } from "@refinedev/core";
 import type { UseTableReturnType } from "@refinedev/react-table";
 import type { ColumnFiltersState } from "@tanstack/react-table";
 
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+
+import { DateInput } from "@/shared/components/form/date-input";
+import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 
 type Kind = "all" | "month" | "quarter" | "year";
@@ -107,5 +114,72 @@ export function PeriodFilter<T extends BaseRecord>({ table, field }: { table: Us
         </Select>
       ) : null}
     </div>
+  );
+}
+
+const vnDate = (iso: string) => iso.split("-").reverse().join("/");
+/** Hôm nay theo giờ máy, "yyyy-MM-dd". */
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+/**
+ * Lọc theo NGÀY trong một ô (trưởng nhóm 15/11/2026: "gộp chung, một ô thôi … chỉ cần ngày tháng năm"): nút
+ * "Thời gian: Mọi lúc" mở ra hai ô ngày Từ ngày / Đến ngày (gõ dd/mm/yyyy hoặc chọn lịch). Để trống một đầu là không
+ * chặn đầu đó. Cùng điều kiện máy chủ với `PeriodFilter` (`<field>_gte` / `<field>_lte`), tải lại trang vẫn giữ.
+ */
+export function PeriodSelect<T extends BaseRecord>({ table, field, label = "Thời gian" }: {
+  table: UseTableReturnType<T, HttpError>;
+  field: string;
+  label?: string;
+}) {
+  const { setColumnFilters, getState } = table.reactTable;
+  const [open, setOpen] = useState(false);
+  const entries = getState().columnFilters as unknown as { id: string; value: unknown; operator?: string }[];
+  const find = (op: string) => {
+    const f = entries.find((x) => x.id === field && x.operator === op);
+    return f?.value ? String(f.value) : null;
+  };
+  const from = find("gte");
+  const to = find("lte");
+  const set = (nextFrom: string | null, nextTo: string | null) => setColumnFilters((prev) => {
+    const others = (prev as unknown as { id: string }[]).filter((e) => e.id !== field);
+    return [
+      ...others,
+      ...(nextFrom ? [{ id: field, operator: "gte", value: nextFrom }] : []),
+      ...(nextTo ? [{ id: field, operator: "lte", value: nextTo }] : []),
+    ] as ColumnFiltersState;
+  });
+  const text = from && to ? `${vnDate(from)} – ${vnDate(to)}` : from ? `từ ${vnDate(from)}` : to ? `đến ${vnDate(to)}` : "Mọi lúc";
+  const filtering = !!(from || to);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" aria-label={`Lọc theo ${label.toLowerCase()}`}
+          className={cn("max-w-80 min-w-0 shrink-0 justify-start font-normal", filtering && "border-primary/50 text-primary bg-primary/5")}>
+          <span className="min-w-0 truncate">{label}: {text}</span>
+          <ChevronDown className="ms-auto size-4 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      {/* Không tự đặt con trỏ vào ô đầu: ô ngày bật lịch khi được focus, che mất ô "Đến ngày". */}
+      <PopoverContent align="start" className="w-auto p-3" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <div className="grid grid-cols-[auto_10rem] items-center gap-x-3 gap-y-2 text-sm">
+          <span className="text-muted-foreground">Từ ngày</span>
+          {/* Chọn "Từ ngày" mà "Đến ngày" còn trống thì "Đến ngày" tự là hôm nay; người dùng sửa thì giữ theo họ
+              (trưởng nhóm 15/11/2026). */}
+          <DateInput value={from} onChange={(v) => set(v, to ?? (v ? todayIso() : null))} />
+          <span className="text-muted-foreground">Đến ngày</span>
+          <DateInput value={to} onChange={(v) => set(from, v)} />
+        </div>
+        {to && from && to < from ? <p className="text-destructive mt-2 text-xs">Đến ngày phải sau từ ngày</p> : null}
+        <div className="mt-3 flex justify-end gap-2">
+          {filtering ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => set(null, null)}>Xoá lọc</Button>
+          ) : null}
+          <Button type="button" size="sm" onClick={() => setOpen(false)}>Xong</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

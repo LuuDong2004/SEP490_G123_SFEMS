@@ -59,7 +59,12 @@ public record EquipmentIntakeResponse(
         @JsonProperty("_can") Map<String, Boolean> can,
         @JsonProperty("_actions") Set<String> actions,
         /** Hoá đơn (chứng từ) của phiếu (254); dòng chỉ tới hoá đơn của nó qua {@code Line.documentId}. */
-        List<Document> documents) {
+        List<Document> documents,
+        /**
+         * Số LOẠI thiết bị: thiết bị danh mục khác nhau (một thiết bị tách hai đơn giá vẫn là một loại) — danh sách và
+         * màn chi tiết đếm loại, không đếm dòng (trưởng nhóm 15/11/2026).
+         */
+        Integer kindCount) {
 
     /** Một hoá đơn của phiếu (254). */
     public record Document(Long id, Integer docNo, String supplier, String taxCode, String documentNo, LocalDate documentDate,
@@ -210,6 +215,7 @@ public record EquipmentIntakeResponse(
                 item.getCreatedAt(), item.getUpdatedAt(), createdBy,
                 VoucherForms.read(item.getDetails()),
                 can, actions,
-                item.getDocuments().stream().map(Document::from).toList());
+                item.getDocuments().stream().map(Document::from).toList(),
+                (int) lines.stream().map(l -> l.catalog() == null ? null : l.catalog().id()).distinct().count());
     }
 }

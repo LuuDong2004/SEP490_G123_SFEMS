@@ -1,7 +1,7 @@
 import { useNavigation } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { CircleDot, FilePlus2 } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
 import { CreateButton } from "@/shared/components/buttons/create";
@@ -10,11 +10,12 @@ import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
 import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-table/data-table";
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
-import { FilterField, FilterPopover, OptionChoices } from "@/shared/components/data-table/filter-popover";
+import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { VOUCHER_STATUS_LABELS } from "@/domains/voucher/types";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { AwaitingMeToggle } from "@/shared/components/voucher/awaiting-me-toggle";
+import { PeriodSelect } from "@/shared/components/voucher/period-filter";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
 import { DEFAULT_PAGE_SIZE, formatPlainDate } from "@/shared/lib/format";
@@ -70,7 +71,11 @@ export const EquipmentIntakeList = () => {
         cell: ({ row }) => {
           const { note } = row.original;
           // Chứng từ đi theo dòng: nhà cung cấp của phiếu là các nhà cung cấp trên các dòng.
-          const bySupplier = [...new Set((row.original.lines ?? []).map((l) => l.supplier).filter(Boolean))];
+          // Phiếu theo hoá đơn (254): nhà cung cấp nằm ở từng hoá đơn; phiếu cũ thì ở dòng.
+          const bySupplier = [...new Set([
+            ...(row.original.documents ?? []).map((d) => d.supplier),
+            ...(row.original.lines ?? []).map((l) => l.supplier),
+          ].filter(Boolean))] as string[];
           const supplier =
             row.original.supplier ?? (bySupplier.length > 1 ? `${bySupplier[0]} +${bySupplier.length - 1}` : bySupplier[0] ?? null);
           // Một dòng chữ, không dòng phụ — hàng nào cũng cao bằng nhau; ghi chú đầy đủ khi rê chuột.
@@ -79,32 +84,56 @@ export const EquipmentIntakeList = () => {
               className={supplier ? "block truncate font-medium" : "text-muted-foreground block truncate"}
               title={note ?? undefined}
             >
-              {supplier ?? note ?? "—"}
+              {supplier ?? note ?? "Chưa khai nhà cung cấp"}
             </span>
           );
         },
       }),
       h.display({
-        id: "lines", header: "Số dòng", size: 96,
-        cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span>,
+        id: "lines", header: "Số loại thiết bị", size: 150, meta: { numeric: true },
+        cell: ({ row }) => <span className="tabular-nums">{row.original.kindCount ?? row.original.lineCount}</span>,
       }),
       h.display({
-        id: "received", header: "SL thực nhận", size: 110,
-        cell: ({ row }) => row.original.totalReceived == null
-          ? <span className="text-muted-foreground" title="Các dòng khác đơn vị tính">—</span>
-          : <span className="font-semibold tabular-nums">{row.original.totalReceived}</span>,
+        id: "received", header: "SL thực nhận", size: 150, meta: { numeric: true },
+        // Một đơn vị tính: "20 cái". Nhiều đơn vị: chữ "Nhiều đơn vị tính", số từng đơn vị khi rê chuột — không hiện "—".
+        cell: ({ row }) => {
+          const byUnit = new Map<string, number>();
+          for (const l of row.original.lines ?? []) {
+            const u = l.unit?.name ?? "";
+            byUnit.set(u, (byUnit.get(u) ?? 0) + Number(l.receivedQuantity ?? 0));
+          }
+          const parts = [...byUnit];
+          if (!parts.length) return <span className="text-muted-foreground">0</span>;
+          const detail = parts.map(([u, n]) => `${money.format(n)} ${u}`.trim()).join(", ");
+          // Khác đơn vị tính (cái và gam) thì không cộng được thành một số: ghi chữ, số từng đơn vị khi rê chuột
+          // (trưởng nhóm 15/11/2026: "hiện text … hợp lý hơn").
+          if (parts.length > 1) {
+            return <span className="text-muted-foreground cursor-help text-sm" title={detail}>Nhiều đơn vị tính</span>;
+          }
+          const [[u, n]] = parts;
+          return (
+            <span className="whitespace-nowrap tabular-nums" title={detail}>
+              <span className="font-semibold">{money.format(n)}</span>
+              {u ? <span className="text-muted-foreground ms-1 text-xs">{u.toLowerCase()}</span> : null}
+            </span>
+          );
+        },
       }),
       h.display({
-        id: "totalAmount", header: "Tổng tiền", size: 140,
-        cell: ({ row }) =>
-          row.original.totalAmount ? (
-            <span className="tabular-nums">{money.format(row.original.totalAmount)} đ</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
+        id: "totalAmount", header: "Tổng tiền", size: 140, meta: { numeric: true },
+        // Không để "—": phiếu chưa dòng nào có đơn giá (được tặng, kiểm kê thừa, chưa khai giá) ghi "Chưa có đơn giá";
+        // có giá mà tổng bằng 0 thì "0 đ" (trưởng nhóm 15/11/2026).
+        cell: ({ row }) => {
+          const priced = (row.original.lines ?? []).some((l) => l.unitPrice != null);
+          if (!priced && !row.original.totalAmount) {
+            return <span className="text-muted-foreground text-sm">Chưa có đơn giá</span>;
+          }
+          return <span className="tabular-nums">{money.format(row.original.totalAmount ?? 0)} đ</span>;
+        },
       }),
       h.accessor("status", {
-        id: "status", header: "Trạng thái", size: 150, enableSorting: false,
+        // Vừa chip "Chờ duyệt" — rộng hơn thì thành khoảng trống trước nút ⋯ (trưởng nhóm 15/11/2026).
+        id: "status", header: "Trạng thái", size: 116, enableSorting: false,
         cell: ({ row }) => <VoucherStatusBadge status={row.original.status} step={row.original.approvalStep} returned={!!row.original.returnNote} short />,
       }),
       h.display({
@@ -157,6 +186,9 @@ export const EquipmentIntakeList = () => {
     table.reactTable.getColumn("school")?.toggleVisibility(autoVisible(columnsKey, "school", many));
   }, [many, table.reactTable, columnsKey]);
 
+  const statusValue = (table.reactTable.getState().columnFilters as { id: string; value: unknown }[]).find((f) => f.id === "status")?.value;
+  const statusFilter = statusValue != null && statusValue !== "" ? String(statusValue) : null;
+
   return (
     <ListView>
       <ListViewHeader
@@ -183,15 +215,19 @@ export const EquipmentIntakeList = () => {
                   search={<DataTableQuickFilter table={table as any} />}
                   filters={
                     <>
-                      {/* Lọc trạng thái như mọi danh sách phiếu khác — danh sách ghi tăng nhiều phiếu nháp (E2E-27). */}
+                      {/* Chỉ một điều kiện lọc (trạng thái) nên là ô chọn ngay trên hàng công cụ, không giấu sau nút "Bộ lọc"
+                          (trưởng nhóm 15/11/2026). Danh sách ghi tăng nhiều phiếu nháp (E2E-27). */}
+                      <IconFilter labeled icon={null} label="trạng thái" prefix="Trạng thái" allLabel="Tất cả"
+                        groups={[{ items: STATUS_OPTIONS.map((o) => ({ key: o.value, label: o.label })) }]}
+                        value={statusFilter}
+                        onChange={(v) => table.reactTable.setColumnFilters((prev) => {
+                          const others = (prev as { id: string }[]).filter((f) => f.id !== "status");
+                          return (v == null ? others : [...others, { id: "status", operator: "eq", value: v }]) as typeof prev;
+                        })} />
+                      {/* Lọc theo kỳ (tháng / quý / năm) của ngày phiếu — cùng ô lọc với danh sách ghi giảm. Phiếu chưa duyệt mang
+                          ngày lập, phiếu đã duyệt mang ngày ghi tăng (`intakeDate`). */}
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      <FilterPopover table={table as any} fields={["status"]}>
-                        <FilterField label="Trạng thái" icon={CircleDot}
-                          active={(table.reactTable.getState().columnFilters as { id: string; value: unknown }[]).some((f) => f.id === "status" && f.value != null && f.value !== "")}>
-                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          <OptionChoices table={table as any} field="status" options={STATUS_OPTIONS} />
-                        </FilterField>
-                      </FilterPopover>
+                      <PeriodSelect table={table as any} field="intakeDate" />
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <AwaitingMeToggle table={table as any} resource="equipment_intakes" />
                     </>

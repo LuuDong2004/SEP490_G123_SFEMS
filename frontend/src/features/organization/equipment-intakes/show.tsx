@@ -565,7 +565,7 @@ export const EquipmentIntakeShow = () => {
               <div className={cn(grid, "bg-surface-subtle border-t px-3 py-2.5 text-sm")}>
                 {/* Số loại thiết bị đứng đầu dòng tổng, dưới cột #, mã — không chen vào cột tên. */}
                 <span className={cn("text-muted-foreground tabular-nums whitespace-nowrap", showCodes ? "col-span-3" : "col-span-2")}>
-                  {record?.lineCount ?? lines.length} loại thiết bị
+                  {record?.kindCount ?? lines.length} loại thiết bị
                 </span>
                 <span />
                 {/* Khác đơn vị tính thì không cộng số lượng (2 cái + 200 gam ≠ 202). */}
@@ -671,11 +671,11 @@ export const EquipmentIntakeShow = () => {
           {record?.totalReceived != null ? (
             <>{money.format(record.totalReceived)} <span className="text-muted-foreground text-base font-normal">đơn vị</span></>
           ) : (
-            <>{record?.lineCount ?? 0} <span className="text-muted-foreground text-base font-normal">loại thiết bị</span></>
+            <>{record?.kindCount ?? 0} <span className="text-muted-foreground text-base font-normal">loại thiết bị</span></>
           )}
         </div>
         <p className="text-muted-foreground text-xs tabular-nums">
-          {record?.totalReceived != null ? `${record?.lineCount ?? 0} loại thiết bị` : "Khác đơn vị tính"}
+          {record?.totalReceived != null ? `${record?.kindCount ?? 0} loại thiết bị` : "Khác đơn vị tính"}
           {completed ? ` · đã sinh ${record?.generatedCount ?? 0} hồ sơ` : ""}
         </p>
         {completed && (record?.generatedCount ?? 0) > 0 && record ? (
