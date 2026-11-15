@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { useWatch, type Control, type UseFormSetValue } from "react-hook-form";
 
+import { getAuthorities } from "@/shared/api/session";
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { DateField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
@@ -9,6 +11,7 @@ import { todayLocal } from "@/shared/lib/format";
 import { Card, CardContent } from "@/shared/ui/card";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import type { InventoryCampaign, InventorySession } from "@/domains/inventory/types";
+import { RoomPickerField } from "@/features/organization/resources/room-picker";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -16,6 +19,8 @@ type CampaignValue = { id: number | null; name?: string | null };
 
 const DEFAULTS = {
   campaign: { id: null } as CampaignValue,
+  /** Kiểm kê một phòng; trống là cả trường. */
+  room: { id: null as number | null },
   title: "",
   // Getter: tính lúc form mở, không chốt lúc tải trang.
   get inventoryDate() {
@@ -31,6 +36,7 @@ const textOrNull = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim()
 function toForm(r: InventorySession) {
   return {
     campaign: r.campaign ? { id: r.campaign.id, name: r.campaign.name } : { id: null },
+    room: { id: r.room?.id ?? null },
     title: r.title ?? "",
     inventoryDate: r.inventoryDate ?? "",
     council: r.council ?? "",
@@ -42,6 +48,7 @@ function toForm(r: InventorySession) {
 function toPayload(v: typeof DEFAULTS) {
   return {
     campaign: v.campaign?.id ? { id: v.campaign.id } : null,
+    room: v.room?.id ? { id: v.room.id } : null,
     title: textOrNull(v.title),
     inventoryDate: v.inventoryDate || null,
     council: textOrNull(v.council),
@@ -99,12 +106,18 @@ function CampaignField({ control, setValue }: { control: Control<any>; setValue:
 }
 
 /**
- * Thân form Lập / Sửa phiếu kiểm kê. Đợt chỉ chọn lúc LẬP: lưu phiếu là chụp sổ tài sản thành các
+ * Thân form Lập / Sửa phiếu kiểm kê. Phạm vi và đợt chỉ chọn lúc LẬP: lưu phiếu là chụp sổ tài sản thành các
  * dòng kiểm đếm, nên đổi phạm vi sau đó nghĩa là phải lập lại phiếu.
  */
 function InventoryFields({ control, setValue, record }: VoucherFieldsProps) {
   const creating = !record;
   const session = record as InventorySession | undefined;
+  // Đợt của Sở là kiểm kê TOÀN BỘ: đã chọn đợt thì phạm vi là cả trường (máy chủ cũng từ chối phòng).
+  // Trường tự kiểm kê định kỳ (không gắn đợt) mới chọn được một phòng.
+  const campaignId = useWatch({ control, name: "campaign.id" });
+  useEffect(() => {
+    if (creating && campaignId) setValue("room", { id: null });
+  }, [creating, campaignId, setValue]);
   return (
     <Card className="py-4">
       <CardContent className="space-y-4 px-4">
@@ -119,7 +132,12 @@ function InventoryFields({ control, setValue, record }: VoucherFieldsProps) {
           ) : (
             <ReadOnlyCell label="Đợt của Sở" value={session?.campaign?.name} placeholder="Trường tự kiểm kê" />
           )}
-          <ReadOnlyCell label="Phạm vi kiểm kê" value={session?.room?.name ?? "Cả trường"} placeholder="—" />
+          {creating && !campaignId ? (
+            <RoomPickerField control={control} name="room" label="Phạm vi kiểm kê" placeholder="Cả trường"
+              hint="Chọn một phòng nếu chỉ kiểm kê phòng đó." schoolId={getAuthorities()?.schoolId} />
+          ) : (
+            <ReadOnlyCell label="Phạm vi kiểm kê" value={creating ? "Cả trường" : (session?.room?.name ?? "Cả trường")} placeholder="—" />
+          )}
           <TextField control={control} name="title" label="Tên phiếu" placeholder="VD: Kiểm kê cuối năm"
             rules={{ required: "Nhập tên", maxLength: { value: 255, message: "Tên phiếu tối đa 255 ký tự" } }} />
           <TextareaField control={control} name="council" label="Tổ kiểm kê" inGrid
