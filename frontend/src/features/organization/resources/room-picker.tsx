@@ -19,10 +19,8 @@ import { TableEmpty } from "@/features/organization/resources/table-empty";
 /**
  * Một phòng theo hình dạng `RoomResponse` của nhóm.
  *
- * <p>Khác bản gốc ở hai chỗ, vì bảng `rooms` của nhóm cố tình đơn giản hơn: `building` là CHUỖI tự do
- * ("Dãy A") chứ không phải tham chiếu tới bảng khối nhà, và người phụ trách là `managingUnit` (đơn vị/tổ)
- * chứ không phải một tài khoản trong bảng `staff`. Bản gốc còn có `loanable` để lọc phòng cho mượn —
- * bảng của nhóm chưa có cột đó.
+ * <p>Bảng `rooms` cố tình đơn giản: `building` là CHUỖI tự do ("Dãy A") chứ không phải tham chiếu tới
+ * bảng khối nhà, và người phụ trách là `managingUnit` (đơn vị/tổ) chứ không phải một tài khoản.
  */
 export type RoomRow = {
   id: number;

@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Mặc định: {@code PH0001} — ký hiệu + số thứ tự liên tục.
  *
  * <p>Chỉ có {@code rooms}: phần số của mã TÀI SẢN (target {@code equipment}) do
- * {@link com.g123.sfems.module.school.coderule.AssetCodeService} giữ, còn các loại khác của bản gốc
+ * {@link com.g123.sfems.module.school.coderule.AssetCodeService} giữ, còn các loại khác
  * (khối nhà, cơ sở, cán bộ, tổ bộ môn…) chưa có bảng trong đồ án nên không khai — khai mà không có bảng
  * là một đường {@code next} trả 500.
  */

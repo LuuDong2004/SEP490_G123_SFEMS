@@ -30,10 +30,34 @@ import {
   EquipmentIntakeList,
   EquipmentIntakeShow,
 } from "@/features/organization/equipment-intakes";
-import { EquipmentEdit, EquipmentImport, EquipmentList, EquipmentLookup, EquipmentShow } from "@/features/organization/resources";
+import {
+  EquipmentEdit,
+  EquipmentImport,
+  EquipmentList,
+  EquipmentLookup,
+  EquipmentShow,
+  RoomCreate,
+  RoomEdit,
+  RoomList,
+  RoomShow,
+} from "@/features/organization/resources";
 import { SchoolList } from "@/features/organization/schools/list";
 import { SchoolCreate } from "@/features/organization/schools/create";
 import { SchoolEdit } from "@/features/organization/schools/edit";
+import { SchoolShow } from "@/features/organization/schools/show";
+import {
+  EquipmentAdequacy,
+  PurchaseProposalCreate,
+  PurchaseProposalEdit,
+  PurchaseProposalList,
+  PurchaseProposalShow,
+} from "@/features/organization/purchase-proposals";
+import {
+  ProcurementPlanCreate,
+  ProcurementPlanEdit,
+  ProcurementPlanList,
+  ProcurementPlanShow,
+} from "@/features/organization/procurement-plans";
 import { Forbidden } from "@/shared/components/layout/forbidden";
 import { FullPageSpinner } from "@/shared/components/spinner";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -131,9 +155,19 @@ export function AppRoutes() {
         </Route>
 
         {/* Mua sắm (NC-01 – NC-07) */}
-        {listRoute("/equipment-adequacy", "equipment_adequacy")}
-        {crudRoutes("/purchase-proposals", "purchase_proposals")}
-        {crudRoutes("/procurement-plans", "procurement_plans")}
+        {listRoute("/equipment-adequacy", "equipment_adequacy", <EquipmentAdequacy />)}
+        {crudRoutes("/purchase-proposals", "purchase_proposals", {
+          list: <PurchaseProposalList />,
+          create: <PurchaseProposalCreate />,
+          edit: <PurchaseProposalEdit />,
+          show: <PurchaseProposalShow />,
+        })}
+        {crudRoutes("/procurement-plans", "procurement_plans", {
+          list: <ProcurementPlanList />,
+          create: <ProcurementPlanCreate />,
+          edit: <ProcurementPlanEdit />,
+          show: <ProcurementPlanShow />,
+        })}
 
         {/* Nhập thiết bị – ghi tăng (PN-01 – PN-03) */}
         {crudRoutes("/equipment-intakes", "equipment_intakes", {
@@ -157,8 +191,14 @@ export function AppRoutes() {
           list: <SchoolList />,
           create: <SchoolCreate />,
           edit: <SchoolEdit />,
+          show: <SchoolShow />,
         })}
-        {crudRoutes("/rooms", "rooms")}
+        {crudRoutes("/rooms", "rooms", {
+          list: <RoomList />,
+          create: <RoomCreate />,
+          edit: <RoomEdit />,
+          show: <RoomShow />,
+        })}
 
         {/* Danh mục dùng chung (DM-01 – DM-04). `/catalogs` mở thẳng danh mục thiết bị. */}
         <Route path="/catalogs" element={<Navigate to="/catalogs/equipment-catalogs" replace />} />

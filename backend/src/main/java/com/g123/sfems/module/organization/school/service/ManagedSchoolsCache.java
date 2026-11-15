@@ -22,7 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * sở dữ liệu ({@code RowLevelContextProvider#resolve}). Toàn bộ bảng là vài
  * nghìn cặp số — nạp một lần, đổi con trỏ khi cần nạp lại.
  *
- * <p>Cùng bản chụp giữ LOẠI của từng cơ quan ({@code SO} / UBND), để
+ * <p>Cùng bản chụp giữ LOẠI của từng cơ quan ({@code SO} / {@code KHAC}), để
  * {@link #isCityBody} — được {@link VisibleSchools} gọi ở mỗi {@code sqlFilter},
  * hàng chục lần một trang tổng quan — không còn là một câu SELECT mỗi lần.
  *

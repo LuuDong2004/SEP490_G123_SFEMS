@@ -47,8 +47,8 @@ export const SchoolEdit = () => {
     <RouteDialog
       title="Sửa trường"
       description={record?.name ?? "Thông tin trường"}
-      // Cỡ `wideFit` của repo nguồn chưa có trong `RouteDialog` của nhóm (shared/**, phải báo
-      // DongLV trước khi sửa) — đặt bề rộng qua `className` để không phải đụng file dùng chung.
+      // `RouteDialog` chưa có cỡ rộng cho form hai cột (shared/**, phải báo DongLV trước khi sửa) —
+      // đặt bề rộng qua `className` để không phải đụng file dùng chung.
       className="sm:max-w-[min(80rem,calc(100vw-4rem))]"
       footer={
         <>

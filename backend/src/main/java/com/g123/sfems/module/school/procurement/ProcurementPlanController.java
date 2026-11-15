@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/procurement_plans} — kế hoạch mua sắm của UBND / Sở (NC-05, NC-06). Ngoài hợp đồng data
+ * {@code /api/procurement_plans} — kế hoạch mua sắm của Sở (NC-05, NC-06). Ngoài hợp đồng data
  * provider:
  *
  * <ul>
@@ -51,11 +51,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code POST /{id}/submit|approve|return}.</li>
  * </ul>
  *
- * <p>Bản gốc còn {@code GET /{id}/export.xlsx}. Repo nhóm chưa có {@code shared/office/XlsxWriter} (là
- * {@code shared/**}), nên phần xuất tệp làm sau khi nhóm có bộ ghi dùng chung.
- *
- * <p>Trường {@code details} của bản gốc bỏ khỏi payload và DTO: cần {@code VoucherForms} cùng cột JSONB,
- * cả hai ngoài vùng này.
+ * <p>Chưa có xuất Excel ({@code GET /{id}/export.xlsx}): cần bộ ghi tệp dùng chung trong {@code shared/**},
+ * làm sau khi nhóm có.
  */
 @RestController
 @RequestMapping("/api/procurement_plans")
@@ -64,8 +61,8 @@ public class ProcurementPlanController {
     /** {@code lines} có mặt thì THAY tập dòng của kế hoạch — xem {@link ProcurementPlanService.Input}. */
     public record Request(IdRef managingBody,
             @Size(max = 255, message = "Tên kế hoạch tối đa 255 ký tự") String title,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             IdRef schoolYear,
             LocalDate planDate,
             @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String note,

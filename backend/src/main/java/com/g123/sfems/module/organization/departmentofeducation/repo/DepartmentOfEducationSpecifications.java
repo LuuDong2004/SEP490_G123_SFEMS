@@ -81,7 +81,7 @@ public final class DepartmentOfEducationSpecifications {
     }
 
     /**
-     * Lọc theo loại cơ quan quản lý — "cho tôi các UBND" là câu hỏi mà màn
+     * Lọc theo loại cơ quan quản lý — "cho tôi các Sở" là câu hỏi mà màn
      * chọn cơ quan của một trường hỏi mỗi lần mở.
      */
     private static Specification<DepartmentOfEducation> typeSpec(ListParams.Criterion criterion) {

@@ -47,8 +47,7 @@ export type School = {
    *
    * Đổi vì Chương V mục 3.5.2 và 3.5.8 yêu cầu tổng hợp số liệu THEO ĐỊA BÀN:
    * "Phường Sài Gòn" và "P. Sài Gòn" là hai nhóm khác nhau khi gộp, nên báo
-   * cáo vẫn ra số mà ra nhầm. Nó cũng là khoá phân quyền — UBND quản lý
-   * trường trên địa bàn mình.
+   * cáo vẫn ra số mà ra nhầm. Nó cũng là khoá để gộp số liệu theo địa bàn.
    */
   ward: WardSummary | null;
 

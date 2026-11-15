@@ -189,8 +189,8 @@ public class SchoolService {
         // Ba trạng thái như mọi tham chiếu khác: vắng mặt giữ nguyên,
         // {"id": null} gỡ về chưa xác định, {"id": n} gán.
         if (request.departmentOfEducation() != null) {
-            school.setDepartmentOfEducation(
-                    departments.get(request.departmentOfEducation().id()));
+            Long departmentId = request.departmentOfEducation().id();
+            school.setDepartmentOfEducation(departmentId == null ? null : departments.get(departmentId));
             // Người dùng tự chọn thì chính họ là nguồn, và nó đè lên mọi suy
             // luận trước đó — giữ lại nhãn "gán theo quận cũ" sau khi có người
             // sửa tay sẽ gọi một dữ liệu đã đúng là đáng ngờ.
@@ -209,10 +209,14 @@ public class SchoolService {
         }
         if (request.shortCode() != null) {
             String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
+            // Để trống KHÔNG xoá mã: mã hai ký tự là phần TR của mã tài sản, trường mất nó thì không cấp
+            // được mã thiết bị nữa. Trống = giữ mã đang có; trường chưa có mã thì hệ thống cấp như lúc tạo.
             if (shortCode != null) {
                 requireShortCodeAvailable(shortCode, school.getId());
+                school.setShortCode(shortCode);
+            } else if (school.getShortCode() == null) {
+                school.setShortCode(nextShortCode());
             }
-            school.setShortCode(shortCode);
         }
         if (request.moetCode() != null) {
             school.setMoetCode(trimToNull(request.moetCode()));

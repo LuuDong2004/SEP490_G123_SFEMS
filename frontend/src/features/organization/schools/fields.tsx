@@ -208,9 +208,9 @@ export function SchoolFields({
           >
           {/* Từng là một ô CHỈ ĐỌC ghim cứng vào Sở GD&ĐT TP.HCM, vì lúc đó
               hệ thống chỉ có đúng một cơ quan quản lý. Không còn đúng nữa:
-              Sở quản lý trực tiếp THPT, còn Tiểu học và THCS thuộc UBND
-              phường/xã — 169 cơ quan. Ghim cứng nghĩa là mọi trường tạo mới
-              đều rơi về Sở, tức là sai phân quyền ngay từ dòng đầu tiên. */}
+              danh mục cơ quan quản lý là bảng riêng và có thể có nhiều dòng,
+              nên ghim cứng nghĩa là mọi trường tạo mới đều rơi về Sở, tức là
+              sai phân quyền ngay từ dòng đầu tiên. */}
           <FormField
             control={control}
             name="departmentOfEducation.id"
@@ -229,7 +229,7 @@ export function SchoolFields({
                     }
                     fallbackLabel={record?.departmentOfEducation?.name ?? null}
                     placeholder="Vui lòng chọn cơ quan quản lý"
-                    searchPlaceholder="Gõ tên Sở hoặc UBND..."
+                    searchPlaceholder="Gõ tên cơ quan quản lý..."
                     clearable={false}
                   />
                 </FormControl>

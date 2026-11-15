@@ -4,3 +4,6 @@ export * from "@/features/organization/resources/equipment-show";
 export * from "@/features/organization/resources/equipment-form";
 export * from "@/features/organization/resources/equipment-lookup";
 export * from "@/features/organization/resources/equipment-import";
+
+/** Phòng (TC-02): danh sách và hộp thoại thêm, sửa, xem. Hộp chọn phòng dùng chung nằm ở `room-picker`. */
+export * from "@/features/organization/resources/room-pages";

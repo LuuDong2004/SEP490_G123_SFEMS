@@ -7,8 +7,8 @@ import java.util.Locale;
 /**
  * Cơ quan quản lý của một trường được xác định BẰNG CÁCH NÀO.
  *
- * <p>Tồn tại vì phần lớn dữ liệu 946 trường không nói trường nào thuộc UBND
- * nào, nên một số trường được gán bằng suy luận. Một lần gán suy luận mà không
+ * <p>Tồn tại vì phần lớn dữ liệu 946 trường không nói trường nào thuộc cơ quan
+ * quản lý nào, nên một số trường được gán bằng suy luận. Một lần gán suy luận mà không
  * để lại dấu vết thì sau đó không ai phân biệt được đâu là sự thật và đâu là
  * phỏng đoán — cả hai trông y hệt nhau trong bảng, và cái sai sẽ sống mãi.
  *
