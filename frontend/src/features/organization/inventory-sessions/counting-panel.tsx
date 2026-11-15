@@ -1,4 +1,4 @@
-import { useInvalidate, useNotification } from "@refinedev/core";
+import { useInvalidate, useList, useNotification } from "@refinedev/core";
 import { CheckCheck, DoorOpen, Save, ScanLine, Search, TriangleAlert, Undo2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
@@ -159,18 +159,25 @@ export function CountingPanel({ record, editable, onSurplus }: {
   );
   const set = (id: number, patch: Partial<Draft>) => setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
-  // Các phòng của trường đang có tài sản trên phiếu: lọc theo chỗ tổ kiểm kê đang đứng, và chọn chỗ thấy thực tế.
+  // Phòng trên sổ của các dòng — lọc theo đúng chỗ tổ kiểm kê đang đứng.
   const rooms = useMemo(() => {
-    const m = new Map<string, { key: string; label: string; count: number; room: InventoryRef | null }>();
+    const m = new Map<string, { key: string; label: string; count: number }>();
     for (const l of record.lines) {
       const key = l.expectedRoom ? String(l.expectedRoom.id) : "none";
-      const room = m.get(key) ?? { key, label: roomKey(l), count: 0, room: l.expectedRoom };
+      const room = m.get(key) ?? { key, label: roomKey(l), count: 0 };
       room.count += 1;
       m.set(key, room);
     }
     return [...m.values()].sort((a, b) => a.label.localeCompare(b.label, "vi"));
   }, [record.lines]);
-  const roomChoices = rooms.flatMap((r) => (r.room ? [r.room] : []));
+  // Mọi phòng của trường — tài sản có thể được thấy ở một phòng không có tài sản nào trên sổ.
+  const { result: schoolRooms } = useList<InventoryRef>({
+    resource: "rooms",
+    filters: [{ field: "school.id", operator: "eq", value: record.school.id }],
+    pagination: { currentPage: 1, pageSize: 500 },
+    queryOptions: { enabled: editable },
+  });
+  const roomChoices = schoolRooms?.data ?? [];
 
   const needle = fold(term.trim());
   const { visible, roomTotals } = useMemo(() => {
