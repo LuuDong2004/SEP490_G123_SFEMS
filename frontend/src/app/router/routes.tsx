@@ -24,6 +24,7 @@ import {
   InventorySessionList,
   InventorySessionShow,
 } from "@/features/organization/inventory-sessions";
+import { SchoolCodeRulesPage } from "@/features/organization/school-code-rules";
 import {
   EquipmentIntakeCreate,
   EquipmentIntakeEdit,
@@ -224,6 +225,7 @@ export function AppRoutes() {
         {crudRoutes("/catalogs/acquisition-methods", "acquisition_methods", catalogScreens("acquisition_methods"))}
         {crudRoutes("/catalogs/movement-reasons", "movement_reasons", catalogScreens("movement_reasons"))}
         {crudRoutes("/catalogs/code-rules", "code_rules", catalogScreens("code_rules"))}
+        {listRoute("/catalogs/school-code-rules", "school_code_rules", <SchoolCodeRulesPage />)}
         {/* Danh mục cố định, chỉ đọc: chỉ có màn danh sách. */}
         {ENUM_CATALOGS.map((catalog) => (
           <Route key={catalog.resource} path={catalog.path} element={<EnumCatalogList config={catalog} />} />
