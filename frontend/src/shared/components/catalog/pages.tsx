@@ -58,6 +58,7 @@ import { cn } from "@/shared/lib/utils";
 import { CatalogFields, DEFAULT_VALUES, type CatalogFormValues } from "@/shared/components/catalog/fields";
 import { SuggestCode, useSuggestedCode } from "@/shared/components/catalog/use-suggested-code";
 import { VoucherTwoColumn } from "@/shared/components/voucher/voucher-layout";
+import { AssetCode } from "@/shared/components/asset-code";
 import { FormDialog, type FormDialogState } from "@/shared/components/catalog/form-dialog";
 import {
   ACTIVE_LABELS,
@@ -127,7 +128,7 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
         ...(extra?.codeSize ? { size: extra.codeSize, minSize: extra.codeSize } : {}),
         header: config.codeLabel ?? "Mã",
         enableSorting: true,
-        cell: ({ getValue }) => (
+        cell: ({ getValue }) => extra?.assetCode ? <AssetCode code={getValue()} /> : (
           <span className="text-sm font-medium tabular-nums">{getValue()}</span>
         ),
       }),

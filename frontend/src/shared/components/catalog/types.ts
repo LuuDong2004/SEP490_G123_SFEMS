@@ -266,6 +266,8 @@ export type CatalogExtra = {
   ListPage?: import("react").ComponentType<{ config: CatalogConfig }>;
   /** Độ rộng cột Mã (px) khi mã dài hơn mặc định — vd. mã tài sản 79.T6.00.TB.007.26. */
   codeSize?: number;
+  /** Cột mã là MÃ TÀI SẢN chuẩn: tô nổi số thứ tự (`AssetCode`). */
+  assetCode?: boolean;
   /**
    * Bản ghi này có được xoá không (theo TRẠNG THÁI, ngoài quyền) — vd. thiết bị chỉ xoá được
    * khi đã thanh lý / ghi giảm. Vắng = luôn cho (quyền quyết). Máy chủ kiểm lại lần nữa.

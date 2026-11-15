@@ -146,7 +146,8 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
             {tab === "standard" && r.catalog?.id ? <EquipmentStandardCard equipmentId={r.id} catalogId={r.catalog.id} /> : null}
 
             {tab === "files" ? (
-              <div className="grid items-start gap-4 lg:grid-cols-2">
+              <div className="grid items-stretch gap-4 lg:grid-cols-2">
+                {/* Hai thẻ cùng hàng cao bằng nhau (`items-stretch`): thẻ ít tệp không thấp lệch so với thẻ bên cạnh. */}
                 {r.intakeDocument?.documentId || r.intakeDocument?.lineId ? (
                   <AttachmentsPanel
                     resource={r.intakeDocument.documentId ? "equipment_intake_documents" : "equipment_intake_lines"}

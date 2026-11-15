@@ -467,13 +467,17 @@ public class AdequacyService {
      * {@code adequacy} chỉ có với {@code MINIMUM}: định mức tính cho trường, đang có, còn thiếu.
      */
     public record CatalogStandard(String status, String catalogCode, String catalogName, String typeName,
-            String subjectName, String legalBasis, String schoolLevel, List<NormLine> norms, NormRow adequacy) {
+            String subjectName, String legalBasis, String schoolLevel, List<NormLine> norms, NormRow adequacy,
+            // Đơn vị tính của thiết bị — số cần có / đang có đọc kèm đơn vị ("100 Gam", không phải "100").
+            String unitName) {
     }
 
     public CatalogStandard forCatalog(Long schoolId, Long catalogId) {
         Map<String, Object> c = jdbc.queryForList("""
-                SELECT c.code, c.name, c.owner_school_id, c.legal_basis, t.name AS type_name, sj.name AS subject_name
+                SELECT c.code, c.name, c.owner_school_id, c.legal_basis, t.name AS type_name, sj.name AS subject_name,
+                       u.name AS unit_name
                 FROM equipment_catalogs c
+                LEFT JOIN units u ON u.id = c.unit_id
                 LEFT JOIN equipment_types t ON t.id = c.equipment_type_id
                 LEFT JOIN subjects sj ON sj.id = c.subject_id
                 WHERE c.id = ?""", catalogId).stream().findFirst()
@@ -508,7 +512,7 @@ public class AdequacyService {
         }
         return new CatalogStandard(status, (String) c.get("code"), (String) c.get("name"), (String) c.get("type_name"),
                 (String) c.get("subject_name"), (String) c.get("legal_basis"), (String) school.get("name"), norms,
-                adequacy);
+                adequacy, (String) c.get("unit_name"));
     }
 
     public Snapshot snapshot(Long schoolId, Long catalogId) {

@@ -39,7 +39,13 @@ type CatalogStandard = {
   schoolLevel: string | null;
   norms: NormLine[];
   adequacy: NormRow | null;
+  /** Đơn vị tính của thiết bị — mọi con số đọc kèm đơn vị. */
+  unitName?: string | null;
 };
+
+const num = new Intl.NumberFormat("vi-VN");
+/** "1.100 Gam" — số kèm đơn vị tính (trưởng nhóm 15/11/2026: "100 là gì?"). */
+const withUnit = (n: number, unit?: string | null) => `${num.format(n)}${unit ? ` ${unit}` : ""}`;
 
 const STATUS: Record<CatalogStandard["status"], { label: (s: CatalogStandard) => string; variant: "success" | "warning" | "neutral" }> = {
   MINIMUM: { label: (s) => `Thuộc danh mục tối thiểu${s.schoolLevel ? ` · ${s.schoolLevel}` : ""}`, variant: "success" },
@@ -73,10 +79,10 @@ function Stat({ label, value, note, tone }: { label: string; value: ReactNode; n
 const audience = (n: NormLine) => [n.forTeacher ? "giáo viên" : null, n.forStudent ? "học sinh" : null].filter(Boolean).join(", ");
 
 /** Một dòng phụ lục nói bằng lời: "01 bộ/5 lớp · mọi lớp · dùng cho giáo viên". */
-const normText = (n: NormLine, showLevel: boolean) =>
+const normText = (n: NormLine, showLevel: boolean, unit?: string | null) =>
   [
     showLevel ? n.levelName : null,
-    n.quantityText,
+    n.quantityText && unit && /^[\d.,\s]+$/.test(n.quantityText) ? `${n.quantityText.trim()} ${unit}` : n.quantityText,
     n.gradeLevels ? `lớp ${n.gradeLevels.replaceAll(",", ", ")}` : "mọi lớp",
     audience(n) ? `dùng cho ${audience(n)}` : null,
   ].filter(Boolean).join(" · ");
@@ -107,10 +113,14 @@ export function EquipmentStandardSummary({ equipmentId }: { equipmentId: number 
   }
   if (a.optional) return <span>Tự chọn</span>;
   if (a.shortage == null || a.required == null) return <span className="text-muted-foreground font-normal">Chưa tính được</span>;
+  const unit = data.unitName;
+  // Đủ: chỉ cần "đang có 1.100 Gam" (trưởng nhóm 15/11/2026); thiếu thì nói thiếu bao nhiêu và cần có bao nhiêu.
   return (
-    <span title={`Trường phải có ${a.required}, đang có ${a.current} dùng được`}>
-      <span className={a.shortage === 0 ? "text-success-text" : "text-destructive-text"}>{a.shortage === 0 ? "Đủ" : `Thiếu ${a.shortage}`}</span>
-      <span className="text-muted-foreground font-normal"> (cần có {a.required}, đang có {a.current})</span>
+    <span title={`Trường phải có ${withUnit(a.required, unit)}, đang có ${withUnit(a.current, unit)} dùng được`}>
+      <span className={a.shortage === 0 ? "text-success-text" : "text-destructive-text"}>{a.shortage === 0 ? "Đủ" : `Thiếu ${withUnit(a.shortage, unit)}`}</span>
+      <span className="text-muted-foreground font-normal">
+        {a.shortage === 0 ? ` · đang có ${withUnit(a.current, unit)}` : ` (cần có ${withUnit(a.required, unit)}, đang có ${withUnit(a.current, unit)})`}
+      </span>
     </span>
   );
 }
@@ -128,22 +138,25 @@ export function EquipmentStandardMini({ equipmentId }: { equipmentId: number }) 
     return <p className="text-muted-foreground text-sm">{STATUS[data.status].label(data)}. Không có định mức, không tính đủ hay thiếu.</p>;
   }
   const diff = a.shortage == null ? null : a.shortage > 0 ? -a.shortage : (a.surplus ?? 0);
+  const unit = data.unitName;
+  // Đơn vị đứng dưới con số, cùng dòng nhãn: "Cần có · Gam" — số to vẫn đọc nhanh, không bị dài ra.
+  const caption = (label: string) => <div className="text-muted-foreground text-xs">{label}{unit ? ` (${unit.toLowerCase()})` : ""}</div>;
   // Mỗi ô một màu: Cần có (định mức) vàng đồng, Đang có xanh dương, Thừa xanh lá / Thiếu đỏ.
   const box = "rounded-lg py-2.5 text-center";
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
-        <div className={cn(box, "bg-gold-subtle")}><div className="text-gold-text text-xl font-bold">{a.required ?? "—"}</div><div className="text-muted-foreground text-xs">Cần có</div></div>
-        <div className={cn(box, "bg-info-subtle")}><div className="text-info-text text-xl font-bold">{a.current}</div><div className="text-muted-foreground text-xs">Đang có</div></div>
+        <div className={cn(box, "bg-gold-subtle")}><div className="text-gold-text text-xl font-bold tabular-nums">{a.required != null ? num.format(a.required) : "—"}</div>{caption("Cần có")}</div>
+        <div className={cn(box, "bg-info-subtle")}><div className="text-info-text text-xl font-bold tabular-nums">{num.format(a.current)}</div>{caption("Đang có")}</div>
         <div className={cn(box, diff != null && diff < 0 ? "bg-destructive-subtle" : diff != null ? "bg-success-subtle" : "bg-surface-subtle")}>
           <div className={cn("text-xl font-bold", diff != null && diff < 0 ? "text-destructive-text" : "text-success-text")}>
-            {diff == null ? "—" : diff > 0 ? `+${diff}` : diff}
+            {diff == null ? "—" : diff > 0 ? `+${num.format(diff)}` : num.format(diff)}
           </div>
-          <div className="text-muted-foreground text-xs">{diff != null && diff < 0 ? "Thiếu" : "Thừa"}</div>
+          {caption(diff != null && diff < 0 ? "Thiếu" : "Thừa")}
         </div>
       </div>
       <div className="mt-auto space-y-1 text-sm">
-        {norm ? <p className="text-muted-foreground text-xs">Định mức: {normText(norm, !minimum)}</p> : null}
+        {norm ? <p className="text-muted-foreground text-xs">Định mức: {normText(norm, !minimum, unit)}</p> : null}
         {ADEQUACY_SCREEN_ENABLED && mayOpenAdequacy ? (
           <Link to="/equipment-minimum" className="text-primary inline-flex items-center gap-1 font-medium hover:underline">
             Chuẩn tối thiểu của trường<ArrowRight className="size-3.5" />
@@ -168,6 +181,7 @@ export function EquipmentStandardCard({ equipmentId }: { equipmentId: number; ca
   const lines = all.slice(0, 4);
   const more = all.length - lines.length;
   const surplus = a?.surplus ?? 0;
+  const unit = data.unitName;
 
   return (
     <Card className="gap-3">
@@ -184,15 +198,15 @@ export function EquipmentStandardCard({ equipmentId }: { equipmentId: number; ca
           <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             <Stat
               label="Trường phải có"
-              value={a.required ?? "Chưa tính được"}
+              value={a.required != null ? withUnit(a.required, unit) : "Chưa tính được"}
               note={a.required == null ? a.warning : undefined}
               tone={a.required == null ? "unknown" : undefined}
             />
-            <Stat label="Đang có, dùng được" value={a.current} note={a.proposed ? `đang đề xuất mua thêm ${a.proposed}` : undefined} />
+            <Stat label="Đang có, dùng được" value={withUnit(a.current, unit)} note={a.proposed ? `đang đề xuất mua thêm ${withUnit(a.proposed, unit)}` : undefined} />
             <Stat
               label="Kết quả"
-              value={a.optional ? "Tự chọn" : a.shortage == null ? "—" : a.shortage === 0 ? "Đủ" : `Thiếu ${a.shortage}`}
-              note={a.optional ? "chỉ trang bị khi trường chọn phương án / môn này" : surplus > 0 ? `thừa ${surplus}` : undefined}
+              value={a.optional ? "Tự chọn" : a.shortage == null ? "—" : a.shortage === 0 ? "Đủ" : `Thiếu ${withUnit(a.shortage, unit)}`}
+              note={a.optional ? "chỉ trang bị khi trường chọn phương án / môn này" : surplus > 0 ? `thừa ${withUnit(surplus, unit)}` : undefined}
               tone={a.optional || a.shortage == null ? undefined : a.shortage === 0 ? "ok" : "short"}
             />
           </div>
@@ -209,7 +223,7 @@ export function EquipmentStandardCard({ equipmentId }: { equipmentId: number; ca
                 <p key={n.code} className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-muted-foreground shrink-0">{i === 0 ? "Định mức theo thông tư:" : "và"}</span>
                   <span>
-                    {normText(n, !minimum)}
+                    {normText(n, !minimum, unit)}
                     {n.topic ? <span className="text-muted-foreground"> ({n.topic})</span> : null}
                   </span>
                   {n.optional ? <Badge variant="neutral">Tự chọn</Badge> : null}

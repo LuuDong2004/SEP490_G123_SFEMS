@@ -423,7 +423,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     }
 
     /**
-     * Những gì ĐỊNH DANH tài sản và đi vào sổ sách: chỉ bổ sung khi còn trống, đã có thì giữ nguyên. Tên gọi, ghi chú,
+     * Những gì ĐỊNH DANH tài sản và đi vào sổ sách: chỉ bổ sung khi còn trống, đã có thì giữ nguyên. Tên của thiết bị
+     * trong danh mục của Sở theo danh mục, không sửa; tên đồ ngoài danh mục, ghi chú,
      * serial, model, hãng, năm sản xuất, bảo hành, thông số thì sửa tự do — tên đổi thế nào thì tài sản vẫn gắn với
      * thiết bị trong danh mục (tối thiểu hay không), và định mức, báo cáo tính theo đó chứ không theo tên.
      *
@@ -439,6 +440,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         List<String> changed = new ArrayList<>();
         boolean catalogChanging = present(r.catalog()) && item.getCatalog() != null
                 && !r.catalog().id().equals(item.getCatalog().getId());
+        // Thiết bị trong danh mục của Sở: tên theo danh mục, không đổi (trưởng nhóm 15/11/2026). Đồ ngoài danh mục của
+        // trường (`ownerSchool` có) thì trường tự đặt tên.
+        if (!catalogChanging && item.getCatalog() != null && item.getCatalog().getOwnerSchool() == null
+                && r.name() != null && !r.name().trim().replaceAll("\\s+", " ").equals(item.getName())) {
+            throw new FieldValidationException("name", "Thiết bị trong danh mục giữ tên theo danh mục, không sửa tên");
+        }
         if (catalogChanging && item.getIntakeLine() != null) {
             changed.add("thiết bị trong danh mục (ghi giảm rồi ghi tăng đúng thiết bị)");
         }

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- dòng của /api/equipment_items là bản đồ tự do từ SQL gộp. */
 import { ASSET_STATUS_GROUP_VARIANTS } from "@/shared/lib/status-variants";
+import { AssetCode } from "@/shared/components/asset-code";
 import { useNavigation, type CrudFilter } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper, type RowSelectionState } from "@tanstack/react-table";
@@ -99,7 +100,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       }),
       h.accessor("code", {
         id: "code", header: "Mã thiết bị", size: 150, enableSorting: true,
-        cell: ({ row }) => <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{row.original.code}</span>,
+        cell: ({ row }) => <AssetCode code={row.original.code} />,
       }),
       h.accessor("name", {
         id: "name", header: "Thiết bị", size: 200, enableSorting: true, meta: { fill: true },
@@ -121,7 +122,8 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
           )),
       }),
       h.accessor("quantity", {
-        id: "quantity", header: "SL", size: 72, enableSorting: true,
+        // Đủ chỗ cho "1.500 Gam", "9,75 kg" — 72px cắt mất đơn vị thành "200 G..." (trưởng nhóm 15/11/2026).
+        id: "quantity", header: "SL", size: 108, minSize: 96, enableSorting: true,
         cell: ({ row }) => (
           <span className={cn("tabular-nums", row.original.kind === "bulk" && "font-semibold")}>
             {/* 9.750 gam hiện 9,75 kg — chỉ cách hiện, số lưu vẫn theo gam. */}

@@ -517,8 +517,10 @@ function TechIdentity({ control }: { control: Control<any> }) {
         hint="Số của nhà sản xuất in trên thiết bị, nếu có: 3–50 ký tự, tự viết hoa, bỏ khoảng trắng. Không trùng với thiết bị khác của trường." />
       <Field control={control} name="model" label="Model" hint="Mẫu của cái / lô này — khác nhau giữa các lần mua." rule="SHORT_TEXT" max={50} />
       <Field control={control} name="manufacturer" label="Hãng sản xuất" rule="SHORT_TEXT" max={100} />
+      {/* `col-span-full` (không phải `col-span-2`): trải hết các cột ĐANG CÓ — cột hồ sơ một cột thì một, hai cột thì hai.
+          `@md:col-span-2` sẵn có của ô trong lưới đẻ thêm một cột ngầm làm các ô khác dồn chồng lên nhau. */}
       <TextareaField control={control} name="otherInfo" label="Thông tin khác" rule="NOTE" rows={2} inGrid
-        className="sm:col-span-2 xl:col-span-1" placeholder="VD: Core i5, RAM 8GB, SSD 256GB; xuất xứ Trung Quốc" />
+        className="col-span-full @md:col-span-full" placeholder="VD: Core i5, RAM 8GB, SSD 256GB; xuất xứ Việt Nam" />
     </>
   );
 }
@@ -747,7 +749,12 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
       {children}
     </section>
   );
-  const name = (
+  // Thiết bị trong danh mục của Sở: tên theo danh mục, không sửa (trưởng nhóm 15/11/2026) — máy chủ cũng chặn
+  // (`EquipmentService.requireRecordFieldsKept`). Thiết bị ngoài danh mục của trường thì vẫn đặt tên được.
+  const nameLocked = !!record?.catalog?.id && record?.outOfCatalog === false;
+  const name = nameLocked ? (
+    <LockedValue label="Tên thiết bị" value={record.name} why="Theo danh mục thiết bị, không sửa tên." />
+  ) : (
     <FormField control={control} name="name"
       rules={mergeRules(textRules("NAME", "Tên thiết bị", { max: NAME_MAX, min: 2 }), { required: "Nhập tên thiết bị" })}
       render={({ field }) => (
@@ -957,6 +964,7 @@ export const EQUIPMENT_EXTRA = {
   nameColumn: { header: "Thiết bị", subline: () => null },
   hideActiveColumn: true,
   codeSize: 200,
+  assetCode: true,
   columns: [
     {
       id: "room",
