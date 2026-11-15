@@ -431,9 +431,12 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
   // MỘT cấp — chọn hai cấp thì hai danh sách đó hiện đủ.
   const levels = useWatch({ control, name: "educationLevels" }) as { id: number }[] | undefined;
   const byLevel = levels?.length === 1 ? [{ field: "educationLevel.id", operator: "eq" as const, value: levels[0].id }] : undefined;
-  // Thiết bị của danh mục tối thiểu: mã, tên, cấp học, môn là của THÔNG TƯ — không sửa tay (máy chủ cũng từ
-  // chối). Phân loại, cách quản lý, đơn vị tính vẫn sửa được.
+  // Thiết bị của danh mục tối thiểu: mọi thứ THÔNG TƯ quy định (mã, tên, cấp, môn, đơn vị tính, mô tả kỹ thuật,
+  // khối lớp, đối tượng dùng, trạng thái) không sửa tay — máy chủ cũng từ chối. Chỉ thiết lập quản lý sửa được.
+  // Đơn vị tính / mô tả đang trống thì vẫn cho bổ sung (dữ liệu nạp thiếu).
   const byCircular = !!record?.minimumRequired && !record?.ownerSchool;
+  const unitLocked = byCircular && !!record?.unit;
+  const descriptionLocked = byCircular && !!record?.description?.trim();
   const lockedHint = byCircular ? "Theo thông tư" : undefined;
   const creating = !record;
   const { getValues, setValue } = useFormContext();
@@ -471,7 +474,7 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
       <p className="text-muted-foreground flex items-start gap-2 text-xs [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0">
         <Info />
         {byCircular
-          ? "Thiết bị thuộc danh mục tối thiểu theo thông tư: mã, tên, cấp học, môn học không sửa tay — đổi bằng bản nháp bộ tiêu chuẩn ở màn Danh mục thiết bị tối thiểu."
+          ? "Thiết bị theo thông tư: nội dung thông tư quy định không sửa tay — đổi bằng bản nháp bộ tiêu chuẩn ở Danh mục thiết bị tối thiểu. Ở đây chỉ đặt cách quản lý và hạch toán."
           : "Thiết bị thêm tay là thiết bị ngoài danh mục tối thiểu (ngoài thông tư). Thiết bị của thông tư sinh ra khi áp dụng một bộ tiêu chuẩn."}
       </p>
 
@@ -503,16 +506,24 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
             rule="NAME" rules={{ required: "Nhập tên thiết bị" }} />
           <RefField control={control} name="equipmentType" resource="equipment_types" label="Loại thiết bị" current={record?.equipmentType}
             onPicked={(type) => void suggestUnit(type?.id)} />
-          <RefField control={control} name="unit" resource="units" label="Đơn vị tính" current={record?.unit}
-            hint="Tự điền theo loại thiết bị, đổi được." />
+          {unitLocked ? (
+            <ReadField label="Đơn vị tính">{record?.unit?.name}</ReadField>
+          ) : (
+            <RefField control={control} name="unit" resource="units" label="Đơn vị tính" current={record?.unit}
+              hint={byCircular ? undefined : "Tự điền theo loại thiết bị, đổi được."} />
+          )}
           <MultiRefSelectField control={control} name="educationLevels" resource="education_levels" label="Cấp học" disabledHint={lockedHint}
-            hint="Chọn được nhiều cấp; để trống là mọi cấp." />
+            hint={byCircular ? undefined : "Chọn được nhiều cấp; để trống là mọi cấp."} />
           <MultiRefSelectField control={control} name="subjects" resource="subjects" label="Môn học" filters={byLevel} disabledHint={lockedHint}
-            hint="Chọn được nhiều môn; môn đầu tiên vào mã thiết bị." />
-          <MultiRefSelectField control={control} name="grades" resource="grades" label="Khối lớp" filters={byLevel}
-            hint="Chọn được nhiều khối; để trống là mọi khối." />
+            hint={byCircular ? undefined : "Chọn được nhiều môn; môn đầu tiên vào mã thiết bị."} />
+          <MultiRefSelectField control={control} name="grades" resource="grades" label="Khối lớp" filters={byLevel} disabledHint={lockedHint}
+            hint={byCircular ? undefined : "Chọn được nhiều khối; để trống là mọi khối."} />
           {/* Mô tả nằm trong lưới, rộng hai cột, cao một dòng và tự giãn — không phải một ô trải hết bề ngang thẻ. */}
-          <FormField
+          {descriptionLocked ? (
+            <ReadField label="Mô tả / yêu cầu kỹ thuật" className="sm:col-span-2 [&>div]:max-h-40 [&>div]:items-start [&>div]:overflow-y-auto [&>div]:rounded-xl [&>div]:py-2 [&>div]:whitespace-pre-line">
+              {record?.description}
+            </ReadField>
+          ) : <FormField
             control={control}
             name="description"
             rules={textRules("LONG_TEXT", "Mô tả / yêu cầu kỹ thuật", { max: 20000 })}
@@ -525,7 +536,7 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
                 <FormMessage />
               </FormItem>
             )}
-          />
+          />}
         </div>
       </FormSection>
 
@@ -569,8 +580,8 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
                   control={control}
                   name={name}
                   render={({ field }) => (
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(v === true)} />
+                    <label className={cn("flex items-center gap-1.5 text-sm", byCircular && "text-muted-foreground")} title={lockedHint}>
+                      <Checkbox checked={!!field.value} disabled={byCircular} onCheckedChange={(v) => field.onChange(v === true)} />
                       {label}
                     </label>
                   )}
@@ -579,8 +590,9 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
             </div>
           </FormItem>
           <SwitchInput control={control} name="selfMade" label="Thiết bị tự làm" text="Có" />
-          {/* Mục mới luôn đang hoạt động; ngưng dùng là việc của màn Sửa. */}
-          {creating ? null : <SwitchInput control={control} name="active" label="Trạng thái" text="Đang hoạt động" />}
+          {/* Mục mới luôn đang hoạt động; ngưng dùng là việc của màn Sửa. Thiết bị của thông tư hết hiệu lực khi
+              áp dụng bộ mới không còn nó — không tắt tay. */}
+          {creating || byCircular ? null : <SwitchInput control={control} name="active" label="Trạng thái" text="Đang hoạt động" />}
         </div>
       </FormSection>
 

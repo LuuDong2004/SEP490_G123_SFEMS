@@ -480,3 +480,7 @@ databaseChangeLog:
       file: db/changelog/changes/260-intake-document-contact.sql
   - include:
       file: db/changelog/changes/261-origin-handover-name.sql
+  - include:
+      file: db/changelog/changes/262-school-years-2021-2022.sql
+  - include:
+      file: db/changelog/changes/263-standard-revision.sql

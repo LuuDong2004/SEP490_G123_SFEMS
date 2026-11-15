@@ -538,7 +538,7 @@ function CatalogEditPage({ config }: { config: CatalogConfig }) {
 
   // Danh mục có màn hồ sơ riêng (`extra.Detail`, vd. thiết bị): màn sửa là chính màn hồ sơ chuyển sang ô nhập, nên
   // Huỷ / Lưu đứng ở đầu trang — đúng chỗ nút "Sửa" của màn xem — thay cho thanh lưu dính đáy kéo hết bề ngang.
-  const saveInHeader = !!(extra?.FormBody && !extra.FormSide && extra.Detail);
+  const saveInHeader = !!(extra?.FormBody && !extra.FormSide && (extra.Detail || extra.saveInHeader));
   const saveButtons = (
     <>
       <Button type="button" variant="outline" onClick={() => navigate(-1)}>

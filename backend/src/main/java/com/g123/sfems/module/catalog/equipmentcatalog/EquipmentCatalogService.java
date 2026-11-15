@@ -31,6 +31,7 @@ import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.web.ListParams;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -355,11 +356,14 @@ public class EquipmentCatalogService extends CatalogService<
     }
 
     /**
-     * Thiết bị của danh mục tối thiểu mang tên, mã, cấp học và môn THEO THÔNG TƯ — bốn thứ đó không sửa tay
-     * (đổi là danh mục lệch khỏi văn bản mà không ai biết). Có văn bản mới thì lập bản nháp bộ tiêu chuẩn,
-     * sửa ở đó rồi áp dụng. Phân loại tài sản, cách quản lý, đơn vị tính, hao mòn… vẫn sửa được: đó là
-     * cách ta QUẢN LÝ nó, thông tư không quy định. Gửi lại đúng giá trị đang có thì được (form sửa gửi
-     * nguyên bản ghi).
+     * Thiết bị của danh mục tối thiểu: mọi thứ THÔNG TƯ quy định không sửa tay — mã, tên, cấp học, môn, đơn vị
+     * tính, mô tả kỹ thuật, khối lớp, đối tượng dùng (GV / HS), căn cứ, trạng thái (hết hiệu lực khi áp dụng bộ
+     * mới không còn nó). Chỉ Bộ đổi được nội dung đó, bằng văn bản mới: lập bản nháp bộ tiêu chuẩn, đọc văn bản,
+     * áp dụng. Sửa tay được là THIẾT LẬP QUẢN LÝ thông tư không nói tới: cách quản lý, phân loại kế toán mặc định,
+     * số năm sử dụng, dạng thiết bị, loại thiết bị, mã thống kê, nhóm, tự làm.
+     *
+     * <p>Đơn vị tính và mô tả đang TRỐNG thì được bổ sung (dữ liệu nạp thiếu, không phải đổi thông tư). Gửi lại
+     * đúng giá trị đang có thì được — form sửa gửi nguyên bản ghi.
      */
     @Override
     @Transactional
@@ -372,8 +376,40 @@ public class EquipmentCatalogService extends CatalogService<
                     && !Objects.equals(request.educationLevel().id(), idOf(item.getEducationLevel())));
             requireUnchanged("subject", "Môn học", request.subject() != null
                     && !Objects.equals(request.subject().id(), idOf(item.getSubject())));
+            requireUnchanged("unit", "Đơn vị tính", item.getUnit() != null && request.unit() != null
+                    && !Objects.equals(request.unit().id(), item.getUnit().getId()));
+            requireUnchanged("description", "Mô tả kỹ thuật", trimmed(item.getDescription()) != null
+                    && request.description() != null
+                    && !Objects.equals(trimmed(request.description()), trimmed(item.getDescription())));
+            requireUnchanged("legalBasis", "Căn cứ", request.legalBasis() != null
+                    && !Objects.equals(trimmed(request.legalBasis()), trimmed(item.getLegalBasis())));
+            requireUnchanged("grades", "Khối lớp", gradesChanged(item, request));
+            requireUnchanged("usedByTeacher", "Đối tượng sử dụng", request.usedByTeacher() != null
+                    && request.usedByTeacher() != Boolean.TRUE.equals(item.getUsedByTeacher()));
+            requireUnchanged("usedByStudent", "Đối tượng sử dụng", request.usedByStudent() != null
+                    && request.usedByStudent() != Boolean.TRUE.equals(item.getUsedByStudent()));
+            requireUnchanged("active", "Trạng thái", request.active() != null
+                    && !request.active().equals(Boolean.TRUE.equals(item.getActive())));
         }
         return super.update(id, request);
+    }
+
+    private static String trimmed(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /** Khối lớp gửi lên khác tập đang có (khối chính + khối thêm) — so như tập, không kể thứ tự. */
+    private static boolean gradesChanged(EquipmentCatalog item, EquipmentCatalogPatchRequest request) {
+        Set<Long> current = new HashSet<>();
+        if (item.getGrade() != null) {
+            current.add(item.getGrade().getId());
+        }
+        item.getExtraGrades().forEach(g -> current.add(g.getId()));
+        if (request.grades() != null) {
+            return !current.equals(new HashSet<>(ids(request.grades())));
+        }
+        return request.grade() != null && !(request.grade().id() == null ? current.isEmpty()
+                : current.size() == 1 && current.contains(request.grade().id()));
     }
 
     private static Long idOf(BaseEntity entity) {

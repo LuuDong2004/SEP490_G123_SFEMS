@@ -98,6 +98,8 @@ const PERMISSION_ALIASES: Record<string, string> = {
   equipment_items: "equipment",
   equipment_adequacy: "purchase_proposals",
   equipment_minimum: "purchase_proposals",
+  // Số lượng tối thiểu: cách xem / sửa khác của các dòng `equipment_norms`.
+  norm_matrix: "equipment_norms",
 };
 
 /**

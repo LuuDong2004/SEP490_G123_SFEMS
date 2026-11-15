@@ -17,7 +17,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,11 +39,14 @@ public class EquipmentNormController extends CatalogController<
 
     private final EquipmentNormService norms;
     private final EquipmentNormExcel excel;
+    private final EquipmentNormDocumentImport documents;
 
-    public EquipmentNormController(EquipmentNormService service, RowLevelSecurity rowLevel, EquipmentNormExcel excel) {
+    public EquipmentNormController(EquipmentNormService service, RowLevelSecurity rowLevel, EquipmentNormExcel excel,
+            EquipmentNormDocumentImport documents) {
         super(service, rowLevel);
         this.norms = service;
         this.excel = excel;
+        this.documents = documents;
     }
 
     /**
@@ -92,6 +98,41 @@ public class EquipmentNormController extends CatalogController<
     @PreAuthorize("hasAuthority(#root.this.authority('read'))")
     public List<SubjectGroup> groups(@RequestParam MultiValueMap<String, String> query) {
         return norms.groups(new ListParams(query));
+    }
+
+    /**
+     * {@code POST /api/equipment_norms/import-document} (multipart {@code file} .docx, {@code standardId},
+     * {@code dryRun}) — đọc phụ lục thông tư từ tệp Word. {@code dryRun=true}: chỉ đọc và so với bộ (Mới / Đổi /
+     * Không đổi / Bỏ theo môn), không ghi gì — bộ nào cũng được. Không xem thử: THAY các môn có trong văn bản của
+     * bộ NHÁP, tất cả hoặc không gì.
+     */
+    @PostMapping("/import-document")
+    @PreAuthorize("hasAuthority(#root.this.authority('write'))")
+    public EquipmentNormDocumentImport.Result importDocument(@RequestParam("file") MultipartFile file,
+            @RequestParam("standardId") Long standardId,
+            @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
+        if (file.isEmpty()) {
+            throw new FieldValidationException("file", "Chọn tệp để đọc");
+        }
+        if (file.getSize() > MAX_UPLOAD) {
+            throw new FieldValidationException("file", "Tệp lớn hơn 10 MB");
+        }
+        try {
+            return documents.run(standardId, file.getOriginalFilename(), file.getBytes(), dryRun);
+        } catch (IOException e) {
+            throw new FieldValidationException("file", "Không đọc được tệp tải lên");
+        }
+    }
+
+    /**
+     * {@code PATCH /api/equipment_norms/batch} — sửa nhiều dòng một lần, tất cả hoặc không gì. Màn Ma trận
+     * định mức lưu cả trăm dòng đổi "tính theo" bằng một yêu cầu thay vì một yêu cầu mỗi dòng (vấp giới
+     * hạn tần suất). Trả {@code {"updated": n}}.
+     */
+    @PatchMapping("/batch")
+    @PreAuthorize("hasAuthority(#root.this.authority('write'))")
+    public Map<String, Integer> batch(@Valid @RequestBody EquipmentNormBatchRequest body) {
+        return Map.of("updated", norms.updateAll(body.items()));
     }
 
     /** {@code GET /api/equipment_norms/topics?standard.id=…} — các lựa chọn của ô lọc Chủ đề. */

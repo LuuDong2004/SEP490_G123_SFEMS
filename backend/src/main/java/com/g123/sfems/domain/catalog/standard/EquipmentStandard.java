@@ -123,4 +123,65 @@ public class EquipmentStandard extends CatalogEntity {
     public Set<EquipmentStandardDocument> getDocuments() {
         return documents;
     }
+
+    /** Lần sửa của bộ này (bộ lập bằng "Lập bộ mới"); trống với bộ gốc và bộ lập trước khi có quy định. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "revision_kind", length = 16)
+    private RevisionKind revisionKind;
+
+    /** Văn bản của lần sửa — một dòng trong {@link #documents} của chính bộ này. */
+    @Column(name = "revision_document_id")
+    private Long revisionDocumentId;
+
+    /** Lý do sửa (bắt buộc với đính chính). */
+    @Column(name = "revision_note", length = 500)
+    private String revisionNote;
+
+    public RevisionKind getRevisionKind() {
+        return revisionKind;
+    }
+
+    public void setRevisionKind(RevisionKind revisionKind) {
+        this.revisionKind = revisionKind;
+    }
+
+    public Long getRevisionDocumentId() {
+        return revisionDocumentId;
+    }
+
+    public void setRevisionDocumentId(Long revisionDocumentId) {
+        this.revisionDocumentId = revisionDocumentId;
+    }
+
+    public String getRevisionNote() {
+        return revisionNote;
+    }
+
+    public void setRevisionNote(String revisionNote) {
+        this.revisionNote = revisionNote;
+    }
+
+    /** Lúc bấm Áp dụng — từ đó bộ này dùng để tính đủ / thiếu và báo cáo. */
+    @Column(name = "applied_at")
+    private java.time.Instant appliedAt;
+
+    /** Lúc bộ mới thay nó được áp dụng — từ đó bộ này chỉ còn để xem lại. */
+    @Column(name = "retired_at")
+    private java.time.Instant retiredAt;
+
+    public java.time.Instant getAppliedAt() {
+        return appliedAt;
+    }
+
+    public void setAppliedAt(java.time.Instant appliedAt) {
+        this.appliedAt = appliedAt;
+    }
+
+    public java.time.Instant getRetiredAt() {
+        return retiredAt;
+    }
+
+    public void setRetiredAt(java.time.Instant retiredAt) {
+        this.retiredAt = retiredAt;
+    }
 }

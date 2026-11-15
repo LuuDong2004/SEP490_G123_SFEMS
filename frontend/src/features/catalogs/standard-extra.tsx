@@ -3,7 +3,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { useFieldArray, type Control } from "react-hook-form";
 
 import { Badge } from "@/shared/ui/badge";
-import { SwitchRow } from "@/shared/components/form/switch-row";
 import { Card } from "@/shared/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { TextareaField } from "@/shared/components/form/simple-fields";
@@ -111,7 +110,7 @@ function DocumentsField({ control, framed }: { control: Control<any>; framed?: b
   return (
     <div className="@container">
       <div className={cn("flex items-center justify-between gap-2", framed ? "border-b px-5 py-3" : "mb-3")}>
-        <h3 className={cn(framed ? "text-base font-semibold" : "text-sm font-medium")}>
+        <h3 className={cn(framed ? "text-base font-semibold" : "text-sm font-semibold")}>
           Văn bản căn cứ <span className="text-muted-foreground ms-1 text-xs font-normal">{fields.length} văn bản</span>
         </h3>
         <Button type="button" variant="outline" size="sm" onClick={add}>
@@ -161,9 +160,10 @@ function DocumentsField({ control, framed }: { control: Control<any>; framed?: b
                 <TextInput control={control} name={`documents.${i}.documentNo`} label="Số hiệu" placeholder="37/2021/TT-BGDĐT" required rule="SHORT_TEXT" max={100} />
                 <TextInput control={control} name={`documents.${i}.issueDate`} label="Ngày ban hành" type="date" />
                 <TextInput control={control} name={`documents.${i}.effectiveDate`} label="Ngày hiệu lực" type="date" />
-                <TextInput control={control} name={`documents.${i}.documentName`} label="Trích yếu" className="@md:col-span-2" rule="NOTE" />
-                <TextInput control={control} name={`documents.${i}.issuingAuthority`} label="Cơ quan ban hành" placeholder="Bộ Giáo dục và Đào tạo" rule="NAME" />
-                <TextInput control={control} name={`documents.${i}.url`} label="Đường dẫn văn bản" placeholder="https://" rule="URL" max={1000} />
+                {/* Trích yếu dài (tên thông tư) — một hàng riêng để đọc hết, không bị cắt. */}
+                <TextInput control={control} name={`documents.${i}.documentName`} label="Trích yếu" className="col-span-full" rule="NOTE" />
+                <TextInput control={control} name={`documents.${i}.issuingAuthority`} label="Cơ quan ban hành" placeholder="Bộ Giáo dục và Đào tạo" rule="NAME" className="@2xl:col-span-2" />
+                <TextInput control={control} name={`documents.${i}.url`} label="Đường dẫn văn bản" placeholder="https://" rule="URL" max={1000} className="@2xl:col-span-2" />
               </div>
             </div>
           ))}
@@ -182,34 +182,27 @@ function DocumentsField({ control, framed }: { control: Control<any>; framed?: b
 function StandardFormBody({ control, record, inDialog }: { control: Control<any>; record?: any; inDialog?: boolean }) {
   const info = (
     <div className="@container space-y-4">
+      {/* Không có công tắc "Đang hoạt động": trạng thái của bộ chỉ đổi qua Lập bộ mới → Áp dụng. */}
       <div className="grid items-start gap-x-4 gap-y-5 @md:grid-cols-2">
-        <TextInput control={control} name="code" label="Mã" placeholder="STD-TH" required rule="CODE" />
-        {/* Bộ mới lúc nào cũng đang hoạt động — chỉ khi sửa mới có cờ để ngừng dùng. */}
-        {record?.id ? (
-          <FormField
-            control={control}
-            name="active"
-            render={({ field }) => (
-              <FormItem>
-                <SwitchRow checked={field.value ?? true} onCheckedChange={field.onChange} title="Đang hoạt động" />
-              </FormItem>
-            )}
-          />
-        ) : null}
-        <TextInput control={control} name="name" label="Tên bộ" required className="@md:col-span-2" rule="NAME" />
+        <TextInput control={control} name="code" label="Mã" placeholder="STD-TH" required rule="CODE" className="max-w-[12rem]" />
         <RefField control={control} name="educationLevel" resource="education_levels" label="Cấp học" current={record?.educationLevel} />
+        <TextInput control={control} name="name" label="Tên bộ" required className="@md:col-span-2" rule="NAME" />
         <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="2021, sửa đổi 2023" rule="SHORT_TEXT" max={50} />
+        <RefField control={control} name="previousStandard" resource="equipment_standards" label="Thay thế bộ" current={record?.previousStandard} />
         <RefField control={control} name="startSchoolYear" resource="school_years" label="Năm học bắt đầu" current={record?.startSchoolYear} />
         <RefField control={control} name="endSchoolYear" resource="school_years" label="Năm học kết thúc" current={record?.endSchoolYear} />
-        <RefField control={control} name="previousStandard" resource="equipment_standards" label="Thay thế bộ" current={record?.previousStandard} className="@md:col-span-2" />
         <TextareaField control={control} name="note" label="Ghi chú" className="@md:col-span-2" rule="NOTE" />
       </div>
     </div>
   );
   if (inDialog) {
+    // Hộp rộng: hai cột như trang sửa, ngăn bằng đường kẻ thay cho hai thẻ (hộp thoại đã là khung).
     return (
-      <div className="space-y-6">
-        {info}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:divide-x">
+        <section className="lg:pe-6">
+          <h3 className="mb-3 flex h-8 items-center text-sm font-semibold">Thông tin bộ</h3>
+          {info}
+        </section>
         <DocumentsField control={control} />
       </div>
     );
@@ -281,6 +274,7 @@ export const STANDARD_EXTRA = {
   section: { title: "Phạm vi áp dụng" },
   // Màn danh sách là Danh mục thiết bị dạy học tối thiểu: chọn cấp học, xem / sửa thiết bị của bộ.
   ListPage: MinimumCatalog,
+  saveInHeader: true,
   defaults: {
     educationLevel: { id: null },
     startSchoolYear: { id: null },

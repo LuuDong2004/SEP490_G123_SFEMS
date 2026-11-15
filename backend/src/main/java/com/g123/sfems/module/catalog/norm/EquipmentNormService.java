@@ -106,6 +106,41 @@ public class EquipmentNormService
         return super.create(request);
     }
 
+    /**
+     * Sửa nhiều dòng trong MỘT giao dịch — tất cả hoặc không gì. Mỗi dòng đi qua {@link #update}, nên
+     * luật "chỉ bộ nháp", phạm vi dòng và kiểm hợp lệ vẫn áp dụng y như sửa từng dòng.
+     */
+    @Transactional
+    public int updateAll(List<EquipmentNormBatchRequest.Item> items) {
+        for (EquipmentNormBatchRequest.Item item : items) {
+            update(item.id(), item.changes());
+        }
+        return items.size();
+    }
+
+    /**
+     * THAY các dòng của những môn có trong văn bản vừa đọc ({@code subjectIds}) bằng {@code rows} — một giao dịch,
+     * tất cả hoặc không gì; chỉ bộ NHÁP. Môn không có trong văn bản giữ nguyên. Xoá đi qua {@link #delete} (phạm vi
+     * dòng, luật nháp), thêm đi qua {@link #create} (kiểm trùng mã, kế thừa từ thiết bị). Trả số dòng đã xoá.
+     */
+    @Transactional
+    public int replaceSubjects(Long standardId, java.util.Collection<Long> subjectIds, List<EquipmentNormRequest> rows) {
+        EquipmentStandard standard = standards.get(standardId);
+        requireDraft(standard);
+        List<Long> old = subjectIds.isEmpty() ? List.of() : entityManager().createQuery("""
+                SELECT n.id FROM EquipmentNorm n WHERE n.standard = :s AND n.subject.id IN :subjects""", Long.class)
+                .setParameter("s", standard).setParameter("subjects", subjectIds).getResultList();
+        for (Long id : old) {
+            delete(id);
+        }
+        // Mã mới trùng mã của dòng vừa xoá (cùng môn, cùng số thứ tự): đẩy lệnh xoá xuống trước khi kiểm trùng.
+        entityManager().flush();
+        for (EquipmentNormRequest row : rows) {
+            create(row);
+        }
+        return old.size();
+    }
+
     /** Mọi dòng khớp bộ lọc của danh sách, KHÔNG phân trang, theo thứ tự phụ lục — cho xuất Excel. */
     @Transactional(readOnly = true)
     public List<EquipmentNorm> listAll(ListParams params) {

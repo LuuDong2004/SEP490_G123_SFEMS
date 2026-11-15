@@ -10,6 +10,8 @@ public enum DocumentRole {
     AMENDMENT("amendment"),
     GUIDANCE("guidance"),
     REPLACEMENT("replacement"),
+    /** Quyết định đính chính một thông tư (QĐ 1450/QĐ-BGDĐT đính chính TT 26/2023). */
+    CORRECTION("correction"),
     REFERENCE("reference");
 
     private final String value;

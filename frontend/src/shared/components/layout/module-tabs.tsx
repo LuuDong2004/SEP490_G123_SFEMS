@@ -1,15 +1,22 @@
 import { useMenu, useResourceParams } from "@refinedev/core";
 import type { TreeMenuItem } from "@refinedev/core";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 
 import { useAccessibleMenuItems, useManagementMenu } from "@/shared/components/layout/sidebar";
 import { useLiquid } from "@/shared/hooks/use-liquid";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { TAB_ACTIVE, TAB_HINT, TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
 import { cn } from "@/shared/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+
+/**
+ * Một lựa chọn trong menu xổ của tab (`meta.tabMenu` của resource): mở màn của tab với `?{param}={value}`.
+ * `short` là chữ ghi kèm trên tab khi đang chọn ("· THCS"); vắng thì dùng `label`.
+ */
+export type TabMenuItem = { param: string; value: string; label: string; short?: string; separatorBefore?: boolean };
 
 import { tabHint } from "./tab-hints";
 
@@ -82,6 +89,7 @@ export function ModuleTabs() {
  */
 function TabStrip({ label, tabs, current, management = false }: { label: string; tabs: TreeMenuItem[]; current: string; management?: boolean }) {
   // Nền tab đang mở trượt kiểu iOS khi đổi tab (`useLiquid`); cùng phần tử với khung cuộn của dải tab.
+  const [params] = useSearchParams();
   const [ref, indRef] = useLiquid<HTMLElement>(current, { memory: `tabs:${label}` });
   const [edge, setEdge] = useState({ left: false, right: false });
 
@@ -92,7 +100,7 @@ function TabStrip({ label, tabs, current, management = false }: { label: string;
       // Mép phải tính theo TAB CUỐI, không theo `scrollWidth`: viên màu trượt hơi vượt đà khi đổi tab, nằm ngoài
       // tab cuối một lúc và kéo `scrollWidth` ra theo — nút ">" bật lên che chữ tab cuối và nằm lì ở đó vì không còn
       // sự kiện cuộn / đổi cỡ nào để đo lại.
-      const tabsInStrip = el.querySelectorAll<HTMLElement>("a");
+      const tabsInStrip = el.querySelectorAll<HTMLElement>("a, [data-tab]");
       const lastTab = tabsInStrip[tabsInStrip.length - 1];
       const end = lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : el.scrollWidth;
       const left = el.scrollLeft > 4;
@@ -172,6 +180,43 @@ function TabStrip({ label, tabs, current, management = false }: { label: string;
           const fullLabel = String(t.meta?.label ?? t.label ?? t.name);
           // Rê chuột: một câu nói tab chứa gì (`tab-hints.ts`); chưa có câu thì hiện tên đầy đủ khi tab mang tên ngắn.
           const hint = tabHint(t.name, management) ?? (TAB_SHORT[t.name] ? fullLabel : undefined);
+          // Tab có menu xổ (`meta.tabMenu`): bấm mở danh sách lựa chọn, mỗi lựa chọn là một liên kết tới màn đó với
+          // tham số riêng (?level=THCS). Tab đang mở ghi kèm lựa chọn hiện tại.
+          const menu = t.meta?.tabMenu as TabMenuItem[] | undefined;
+          if (menu?.length) {
+            const picked = active ? menu.find((m) => params.get(m.param) === m.value) : undefined;
+            return (
+              <DropdownMenu key={t.name}>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" data-tab aria-current={active ? "page" : undefined} title={hint}
+                    className={cn(TAB_ITEM, active ? TAB_ACTIVE : TAB_IDLE)}>
+                    {t.meta?.icon ? (
+                      <span className={cn("shrink-0 transition-colors duration-300 [&_svg]:size-4", active ? "text-primary-foreground delay-75" : "text-muted-foreground")} aria-hidden>
+                        {t.meta.icon as React.ReactNode}
+                      </span>
+                    ) : null}
+                    {TAB_SHORT[t.name] ?? (t.meta?.tabLabel as string) ?? (t.meta?.label as string) ?? t.label}
+                    <ChevronDown className="size-3.5 shrink-0 opacity-70" aria-hidden />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={6} className="min-w-[14rem]"
+                  // Đóng menu không trả focus về tab: tab đang mở hiện vòng focus viền quanh viên màu.
+                  onCloseAutoFocus={(e) => e.preventDefault()}>
+                  {menu.map((m) => (
+                    <Fragment key={m.value}>
+                      {m.separatorBefore ? <DropdownMenuSeparator /> : null}
+                      <DropdownMenuItem asChild>
+                        <Link to={`${t.route}?${m.param}=${encodeURIComponent(m.value)}`}>
+                          {m.label}
+                          {picked?.value === m.value ? <Check className="text-primary ms-auto size-4" aria-hidden /> : null}
+                        </Link>
+                      </DropdownMenuItem>
+                    </Fragment>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          }
           const link = (
             <Link
               key={t.name}
@@ -245,6 +290,7 @@ const TAB_SHORT: Record<string, string> = {
   equipment_configs: "Thông số kỹ thuật",
   equipment_standards: "Danh mục tối thiểu",
   equipment_norms: "Định mức",
+  norm_matrix: "Số lượng tối thiểu",
   acquisition_methods: "Hình thức mua",
   movement_reasons: "Lý do biến động",
   room_types: "Loại CSVC",

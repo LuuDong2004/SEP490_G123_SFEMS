@@ -1,23 +1,20 @@
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
-import { BookOpen, BookOpenCheck, GraduationCap, Tags, ChevronDown, ChevronLeft, FileDown, FileSpreadsheet, Loader2, Upload, ChevronRight, ChevronsLeft, ChevronsRight, CopyPlus, ExternalLink, FileText, MoreHorizontal, Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { BookOpen, GraduationCap, Tags, ChevronLeft, FileSpreadsheet, Loader2, Upload, ChevronRight, ChevronsLeft, ChevronsRight, CopyPlus, ExternalLink, FileText, Settings, Pencil, Plus, Search, ShieldCheck, Trash2, Users, FunnelX, CalendarRange, History, Undo2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 
 import { API_URL } from "@/shared/api/constants";
 import { FillBox } from "@/shared/components/layout/fill-box";
-import { Segmented } from "@/shared/components/segmented";
 import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
 import { errorMessage } from "@/shared/lib/api-error";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
-import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { cn } from "@/shared/lib/utils";
 import { formatDateTime, formatPlainDate, formatEditedAt } from "@/shared/lib/format";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { FormDialog, type FormDialogState } from "@/shared/components/catalog/form-dialog";
-import type { CatalogConfig } from "@/shared/components/catalog/types";
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { IconFilter, type IconFilterGroup } from "@/shared/components/data-table/icon-filter";
 import { FormSection } from "@/shared/components/form/form-section";
@@ -28,7 +25,17 @@ import { SelectField, TextareaField, TextField } from "@/shared/components/form/
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Badge } from "@/shared/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
@@ -39,6 +46,7 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import {
   DOCUMENT_ROLE_LABELS,
+  REVISION_KIND_LABELS,
   LEVEL_GRADES,
   NORM_BASIS_LABELS,
   gradesLabel,
@@ -50,6 +58,10 @@ import {
 import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 
 import { EquipmentCatalogDetail } from "./equipment-catalog-profile";
+import { useLevelParam } from "./level-picker";
+import { ReviseDialog, type ReviseTarget } from "./revise-dialog";
+import { countsText, StandardChangesButton, useStandardChanges } from "./standard-changes";
+import { StandardProfileForm } from "./standard-profile-form";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
@@ -71,13 +83,27 @@ const NORMS = "equipment_norms";
  * "Theo kho/phòng" của màn Thiết bị. Bấm dòng mở hồ sơ trong hộp thoại; thêm, sửa cũng trong hộp
  * thoại.
  */
-export function MinimumCatalog({ config }: { config: CatalogConfig }) {
-  const { result: standardsResult, query: standardsQuery } = useList<any>({
+export function MinimumCatalog() {
+  const { result: standardsResult } = useList<any>({
     resource: "equipment_standards",
     pagination: { pageSize: 50 },
     sorters: [{ field: "sortOrder", order: "asc" }],
   });
   const standards = useMemo(() => standardsResult?.data ?? [], [standardsResult]);
+  // Thông tư Sở chọn điều chỉnh khi Lập bộ mới: bộ ĐANG ÁP DỤNG của từng cấp, gọi theo thông tư gốc (TT 37 / 38 / 39).
+  // Cấp đang có bản nháp chưa áp dụng thì không chọn được.
+  const reviseTargets = useMemo<ReviseTarget[]>(() => standards
+    .filter((s) => s.status === "ACTIVE")
+    .map((s) => {
+      const main = (s.documents ?? []).find((d: any) => d.documentRole === "main");
+      return {
+        id: s.id,
+        circular: (main?.documentNo ?? s.code).replace(/\/TT-.*$/i, ""),
+        level: s.educationLevel?.name ?? "",
+        busy: standards.some((d) => d.status === "DRAFT" && d.previousStandard?.id === s.id),
+      };
+    })
+    .sort((a, b) => a.circular.localeCompare(b.circular, "vi", { numeric: true })), [standards]);
   // Chọn CẤP HỌC rồi chọn BỘ của cấp đó (mặc định bộ đang áp dụng). Một cấp có thể có nhiều bộ: bộ
   // đang áp dụng, các bộ đã hết hiệu lực, và một bản nháp đang soạn theo văn bản mới.
   const levels = useMemo(() => {
@@ -88,7 +114,10 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
   const [levelId, setLevelId] = usePersistentState<number | null>("tbdh.level", null, "local");
   const [standardId, setStandardId] = usePersistentState<number | null>("tbdh.standard", null, "local");
   const levelOf = (s: any) => s?.educationLevel?.id ?? null;
-  const currentLevel = levels.find((l) => l.id === levelId) ?? levels[0];
+  // Cấp học chọn ở menu xổ của TAB (?level=TH|THCS|THPT|outside). Địa chỉ không có cấp thì mở cấp xem lần trước.
+  const remembered = levels.find((l) => l.id === levelId) ?? levels[0];
+  const { outside, level: pickedLevel } = useLevelParam(levels, remembered?.code);
+  const currentLevel = pickedLevel ?? remembered;
   const levelStandards = standards.filter((s) => levelOf(s) === currentLevel?.id);
   const standard =
     levelStandards.find((s) => s.id === standardId) ??
@@ -156,23 +185,40 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
   // Mặc định cả bộ — như phụ lục; chọn một môn ở ô Môn học để thu hẹp.
   const allSubjects = subjectKey === null || subjectKey === ALL;
   const subject = allSubjects ? undefined : groups.find((g) => String(g.subjectId) === subjectKey);
+  // Đổi cấp học (từ menu của tab): nhớ cấp, về bộ mặc định của cấp, cả bộ.
+  useEffect(() => {
+    if (!pickedLevel || pickedLevel.id === levelId) return;
+    setLevelId(pickedLevel.id);
+    setStandardId(null);
+    setSubjectKey(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedLevel?.id]);
 
   const mayCreate = useCan({ resource: NORMS, action: "create" }).data?.can ?? false;
   const mayEditStandard = useCan({ resource: "equipment_standards", action: "edit" }).data?.can ?? false;
   const [viewing, setViewing] = useState<number | null>(null);
   // Hồ sơ thiết bị (cùng khuôn trang Danh mục thiết bị) — mở từ dòng phụ lục có thiết bị, hoặc từ tab Ngoài danh mục.
   const [viewingCatalog, setViewingCatalog] = useState<CatalogView | null>(null);
-  // Tab "Ngoài danh mục": thiết bị không thuộc danh mục tối thiểu — Sở thêm ngoài thông tư, trường tự thêm.
-  const [outside, setOutside] = usePersistentState<boolean>("tbdh.outside", false, "local");
   const [form, setForm] = useState<FormDialogState>({ open: false });
-  const navigate = useNavigate();
+  // Hộp Hồ sơ bộ: đóng / xem / sửa tại chỗ (cùng một hộp, sửa xong quay về xem).
+  const [profile, setProfile] = useState<ProfileMode>(null);
 
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
   const [lifecycle, setLifecycle] = useState<"revise" | "apply" | "discard" | null>(null);
-  const [newVersion, setNewVersion] = useState("");
+  // Hộp Áp dụng nói trước bản nháp khác bộ đang áp dụng bao nhiêu dòng — chỉ hỏi máy chủ khi hộp mở.
+  const applyDiff = useStandardChanges(standard?.id, lifecycle === "apply");
   const [busy, setBusy] = useState(false);
   const activeOfLevel = levelStandards.find((s) => s.status === "ACTIVE");
+  // Bản nháp ở cấp khác lập theo cùng văn bản với bản nháp đang xem (một văn bản sửa chung nhiều thông tư).
+  const siblingDrafts = useMemo(() => {
+    const docNo = (s: any) => (s.documents ?? []).find((d: any) => d.id === s.revisionDocumentId)?.documentNo;
+    const mine = standard?.status === "DRAFT" ? docNo(standard) : undefined;
+    if (!mine) return [];
+    return standards
+      .filter((s) => s.status === "DRAFT" && s.id !== standard?.id && docNo(s) === mine)
+      .map((s) => s.educationLevel?.name ?? s.code);
+  }, [standards, standard]);
   const docsLine = ((standard?.documents ?? []) as any[]).map((d) => d.documentNo).join(", ");
 
   // Xuất / nhập / in đi theo ĐÚNG bộ lọc đang xem (bộ, môn, tìm, lớp, đối tượng, chủ đề).
@@ -246,21 +292,18 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
     }
   };
 
-  /** Lập bộ mới / áp dụng / xoá bản nháp — ba bước của vòng đời bộ, mỗi bước một xác nhận. */
-  // `StandardReviseRequest.standardVersion`: SHORT_TEXT, tối đa 50.
-  const versionError = textError("SHORT_TEXT", "Phiên bản", newVersion, 50);
+  /** Áp dụng / xoá bản nháp — mỗi bước một xác nhận. Lập bộ mới đi hộp riêng (`ReviseDialog`): phải khai căn cứ. */
+  const afterLifecycle = () => {
+    invalidate({ resource: "equipment_standards", invalidates: ["list", "detail"] });
+    invalidate({ resource: NORMS, invalidates: ["list"] });
+    invalidate({ resource: "equipment_catalogs", invalidates: ["list"] });
+    setLifecycle(null);
+  };
   const runLifecycle = async () => {
-    if (!standard || !lifecycle) return;
-    if (lifecycle === "revise" && versionError) return;
+    if (!standard || !lifecycle || lifecycle === "revise") return;
     setBusy(true);
     try {
-      if (lifecycle === "revise") {
-        const created = await kyInstance
-          .post(`equipment_standards/${standard.id}/revise`, { json: { standardVersion: newVersion.trim() || null } })
-          .json<{ id: number }>();
-        setStandardId(created.id);
-        notify?.({ type: "success", message: "Đã lập bộ nháp. Sửa thiết bị và văn bản căn cứ rồi bấm Áp dụng." });
-      } else if (lifecycle === "apply") {
+      if (lifecycle === "apply") {
         await kyInstance.post(`equipment_standards/${standard.id}/apply`);
         notify?.({ type: "success", message: "Đã áp dụng bộ mới. Bộ cũ hết hiệu lực." });
       } else {
@@ -268,11 +311,7 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
         setStandardId(activeOfLevel?.id ?? null);
         notify?.({ type: "success", message: "Đã xoá bộ nháp." });
       }
-      invalidate({ resource: "equipment_standards", invalidates: ["list", "detail"] });
-      invalidate({ resource: NORMS, invalidates: ["list"] });
-      invalidate({ resource: "equipment_catalogs", invalidates: ["list"] });
-      setLifecycle(null);
-      setNewVersion("");
+      afterLifecycle();
     } catch (error) {
       notify?.({ type: "error", message: await errorMessage(error), description: "Không thực hiện được" });
     } finally {
@@ -308,74 +347,6 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
       {/* Tiêu đề chỉ cho trình đọc màn hình (thanh tab đã gọi tên màn); nút của bộ nằm cùng hàng cấp học. */}
       <ListViewHeader canCreate={false} title="Danh mục thiết bị dạy học tối thiểu" />
 
-      <div className="flex flex-wrap items-center gap-2" data-print="hide">
-        {/* Chỉ MỘT cấp học (tài khoản của trường chỉ thấy danh mục của cấp mình) thì không vẽ dải chọn cấp:
-            một nút duy nhất không chọn được gì, chỉ chiếm chỗ. */}
-        {standardsQuery.isLoading ? <Skeleton className="h-9 w-72 rounded-xl" /> : levels.length ? (
-          <Segmented label="Cấp học" value={outside ? "outside" : String(currentLevel?.id ?? "")}
-            options={[...levels.map((l) => ({ value: String(l.id), label: l.name, hint: `Danh mục thiết bị tối thiểu cấp ${l.name}` })),
-              { value: "outside", label: "Ngoài danh mục", hint: "Thiết bị trường có nhưng không nằm trong danh mục tối thiểu" }]}
-            onChange={(v) => {
-              if (v === "outside") {
-                setOutside(true);
-                return;
-              }
-              setOutside(false);
-              setLevelId(Number(v));
-              setStandardId(null);
-              setSubjectKey(null);
-            }} />
-        ) : null}
-        {standard && !outside ? (
-          <div className="ms-auto flex flex-wrap items-center gap-2">
-            <StandardSummary
-              standard={standard}
-              versions={levelStandards}
-              onPick={(id) => {
-                setStandardId(id);
-                setSubjectKey(null);
-              }}
-              rows={filtering ? null : total}
-              devices={devices}
-              subjects={groups.length}
-            />
-            {mayEditStandard && status === "ACTIVE" ? (
-              // Hai việc hiếm làm với bộ đang áp dụng gập vào MỘT nút "⋯": hàng chỉ còn trạng thái, phiên bản
-              // và "Hồ sơ bộ" — ba nút to cạnh nhau cho một bộ tiêu chuẩn ít khi đổi là quá nặng.
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon-sm" aria-label="Thao tác khác với bộ" title="Thao tác khác">
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuItem onSelect={() => navigate(`${config.path}/edit/${standard.id}`)}>
-                    <Pencil />
-                    Sửa thông tin bộ
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setLifecycle("revise")}>
-                    <CopyPlus />
-                    Lập bộ mới theo văn bản mới
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : mayEditStandard && status === "DRAFT" ? (
-              <>
-                {mayCreate ? (
-                  <Button variant="outline" size="sm" onClick={() => setForm({ open: true })}>
-                    <Plus />
-                    Thêm thiết bị
-                  </Button>
-                ) : null}
-                <Button size="sm" onClick={() => setLifecycle("apply")}>
-                  <ShieldCheck />
-                  Áp dụng bộ này
-                </Button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
 
       {outside ? (
         <OutsideCatalog onOpen={(id) => setViewingCatalog({ id })} />
@@ -384,8 +355,10 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
       {standard ? (
         <StandardNotice
           status={status}
+          siblings={siblingDrafts}
+          onBackToActive={activeOfLevel ? () => { setStandardId(activeOfLevel.id); setSubjectKey(null); } : undefined}
           canWrite={mayEditStandard}
-          onEditDocuments={() => navigate(`${config.path}/edit/${standard.id}`)}
+          onEditDocuments={() => setProfile("edit")}
           onDiscard={() => setLifecycle("discard")}
         />
       ) : null}
@@ -393,16 +366,17 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
       {/* Tìm và lọc ở TRÊN, trải hết bề ngang — áp cho cả cột môn lẫn bảng (số đếm của môn đổi theo). */}
       <div className="bg-card flex flex-wrap items-center gap-2 rounded-lg border p-3">
         {/* Ô tìm giữ tối thiểu 16rem: hàng chật thì các nút lọc xuống dòng, không bóp ô tìm còn vài chữ. */}
-        <div className="relative min-w-64 flex-1 sm:max-w-md">
+        <div className="relative min-w-0 max-w-[26rem] grow basis-[9rem]">
           <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm thiết bị, chủ đề…" className="pl-8" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm thiết bị…" title="Tìm theo tên thiết bị, chủ đề" className="h-8 pl-8" />
         </div>
         {/* Hàng này rộng: bộ lọc hiện chữ — lớp, môn là nút có chữ; đối tượng (2 lựa chọn) là dải chọn. */}
         <IconFilter labeled icon={<GraduationCap />} label="lớp" allLabel="Tất cả lớp"
           value={grade === ALL ? null : grade} onChange={(v) => setGrade(v ?? ALL)}
           groups={[{ items: (level ? LEVEL_GRADES[level] ?? [] : []).map((g) => ({ key: String(g), label: `Lớp ${g}` })) }]} />
-        <Segmented label="Lọc theo đối tượng" value={target} onChange={setTarget}
-          options={[{ value: ALL, label: "Mọi đối tượng" }, { value: "teacher", label: "Giáo viên dùng" }, { value: "student", label: "Học sinh dùng" }]} />
+        <IconFilter labeled icon={<Users />} label="đối tượng" allLabel="Mọi đối tượng"
+          value={target === ALL ? null : target} onChange={(v) => setTarget(v ?? ALL)}
+          groups={[{ items: [{ key: "teacher", label: "Giáo viên dùng" }, { key: "student", label: "Học sinh dùng" }] }]} />
         <IconFilter labeled icon={<BookOpen />} label="môn học" allLabel="Tất cả môn" total={devices} fallback="Môn đã chọn"
           value={allSubjects ? null : subjectKey}
           onChange={(v) => {
@@ -415,11 +389,56 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
             count: g.catalogs ?? g.count,
           })) }]} />
         {standard ? <TopicFilter standardId={standard.id} subjectKey={allSubjects ? null : subjectKey} value={topic} onChange={setTopic} /> : null}
+        {/* Từ hai điều kiện lọc trở lên: một nút gỡ hết, khỏi mở từng ô. */}
+        {[q.trim() !== "", grade !== ALL, target !== ALL, !allSubjects, topic !== null].filter(Boolean).length >= 2 ? (
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá lọc" title="Xoá lọc"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setQ("");
+              setGrade(ALL);
+              setTarget(ALL);
+              setSubjectKey(null);
+              setTopic(null);
+            }}>
+            <FunnelX />
+          </Button>
+        ) : null}
         <div className="ms-auto flex flex-wrap items-center gap-2">
-          {filtering ? (
-            <span className="text-muted-foreground text-sm tabular-nums">
-              {devices} thiết bị khớp · {groups.length} môn
-            </span>
+          {/* Bộ đang xem: trạng thái, phiên bản, Hồ sơ bộ và thao tác với bộ — cùng hàng công cụ, trước Xuất. */}
+          {standard && !outside ? (
+            <>
+              <StandardSummary
+                standard={standard}
+                rows={filtering ? null : total}
+                devices={devices}
+                subjects={groups.length}
+                actions={
+                  mayEditStandard && status === "DRAFT" ? (
+                    <>
+                      {mayCreate ? (
+                        <Button variant="outline" size="sm" onClick={() => setForm({ open: true })}>
+                          <Plus />
+                          Thêm thiết bị
+                        </Button>
+                      ) : null}
+                      <Button size="sm" onClick={() => setLifecycle("apply")}>
+                        <ShieldCheck />
+                        Áp dụng bộ này
+                      </Button>
+                    </>
+                  ) : mayEditStandard && status === "ACTIVE" ? (
+                    <Button variant="outline" size="sm" title="Lập bộ mới theo văn bản mới" onClick={() => setLifecycle("revise")}>
+                      <CopyPlus />
+                      Lập bộ mới
+                    </Button>
+                  ) : null
+                }
+                // Sửa thông tin bộ / văn bản căn cứ ngay trong hộp Hồ sơ bộ — xem thấy sai thì sửa tại chỗ.
+                canEdit={mayEditStandard && status !== "RETIRED"}
+                mode={profile}
+                onMode={setProfile}
+              />
+            </>
           ) : null}
           {editable && mayCreate ? (
             <>
@@ -428,31 +447,52 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
                   const f = e.target.files?.[0];
                   if (f) void importXlsx(f);
                 }} />
-              <Button type="button" variant="outline" disabled={transfer !== null} onClick={() => importInput.current?.click()}
-                title="Nhập thiết bị từ Excel vào bản nháp. Dùng đúng mẫu cột của file xuất.">
-                {transfer === "import" ? <Loader2 className="animate-spin" /> : <Upload />}
-                Nhập Excel
-              </Button>
             </>
           ) : null}
-          {/* Một nút Xuất, chọn định dạng lúc xuất. */}
+          {/* Thao tác khác — MỘT nút bánh răng: xuất và nhập vào bản nháp. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" disabled={transfer !== null || !standard}>
-                {transfer === "xlsx" || transfer === "pdf" ? <Loader2 className="animate-spin" /> : <FileDown />}
-                Xuất
-                <ChevronDown className="opacity-60" />
+              <Button type="button" variant="outline" size="icon-sm" aria-label="Thao tác khác" title="Thao tác khác" disabled={!standard}>
+                {transfer !== null ? <Loader2 className="animate-spin" /> : <Settings />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuItem onSelect={() => void exportXlsx()}>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem disabled={transfer !== null} onSelect={() => void exportXlsx()}>
                 <FileSpreadsheet />
-                Excel (.xlsx)
+                Xuất Excel (.xlsx)
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPdf()}>
+              <DropdownMenuItem disabled={transfer !== null} onSelect={() => void exportPdf()}>
                 <FileText />
-                PDF (in / lưu PDF)
+                Xuất PDF (in / lưu PDF)
               </DropdownMenuItem>
+              {editable && mayCreate ? (
+                <DropdownMenuItem disabled={transfer !== null} onSelect={() => importInput.current?.click()}>
+                  <Upload />
+                  Nhập Excel vào bản nháp
+                </DropdownMenuItem>
+              ) : null}
+              {/* Phiên bản khác của bộ (bộ đã hết hiệu lực, bản nháp) — xem lại lịch sử, không phải việc hằng ngày. */}
+              {levelStandards.length > 1 ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <History />
+                    Phiên bản của bộ
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-w-[28rem]">
+                    <DropdownMenuRadioGroup value={String(standard?.id ?? "")}
+                      onValueChange={(v) => { setStandardId(Number(v)); setSubjectKey(null); }}>
+                      {levelStandards.map((v) => (
+                        <DropdownMenuRadioItem key={v.id} value={String(v.id)}>
+                          <span className="min-w-0 truncate">{v.standardVersion ?? v.code}</span>
+                          <Badge variant={STATUS_VARIANT[(v.status ?? "ACTIVE") as StandardStatus]} className="ms-auto shrink-0">
+                            {STATUS_LABEL[(v.status ?? "ACTIVE") as StandardStatus]}
+                          </Badge>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -462,7 +502,8 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
         <FillBox>
         <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
           <div className="flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-3">
-            <h3 className="text-base font-semibold">{subject ? subject.subjectName ?? "Chưa gắn môn" : "Tất cả môn"}</h3>
+            {/* Môn đang lọc đã hiện trên nút Môn học — tiêu đề khung chỉ nói khung này là gì. */}
+            <h3 className="text-base font-semibold">Nội dung</h3>
             <span className="text-muted-foreground text-sm tabular-nums">
               {subject
                 ? (subject.catalogs ?? subject.count) === subject.count
@@ -522,22 +563,28 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
       </>
       )}
 
-      <AlertDialog open={lifecycle !== null} onOpenChange={(o) => !o && !busy && setLifecycle(null)}>
+      <ReviseDialog targets={reviseTargets} initialId={standard?.id ?? null} open={lifecycle === "revise"}
+        onOpenChange={(o) => !o && setLifecycle(null)}
+        onCreated={(drafts) => {
+          const here = drafts.find((d) => levelStandards.some((s) => s.id === d.id) || d.educationLevel?.name === currentLevel?.name);
+          if (here) setStandardId(here.id);
+          notify?.({
+            type: "success",
+            message: `Đã lập bản nháp: ${drafts.map((d) => d.educationLevel?.name ?? "").filter(Boolean).join(", ")}. Kiểm tra, sửa thiết bị rồi bấm Áp dụng từng bộ.`,
+          });
+          afterLifecycle();
+        }} />
+
+      <AlertDialog open={lifecycle === "apply" || lifecycle === "discard"} onOpenChange={(o) => !o && !busy && setLifecycle(null)}>
         <ConfirmContent
           tone={lifecycle === "discard" ? "danger" : lifecycle === "apply" ? "warning" : "neutral"}
-          title={lifecycle === "revise" ? "Lập bộ mới theo văn bản mới?" : lifecycle === "apply" ? "Áp dụng bộ này?" : "Xoá bản nháp?"}
+          title={lifecycle === "apply" ? "Áp dụng bộ này?" : "Xoá bản nháp?"}
           description={
             <div className="space-y-3">
-                {lifecycle === "revise" ? (
-                  <>
-                    <p>
-                      Tạo bản nháp từ bộ đang áp dụng, gồm văn bản căn cứ và {devices} thiết bị. Sửa bản nháp theo văn bản mới rồi bấm
-                      Áp dụng. Bộ đang áp dụng giữ nguyên tới lúc đó.
-                    </p>
-                  </>
-                ) : lifecycle === "apply" ? (
+                {lifecycle === "apply" ? (
                   <p>
-                    Bộ này sẽ là bộ <span className="text-foreground font-medium">đang áp dụng</span> của cấp học, dùng để tính đủ / thiếu.
+                    Từ lúc bấm Áp dụng, bộ này là bộ <span className="text-foreground font-medium">đang áp dụng</span> của cấp học: đủ / thiếu
+                    và báo cáo tính theo nó.
                     {activeOfLevel ? (
                       <>
                         {" "}Bộ hiện hành <span className="text-foreground font-medium">{activeOfLevel.standardVersion ?? activeOfLevel.code}</span> sẽ
@@ -546,26 +593,26 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
                     ) : null}{" "}
                     Áp dụng rồi thì không sửa được thiết bị trong bộ.
                   </p>
+                ) : null}
+                {lifecycle === "apply" && standard?.previousStandard ? (
+                  <p>
+                    So với bộ đang áp dụng:{" "}
+                    <span className="text-foreground font-medium">
+                      {applyDiff.loading ? "đang so…" : countsText(applyDiff.counts) || "chưa khác gì"}
+                    </span>
+                    .{standard.revisionKind === "AMENDMENT" ? " Dòng mới và dòng đổi lấy văn bản sửa đổi làm căn cứ." : null}
+                  </p>
                 ) : (
                   <p>Bản nháp và mọi thiết bị trong đó bị xoá hẳn. Bộ đang áp dụng không bị ảnh hưởng.</p>
                 )}
               </div>
           }
           cancelLabel={lifecycle === "discard" ? "Không xoá" : "Chưa, để sau"}
-          confirmLabel={lifecycle === "revise" ? "Lập bộ nháp" : lifecycle === "apply" ? "Áp dụng" : "Xoá bản nháp"}
+          confirmLabel={lifecycle === "apply" ? "Áp dụng" : "Xoá bản nháp"}
           busy={busy}
           keepOpen
           onConfirm={() => void runLifecycle()}
-        >
-          {lifecycle === "revise" ? (
-                    <div className="space-y-1.5">
-                      <span className="text-foreground text-sm font-medium">Phiên bản của bộ mới</span>
-                      <Input value={newVersion} onChange={(e) => setNewVersion(e.target.value)} placeholder="VD: 2026, theo Thông tư 12/2026/TT-BGDĐT"
-                        maxLength={maxLengthOf("SHORT_TEXT", 50)} aria-invalid={!!versionError} />
-                      {versionError ? <p className="text-destructive text-sm">{versionError}</p> : null}
-                    </div>
-          ) : null}
-        </ConfirmContent>
+        />
       </AlertDialog>
 
       <NormDetailDialog
@@ -601,56 +648,51 @@ export function MinimumCatalog({ config }: { config: CatalogConfig }) {
  */
 function LegalDocuments({ docs }: { docs: any[] }) {
   const mayWrite = useCan({ resource: "equipment_standards", action: "edit" }).data?.can ?? false;
-  if (!docs.length) return <p className="text-muted-foreground text-sm">Bộ chưa khai văn bản căn cứ.</p>;
+  // Bảng: một văn bản một dòng — số hiệu, vai trò, tên, ngày; tệp PDF của văn bản ở cột cuối.
   return (
-    <div className="space-y-3">
-      {docs.map((d) => (
-        <section key={d.id} className="space-y-3 rounded-lg border p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <FileText className="text-muted-foreground size-4" />
-                <span className="font-semibold">{d.documentNo}</span>
-                <Badge variant="neutral">{DOCUMENT_ROLE_LABELS[d.documentRole] ?? d.documentRole}</Badge>
-              </div>
-              {d.documentName ? <p className="text-sm">{d.documentName}</p> : null}
-              <p className="text-muted-foreground text-xs">
-                {[
-                  d.issuingAuthority,
-                  d.issueDate ? `Ban hành ${formatPlainDate(d.issueDate)}` : null,
-                  d.effectiveDate ? `Hiệu lực ${formatPlainDate(d.effectiveDate)}` : null,
-                ].filter(Boolean).join(" · ")}
-              </p>
-            </div>
-            {d.url ? (
-              <Button asChild variant="ghost" size="sm" className="h-7">
-                <a href={d.url} target="_blank" rel="noreferrer">
-                  <ExternalLink />
-                  Văn bản gốc
-                </a>
-              </Button>
-            ) : null}
-          </div>
-          <AttachmentsPanel
-            resource="equipment_standard_documents"
-            recordId={d.id}
-            canWrite={mayWrite}
-            compact
-            title="Tệp văn bản"
-            description="Tệp PDF của văn bản. Bấm biểu tượng con mắt để xem."
-          />
-        </section>
-      ))}
+    <div className="bg-card shadow-e1 overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Số hiệu</TableHead>
+            <TableHead>Vai trò</TableHead>
+            <TableHead>Tên văn bản</TableHead>
+            <TableHead>Ban hành</TableHead>
+            <TableHead>Hiệu lực</TableHead>
+            <TableHead>Tệp</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {!docs.length ? <TableEmpty colSpan={6} compact title="Bộ chưa khai văn bản căn cứ." /> : docs.map((d) => (
+            <TableRow key={d.id}>
+              <TableCell className="font-medium whitespace-nowrap">
+                {d.url ? (
+                  <a href={d.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                    {d.documentNo}<ExternalLink className="size-3.5" />
+                  </a>
+                ) : d.documentNo}
+              </TableCell>
+              <TableCell><Badge variant="neutral">{DOCUMENT_ROLE_LABELS[d.documentRole] ?? d.documentRole}</Badge></TableCell>
+              <TableCell className="min-w-[14rem] whitespace-normal">{d.documentName ?? "—"}</TableCell>
+              <TableCell className="tabular-nums">{d.issueDate ? formatPlainDate(d.issueDate) : "—"}</TableCell>
+              <TableCell className="tabular-nums">{d.effectiveDate ? formatPlainDate(d.effectiveDate) : "—"}</TableCell>
+              <TableCell className="min-w-[12rem] whitespace-normal">
+                <AttachmentsPanel resource="equipment_standard_documents" recordId={d.id} canWrite={mayWrite} field compact title="" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-/** Một dòng "nhãn — giá trị" của hồ sơ bộ (cùng hình với hồ sơ trường). */
-function ProfileRow({ label, children }: { label: string; children?: ReactNode }) {
+/** Một ô "nhãn trên, giá trị dưới" của lưới hồ sơ bộ; `wide` chiếm cả hàng (ghi chú, bộ được thay). */
+function Fact({ label, wide, children }: { label: string; wide?: boolean; children?: ReactNode }) {
   return (
-    <div className="grid grid-cols-[9.5rem_minmax(0,1fr)] gap-3 border-b py-2.5 text-sm last:border-b-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
+    <div className={cn("min-w-0", wide && "col-span-full")}>
+      <dt className="text-muted-foreground text-xs">{label}:</dt>
+      <dd className="mt-0.5 font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
     </div>
   );
 }
@@ -660,16 +702,24 @@ function ProfileRow({ label, children }: { label: string; children?: ReactNode }
  * quy mô, ô chọn phiên bản khác (khi cấp học có nhiều bộ), và nút "Hồ sơ bộ" mở hộp thoại đầy đủ:
  * thông tin bộ, bốn con số, và các văn bản căn cứ kèm tệp PDF. Bộ nháp có thêm dải nhắc màu vàng.
  */
-function StandardSummary({ standard, versions, onPick, rows, devices, subjects }: {
+/** Hộp Hồ sơ bộ: đóng, đang xem, hay đang sửa tại chỗ. */
+type ProfileMode = null | "view" | "edit";
+
+function StandardSummary({ standard, rows, devices, subjects, actions, canEdit, mode, onMode }: {
   standard: any;
-  versions: any[];
-  onPick: (id: number) => void;
   rows: number | null;
   devices: number;
   subjects: number;
+  /** Nút thêm / sửa của bộ — đứng trước "Hồ sơ bộ". */
+  actions?: ReactNode;
+  /** Có quyền sửa bộ: nút "Sửa" ở chân hộp — chính hộp chuyển sang ô nhập. */
+  canEdit: boolean;
+  /** Màn cha giữ: dải vàng của bộ nháp ("Sửa văn bản căn cứ") mở thẳng chế độ sửa. */
+  mode: ProfileMode;
+  onMode: (mode: ProfileMode) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const docs: any[] = standard.documents ?? [];
+  const revisionDoc = docs.find((d) => d.id === standard.revisionDocumentId);
   const status: StandardStatus = standard.status ?? "ACTIVE";
   const figures = [
     { label: "Thiết bị", value: devices },
@@ -680,97 +730,73 @@ function StandardSummary({ standard, versions, onPick, rows, devices, subjects }
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
-      {versions.length > 1 ? (
-        <Select value={String(standard.id)} onValueChange={(v) => onPick(Number(v))}>
-          <SelectTrigger className="h-8 w-auto min-w-56 text-sm" aria-label="Phiên bản của bộ">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {versions.map((v) => (
-              <SelectItem key={v.id} value={String(v.id)}>
-                {v.standardVersion ?? v.code} — {STATUS_LABEL[(v.status ?? "ACTIVE") as StandardStatus]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : standard.standardVersion ? (
-        <span className="text-muted-foreground text-sm">Phiên bản {standard.standardVersion}</span>
-      ) : null}
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      {actions}
+      <Button variant="outline" size="sm" onClick={() => onMode("view")}>
         <FileText />
         Hồ sơ bộ
       </Button>
 
       {/* Hồ sơ bộ trong hộp thoại — cùng khuôn với "Hồ sơ trường": đầu, dải con số, các nhóm nhãn — giá trị. */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="wide" className="overflow-y-auto">
+      <Dialog open={mode !== null} onOpenChange={(o) => onMode(o ? "view" : null)}>
+        <DialogContent size={mode === "edit" && standard.status !== "DRAFT" ? "formFit" : "wideFit"} className="overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Hồ sơ bộ tiêu chuẩn</DialogTitle>
-            <DialogDescription className="sr-only">{standard.name}</DialogDescription>
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              {standard.name}
+              <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
+            </DialogTitle>
+            <DialogDescription className="sr-only">Hồ sơ bộ danh mục tối thiểu</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-start gap-5">
-              <span className="bg-primary/10 text-primary flex size-16 shrink-0 items-center justify-center rounded-xl">
-                <BookOpenCheck className="size-7" />
-              </span>
-              <div className="min-w-0 flex-1 space-y-2 pt-1">
-                <h2 className="text-2xl font-semibold tracking-tight">{standard.name}</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="bg-muted rounded-md px-2 py-0.5 font-mono text-xs font-medium">{standard.code}</span>
-                  <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {[standard.educationLevel?.name, standard.standardVersion ? `Phiên bản ${standard.standardVersion}` : null].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 divide-y rounded-lg border sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+          {mode === "edit" && canEdit ? (
+            <StandardProfileForm standard={standard} onCancel={() => onMode("view")} onSaved={() => onMode("view")} />
+          ) : (
+          <>
+          <div className="space-y-5">
+            {/* Mỗi thông tin một lần: trạng thái ở tiêu đề; mã, cấp, phiên bản, hiệu lực, con số trong một lưới. */}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-4">
+              <Fact label="Mã bộ"><span className="font-mono">{standard.code}</span></Fact>
+              <Fact label="Cấp học">{standard.educationLevel?.name}</Fact>
+              <Fact label="Phiên bản">{standard.standardVersion}</Fact>
+              {standard.appliedAt ? <Fact label="Áp dụng từ">{formatDateTime(standard.appliedAt)}</Fact> : null}
+              {standard.retiredAt ? <Fact label="Hết hiệu lực từ">{formatDateTime(standard.retiredAt)}</Fact> : null}
+              <Fact label="Năm học áp dụng">
+                {standard.startSchoolYear || standard.endSchoolYear
+                  ? `${standard.startSchoolYear?.code ?? "…"} → ${standard.endSchoolYear?.code ?? "nay"}` : null}
+              </Fact>
               {figures.map((f) => (
-                <div key={f.label} className="px-4 py-3">
-                  <div className="text-muted-foreground text-xs">{f.label}</div>
-                  <div className="text-xl font-semibold tabular-nums">{f.value}</div>
-                </div>
+                <Fact key={f.label} label={f.label}><span className="text-base font-semibold tabular-nums">{f.value}</span></Fact>
               ))}
-            </div>
-
-            <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
-              <section>
-                <h3 className="text-overline text-muted-foreground mb-1">Thông tin bộ</h3>
-                <dl>
-                  <ProfileRow label="Mã bộ">{standard.code}</ProfileRow>
-                  <ProfileRow label="Cấp học">{standard.educationLevel?.name}</ProfileRow>
-                  <ProfileRow label="Phiên bản">{standard.standardVersion}</ProfileRow>
-                  <ProfileRow label="Trạng thái">{STATUS_LABEL[status]}</ProfileRow>
-                </dl>
-              </section>
-              <section>
-                <h3 className="text-overline text-muted-foreground mb-1">Hiệu lực</h3>
-                <dl>
-                  <ProfileRow label="Năm học bắt đầu">{standard.startSchoolYear?.name}</ProfileRow>
-                  <ProfileRow label="Năm học kết thúc">{standard.endSchoolYear?.name}</ProfileRow>
-                  <ProfileRow label="Thay thế bộ">{standard.previousStandard?.name ?? null}</ProfileRow>
-                  <ProfileRow label="Ghi chú">{standard.note || null}</ProfileRow>
-                </dl>
-              </section>
-            </div>
+              {standard.previousStandard ? <Fact label="Thay thế bộ" wide>{standard.previousStandard.name}</Fact> : null}
+              {standard.revisionKind ? (
+                <Fact label="Lần sửa" wide>
+                  {REVISION_KIND_LABELS[standard.revisionKind] ?? standard.revisionKind}
+                  {revisionDoc ? ` theo ${revisionDoc.documentNo}` : ""}
+                  {standard.revisionNote ? ` — ${standard.revisionNote}` : ""}
+                </Fact>
+              ) : null}
+              {standard.note ? <Fact label="Ghi chú" wide>{standard.note}</Fact> : null}
+            </dl>
 
             <section className="space-y-2">
-              <h3 className="text-overline text-muted-foreground">Căn cứ pháp lý · {docs.length} văn bản</h3>
+              <h3 className="text-sm font-semibold">Văn bản căn cứ</h3>
               <LegalDocuments docs={docs} />
             </section>
-
-            {status === "ACTIVE" ? (
-              <p className="text-muted-foreground text-xs">
-                Bộ đang áp dụng không sửa được thiết bị. Có văn bản mới thì lập bộ mới.
-              </p>
-            ) : null}
           </div>
           <DialogFooter>
+            <div className="sm:me-auto">
+              <StandardChangesButton standardId={standard.id} hasPrevious={!!standard.previousStandard} />
+            </div>
             <DialogClose asChild>
               <Button type="button" variant="outline">Đóng</Button>
             </DialogClose>
+            {canEdit ? (
+              <Button type="button" onClick={() => onMode("edit")}>
+                {standard.status === "DRAFT" ? <Pencil /> : <CalendarRange />}
+                {standard.status === "DRAFT" ? "Sửa" : "Đặt năm học áp dụng"}
+              </Button>
+            ) : null}
           </DialogFooter>
+          </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -778,8 +804,12 @@ function StandardSummary({ standard, versions, onPick, rows, devices, subjects }
 }
 
 /** Dải nhắc dưới hàng cấp học — chỉ khi bộ đang xem là bản nháp hoặc đã hết hiệu lực. */
-function StandardNotice({ status, canWrite, onEditDocuments, onDiscard }: {
+function StandardNotice({ status, siblings, onBackToActive, canWrite, onEditDocuments, onDiscard }: {
+  /** Đang xem bộ cũ / bản nháp: về bộ đang áp dụng (chọn phiên bản ở menu ⚙). */
+  onBackToActive?: () => void;
   status: StandardStatus;
+  /** Cấp khác còn bản nháp theo CÙNG văn bản — nhắc để không quên áp dụng. */
+  siblings: string[];
   canWrite: boolean;
   onEditDocuments: () => void;
   onDiscard: () => void;
@@ -788,8 +818,9 @@ function StandardNotice({ status, canWrite, onEditDocuments, onDiscard }: {
     return (
       <div className="bg-warning-subtle text-warning-text flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg px-4 py-2 text-sm">
         <p className="min-w-0 flex-1">
-          Bản nháp, chưa dùng để tính đủ / thiếu. Sửa xong văn bản căn cứ và thiết bị thì bấm{" "}
-          <span className="font-medium">Áp dụng bộ này</span>.
+          Bản nháp, chưa dùng để tính đủ / thiếu. Kiểm tra, sửa xong thiết bị thì bấm{" "}
+          <span className="font-medium">Áp dụng bộ này</span> — tính từ lúc đó.
+          {siblings.length ? <> Cùng văn bản còn bản nháp ở: <span className="font-medium">{siblings.join(", ")}</span>.</> : null}
         </p>
         {canWrite ? (
           <div className="flex shrink-0 gap-1">
@@ -807,7 +838,18 @@ function StandardNotice({ status, canWrite, onEditDocuments, onDiscard }: {
     );
   }
   if (status === "RETIRED") {
-    return <p className="bg-surface-subtle text-muted-foreground rounded-lg px-4 py-2 text-sm">Bộ đã hết hiệu lực, đã có bộ mới thay thế. Chỉ còn để xem lại.</p>;
+    return (
+      // Vừa nội dung, không kéo hết bề ngang; đỏ — đang xem bộ KHÔNG còn dùng để tính đủ / thiếu.
+      <div className="bg-destructive-subtle text-destructive-text flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg py-1.5 ps-4 pe-1.5 text-sm">
+        <p className="min-w-0 font-medium">Bộ đã hết hiệu lực — chỉ xem lại.</p>
+        {onBackToActive ? (
+          <Button type="button" variant="ghost" size="sm" className="text-destructive-text hover:bg-card hover:text-destructive-text h-7" onClick={onBackToActive}>
+            <Undo2 />
+            Về bộ đang áp dụng
+          </Button>
+        ) : null}
+      </div>
+    );
   }
   return null;
 }
@@ -961,21 +1003,20 @@ function AudienceLabel({ teacher, student }: { teacher: boolean; student: boolea
   return <span>{[teacher ? "Giáo viên" : null, student ? "Học sinh" : null].filter(Boolean).join(", ")}</span>;
 }
 
-type CatalogView = { id: number; /** Dòng phụ lục đã mở nó — có thì bộ nháp sửa / xoá được dòng đó. */ normId?: number };
+export type CatalogView = { id: number; /** Dòng phụ lục đã mở nó — có thì bộ nháp sửa / xoá được dòng đó. */ normId?: number };
 
 /**
  * Hồ sơ một thiết bị — CÙNG khuôn trang chi tiết của Danh mục thiết bị (`EquipmentCatalogDetail`: thẻ đầu, mô tả,
  * các dòng phụ lục đòi nó, thuộc tính). Mở từ một dòng phụ lục thì bộ nháp còn nút sửa / xoá dòng đó.
+ * Không có nút sửa thiết bị: màn này nói thông tư ĐÒI gì; thiết lập quản lý của thiết bị làm ở Danh mục thiết bị.
  */
-function CatalogDetailDialog({ view, editableNorm, onClose, onEditNorm }: {
+export function CatalogDetailDialog({ view, editableNorm, onClose, onEditNorm }: {
   view: CatalogView | null;
   editableNorm: boolean;
   onClose: () => void;
   onEditNorm: (normId: number) => void;
 }) {
-  const navigate = useNavigate();
   const { result: r, query } = useOne<any>({ resource: "equipment_catalogs", id: view?.id ?? "", queryOptions: { enabled: view != null } });
-  const mayEditCatalog = useCan({ resource: "equipment_catalogs", action: "edit" }).data?.can ?? false;
   const mayEditNorm = useCan({ resource: NORMS, action: "edit" }).data?.can ?? false;
   const normId = view?.normId;
   return (
@@ -998,12 +1039,6 @@ function CatalogDetailDialog({ view, editableNorm, onClose, onEditNorm }: {
               Sửa dòng phụ lục
             </Button>
           ) : null}
-          {mayEditCatalog && view ? (
-            <Button type="button" onClick={() => navigate(`/equipment-catalogs/edit/${view.id}`)}>
-              <Pencil />
-              Sửa thiết bị
-            </Button>
-          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1014,7 +1049,7 @@ function CatalogDetailDialog({ view, editableNorm, onClose, onEditNorm }: {
  * Tab "Ngoài danh mục": thiết bị KHÔNG thuộc danh mục tối thiểu — Sở thêm ngoài thông tư, hoặc trường tự thêm lúc
  * ghi tăng / nhập dữ liệu (`NDM-…`, chỉ trường đó và cơ quan quản lý thấy). Bấm dòng mở hồ sơ thiết bị.
  */
-function OutsideCatalog({ onOpen }: { onOpen: (id: number) => void }) {
+export function OutsideCatalog({ onOpen }: { onOpen: (id: number) => void }) {
   const navigate = useNavigate();
   const mayCreate = useCan({ resource: "equipment_catalogs", action: "create" }).data?.can ?? false;
   const [q, setQ] = useState("");
@@ -1448,7 +1483,7 @@ function TopicFilter({ standardId, subjectKey, value, onChange }: {
     return [...map.entries()].map(([heading, items]) => ({ heading: subjectKey ? undefined : heading, items }));
   }, [data, subjectKey]);
   return (
-    <IconFilter icon={<Tags />} label="chủ đề" allLabel="Mọi chủ đề" value={value} onChange={onChange} groups={groups}
+    <IconFilter labeled icon={<Tags />} label="chủ đề" allLabel="Mọi chủ đề" value={value} onChange={onChange} groups={groups}
       fallback={value ? value.slice(value.indexOf(":") + 1) : undefined} />
   );
 }

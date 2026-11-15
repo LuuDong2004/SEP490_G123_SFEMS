@@ -174,6 +174,8 @@ export type CatalogExtra = {
    * dày (thiết bị: ảnh, nhóm trường, lịch sử). Hộp thoại xem nhanh vẫn dùng lưới chung.
    */
   Detail?: (props: { record: any }) => ReactNode;
+  /** Trang sửa (`FormBody`) đặt Huỷ / Lưu ở đầu trang thay cho thanh lưu dính đáy — form ngắn, thanh đáy chỉ để trống. */
+  saveInHeader?: boolean;
   /** Các khối dưới form SỬA (vd. tệp đính kèm — thêm, xoá tệp là việc của lúc sửa). */
   EditBelow?: (props: { record: any }) => ReactNode;
   /**

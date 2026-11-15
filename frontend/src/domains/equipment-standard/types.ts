@@ -5,7 +5,14 @@ export const DOCUMENT_ROLE_LABELS: Record<string, string> = {
   amendment: "Sửa đổi, bổ sung",
   guidance: "Hướng dẫn thực hiện",
   replacement: "Thay thế",
+  correction: "Đính chính",
   reference: "Văn bản hợp nhất / tham khảo",
+};
+
+/** Loại một lần sửa danh mục (bộ lập bằng "Lập bộ mới"). */
+export const REVISION_KIND_LABELS: Record<string, string> = {
+  AMENDMENT: "Sửa đổi, bổ sung",
+  CORRECTION: "Đính chính",
 };
 
 /** Căn cứ tính số lượng — cách phụ lục thông tư ghi cột "Số lượng". */

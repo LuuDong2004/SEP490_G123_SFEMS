@@ -3,6 +3,7 @@ package com.g123.sfems.module.catalog.standard;
 import com.g123.sfems.domain.catalog.standard.DocumentRole;
 import com.g123.sfems.domain.catalog.standard.EquipmentStandard;
 import com.g123.sfems.domain.catalog.standard.EquipmentStandardDocument;
+import com.g123.sfems.domain.catalog.standard.RevisionKind;
 import com.g123.sfems.domain.catalog.standard.StandardStatus;
 import com.g123.sfems.module.catalog.base.dto.RefSummary;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -28,6 +29,14 @@ public record EquipmentStandardResponse(
         String standardVersion,
         RefSummary previousStandard,
         List<Document> documents,
+        /** Lần sửa: AMENDMENT (sửa đổi, bổ sung) / CORRECTION (đính chính); trống với bộ gốc. */
+        RevisionKind revisionKind,
+        /** Văn bản của lần sửa — id một dòng trong {@code documents}. */
+        Long revisionDocumentId,
+        String revisionNote,
+        /** Lúc xác nhận áp dụng / lúc hết hiệu lực (bộ mới thay nó được áp dụng). */
+        Instant appliedAt,
+        Instant retiredAt,
         Instant createdAt,
         Instant updatedAt,
         @JsonProperty("_can") Map<String, Boolean> can) {
@@ -58,6 +67,8 @@ public record EquipmentStandardResponse(
                 RefSummary.of(item.getEndSchoolYear()),
                 item.getStandardVersion(), RefSummary.of(item.getPreviousStandard()),
                 item.getDocuments().stream().map(Document::of).toList(),
+                item.getRevisionKind(), item.getRevisionDocumentId(), item.getRevisionNote(),
+                item.getAppliedAt(), item.getRetiredAt(),
                 item.getCreatedAt(), item.getUpdatedAt(),
                 rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }
