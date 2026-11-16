@@ -2,9 +2,9 @@ import { useNotification, useShow } from "@refinedev/core";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PackageCheck, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Controller, useFieldArray, useWatch, type Control, type UseFieldArrayReturn } from "react-hook-form";
+import { PackageCheck, RefreshCw, Trash2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Controller, useFieldArray, useFormContext, useWatch, type Control, type UseFieldArrayReturn } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
@@ -194,6 +194,7 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
   onAdd: () => void;
 }) {
   const config = useVoucherForm(RESOURCE);
+  const { setValue } = useFormContext();
   const { fields, remove } = array;
   const lines = useWatch({ control, name: "lines" }) as any[] | undefined;
   const total = (lines ?? []).reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
@@ -209,8 +210,10 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
       ) : (
         <div className="overflow-x-auto border-t">
           {/* Cột cố định (`table-fixed`): cột Thiết bị lấy phần còn lại nhưng không dưới ~20rem — bảng giữ tối thiểu 72rem,
-              khung hẹp hơn thì CUỘN NGANG (thanh trượt dưới bảng) chứ không ép cột Thiết bị. Trước đây bảng tự giãn theo
-              chữ: cảnh báo trùng dài kéo cột Thiết bị, đẩy Số lượng / Đơn giá ra ngoài khung. */}
+              khung hẹp hơn thì CUỘN NGANG (thanh trượt dưới bảng) chứ không ép cột Thiết bị. Ô Thiết bị là CHỮ (mã + tên
+              đầy đủ, tự xuống dòng), không phải ô chọn rút gọn — ô chọn chỉ còn "THCS-16-0…" khi cột hẹp, bấm vào lại mở
+              cả danh mục mà không cho biết đang chọn gì; đổi thiết bị qua liên kết "Đổi thiết bị" (thiết bị đang chọn
+              ghim đầu danh sách). Tên / quy cách giữ một cột riêng. */}
           <Table className="min-w-[72rem] table-fixed [&_td]:align-middle">
             <colgroup>
               <col className="w-10" />
@@ -240,27 +243,53 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
               {fields.map((f: any, i) => (
                 <TableRow key={f.id}>
                   <TableCell className="text-muted-foreground tabular-nums">{i + 1}</TableCell>
-                  {/* whitespace-normal: ô bảng mặc định không xuống dòng — cảnh báo "Đã có trong …" dài tràn đè sang cột bên. */}
+                  {/* whitespace-normal: ô bảng mặc định không xuống dòng — tên dài, cảnh báo "Đã có trong …" tràn đè cột bên. */}
                   <TableCell className="whitespace-normal">
-                    {/* Hơn một nghìn thiết bị (danh mục tối thiểu): tìm ở máy chủ, không đổ sẵn vào ô chọn. */}
-                    <Controller control={control} name={`lines.${i}.catalogId`} render={({ field }) => (
-                      <AsyncCombobox<any>
-                        resource="equipment_catalogs"
-                        value={field.value ? Number(field.value) : null}
-                        onChange={(id) => field.onChange(id == null ? "" : String(id))}
-                        labelOf={(c) => `${c.code} · ${c.name}`}
-                        fallbackLabel={lines?.[i]?.catalogLabel || null}
-                        placeholder="Vui lòng chọn thiết bị"
-                        searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
-                      />
-                    )} />
-                    {lines?.[i]?.catalogId ? (() => {
+                    {(() => {
+                      const label: string = lines?.[i]?.catalogLabel || "";
+                      const cut = label.indexOf(" · ");
+                      const code = cut > 0 ? label.slice(0, cut) : "";
+                      const name = cut > 0 ? label.slice(cut + 3) : label;
+                      // Hơn một nghìn thiết bị (danh mục tối thiểu): tìm ở máy chủ, không đổ sẵn vào ô chọn.
+                      const picker = (trigger?: ReactNode) => (
+                        <Controller control={control} name={`lines.${i}.catalogId`} render={({ field }) => (
+                          <AsyncCombobox<any>
+                            resource="equipment_catalogs"
+                            value={field.value ? Number(field.value) : null}
+                            onChange={(id) => field.onChange(id == null ? "" : String(id))}
+                            onPick={(c) => setValue(`lines.${i}.catalogLabel`, `${c.code} · ${c.name}`)}
+                            labelOf={(c) => `${c.code} · ${c.name}`}
+                            fallbackLabel={label || null}
+                            placeholder="Vui lòng chọn thiết bị"
+                            searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
+                            trigger={trigger}
+                            pinCurrent={!!trigger}
+                            clearable={!trigger}
+                          />
+                        )} />
+                      );
+                      if (!lines?.[i]?.catalogId || !label) return picker();
                       const first = lineWithCatalog(lines, String(lines[i].catalogId));
                       return (
-                        <OverlapNote className="mt-1.5" newTab list={overlaps.get(Number(lines[i].catalogId))}
-                          duplicateOf={first != null && first !== i + 1 ? first : undefined} />
+                        <div className="space-y-1.5">
+                          {/* "Đổi thiết bị" đứng cạnh tên (bên phải), không xuống dòng riêng. */}
+                          <div className="flex items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              {code ? <div className="text-muted-foreground font-mono text-xs">{code}</div> : null}
+                              <div className="font-medium">{name}</div>
+                            </div>
+                            {picker(
+                              <button type="button" title="Đổi sang thiết bị khác"
+                                className="text-primary mt-4 inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap hover:underline">
+                                <RefreshCw className="size-3" /> Đổi thiết bị
+                              </button>,
+                            )}
+                          </div>
+                          <OverlapNote newTab list={overlaps.get(Number(lines[i].catalogId))}
+                            duplicateOf={first != null && first !== i + 1 ? first : undefined} />
+                        </div>
                       );
-                    })() : null}
+                    })()}
                   </TableCell>
                   <TableCell><LineSelect control={control} name={`lines.${i}.kind`} options={opts(PURCHASE_LINE_KIND_LABELS)} /></TableCell>
                   <TableCell className="space-y-1">
