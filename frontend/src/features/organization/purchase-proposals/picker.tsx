@@ -2,7 +2,9 @@ import { useState } from "react";
 
 import { CatalogPickerDialog } from "@/features/organization/equipment-intakes/catalog-picker";
 import type { PickedCatalog } from "@/domains/equipment-catalog/types";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Segmented } from "@/shared/components/segmented";
+import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import type { NormRow, SchoolAdequacy } from "@/domains/procurement/types";
 
@@ -41,6 +43,8 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
 }) {
   const [tab, setTab] = useState<Tab>("norm");
   const [selected, setSelected] = useState<Map<number, NormRow>>(new Map());
+  // Đang có dòng tích mà bấm ✕ / ra ngoài / Esc: hỏi lại trước khi bỏ — trước đây mất hết lựa chọn không báo.
+  const [askDiscard, setAskDiscard] = useState(false);
 
   const close = (o: boolean) => {
     if (!o) {
@@ -48,6 +52,13 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
       setTab("norm");
     }
     onOpenChange(o);
+  };
+  const requestClose = (o: boolean) => {
+    if (!o && tab === "norm" && selected.size > 0) {
+      setAskDiscard(true);
+      return;
+    }
+    close(o);
   };
 
   const toggle = (row: NormRow) =>
@@ -96,7 +107,7 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
           <span className="text-muted-foreground text-sm">
             Đã chọn <span className="text-foreground font-semibold tabular-nums">{selected.size}</span>
           </span>
-          <Button type="button" variant="outline" onClick={() => close(false)}>Huỷ</Button>
+          <Button type="button" variant="outline" onClick={() => requestClose(false)}>Huỷ</Button>
           <Button type="button" className="min-w-28" disabled={selected.size === 0} onClick={confirmNorm}>
             Thêm {selected.size > 0 ? selected.size : ""} thiết bị
           </Button>
@@ -106,9 +117,10 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
   );
 
   return (
+    <>
     <CatalogPickerDialog
       open={open}
-      onOpenChange={close}
+      onOpenChange={requestClose}
       size="wide"
       schoolId={schoolId}
       exclude={exclude}
@@ -121,5 +133,17 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
         close(false);
       }}
     />
+    <AlertDialog open={askDiscard} onOpenChange={setAskDiscard}>
+      <ConfirmContent
+        tone="warning"
+        title={`Bỏ ${selected.size} thiết bị đã chọn?`}
+        description="Các thiết bị vừa tích chưa được thêm vào đề xuất."
+        cancelLabel="Ở lại"
+        confirmLabel="Bỏ chọn"
+        destructive
+        onConfirm={() => { setAskDiscard(false); close(false); }}
+      />
+    </AlertDialog>
+    </>
   );
 }
