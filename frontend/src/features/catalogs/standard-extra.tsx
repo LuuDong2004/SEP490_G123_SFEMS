@@ -187,7 +187,7 @@ function StandardFormBody({ control, record, inDialog }: { control: Control<any>
         <TextInput control={control} name="code" label="Mã" placeholder="STD-TH" required rule="CODE" className="max-w-[12rem]" />
         <RefField control={control} name="educationLevel" resource="education_levels" label="Cấp học" current={record?.educationLevel} />
         <TextInput control={control} name="name" label="Tên bộ" required className="@md:col-span-2" rule="NAME" />
-        <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="2021, sửa đổi 2023" rule="SHORT_TEXT" max={50} />
+        <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="TT 37/2021 + 26/2023" rule="SHORT_TEXT" max={50} />
         <RefField control={control} name="previousStandard" resource="equipment_standards" label="Thay thế bộ" current={record?.previousStandard} />
         <RefField control={control} name="startSchoolYear" resource="school_years" label="Năm học bắt đầu" current={record?.startSchoolYear} />
         <RefField control={control} name="endSchoolYear" resource="school_years" label="Năm học kết thúc" current={record?.endSchoolYear} />
@@ -233,7 +233,7 @@ function StandardFields({ control, record }: { control: Control<any>; record?: a
           label="Cấp học"
           current={record?.educationLevel}
         />
-        <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="2021" />
+        <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="TT 37/2021" />
       </div>
       <div className="form-flow">
         <RefField

@@ -484,3 +484,5 @@ databaseChangeLog:
       file: db/changelog/changes/262-school-years-2021-2022.sql
   - include:
       file: db/changelog/changes/263-standard-revision.sql
+  - include:
+      file: db/changelog/changes/264-standard-version-circulars.sql
