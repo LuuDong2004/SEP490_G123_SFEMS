@@ -327,7 +327,7 @@ export function MinimumCatalog() {
   };
 
   const ctx: RowContext = { level, docIndex, status, revisionDocId: standard?.revisionDocumentId ?? null, changeById };
-  const cols = editable ? 11 : 10;
+  const cols = editable ? 12 : 11;
   const subjectItems = groups.map((g) => ({ key: String(g.subjectId), label: g.subjectName ?? "Chưa gắn môn", count: g.catalogs ?? g.count }));
   const clearFilters = () => {
     setQ("");
@@ -514,7 +514,9 @@ export function MinimumCatalog() {
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
                       <TableHead className="w-28 text-center">Số lượng cần</TableHead>
-                      <TableHead className="w-32">Áp dụng cho</TableHead>
+                      {/* Định mức tính cho bao nhiêu (số) — gì (đối tượng): "1" · "giáo viên", "6" · "học sinh". */}
+                      <TableHead className="w-16 text-center">Mỗi</TableHead>
+                      <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
                       <TableHead className="w-24">Người dùng</TableHead>
                       <TableHead className="w-20">Đơn vị</TableHead>
@@ -859,6 +861,11 @@ const PER_LABEL: Record<string, string> = {
 };
 
 /** "1 lớp", "6 học sinh" — số lượng cần tính cho bao nhiêu gì. */
+/** Số đối tượng mà định mức tính cho — ít nhất 1. */
+function basisCount(row: EquipmentNorm): number {
+  return row.basisSize && row.basisSize > 1 ? row.basisSize : 1;
+}
+
 function applyTo(row: EquipmentNorm): string | null {
   if (row.minQuantity == null) return null;
   return `${row.basisSize && row.basisSize > 1 ? row.basisSize : 1} ${PER_LABEL[row.normBasis] ?? ""}`.trim();
@@ -904,7 +911,6 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
   const doc = row.sourceDocument ? ctx.docIndex.get(row.sourceDocument.id) : undefined;
   const removed = kind === "REMOVED";
   const pending = ctx.status === "DRAFT" && doc != null && doc.id === ctx.revisionDocId;
-  const topic = topicOf(row);
   const muted = <span className="text-muted-foreground">—</span>;
   return (
     <TableRow onClick={() => onOpen(row.id)}
@@ -916,14 +922,14 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
           <ChangeTag kind={kind} />
           {row.optional ? <Badge variant="neutral" className="ms-1.5 align-middle">Tự chọn</Badge> : null}
         </div>
-        {topic ? <div className="text-muted-foreground text-xs">{topic}</div> : null}
       </TableCell>
       <TableCell className="text-center">
         {row.minQuantity == null
           ? <span className="text-muted-foreground text-xs" title={row.quantityText ?? undefined}>Không ghi</span>
           : <span className="text-[0.9375rem] font-semibold tabular-nums">{row.minQuantity}</span>}
       </TableCell>
-      <TableCell>{applyTo(row) ?? muted}</TableCell>
+      <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
+      <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
       <TableCell>{usersOf(row) ?? muted}</TableCell>
       <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
