@@ -73,8 +73,21 @@ public class AdequacyService {
             int met, int unknown, int shortageTotal, int percent) {
     }
 
+    /**
+     * Cân đối MỘT thiết bị trên địa bàn: tổng thiếu, tổng thừa, và phần có thể điều chuyển
+     * ({@code min(thiếu, thừa)}) — thiết bị trường này thừa là thứ trường khác đang thiếu.
+     */
+    public record CatalogBalance(Long catalogId, String catalogCode, String name, String subjectName,
+            int shortage, int shortSchools, int surplus, int surplusSchools, int transferable) {
+    }
+
     public record Summary(int schools, int fullyMet, int withShortage, int missingSize, int percent,
-            List<SchoolSummary> rows) {
+            List<SchoolSummary> rows, List<CatalogBalance> catalogs) {
+    }
+
+    /** Một trường trong phép cân đối của một thiết bị. */
+    public record CatalogSchool(Long schoolId, String schoolCode, String schoolName, String level,
+            Integer required, int current, int shortage, int surplus) {
     }
 
     /** Ảnh chụp cho một dòng đề xuất: số đang dùng được của thiết bị, và định mức của nó. */
@@ -113,7 +126,67 @@ public class AdequacyService {
         int missingSize = (int) rows.stream().filter(r -> r.unknown() > 0).count();
         int norms = rows.stream().mapToInt(SchoolSummary::norms).sum();
         int met = rows.stream().mapToInt(SchoolSummary::met).sum();
-        return new Summary(rows.size(), fully, shortage, missingSize, percent(met, norms), rows);
+        return new Summary(rows.size(), fully, shortage, missingSize, percent(met, norms), rows, balances(all));
+    }
+
+    /**
+     * Cân đối từng thiết bị trên địa bàn: tổng thiếu, tổng thừa và phần điều chuyển được. Thiết bị trường
+     * này thừa là thứ trường khác đang thiếu, nên {@code transferable = min(thiếu, thừa)}.
+     */
+    private static List<CatalogBalance> balances(List<SchoolAdequacy> all) {
+        record Acc(String code, String name, String subject, int shortage, int shortSchools, int surplus,
+                int surplusSchools) {
+        }
+        Map<Long, Acc> out = new LinkedHashMap<>();
+        for (SchoolAdequacy a : all) {
+            for (NormRow r : a.rows()) {
+                if (r.catalogId() == null || !r.counted() || r.required() == null) {
+                    continue;
+                }
+                int shortItems = r.shortage() == null ? 0 : r.shortage();
+                int sur = r.surplus() == null ? 0 : r.surplus();
+                Acc acc = out.get(r.catalogId());
+                out.put(r.catalogId(), acc == null
+                        ? new Acc(r.catalogCode(), r.normName(), r.subjectName(), shortItems,
+                                shortItems > 0 ? 1 : 0, sur, sur > 0 ? 1 : 0)
+                        : new Acc(acc.code(), acc.name(), acc.subject(), acc.shortage() + shortItems,
+                                acc.shortSchools() + (shortItems > 0 ? 1 : 0), acc.surplus() + sur,
+                                acc.surplusSchools() + (sur > 0 ? 1 : 0)));
+            }
+        }
+        return out.entrySet().stream()
+                .map(e -> new CatalogBalance(e.getKey(), e.getValue().code(), e.getValue().name(),
+                        e.getValue().subject(), e.getValue().shortage(), e.getValue().shortSchools(),
+                        e.getValue().surplus(), e.getValue().surplusSchools(),
+                        Math.min(e.getValue().shortage(), e.getValue().surplus())))
+                .sorted((x, y) -> Integer.compare(y.shortage(), x.shortage()))
+                .toList();
+    }
+
+    /** Một thiết bị: trường nào thiếu, trường nào thừa — để cân đối trên địa bàn. */
+    public List<CatalogSchool> catalogSchools(Long catalogId) {
+        List<CatalogSchool> out = new ArrayList<>();
+        for (SchoolAdequacy a : compute(visibleSchools())) {
+            int required = 0;
+            int current = 0;
+            boolean found = false;
+            for (NormRow r : a.rows()) {
+                if (!catalogId.equals(r.catalogId()) || !r.counted() || r.required() == null) {
+                    continue;
+                }
+                found = true;
+                required += r.required();
+                current = r.current();
+            }
+            if (!found) {
+                continue;
+            }
+            out.add(new CatalogSchool(a.schoolId(), a.schoolCode(), a.schoolName(), a.level(), required, current,
+                    Math.max(0, required - current), Math.max(0, current - required)));
+        }
+        out.sort((x, y) -> x.shortage() != y.shortage() ? Integer.compare(y.shortage(), x.shortage())
+                : Integer.compare(y.surplus(), x.surplus()));
+        return out;
     }
 
     /** Số đang dùng được và định mức của MỘT thiết bị ở MỘT trường — ảnh chụp lưu vào dòng đề xuất. */

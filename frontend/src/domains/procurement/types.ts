@@ -220,6 +220,31 @@ export type SchoolStandardRow = {
   percent: number;
 };
 
+/** Cân đối một thiết bị trên địa bàn: `transferable = min(thiếu, thừa)` — phần điều chuyển được. */
+export type CatalogBalance = {
+  catalogId: number;
+  catalogCode: string | null;
+  name: string;
+  subjectName: string | null;
+  shortage: number;
+  shortSchools: number;
+  surplus: number;
+  surplusSchools: number;
+  transferable: number;
+};
+
+/** Một trường trong phép cân đối của một thiết bị. */
+export type CatalogSchool = {
+  schoolId: number;
+  schoolCode: string;
+  schoolName: string;
+  level: string | null;
+  required: number | null;
+  current: number;
+  shortage: number;
+  surplus: number;
+};
+
 export type AdequacySummary = {
   schools: number;
   fullyMet: number;
@@ -227,5 +252,6 @@ export type AdequacySummary = {
   missingSize: number;
   percent: number;
   rows: SchoolStandardRow[];
+  catalogs: CatalogBalance[];
 };
 

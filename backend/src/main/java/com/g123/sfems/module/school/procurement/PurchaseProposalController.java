@@ -61,6 +61,13 @@ public class PurchaseProposalController
         return adequacy.summary();
     }
 
+    /** Một thiết bị: trường nào thiếu, trường nào thừa — để cân đối trên địa bàn. */
+    @GetMapping("/adequacy-catalog")
+    @PreAuthorize("hasAuthority('purchase_proposals:read')")
+    public List<AdequacyService.CatalogSchool> adequacyCatalog(@RequestParam Long catalogId) {
+        return adequacy.catalogSchools(catalogId);
+    }
+
     // ------------------------------------------------------------------ NC-02..04: đề xuất
 
     /**
