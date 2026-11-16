@@ -110,7 +110,7 @@ public class EquipmentIntake extends SchoolVoucher {
     private String originNote;
 
     /**
-     * Năm học của lần ghi tăng (QLTB-390). Mặc định là năm học chứa ngày nhập; sổ tài sản và báo cáo
+     * Năm học của lần ghi tăng. Mặc định là năm học chứa ngày nhập; sổ tài sản và báo cáo
      * tăng giảm đọc theo năm học, nên lúc trình phải có.
      */
     @ManyToOne(fetch = FetchType.EAGER)

@@ -34,7 +34,7 @@ public class RoomController extends CatalogController<Room, RoomRequest, RoomPat
         this.rowLevel = rowLevel;
     }
 
-    /** Loại CSVC ngoài danh mục do trường thêm (QLTB-629). */
+    /** Loại CSVC ngoài danh mục do trường thêm. */
     public record CustomTypeRequest(
             Long schoolId,
             @NotBlank(message = "Tên là bắt buộc")

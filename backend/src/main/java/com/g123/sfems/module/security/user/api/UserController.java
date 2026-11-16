@@ -112,7 +112,7 @@ public class UserController {
     }
 
     /** Echoes the deleted row — the data provider parses the response body. */
-    /** Phiên đăng nhập đang mở của tài khoản (QLTB-242). */
+    /** Phiên đăng nhập đang mở của tài khoản. */
     @GetMapping("/{id}/sessions")
     @PreAuthorize("hasAuthority('" + Permissions.USERS_READ + "')")
     public List<RefreshTokenService.SessionView> sessions(@PathVariable Long id) {

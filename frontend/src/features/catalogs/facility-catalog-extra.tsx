@@ -138,7 +138,7 @@ function SwitchField({ control, name, title, description }: { control: Control<a
 type ParamSpec = { key?: string; label: string; unit?: string; type?: "number" | "text" };
 
 /**
- * Thông số riêng của loại (QLTB-633): mỗi dòng một ô sẽ hiện trên form phòng thuộc loại này — tên, đơn vị, kiểu số
+ * Thông số riêng của loại: mỗi dòng một ô sẽ hiện trên form phòng thuộc loại này — tên, đơn vị, kiểu số
  * hay chữ. Khoá do máy chủ sinh từ tên lần đầu và giữ nguyên khi đổi tên, nên phòng đã khai không mất giá trị.
  */
 function ParamsField({ control }: { control: Control<any> }) {

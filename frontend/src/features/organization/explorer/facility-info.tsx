@@ -203,7 +203,7 @@ function Stat({ label, value, unit, tone }: { label: string; value: number | nul
 }
 
 /**
- * Thông tin chung CSVC của trường (QLTB-635) — phần A của biểu số liệu Sở: diện tích đất / xây dựng, học sinh, lớp,
+ * Thông tin chung CSVC của trường — phần A của biểu số liệu Sở: diện tích đất / xây dựng, học sinh, lớp,
  * trường chính / phân hiệu / điểm trường, số chỗ nhà ăn / nội trú / thư viện; kèm số mục chưa khai kết cấu, chờ xác
  * nhận để trường biết còn thiếu gì trước khi lập biểu.
  */

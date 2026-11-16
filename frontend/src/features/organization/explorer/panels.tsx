@@ -457,7 +457,7 @@ export function SchoolFacilityTabs({
   const teamDialog = useQuickDialog("subject_teams", { school: { id: schoolId } });
   // Phần đang mở trong hai tab gộp. Bên gọi đưa giá trị cũ ("rooms", "teams"…) thì mở đúng phần đó.
   const [peoplePart, setPeoplePart] = usePersistentState<(typeof PEOPLE_PARTS)[number]["value"]>("explorer.peoplePart", "staff");
-  // Lịch sử sửa chữa, cải tạo (QLTB-149) nằm trong hộp chi tiết của từng cơ sở / khối nhà / hạng mục, không có nút
+  // Lịch sử sửa chữa, cải tạo nằm trong hộp chi tiết của từng cơ sở / khối nhà / hạng mục, không có nút
   // chung trên hàng công cụ.
   // "Thêm nhanh" (khối nhà): nút riêng cạnh nút thêm; hộp của nó do màn này mở.
   const [quickAdd, setQuickAdd] = useState<"buildings" | null>(null);

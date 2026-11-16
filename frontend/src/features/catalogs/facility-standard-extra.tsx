@@ -57,7 +57,7 @@ const TIER_VARIANTS: Record<StandardTier, "neutral" | "info" | "success"> = {
 };
 
 /**
- * Chuẩn CSVC (203, QLTB-646): Sở khai quy tắc cho từng loại CSVC × cấp × mức. Mã và tên do máy chủ sinh (loại · cấp ·
+ * Chuẩn CSVC (203): Sở khai quy tắc cho từng loại CSVC × cấp × mức. Mã và tên do máy chủ sinh (loại · cấp ·
  * mức), nên form không có ô Mã / Tên. Ít nhất một điều kiện; điều kiện để trống là không xét.
  */
 export const FACILITY_STANDARD_EXTRA: CatalogExtra = {

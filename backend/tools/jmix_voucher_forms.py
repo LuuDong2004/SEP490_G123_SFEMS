@@ -301,7 +301,7 @@ OWN_ENUMS = {
         {"value": "PARTIAL", "label": "Đạt một phần"},
         {"value": "FAILED", "label": "Không đạt"},
     ],
-    # Nguồn kinh phí của một lần sửa chữa (QLTB-476) — cùng ba mã với `RepairFunding` ở máy chủ, mà sổ sửa
+    # Nguồn kinh phí của một lần sửa chữa — cùng ba mã với `RepairFunding` ở máy chủ, mà sổ sửa
     # chữa, cải tạo công trình (`facility_works.funding_source`) cũng dùng.
     "RepairFunding": [
         {"value": "STATE_BUDGET", "label": "Ngân sách chi thường xuyên"},
@@ -381,7 +381,7 @@ RESHAPE.update({
     "purchase_proposals": {"merge": ("Thời hạn và căn cứ", ["neededByDate", "priceBasis", "submittedDocNo"])},
     "equipment_allocations": {"merge": ("Bàn giao", ["handoverMinutesNo", "accessories"])},
     # "Nguồn kinh phí chi trả" của Jmix (nhà cung cấp / đơn vị / chia sẻ) là AI trả; trường cần biết TIỀN NÀO
-    # (QLTB-476) — ô mới `repairFunding`, `costPayer` cũ thành khoá đã bỏ.
+    # Ô mới `repairFunding`, `costPayer` cũ thành khoá đã bỏ.
     "repair_orders": {"rename": {"costPayer": ("repairFunding", {"kind": "enum", "enum": "RepairFunding"})},
                       "merge": ("Chi phí", ["repairFunding", "vatAmount"])},
     "warranty_claims": {"merge": ("Thông tin bảo hành", ["warrantyScope", "vendorContact", "costPayer", "handoverBy"])},

@@ -77,7 +77,7 @@ public class Room extends SchoolOwnedEntity {
     @Column(name = "managing_unit", length = 255)
     private String managingUnit;
 
-    /** Cho mượn được không (phiếu mượn phòng chỉ nhận phòng cho mượn — QLTB-350). */
+    /** Cho mượn được không (phiếu mượn phòng chỉ nhận phòng cho mượn). */
     @Column(nullable = false)
     private boolean loanable = true;
 

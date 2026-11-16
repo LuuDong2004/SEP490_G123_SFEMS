@@ -11,7 +11,7 @@ import com.g123.sfems.shared.validation.Text;
 
 /** Payload tạo lý do biến động: năm trường chung + loại lý do. */
 public record MovementReasonRequest(
-        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã (QLTB-178); danh mục không có quy tắc thì báo thiếu.
+        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
         @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
         @NotBlank(message = "Tên là bắt buộc")

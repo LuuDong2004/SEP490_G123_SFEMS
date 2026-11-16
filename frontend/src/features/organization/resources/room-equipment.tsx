@@ -60,7 +60,7 @@ function StatusBadges({ status }: { status: Record<string, number> }) {
 }
 
 /**
- * Tab Thiết bị của hộp phòng (QLTB-350) — dạng CÂY như cây cơ quan quản lý (trưởng nhóm 13/11/2026, thay hai bảng
+ * Tab Thiết bị của hộp phòng — dạng CÂY như cây cơ quan quản lý (trưởng nhóm 13/11/2026, thay hai bảng
  * cạnh nhau): mỗi dòng là một thiết bị GỘP (cùng tên, cùng đơn vị) với số lượng và tình trạng; bấm mũi tên xổ ra từng
  * tài sản ngay bên dưới (mã, serial, năm sử dụng, tình trạng) — bấm một tài sản là mở hồ sơ. Ô tìm lọc theo tên, mã,
  * serial và tự mở nhóm có kết quả. Vật tư theo số lượng (10.000 gam NaOH) đếm riêng. Chỉ xem: vào / ra phòng qua phiếu.

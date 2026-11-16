@@ -92,7 +92,7 @@ public class PurchaseProposalController
 
     /**
      * Thiết bị đang được xin ở các đề xuất còn hiệu lực KHÁC của trường (bỏ {@code excludeId} — phiếu đang
-     * xem / đang sửa): form lập đề xuất và màn duyệt cảnh báo xin trùng (QLTB-495).
+     * xem / đang sửa): form lập đề xuất và màn duyệt cảnh báo xin trùng.
      */
     @GetMapping("/overlaps")
     public List<PurchaseProposalService.Overlap> overlaps(@RequestParam(required = false) Long schoolId,

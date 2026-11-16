@@ -38,7 +38,7 @@ export const ENUM_CATALOGS: EnumCatalogConfig[] = [
     group: "catalog_finance",
     icon: Banknote,
     label: "Nguồn kinh phí",
-    // QLTB-393: Tài chính có đủ Nguồn hình thành, Nguồn kinh phí, Hình thức mua.
+    // Tài chính có đủ Nguồn hình thành, Nguồn kinh phí, Hình thức mua.
     visible: true,
   },
   {

@@ -158,7 +158,7 @@ const EXTRAS: Record<string, CatalogConfig["extra"]> = {
 };
 for (const c of ORG_RESOURCES) c.extra = EXTRAS[c.resource];
 
-// Hồ sơ phòng, khối nhà, cơ sở có lịch sử sửa chữa, cải tạo của chính nó và nút ghi ngay tại đó (QLTB-469, 473).
+// Hồ sơ phòng, khối nhà, cơ sở có lịch sử sửa chữa, cải tạo của chính nó và nút ghi ngay tại đó.
 const works = ORG_RESOURCES.find((c) => c.resource === "facility_works")!;
 for (const [resource, level] of [["rooms", "room"], ["buildings", "building"], ["campuses", "campus"]] as const) {
   const extra = EXTRAS[resource]!;

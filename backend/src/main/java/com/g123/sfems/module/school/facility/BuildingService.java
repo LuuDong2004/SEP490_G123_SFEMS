@@ -200,7 +200,7 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
     }
 
     /**
-     * Ghi kết quả kiểm kê hạng mục CSVC (QLTB-654) vào hồ sơ: kết cấu / hiện trạng thấy thực tế (trống = giữ nguyên).
+     * Ghi kết quả kiểm kê hạng mục CSVC vào hồ sơ: kết cấu / hiện trạng thấy thực tế (trống = giữ nguyên).
      */
     @Transactional
     public Building applyInventory(Long id, FacilityStructure structure, FacilityCondition condition) {

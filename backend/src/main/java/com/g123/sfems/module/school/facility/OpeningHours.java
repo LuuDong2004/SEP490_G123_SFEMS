@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Lịch mở cửa của phòng (206, QLTB-656): thứ trong tuần theo ISO (1 = Thứ 2 … 7 = Chủ nhật) và buổi (SANG, CHIEU,
+ * Lịch mở cửa của phòng (206): thứ trong tuần theo ISO (1 = Thứ 2 … 7 = Chủ nhật) và buổi (SANG, CHIEU,
  * TOI). Lưu chuỗi cách dấu phẩy; trống = không giới hạn. Phiếu mượn phòng và màn Trạng thái phòng dùng chung luật này.
  */
 public final class OpeningHours {

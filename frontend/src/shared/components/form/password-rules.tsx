@@ -4,7 +4,7 @@ import { passwordRules } from "@/shared/lib/password-policy";
 import { cn } from "@/shared/lib/utils";
 
 /**
- * Luật mật khẩu dưới ô mật khẩu MỚI (QLTB-508): một hàng viên chữ ngắn, viên nào đạt thì xanh kèm dấu tích — người đặt
+ * Luật mật khẩu dưới ô mật khẩu MỚI: một hàng viên chữ ngắn, viên nào đạt thì xanh kèm dấu tích — người đặt
  * mật khẩu thấy ngay còn thiếu gì, không phải bấm lưu rồi đọc câu từ chối. Gọn như một dòng ghi chú, không khung
  * riêng (theo trưởng nhóm); rê chuột lên viên thấy câu đầy đủ.
  */

@@ -363,7 +363,7 @@ public class EquipmentSummaryService {
                               String serial, String originSource, Integer inUseYear) {
     }
 
-    /** Vật tư, hoá chất còn bao nhiêu ngày thì tính là "sắp hết hạn" (QLTB-391). */
+    /** Vật tư, hoá chất còn bao nhiêu ngày thì tính là "sắp hết hạn". */
     public static final int EXPIRY_WARNING_DAYS = 30;
 
     /** Một trang của bảng chi tiết và tổng số dòng (cho {@code X-Total-Count}). */
@@ -439,7 +439,7 @@ public class EquipmentSummaryService {
         if ("expired".equals(i.expiry())) {
             where.append(" AND x.expiry_date < CURRENT_DATE ");
         } else if ("valid".equals(i.expiry())) {
-            // Còn dùng được: không ghi hạn hoặc chưa quá hạn — ô chọn lô của phiếu tiêu hao (QLTB-566).
+            // Còn dùng được: không ghi hạn hoặc chưa quá hạn — ô chọn lô của phiếu tiêu hao.
             where.append(" AND (x.expiry_date IS NULL OR x.expiry_date >= CURRENT_DATE) ");
         } else if ("soon".equals(i.expiry())) {
             where.append(" AND x.expiry_date >= CURRENT_DATE AND x.expiry_date <= CURRENT_DATE + ? ");

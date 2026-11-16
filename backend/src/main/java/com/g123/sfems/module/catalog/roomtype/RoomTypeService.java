@@ -180,7 +180,7 @@ public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, R
     }
 
     /**
-     * Loại ngoài danh mục của một trường (QLTB-629): chỉ trường đó dùng, không thuộc danh mục chuẩn, mặc định không cho
+     * Loại ngoài danh mục của một trường: chỉ trường đó dùng, không thuộc danh mục chuẩn, mặc định không cho
      * mượn. Người gọi (feature phòng) đã kiểm quyền {@code rooms:write} và trường nằm trong phạm vi.
      */
     @Transactional
@@ -226,7 +226,7 @@ public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, R
     }
 
     /**
-     * Danh sách thông số của loại (QLTB-633): nhãn bắt buộc, đơn vị tuỳ ý, kiểu số hoặc chữ; khoá tự sinh từ nhãn nếu
+     * Danh sách thông số của loại: nhãn bắt buộc, đơn vị tuỳ ý, kiểu số hoặc chữ; khoá tự sinh từ nhãn nếu
      * thiếu, và giữ nguyên khi sửa nhãn (phòng đã khai giữ được giá trị). Tối đa 20 ô.
      */
     private static List<Map<String, String>> params(List<Map<String, String>> input) {

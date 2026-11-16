@@ -239,7 +239,7 @@ public class OnboardingService {
     }
 
     /**
-     * Giá trị chọn được cho từng ô của lô (QLTB-617): theo trang → theo cột. Danh mục chung (loại phòng, khối, đơn vị
+     * Giá trị chọn được cho từng ô của lô: theo trang → theo cột. Danh mục chung (loại phòng, khối, đơn vị
      * tính, môn…), giá trị cố định (tình trạng, nguồn…) và mã tham chiếu (cơ sở, khối nhà, phòng, cán bộ) — mã đã có ở
      * trường cộng mã đang có trong các trang của lô. Lưới hiện thành danh sách chọn thay cho gõ tay.
      */
@@ -303,7 +303,7 @@ public class OnboardingService {
     }
 
     /**
-     * Dữ liệu đã chuẩn hoá của lô (QLTB-619): như đang có trong vùng chờ, cùng khuôn tệp mẫu — không cột Dòng, Kết quả kiểm
+     * Dữ liệu đã chuẩn hoá của lô: như đang có trong vùng chờ, cùng khuôn tệp mẫu — không cột Dòng, Kết quả kiểm
      * tra, Lỗi / cảnh báo; bỏ dòng đã đánh "Bỏ qua". Tải lên lại được như một tệp mới.
      */
     @Transactional(readOnly = true)
@@ -843,7 +843,7 @@ public class OnboardingService {
     private static final Set<String> STRUCTURE_VALUES = Set.of("KIEN_CO", "BAN_KIEN_CO", "TAM", "NHO_MUON_THUE");
 
     /**
-     * Trang phòng làm từ file mẫu phòng của CSDL HCM (QLTB-637, `File_mau_phong_hoc_csvc.xlsx`): cột "Hiện trạng" ghi
+     * Trang phòng làm từ file mẫu phòng của CSDL HCM (`File_mau_phong_hoc_csvc.xlsx`): cột "Hiện trạng" ghi
      * Kiên cố / Bán kiên cố / Tạm / Nhờ, mượn, thuê là kết cấu → chuyển sang cột Kết cấu; không có mã phòng → cấp
      * HM + số dòng (HM0019). Trang theo mẫu của hệ thống đi qua nguyên vẹn.
      */

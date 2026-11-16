@@ -177,7 +177,7 @@ public class VoucherWorkflow {
                 target == null ? null : target.getId()));
     }
 
-    /** Báo người trình (không có thì người lập) — QLTB-236, xem {@link VoucherDecisionNotifier}. */
+    /** Báo người trình (không có thì người lập), xem {@link VoucherDecisionNotifier}. */
     private void decided(SchoolVoucher voucher, String resource, Decision decision, String message) {
         Long recipient = voucher.getSubmittedById() != null ? voucher.getSubmittedById() : voucher.getCreatedById();
         publisher.publishEvent(new VoucherDecided(resource, voucher.getId(), voucher.getCode(), decision, message,
@@ -280,7 +280,7 @@ public class VoucherWorkflow {
     /**
      * Người gọi chính là người DUYỆT bước đầu của phiếu này — lãnh đạo của trường lập phiếu. Trình là
      * việc của người lập gửi lên cho họ; một nút "Trình" trên màn của người duyệt là tự trình cho
-     * mình (QLTB-386). Phiếu không cần ai duyệt (trình = xong) và quản trị viên thì không áp dụng.
+     * mình. Phiếu không cần ai duyệt (trình = xong) và quản trị viên thì không áp dụng.
      */
     private boolean approvesOwnSubmission(SchoolVoucher voucher, boolean canApprove) {
         if (!canApprove || nextStep(voucher, null) != ApprovalStep.SCHOOL) {

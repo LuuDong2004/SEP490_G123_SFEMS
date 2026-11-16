@@ -34,7 +34,7 @@ public class JwtService {
 
     /** Claim holding the username, for messages and audit text. */
     public static final String CLAIM_USERNAME = "username";
-    /** Phiên đăng nhập của access token (QLTB-242). */
+    /** Phiên đăng nhập của access token. */
     public static final String CLAIM_SESSION = "sid";
     /** Loại tài khoản (docs/kien-truc/11) — cổng API chặn theo nó trước mọi kiểm quyền. */
     public static final String CLAIM_USER_TYPE = "userType";
@@ -60,7 +60,7 @@ public class JwtService {
         return issueAccessToken(user, issuedAt, null);
     }
 
-    /** @param sessionId phiên đăng nhập của token (claim {@code sid}) — để biết "phiên đang dùng" (QLTB-242). */
+    /** @param sessionId phiên đăng nhập của token (claim {@code sid}) — để biết "phiên đang dùng". */
     public String issueAccessToken(User user, Instant issuedAt, String sessionId) {
         JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
                 .issuer(properties.issuer())

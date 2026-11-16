@@ -2,7 +2,7 @@ package com.g123.sfems.domain.catalog.enums;
 
 /**
  * Nguồn kinh phí — NĂM nguồn chuẩn do nghiệp vụ chốt (Ngân sách · Học phí · Nguồn thu sự nghiệp · Quỹ
- * phát triển sự nghiệp · Tài trợ), "Nguồn khác" cho khoản chi không thuộc năm nguồn đó (QLTB-620 — dữ liệu
+ * phát triển sự nghiệp · Tài trợ), "Nguồn khác" cho khoản chi không thuộc năm nguồn đó (dữ liệu
  * các trường có ghi "Nguồn khác"), cộng "Chưa xác định nguồn" cho tài sản vào sổ mà không có khoản
  * chi nào đứng sau (kiểm kê thừa, tự làm không tốn vật tư).
  *
@@ -20,7 +20,7 @@ public enum FundingSource implements LabeledEnum {
     REVENUE("THU_SU_NGHIEP", "Nguồn thu sự nghiệp"),
     DEVELOPMENT_FUND("QUY_PHAT_TRIEN_SU_NGHIEP", "Quỹ phát triển sự nghiệp"),
     SPONSORSHIP("TAI_TRO", "Tài trợ"),
-    /** Nguồn có thật nhưng ngoài năm nguồn trên (QLTB-620). Khác "Chưa xác định": người khai biết là nguồn khác. */
+    /** Nguồn có thật nhưng ngoài năm nguồn trên. Khác "Chưa xác định": người khai biết là nguồn khác. */
     OTHER("KHAC", "Nguồn khác"),
     UNDETERMINED("CHUA_XAC_DINH", "Chưa xác định nguồn");
 

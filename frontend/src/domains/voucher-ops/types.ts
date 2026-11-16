@@ -24,7 +24,7 @@ export type AfterRepairWarranty = {
   vendor: string | null;
 };
 
-/** Loại công việc của phiếu sửa chữa, bảo trì — phiếu bảo dưỡng cũ gộp vào đây (QLTB-506). */
+/** Loại công việc của phiếu sửa chữa, bảo trì — phiếu bảo dưỡng cũ gộp vào đây. */
 export const REPAIR_WORK_KIND_LABELS: Record<string, string> = {
   REPAIR: "Sửa chữa",
   MAINTENANCE: "Bảo trì",
@@ -158,7 +158,7 @@ export type RoomBooking = VoucherBase & VoucherUsage & {
   startTime: string;
   endTime: string;
   requester: Ref | null;
-  /** Tình trạng phòng lúc trả (QLTB-530); trống cho tới khi trả phòng. */
+  /** Tình trạng phòng lúc trả; trống cho tới khi trả phòng. */
   roomCondition: RoomReturnCondition | null;
   roomConditionNote: string | null;
   returnedAt: string | null;

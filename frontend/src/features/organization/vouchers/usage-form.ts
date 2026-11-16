@@ -3,7 +3,7 @@ import { isLessonPurpose, USAGE_PURPOSE_LABELS, usagePurposeText, type VoucherUs
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * Phần không phải component của khối "mượn để làm gì" (QLTB-531): giá trị mặc định, chuyển bản ghi ↔ form ↔
+ * Phần không phải component của khối "mượn để làm gì": giá trị mặc định, chuyển bản ghi ↔ form ↔
  * payload, ô bắt buộc lúc trình, dòng cho màn xem. Ô nhập ở `usage-fields.tsx`.
  */
 

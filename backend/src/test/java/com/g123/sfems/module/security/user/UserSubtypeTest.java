@@ -113,7 +113,7 @@ class UserSubtypeTest {
         User admin = demo("admin");
         signIn("admin");
         Long adminRole = jdbc.queryForObject("SELECT id FROM roles WHERE code = 'ADMIN'", Long.class);
-        User plain = service.create(new UserRequest("qt.thuong.test", "qt.thuong.test@qltb.local", "Quản trị thường",
+        User plain = service.create(new UserRequest("qt.thuong.test", "qt.thuong.test@sfems.local", "Quản trị thường",
                 "Qx7#Tram-Vung!9", UserStatus.ACTIVE, null, null, List.of(new RoleRef(adminRole)), null));
         assertThat(plain).isInstanceOf(SystemUser.class);
         assertThat(((SystemUser) plain).isSuperAdmin()).isFalse();

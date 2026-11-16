@@ -64,7 +64,7 @@ export function VoucherList<T extends VoucherBase>({
   toolbarExtra?: ReactNode;
   /** Dòng nổi lên khi rê chuột (`DataTable.liftRows`). */
   liftRows?: boolean;
-  /** Ô ngày để lọc theo tháng / quý / năm (vd `proposalDate` của phiếu ghi giảm — QLTB-518). */
+  /** Ô ngày để lọc theo tháng / quý / năm (vd `proposalDate` của phiếu ghi giảm). */
   periodField?: string;
   /** Lọc theo một ô có danh sách giá trị cố định (vd Hình thức ghi giảm), lọc ở máy chủ bằng `field=value`. */
   enumFilters?: { field: string; label: string; options: Record<string, string> }[];

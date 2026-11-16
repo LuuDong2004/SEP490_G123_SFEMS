@@ -346,7 +346,7 @@ export function QuickAddStaff({ schoolId, ...openProps }: { schoolId: number } &
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          // Đóng hộp (đã thêm xong hoặc huỷ) là xong lượt này: mở lại thì danh sách trống (QLTB-398).
+          // Đóng hộp (đã thêm xong hoặc huỷ) là xong lượt này: mở lại thì danh sách trống.
           if (!o) setNames("");
         }}
         ready={people.length > 0 && !namesError}

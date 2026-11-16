@@ -47,7 +47,7 @@ async function post(path: string, body: unknown): Promise<{ message?: string }> 
 }
 
 /**
- * Quên mật khẩu (QLTB-509): nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của tài khoản.
+ * Quên mật khẩu: nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của tài khoản.
  * Câu trả lời luôn như nhau dù tài khoản có hay không — màn này không phải chỗ dò tài khoản.
  */
 export function ForgotPassword() {

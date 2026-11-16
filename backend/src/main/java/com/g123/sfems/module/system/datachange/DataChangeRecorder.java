@@ -28,7 +28,7 @@ import org.hibernate.proxy.HibernateProxy;
 import org.springframework.stereotype.Component;
 
 /**
- * Ghi lịch sử thay đổi dữ liệu (QLTB-511): mỗi lần Hibernate cập nhật một bản ghi của bảng được theo dõi, mỗi trường
+ * Ghi lịch sử thay đổi dữ liệu: mỗi lần Hibernate cập nhật một bản ghi của bảng được theo dõi, mỗi trường
  * đổi giá trị thành một dòng {@code data_changes} — giá trị trước, giá trị sau, ai, lúc nào.
  *
  * <p>Nghe ở tầng ORM ({@link PostUpdateEventListener}), không ở từng service: một service quên gọi là một lỗ hổng

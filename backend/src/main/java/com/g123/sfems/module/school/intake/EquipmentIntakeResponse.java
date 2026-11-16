@@ -120,7 +120,7 @@ public record EquipmentIntakeResponse(
             String manufacturer,
             String otherInfo,
             LocalDate expiryDate,
-            // Quy cách bao bì (QLTB-501) và số lượng vào sổ sau quy đổi, theo đơn vị của thiết bị.
+            // Quy cách bao bì và số lượng vào sổ sau quy đổi, theo đơn vị của thiết bị.
             RefSummary packUnit,
             BigDecimal packSize,
             BigDecimal stockQuantity,

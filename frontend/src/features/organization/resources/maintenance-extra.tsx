@@ -216,8 +216,8 @@ function RemindField({ control }: { control: Control<any> }) {
 }
 
 /**
- * Thân trang Thêm / Sửa kế hoạch bảo trì (QLTB-505, theo mockup): thẻ "Thông tin kế hoạch", thẻ "Lịch và chu kỳ",
- * rồi tài sản của kế hoạch hoặc phòng bảo trì. Mã do máy chủ cấp theo năm (BT-2026-001 — QLTB-584).
+ * Thân trang Thêm / Sửa kế hoạch bảo trì (theo mockup): thẻ "Thông tin kế hoạch", thẻ "Lịch và chu kỳ",
+ * rồi tài sản của kế hoạch hoặc phòng bảo trì. Mã do máy chủ cấp theo năm (BT-2026-001).
  */
 function MaintenanceFormBody({ control, record, config }: { control: Control<any>; record?: any; config: any }) {
   const picked = useWatch({ control, name: "school.id" });

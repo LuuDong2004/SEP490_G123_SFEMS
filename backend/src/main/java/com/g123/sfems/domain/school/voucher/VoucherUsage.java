@@ -10,7 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 
 /**
- * Mượn để làm gì (QLTB-531) — chung cho phiếu mượn phòng và phiếu mượn thiết bị, cùng bốn cột ở cả hai bảng.
+ * Mượn để làm gì — chung cho phiếu mượn phòng và phiếu mượn thiết bị, cùng bốn cột ở cả hai bảng.
  * Mục đích và môn học là thứ báo cáo ĐẾM (theo môn, tỷ lệ tiết thực hành), nên là lựa chọn; nội dung bài dạy là
  * chữ tự do để người đọc phiếu hiểu, không đếm.
  */

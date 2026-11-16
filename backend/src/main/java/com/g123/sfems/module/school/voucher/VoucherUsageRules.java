@@ -8,7 +8,7 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 import org.springframework.stereotype.Component;
 
 /**
- * Luật của khối "mượn để làm gì" (QLTB-531), dùng chung cho phiếu mượn phòng và phiếu mượn thiết bị — một chỗ,
+ * Luật của khối "mượn để làm gì", dùng chung cho phiếu mượn phòng và phiếu mượn thiết bị — một chỗ,
  * để hai phiếu không đòi khác nhau.
  *
  * <p>Lưu nháp nhận thiếu; lúc TRÌNH (ghi nhận) thì phải có mục đích, chọn "Khác" thì phải ghi rõ, và mục đích

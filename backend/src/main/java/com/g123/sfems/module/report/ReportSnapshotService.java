@@ -24,7 +24,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Lưu trữ báo cáo (QLTB-231): chụp lại một báo cáo đúng lúc lập để nộp, đối chiếu, in lại về sau — số liệu sống thì
+ * Lưu trữ báo cáo: chụp lại một báo cáo đúng lúc lập để nộp, đối chiếu, in lại về sau — số liệu sống thì
  * hôm nay khác tháng trước. Bản lưu không sửa được; chỉ người lập hoặc quản trị viên xoá.
  *
  * <p>Ai xem được đi theo NƠI LẬP, cùng cách nhìn với {@link VisibleSchools}: cấp Sở (và quản trị viên) thấy mọi bản;

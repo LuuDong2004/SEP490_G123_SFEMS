@@ -146,7 +146,7 @@ public class PurchaseProposalService
     }
 
     /**
-     * Các dòng của đề xuất với số còn phải nhập (QLTB-556). Số đã nhập cộng từ các phiếu ghi tăng lập từ đề xuất này
+     * Các dòng của đề xuất với số còn phải nhập. Số đã nhập cộng từ các phiếu ghi tăng lập từ đề xuất này
      * theo THIẾT BỊ; hai dòng cùng thiết bị thì phần đã nhập trừ lần lượt từ dòng trên xuống.
      */
     public List<IntakeLine> intakeLines(Long id) {
@@ -179,7 +179,7 @@ public class PurchaseProposalService
     }
 
     /**
-     * Lập phiếu ghi tăng nháp từ đề xuất. Hàng về nhiều đợt (QLTB-556): {@code picks} là các dòng và số nhập ĐỢT NÀY
+     * Lập phiếu ghi tăng nháp từ đề xuất. Hàng về nhiều đợt: {@code picks} là các dòng và số nhập ĐỢT NÀY
      * (không quá số còn phải nhập); vắng thì nhập hết phần còn lại. Đề xuất còn lập được phiếu ghi tăng tiếp cho tới
      * khi mọi dòng đã nhập đủ.
      */
@@ -260,7 +260,7 @@ public class PurchaseProposalService
     }
 
     /**
-     * Một thiết bị đang nằm trong một đề xuất khác của trường (QLTB-495). {@code returned}: phiếu nháp bị trả
+     * Một thiết bị đang nằm trong một đề xuất khác của trường. {@code returned}: phiếu nháp bị trả
      * về. {@code code} trống với phiếu nháp chưa từng trình.
      */
     public record Overlap(Long catalogId, Long proposalId, String code, VoucherStatus status,

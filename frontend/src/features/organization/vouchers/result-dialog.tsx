@@ -23,7 +23,7 @@ import { maxLengthOf, numberError, textError } from "@/shared/lib/field-rules";
 const money = new Intl.NumberFormat("vi-VN");
 /** Kết quả mà tài sản không dùng lại được — tình trạng sau là Hỏng, tài sản chờ xử lý. */
 const FAILED_RESULTS = ["UNREPAIRABLE", "FAIL", "REJECTED"];
-/** Tình trạng sau khi sửa / bảo trì được (QLTB-557): Tốt · Khá · Trung bình · Kém. */
+/** Tình trạng sau khi sửa / bảo trì được: Tốt · Khá · Trung bình · Kém. */
 const WORKING_CONDITIONS = ["TOT", "TRUNG_BINH", "KEM"];
 
 /**

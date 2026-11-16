@@ -66,7 +66,7 @@ function ReturnDialog({ plan, onClose, onDone }: { plan: { id: number; name: str
 }
 
 /**
- * Nút "Chờ duyệt (N)" trên màn danh sách kế hoạch bảo trì (QLTB-653): lãnh đạo chọn nhiều kế hoạch để duyệt một lần,
+ * Nút "Chờ duyệt (N)" trên màn danh sách kế hoạch bảo trì: lãnh đạo chọn nhiều kế hoạch để duyệt một lần,
  * hoặc trả lại từng kế hoạch kèm lý do; cán bộ thấy kế hoạch nào đang chờ, kế hoạch nào bị trả lại và vì sao.
  */
 export function MaintenanceApprovalButton() {

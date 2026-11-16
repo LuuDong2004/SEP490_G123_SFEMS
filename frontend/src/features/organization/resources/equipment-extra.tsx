@@ -1075,7 +1075,7 @@ export const EQUIPMENT_EXTRA = {
     { label: "Ngày tiếp nhận", value: formatPlainDate(r?.receivedDate) },
     { label: "Ngày mua", value: formatPlainDate(r?.purchaseDate) },
     { label: "Hết hạn bảo hành", value: formatPlainDate(r?.warrantyExpiry) },
-    // Hạn sử dụng chỉ vật tư tiêu hao, hoá chất có (QLTB-391) — thiết bị khác không có dòng này.
+    // Hạn sử dụng chỉ vật tư tiêu hao, hoá chất có — thiết bị khác không có dòng này.
     ...(r?.expiryDate || r?.assetCategory === "SUPPLY" || r?.assetCategory === "CHEMICAL"
       ? [{ label: "Hạn sử dụng", value: <ExpiryValue date={r?.expiryDate} /> }]
       : []),

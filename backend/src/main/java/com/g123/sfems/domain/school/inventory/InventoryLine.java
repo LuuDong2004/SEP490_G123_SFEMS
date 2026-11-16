@@ -29,7 +29,7 @@ public class InventoryLine extends VoucherEquipmentLine {
         MISSING,
         WRONG_ROOM,
         DAMAGED,
-        /** Hoá chất, vật tư theo lô: đếm được ít hơn số trên sổ (QLTB-574). */
+        /** Hoá chất, vật tư theo lô: đếm được ít hơn số trên sổ. */
         SHORTAGE
     }
 

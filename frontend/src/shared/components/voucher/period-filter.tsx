@@ -39,7 +39,7 @@ function parse(gte?: string, lte?: string): { kind: Kind; year: number; n: numbe
 }
 
 /**
- * Lọc danh sách phiếu theo THÁNG / QUÝ / NĂM của một ô ngày (vd ngày đề nghị ghi giảm — QLTB-518, "sổ theo dõi"
+ * Lọc danh sách phiếu theo THÁNG / QUÝ / NĂM của một ô ngày (vd ngày đề nghị ghi giảm, "sổ theo dõi"
  * xem lại theo kỳ). Là lọc của máy chủ (`<field>_gte` / `<field>_lte`), nên đếm, phân trang và xuất "tất cả"
  * đều theo kỳ đang chọn. Ghi qua `columnFilters` của TanStack như các ô lọc khác (`ref-filter.tsx`) — đặt thẳng
  * vào `refineCore` thì `useTable` xoá ngay ở lần render sau.

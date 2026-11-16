@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/facility_info/{schoolId}} — thông tin chung CSVC của một trường (QLTB-635): diện tích đất, diện tích xây
+ * {@code /api/facility_info/{schoolId}} — thông tin chung CSVC của một trường: diện tích đất, diện tích xây
  * dựng, học sinh, lớp, cơ sở (trường chính / phân hiệu / điểm trường), số chỗ nhà ăn / nội trú / thư viện, số mục chưa
  * khai kết cấu. Tài khoản của trường không có {@code schools:write} nên hai số diện tích sửa ở đây, dưới
  * quyền sửa CSVC ({@code rooms:write}) và phạm vi ghi hạng mục CSVC của trường đó.

@@ -57,7 +57,7 @@ export function AppRoutes({ ready }: { ready: boolean }) {
         }
       >
         <Route path="/login" element={<Login />} />
-        {/* Quên mật khẩu (QLTB-509): người chưa đăng nhập mới cần. */}
+        {/* Quên mật khẩu: người chưa đăng nhập mới cần. */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
       </Route>

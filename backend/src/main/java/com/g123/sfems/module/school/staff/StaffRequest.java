@@ -15,7 +15,7 @@ import java.util.List;
 
 /** Payload tạo cán bộ. {@code school} vắng = trường của tài khoản đang đăng nhập. */
 public record StaffRequest(
-        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã (QLTB-178); danh mục không có quy tắc thì báo thiếu.
+        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
         @Text(value = FieldRule.CODE, label = "Mã cán bộ", max = 20)
         String code,
         @NotBlank(message = "Họ tên là bắt buộc")

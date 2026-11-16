@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Quy tắc chuẩn CSVC (QLTB-646). Phần chung ở {@link CatalogService}; lớp này:
+ * Quy tắc chuẩn CSVC. Phần chung ở {@link CatalogService}; lớp này:
  * <ul>
  *   <li>sinh {@code code} = {@code <mã loại>.<cấp>.<mức>}, {@code name} = tên loại, thứ tự theo khối → loại → cấp →
  *       mức — người dùng không gõ ba thứ đó;</li>

@@ -36,7 +36,7 @@ public record LoginRequest(
     public static final String AREA_ADMIN = "admin";
     public static final String AREA_BUSINESS = "business";
 
-    /** Mật khẩu bỏ khoảng trắng như lúc đặt (QLTB-508), để hai phía so cùng một chuỗi. */
+    /** Mật khẩu bỏ khoảng trắng như lúc đặt, để hai phía so cùng một chuỗi. */
     public LoginRequest {
         username = username == null ? null : username.trim();
         password = PasswordPolicy.strip(password);

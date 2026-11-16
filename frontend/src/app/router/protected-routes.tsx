@@ -146,7 +146,7 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
           }
         />
         <Route path="/school-explorer" element={<SchoolExplorer />} />
-        {/* Minh chứng hoạt động (QLTB-143) tạm ẩn — yêu cầu chưa rõ; xem ghi chú ở app/resources. */}
+        {/* Minh chứng hoạt động tạm ẩn — yêu cầu chưa rõ; xem ghi chú ở app/resources. */}
         <Route
           path="/school-users"
           element={

@@ -20,7 +20,7 @@ public record SetPasswordRequest(
         @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
         String password) {
 
-    /** Bỏ khoảng trắng (QLTB-508). */
+    /** Bỏ khoảng trắng. */
     public SetPasswordRequest {
         password = PasswordPolicy.strip(password);
     }

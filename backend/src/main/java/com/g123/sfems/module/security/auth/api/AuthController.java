@@ -71,7 +71,7 @@ public class AuthController {
     }
 
     /**
-     * Quên mật khẩu (QLTB-509) — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
+     * Quên mật khẩu — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
      * không: form này không được thành chỗ dò tài khoản.
      */
     @PostMapping("/forgot-password")
@@ -108,7 +108,7 @@ public class AuthController {
         return service.refresh(request.refreshToken(), client(http));
     }
 
-    /** Phiên đăng nhập đang mở của chính mình (QLTB-242). */
+    /** Phiên đăng nhập đang mở của chính mình. */
     @GetMapping("/sessions")
     public List<AuthService.MySession> sessions() {
         return service.mySessions();

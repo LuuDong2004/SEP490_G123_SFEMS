@@ -34,7 +34,7 @@ public record CurrentUserResponse(
         boolean mfaRequired,
         /** Đã có lớp xác thực thứ hai nào chưa — ứng dụng (TOTP) hoặc mã qua email. */
         boolean secondFactor,
-        /** Lần đổi mật khẩu gần nhất — màn hình nhắc đổi khi quá lâu (QLTB-243). */
+        /** Lần đổi mật khẩu gần nhất — màn hình nhắc đổi khi quá lâu. */
         Instant passwordChangedAt,
         /**
          * Tài khoản quản trị chưa có lớp thứ hai trong khi cổng Admin bắt buộc: mọi API khác {@code /api/auth/**} trả

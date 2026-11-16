@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Xác thực hai lớp QUA EMAIL (QLTB-509): mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
+ * Xác thực hai lớp QUA EMAIL: mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
  * người dùng nhập mã đó mới vào được. Tài khoản tự bật / tắt ở trang Hồ sơ (phải nhập lại mật khẩu).
  *
  * <p>Mã chỉ lưu băm SHA-256 (gắn với id tài khoản), hết hạn sau {@code CODE_TTL}, dùng một lần. Nhập sai đếm

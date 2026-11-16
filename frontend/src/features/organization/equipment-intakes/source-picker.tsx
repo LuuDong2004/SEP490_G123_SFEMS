@@ -84,7 +84,7 @@ type IntakeLine = {
 };
 
 /**
- * Bước hai khi lập phiếu ghi tăng từ kế hoạch (QLTB-556): hàng về nhiều đợt, nên chọn THIẾT BỊ và SỐ LƯỢNG nhập đợt
+ * Bước hai khi lập phiếu ghi tăng từ kế hoạch: hàng về nhiều đợt, nên chọn THIẾT BỊ và SỐ LƯỢNG nhập đợt
  * này. Mặc định chọn mọi dòng còn thiếu với đủ số còn lại; phần không nhập đợt này vẫn lập phiếu ghi tăng sau được.
  */
 function ProposalLinesStep({ row, busy, onBack, onConfirm }: {
@@ -196,7 +196,7 @@ const SORTS = [
 type Sort = (typeof SORTS)[number]["value"];
 
 /**
- * Hộp chọn PHIẾU NGUỒN khi lập phiếu ghi tăng tay (QLTB-411). Nguồn hình thành "Kế hoạch mua sắm" đi từ một đề xuất
+ * Hộp chọn PHIẾU NGUỒN khi lập phiếu ghi tăng tay. Nguồn hình thành "Kế hoạch mua sắm" đi từ một đề xuất
  * mua sắm, "Kiểm kê thừa" đi từ một biên bản kiểm kê — chọn nguồn mà không nối phiếu thì phiếu ghi tăng
  * không biết hàng này theo đề xuất nào, và đề xuất không bao giờ thấy mình đã nhập hàng.
  *

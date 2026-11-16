@@ -26,7 +26,7 @@ export type CampaignProgressRow = {
   status: string | null;
   /** Người xem mở được biên bản — Sở / UBND không đọc biên bản còn ở bàn hiệu trưởng. */
   canOpen: boolean;
-  /** Hạng mục CSVC đã kiểm / tổng của biên bản (QLTB-655). */
+  /** Hạng mục CSVC đã kiểm / tổng của biên bản. */
   facilityChecked?: number;
   facilityTotal?: number;
 };
@@ -69,7 +69,7 @@ export type InventoryLine = {
   foundRoom: Ref | null;
   foundCondition: string | null;
   discrepancies: Discrepancy[];
-  /** Hoá chất, vật tư theo lô: số trên sổ lúc lập phiếu và số đếm được (QLTB-574). */
+  /** Hoá chất, vật tư theo lô: số trên sổ lúc lập phiếu và số đếm được. */
   expectedQuantity?: number | null;
   countedQuantity?: number | null;
   note: string | null;
@@ -152,7 +152,7 @@ export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
   return total;
 }
 
-/** Hạng mục CSVC của biên bản kiểm kê (QLTB-654): khối nhà hoặc phòng / hạng mục, kết cấu và hiện trạng sổ → thực tế. */
+/** Hạng mục CSVC của biên bản kiểm kê: khối nhà hoặc phòng / hạng mục, kết cấu và hiện trạng sổ → thực tế. */
 export type InventoryFacilityLine = {
   id: number;
   roomId: number | null;

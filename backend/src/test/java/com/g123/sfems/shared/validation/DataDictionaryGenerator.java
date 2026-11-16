@@ -82,7 +82,7 @@ class DataDictionaryGenerator {
     // ------------------------------------------------------------------ CSDL
 
     private static Map<String, List<Col>> readSchema() throws SQLException {
-        String url = env("SPRING_DATASOURCE_URL", "jdbc:postgresql://localhost:5432/qltb");
+        String url = env("SPRING_DATASOURCE_URL", "jdbc:postgresql://localhost:5432/sfems");
         Map<String, List<Col>> tables = new TreeMap<>();
         try (Connection c = DriverManager.getConnection(url, env("SPRING_DATASOURCE_USERNAME", "postgres"),
                 env("SPRING_DATASOURCE_PASSWORD", "123"))) {

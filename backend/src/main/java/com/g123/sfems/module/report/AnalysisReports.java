@@ -115,7 +115,7 @@ final class AnalysisReports {
 
     /**
      * Một chiều gộp của báo cáo mượn trả, viết cho HAI bảng nguồn (phiếu mượn thiết bị và lượt mượn phòng, đều bí
-     * danh {@code x}): nhãn, khoá nhóm (để bấm một dòng xem các phiếu của nó — QLTB-597), JOIN và cột người mượn.
+     * danh {@code x}): nhãn, khoá nhóm (để bấm một dòng xem các phiếu của nó), JOIN và cột người mượn.
      */
     private record LoanGroup(String header, String label, String code, String key, String loanJoins,
             String bookingJoins, String loanKey, String bookingKey) {
@@ -137,7 +137,7 @@ final class AnalysisReports {
             case "subject" -> new LoanGroup("Môn học", "COALESCE(sj.name, 'Không gắn môn')", null, null,
                     " LEFT JOIN subjects sj ON sj.id = x.subject_id ", " LEFT JOIN subjects sj ON sj.id = x.subject_id ",
                     "x.subject_id", "x.subject_id");
-            // QLTB-595: BCKTKT nêu thống kê mượn trả theo giáo viên — người mượn thiết bị, người mượn phòng.
+            // Báo cáo kinh tế - kỹ thuật nêu thống kê mượn trả theo giáo viên — người mượn thiết bị, người mượn phòng.
             case "borrower" -> new LoanGroup("Người mượn", "COALESCE(st.name, 'Chưa ghi người mượn')", null, null,
                     " LEFT JOIN staff st ON st.id = x.borrower_id ", " LEFT JOIN staff st ON st.id = x.requester_id ",
                     "x.borrower_id", "x.requester_id");
@@ -158,8 +158,8 @@ final class AnalysisReports {
      * lượt mượn theo phòng — gộp theo đơn vị, địa bàn, cấp học, MỤC ĐÍCH, MÔN HỌC hoặc NGƯỜI MƯỢN.
      *
      * <p>"Người mượn" là số NGƯỜI khác nhau (cả mượn thiết bị lẫn mượn phòng), nên dòng Tổng không cộng cột đó mà
-     * lấy số người khác nhau của cả kỳ ({@code totals}, QLTB-598). Nhóm "Chưa phân loại" / "Không gắn môn" / "Chưa
-     * ghi người mượn" đứng cuối bảng (QLTB-601). Mỗi dòng mang khoá nhóm ẩn {@code group_key} để mở danh sách phiếu
+     * lấy số người khác nhau của cả kỳ ({@code totals}). Nhóm "Chưa phân loại" / "Không gắn môn" / "Chưa
+     * ghi người mượn" đứng cuối bảng. Mỗi dòng mang khoá nhóm ẩn {@code group_key} để mở danh sách phiếu
      * của nhóm ({@link #loanRows}).
      */
     Report loans(Params p, String group, LocalDate from, LocalDate to, String period) {
@@ -225,7 +225,7 @@ final class AnalysisReports {
         }
         for (Map<String, Object> r : rows) {
             long n = num(r.get("loans")) + num(r.get("bookings"));
-            // QLTB-596: phần của nhóm trong mọi lượt mượn (phiếu mượn thiết bị + lượt mượn phòng) của kỳ.
+            // Phần của nhóm trong mọi lượt mượn (phiếu mượn thiết bị + lượt mượn phòng) của kỳ.
             r.put("share", total == 0 ? 0 : Math.round(n * 1000.0 / total) / 10.0);
         }
         rows.sort((a, b) -> {
@@ -262,7 +262,7 @@ final class AnalysisReports {
     }
 
     /**
-     * Các phiếu của MỘT dòng báo cáo mượn trả (QLTB-597): phiếu mượn thiết bị và lượt mượn phòng trong kỳ thuộc
+     * Các phiếu của MỘT dòng báo cáo mượn trả: phiếu mượn thiết bị và lượt mượn phòng trong kỳ thuộc
      * nhóm có khoá {@code key} (giá trị {@code group_key} của dòng đó), trong phạm vi người xem.
      */
     Report loanRows(Params p, String group, String key, LocalDate from, LocalDate to, String period) {
@@ -521,10 +521,10 @@ final class AnalysisReports {
                 + " FROM rooms r JOIN schools s ON s.id = r.school_id LEFT JOIN buildings b ON b.id = r.building_id"
                 + " LEFT JOIN room_types rt ON rt.id = r.room_type_id LEFT JOIN subjects sj ON sj.id = r.subject_id"
                 // Lượt trong kỳ: ngày mượn trong kỳ, HOẶC trả trong kỳ — phiếu ghi trước cho ngày sau mà đã trả (kể cả trả
-                // có vấn đề) không bị rơi khỏi báo cáo (QLTB-551).
+                // có vấn đề) không bị rơi khỏi báo cáo.
                 + " LEFT JOIN room_bookings bk ON bk.room_id = r.id AND bk.status NOT IN" + ReportService.NOT_LIVE
                 + "   AND (bk.booking_date BETWEEN ?::date AND ?::date OR bk.returned_at::date BETWEEN ?::date AND ?::date)"
-                // Chỉ phòng bộ môn, phòng chức năng (QLTB-548): loại CSVC có cờ functional (192);
+                // Chỉ phòng bộ môn, phòng chức năng: loại CSVC có cờ functional (192);
                 // phòng chưa phân loại thì tính khi có gắn môn. Phòng học thường (kể cả có ghi môn), kho, thư viện thì không.
                 + " WHERE (rt.functional OR (r.room_type_id IS NULL AND r.subject_id IS NOT NULL))"
                 + reports.scope("r.school_id", p)
@@ -570,7 +570,7 @@ final class AnalysisReports {
                 + ") AS equipment, COUNT(h.catalog_id) AS norms,"
                 + " COUNT(h.catalog_id) FILTER (WHERE h.present >= h.required) AS met,"
                 + " COUNT(h.catalog_id) FILTER (WHERE h.present < h.required) AS short,"
-                // % thiết bị đã đủ trên số thiết bị phải có theo phòng (QLTB-541); chưa có định mức thì trống.
+                // % thiết bị đã đủ trên số thiết bị phải có theo phòng; chưa có định mức thì trống.
                 + " CASE WHEN COUNT(h.catalog_id) = 0 THEN NULL ELSE ROUND(100.0 * COUNT(h.catalog_id)"
                 + "   FILTER (WHERE h.present >= h.required) / COUNT(h.catalog_id)) END AS percent,"
                 + " CASE WHEN COUNT(h.catalog_id) = 0 THEN 'Chưa xác định'"

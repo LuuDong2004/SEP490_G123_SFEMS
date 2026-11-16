@@ -447,7 +447,7 @@ public class EquipmentIntakeService implements RecordAccess {
     /**
      * Số THỰC NHẬN đã ghi theo từng thiết bị (id danh mục → số lượng) trên các phiếu ghi tăng lập từ một phiếu
      * nguồn — kể cả phiếu nháp / chờ duyệt (đã giữ chỗ), trừ phiếu đã huỷ hoặc bị từ chối. Đề xuất mua sắm dùng nó
-     * để biết thiết bị nào còn phải nhập (QLTB-556: hàng về nhiều đợt, mỗi đợt một phiếu ghi tăng).
+     * để biết thiết bị nào còn phải nhập (hàng về nhiều đợt, mỗi đợt một phiếu ghi tăng).
      */
     @Transactional(readOnly = true)
     public Map<Long, Integer> receivedBySource(String sourceResource, Long sourceId) {
@@ -1194,7 +1194,7 @@ public class EquipmentIntakeService implements RecordAccess {
         }
     }
 
-    /** Ghi tăng gắn với một năm học (QLTB-390): sổ tài sản và báo cáo tăng giảm đọc theo năm học. */
+    /** Ghi tăng gắn với một năm học: sổ tài sản và báo cáo tăng giảm đọc theo năm học. */
     private static void requireSchoolYear(EquipmentIntake intake) {
         if (intake.getSchoolYear() == null) {
             throw new FieldValidationException("schoolYear",
@@ -1210,7 +1210,7 @@ public class EquipmentIntakeService implements RecordAccess {
             }
             // Đơn giá KHÔNG bắt buộc: nguyên giá chỉ ghi khi có dữ liệu (HSMT 3.5.3), không vào điều kiện hồ sơ chuẩn.
             // Hoá chất có hạn dùng: thiếu nó thì màn Thiết bị không báo được lô sắp / đã hết hạn — hoá chất
-            // hết hạn vẫn nằm trong kho như còn dùng được (QLTB-503).
+            // hết hạn vẫn nằm trong kho như còn dùng được.
             if (isChemical(line) && line.getCatalog().getTrackingType() == TrackingType.BULK
                     && line.getExpiryDate() == null) {
                 throw new FieldValidationException("lines",

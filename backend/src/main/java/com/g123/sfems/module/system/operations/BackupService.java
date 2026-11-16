@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>Gọi công cụ của chính PostgreSQL chứ không tự đọc bảng ra: bản sao lưu
  * tự viết sẽ thiếu đúng thứ bạn cần lúc khôi phục (sequence, ràng buộc, chỉ
- * mục, bảng changelog của Liquibase). Khôi phục ({@link #restore}, QLTB-247) chạy
+ * mục, bảng changelog của Liquibase). Khôi phục ({@link #restore}) chạy
  * {@code pg_restore --clean --single-transaction}: TRƯỚC đó luôn sao lưu bản hiện
  * tại, và cả lần khôi phục là một giao dịch — lỗi giữa chừng thì cơ sở dữ liệu
  * nguyên như cũ. Nó ghi đè toàn bộ dữ liệu đang chạy, nên màn hình đòi gõ lại

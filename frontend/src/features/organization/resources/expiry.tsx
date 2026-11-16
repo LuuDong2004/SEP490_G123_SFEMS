@@ -14,7 +14,7 @@ export function daysToExpiry(date: string | null | undefined): number | null {
   return Math.round((Date.UTC(y, m - 1, d) - start) / 86_400_000);
 }
 
-/** Nhãn cảnh báo hạn sử dụng (QLTB-391): đã hết hạn, hoặc còn dưới 30 ngày; còn xa thì không có nhãn. */
+/** Nhãn cảnh báo hạn sử dụng: đã hết hạn, hoặc còn dưới 30 ngày; còn xa thì không có nhãn. */
 export function ExpiryBadge({ date }: { date: string | null | undefined }) {
   const days = daysToExpiry(date);
   if (days == null || days > EXPIRY_WARNING_DAYS) return null;

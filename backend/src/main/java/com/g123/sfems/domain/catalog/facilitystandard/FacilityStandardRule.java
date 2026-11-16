@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Quy tắc chuẩn CSVC (203, QLTB-646): một loại CSVC ở một cấp học và một mức (tối thiểu / mức độ 1 / mức độ 2) theo
+ * Quy tắc chuẩn CSVC (203): một loại CSVC ở một cấp học và một mức (tối thiểu / mức độ 1 / mức độ 2) theo
  * TT 13/2020 sửa bởi TT 23/2024. Các điều kiện đều tuỳ chọn; quy tắc đạt khi mọi điều kiện đã khai đều đạt.
  *
  * <p>Dựng trên {@link CatalogEntity} để dùng chung màn danh mục: {@code code} và {@code name} do máy chủ sinh từ loại,

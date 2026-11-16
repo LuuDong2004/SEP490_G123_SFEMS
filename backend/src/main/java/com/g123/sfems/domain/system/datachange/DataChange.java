@@ -8,7 +8,7 @@ import java.time.Instant;
 import org.hibernate.annotations.Immutable;
 
 /**
- * Một dòng lịch sử thay đổi dữ liệu (QLTB-511): một trường của một bản ghi đổi từ giá trị này sang giá trị kia.
+ * Một dòng lịch sử thay đổi dữ liệu: một trường của một bản ghi đổi từ giá trị này sang giá trị kia.
  *
  * <p>Chỉ đọc qua JPA ({@link Immutable}): dòng được GHI bằng JDBC trong lúc Hibernate flush
  * ({@code DataChangeRecorder}), và cơ sở dữ liệu chặn mọi lệnh sửa / xoá trên bảng.

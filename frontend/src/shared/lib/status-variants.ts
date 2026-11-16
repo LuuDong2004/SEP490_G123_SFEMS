@@ -106,7 +106,7 @@ export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   USED_UP: "neutral",
 };
 
-/** Tình hình phiếu mượn (QLTB-483): đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
+/** Tình hình phiếu mượn: đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
 export const LOAN_PHASE_VARIANTS: Record<"BORROWED" | "PARTIAL" | "RETURNED", BadgeVariant> = {
   BORROWED: "info",
   PARTIAL: "warning",

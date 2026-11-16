@@ -14,13 +14,13 @@ import { CONDITION_LABELS, STRUCTURE_LABELS, USAGE_STATUS_LABELS } from "@/domai
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Đường dẫn tem QR của một phòng / hạng mục CSVC — mở màn tra cứu theo mã (QLTB-636). */
+/** Đường dẫn tem QR của một phòng / hạng mục CSVC — mở màn tra cứu theo mã. */
 export function facilityLookupUrl(code: string) {
   return `${window.location.origin}/facility-lookup?code=${encodeURIComponent(code)}`;
 }
 
 /**
- * Mã QR của phòng / hạng mục CSVC trên màn xem (QLTB-636): cùng cơ chế với tem tài sản — QR mang đường dẫn tra cứu
+ * Mã QR của phòng / hạng mục CSVC trên màn xem: cùng cơ chế với tem tài sản — QR mang đường dẫn tra cứu
  * theo mã. "In tem" mở trang in một tem.
  */
 export function FacilityQr({ record, stacked }: {
@@ -86,7 +86,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /**
- * Tra cứu phòng / hạng mục CSVC theo mã — nơi tem QR trỏ về (QLTB-636). Hiện ngay hiện trạng (loại, vị trí, kết cấu,
+ * Tra cứu phòng / hạng mục CSVC theo mã — nơi tem QR trỏ về. Hiện ngay hiện trạng (loại, vị trí, kết cấu,
  * tình trạng, xác nhận), "Mở hồ sơ" để xem đủ.
  */
 export const FacilityLookup = () => {

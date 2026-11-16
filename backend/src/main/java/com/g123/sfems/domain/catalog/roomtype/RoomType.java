@@ -74,7 +74,7 @@ public class RoomType extends CatalogEntity {
     @Column(name = "school_id")
     private Long schoolId;
 
-    /** Thông số riêng của loại: [{key, label, unit, type}] — phòng thuộc loại này khai các ô đó (201, QLTB-633). */
+    /** Thông số riêng của loại: [{key, label, unit, type}] — phòng thuộc loại này khai các ô đó (201). */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "params", columnDefinition = "jsonb", nullable = false)
     private List<Map<String, String>> params = new ArrayList<>();

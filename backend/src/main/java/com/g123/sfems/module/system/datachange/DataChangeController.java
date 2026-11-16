@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code GET /api/data_changes} — lịch sử thay đổi dữ liệu (QLTB-511), mới nhất trước. Chỉ đọc, chỉ quản trị viên.
+ * {@code GET /api/data_changes} — lịch sử thay đổi dữ liệu, mới nhất trước. Chỉ đọc, chỉ quản trị viên.
  *
  * <p>Lọc theo bảng ({@code resource}), bản ghi ({@code recordId}), trường ({@code field}), người
  * ({@code actorName}, chứa) và khoảng ngày ({@code createdAt_gte/_lte}); {@code q} tìm trong tên bản ghi, giá trị cũ /

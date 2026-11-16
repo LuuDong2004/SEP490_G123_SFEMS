@@ -111,7 +111,7 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
   // Muốn đổi thì xoá hết thiết bị trước.
   const lineCount = ((useWatch({ control, name: "lines" }) as unknown[] | undefined) ?? []).length;
   const lockedByLines = !source && lineCount > 0;
-  // Lập tay với nguồn "Mua sắm" / "Kiểm kê thừa": hỏi ngay phiếu nguồn (QLTB-411). Chỉ lúc LẬP — phiếu đã
+  // Lập tay với nguồn "Mua sắm" / "Kiểm kê thừa": hỏi ngay phiếu nguồn. Chỉ lúc LẬP — phiếu đã
   // lưu thì hoặc đã mang phiếu nguồn, hoặc người lập đã chọn lập tay.
   const schoolId = useWatch({ control, name: "school.id" }) as number | null | undefined;
   const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;

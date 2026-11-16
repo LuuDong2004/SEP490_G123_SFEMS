@@ -28,7 +28,7 @@ const pageBody = (landscape: boolean) => ((landscape ? 210 : 297) - 40 - 8) * MM
 
 /** Tờ A4 đứng trên màn hình, lề theo thể thức văn bản hành chính (trái 30, phải 15, trên dưới 20 mm). */
 const SHEET = "box-border w-[210mm] bg-white pt-[20mm] pr-[15mm] pb-[20mm] pl-[30mm] text-[13pt] leading-[1.5] text-black";
-/** Tờ A4 nằm ngang — cho văn bản có bảng nhiều cột (biên bản kiểm kê, QLTB-572). */
+/** Tờ A4 nằm ngang — cho văn bản có bảng nhiều cột (biên bản kiểm kê). */
 const SHEET_LANDSCAPE = "box-border w-[297mm] bg-white pt-[20mm] pr-[15mm] pb-[20mm] pl-[25mm] text-[13pt] leading-[1.5] text-black";
 
 type Signer = {

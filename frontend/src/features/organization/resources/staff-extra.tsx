@@ -505,7 +505,7 @@ export const STAFF_EXTRA = {
   defaults: {
     school: { id: null },
     // Không chọn sẵn Loại: thêm từ danh sách "Tất cả" thì người nhập chọn Giáo viên hay Cán bộ trước,
-    // thay vì form mở sẵn dạng giáo viên (QLTB-399). Thêm từ chế độ xem Cán bộ / Giáo viên thì điền theo nó.
+    // thay vì form mở sẵn dạng giáo viên. Thêm từ chế độ xem Cán bộ / Giáo viên thì điền theo nó.
     staffType: null,
     position: null,
     department: "",
@@ -546,7 +546,7 @@ export const STAFF_EXTRA = {
     { label: "Phòng ban / bộ phận", value: r?.department ?? "—" },
     { label: "Số điện thoại", value: r?.phone ?? "—" },
     { label: "Email", value: r?.email ?? "—" },
-    // Môn dạy chỉ có nghĩa với giáo viên — hồ sơ cán bộ không hiện hai dòng "—" này (QLTB-416).
+    // Môn dạy chỉ có nghĩa với giáo viên — hồ sơ cán bộ không hiện hai dòng "—" này.
     ...(r?.staffType === "teacher"
       ? [
           { label: "Môn chính", value: r?.mainSubject?.name ?? "—" },

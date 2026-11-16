@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/facility-standard} — đánh giá mức độ chuẩn CSVC của một trường (QLTB-647, 648).
+ * {@code /api/facility-standard} — đánh giá mức độ chuẩn CSVC của một trường.
  *
  * <ul>
  *   <li>{@code GET /schools/{id}} — kết quả theo khối, loại, ba mức;</li>

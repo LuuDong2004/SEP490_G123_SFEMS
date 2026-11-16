@@ -46,7 +46,7 @@ public record StaffResponse(
         var school = item.getSchool();
         Map<String, Boolean> can = rowLevel == null ? Map.of() : rowLevel.capabilities(item);
         // Số điện thoại, email xem ĐỦ khi: được sửa hồ sơ này (quyền + phạm vi dòng), hoặc là hồ sơ của chính mình.
-        // Còn lại che bớt (QLTB-250) — giáo viên tra danh sách cán bộ vẫn nhận ra người, không lấy được số.
+        // Còn lại che bớt — giáo viên tra danh sách cán bộ vẫn nhận ra người, không lấy được số.
         boolean own = item.getAccount() != null
                 && Objects.equals(item.getAccount().getId(), CurrentUser.id().orElse(null));
         boolean full = own || (CurrentUser.has("staff:write") && !Boolean.FALSE.equals(can.get("write")));

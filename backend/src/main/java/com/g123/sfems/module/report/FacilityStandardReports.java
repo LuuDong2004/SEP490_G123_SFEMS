@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Báo cáo "Đánh giá mức độ chuẩn CSVC" (QLTB-649): mỗi trường trong phạm vi một dòng — số loại CSVC đạt / số loại có
+ * Báo cáo "Đánh giá mức độ chuẩn CSVC": mỗi trường trong phạm vi một dòng — số loại CSVC đạt / số loại có
  * quy tắc ở từng mức, và mức cao nhất trường đạt. Phần chấm ở {@link FacilityStandardService}; bấm một dòng mở bản
  * đánh giá chi tiết của trường đó (khoá ẩn {@code school_id}).
  */

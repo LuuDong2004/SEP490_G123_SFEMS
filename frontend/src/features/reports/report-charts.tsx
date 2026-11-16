@@ -80,7 +80,7 @@ function Tiles({ children }: { children: ReactNode }) {
  * dòng mà bảng bên dưới hiện — biểu đồ và bảng không bao giờ lệch nhau. Báo cáo nào
  * không có ở đây thì chỉ có bảng.
  */
-/** Bộ lọc theo cột của trang báo cáo — để ô chỉ số bấm vào là lọc bảng (QLTB-543). `all`: các dòng CHƯA lọc. */
+/** Bộ lọc theo cột của trang báo cáo — để ô chỉ số bấm vào là lọc bảng. `all`: các dòng CHƯA lọc. */
 export type ReportFilter = {
   active: Record<string, string>;
   set: (key: string, value: string | null) => void;
@@ -441,7 +441,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
       ) : null;
     }
     case "facilities": {
-      // Chi tiết từng khối nhà / từng phòng (QLTB-155): mỗi dòng một công trình — ô số đếm từ chính danh sách,
+      // Chi tiết từng khối nhà / từng phòng: mỗi dòng một công trình — ô số đếm từ chính danh sách,
       // không có biểu đồ (bảng đã là thứ cần xem). `cond` là mã hiện trạng đi kèm dòng.
       const good = new Set(["TOT", "BINH_THUONG"]);
       const poor = new Set(["CAN_SUA_CHUA", "XUONG_CAP", "HU_HONG_NANG"]);

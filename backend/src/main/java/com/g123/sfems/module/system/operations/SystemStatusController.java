@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * {@code /api/system_status} — tình trạng vận hành và sao lưu.
  * {@code POST /backups} chạy một lần sao lưu ngay (ví dụ trước khi nâng cấp);
- * {@code POST /backups/{name}/restore} khôi phục từ một bản (QLTB-247) — đòi gõ lại tên bản và mật khẩu.
+ * {@code POST /backups/{name}/restore} khôi phục từ một bản — đòi gõ lại tên bản và mật khẩu.
  */
 @RestController
 @RequestMapping("/api/system_status")

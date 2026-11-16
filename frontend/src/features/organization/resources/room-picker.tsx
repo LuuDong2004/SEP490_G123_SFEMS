@@ -29,9 +29,9 @@ export type RoomRow = {
   roomType?: { code?: string; name: string } | null;
   floor?: string | null;
   managingStaff?: { id: number; name: string } | null;
-  /** Cho mượn được không (hồ sơ phòng, QLTB-350). */
+  /** Cho mượn được không (hồ sơ phòng). */
   loanable?: boolean;
-  /** Môn của phòng bộ môn — phiếu mượn phòng điền sẵn môn học theo nó (QLTB-531). */
+  /** Môn của phòng bộ môn — phiếu mượn phòng điền sẵn môn học theo nó. */
   subject?: { id: number; name: string } | null;
 };
 

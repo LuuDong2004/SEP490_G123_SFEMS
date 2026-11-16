@@ -77,7 +77,7 @@ public class ReportController {
                 typeId, status, condition));
     }
 
-    /** Các phiếu của một dòng báo cáo "Thống kê mượn trả" (QLTB-597): {@code key} = khoá nhóm của dòng. */
+    /** Các phiếu của một dòng báo cáo "Thống kê mượn trả": {@code key} = khoá nhóm của dòng. */
     @GetMapping("/loans/rows")
     @PreAuthorize("hasAuthority('reports:read')")
     public ReportService.Report loanRows(@RequestParam String key,

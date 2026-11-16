@@ -41,7 +41,7 @@ public class MfaService {
     public record Setup(String secret, String otpauthUri) {
     }
 
-    /** {@code email}: đang bật xác thực hai lớp qua email ({@code EmailMfaService}, QLTB-509). */
+    /** {@code email}: đang bật xác thực hai lớp qua email ({@code EmailMfaService}). */
     public record Status(boolean enabled, boolean required, boolean pending, boolean email, String emailAddress) {
     }
 

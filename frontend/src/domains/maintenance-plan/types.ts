@@ -1,4 +1,4 @@
-/** Kế hoạch bảo trì: loại kế hoạch và trạng thái duyệt (205, QLTB-650, 653). */
+/** Kế hoạch bảo trì: loại kế hoạch và trạng thái duyệt (205). */
 
 /** Kế hoạch lo thiết bị, hay chính công trình — khối nhà, phòng / hạng mục CSVC. */
 export type PlanTarget = "EQUIPMENT" | "FACILITY";

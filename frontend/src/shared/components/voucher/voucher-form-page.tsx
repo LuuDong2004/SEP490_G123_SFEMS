@@ -137,7 +137,7 @@ export function VoucherFormPage({
   directSubmit?: (values: Record<string, any>, record?: any) => boolean;
   /**
    * Tên của nút khi phiếu miễn duyệt THEO NỘI DUNG (`directSubmit`) mà "Duyệt" là chữ sai người: sửa chữa tại chỗ
-   * do cán bộ thiết bị bấm, nên là "Ghi nhận" — cán bộ không duyệt phiếu sửa (QLTB-467).
+   * do cán bộ thiết bị bấm, nên là "Ghi nhận" — cán bộ không duyệt phiếu sửa.
    */
   directText?: { label: string; done: string };
   defaults: Record<string, any>;
@@ -331,7 +331,7 @@ export function VoucherFormPage({
   // Ô bắt buộc lúc TRÌNH (đang đúng điều kiện `when`): nhãn của ô tự gắn dấu *, như ô bắt buộc khi lưu.
   const submitRequired = new Set(required.filter(({ when }) => !when || when(formValues)).map(({ name }) => name));
   // Người DUYỆT của trường (lãnh đạo trường) không có nút Trình: trình là việc của người lập gửi lên
-  // cho họ (QLTB-386). Phiếu đã lưu thì theo đúng danh sách hành động máy chủ trả về.
+  // cho họ. Phiếu đã lưu thì theo đúng danh sách hành động máy chủ trả về.
   const maySubmit = record ? (record._actions ?? []).includes("submit") : !(canApprove && perspective === "school");
   // Phiếu KHÔNG qua cấp duyệt nào: bấm là hệ thống ghi nhận và khoá phiếu ngay, không ai chờ duyệt — nên
   // hai nút là "Lưu" và "Duyệt" chứ không phải "Lưu nháp" và "Trình". Loại phiếu không có cấp duyệt

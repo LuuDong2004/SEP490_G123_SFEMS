@@ -31,7 +31,7 @@ export const workPlace = (r: any): string => r?.room?.name ?? r?.building?.name 
 const idOf = (v: unknown) => (v == null || v === "" ? null : Number(v));
 
 /**
- * Cơ sở → khối nhà → phòng, theo thứ tự lồng nhau (QLTB-470): chọn cơ sở thì ô khối nhà chỉ còn khối nhà
+ * Cơ sở → khối nhà → phòng, theo thứ tự lồng nhau: chọn cơ sở thì ô khối nhà chỉ còn khối nhà
  * của cơ sở đó, chọn khối nhà thì ô phòng chỉ còn phòng của khối nhà đó. Chọn ô dưới trước cũng được —
  * chọn phòng là điền luôn khối nhà và cơ sở của nó (máy chủ cũng tự điền, `FacilityWorkService.reconcile`).
  * Đổi ô trên sang chỗ khác thì xoá ô dưới, để ba ô không chỉ ba chỗ khác nhau.
@@ -82,7 +82,7 @@ export function PlaceFields({ control, record, rooms = true }: { control: Contro
 }
 
 /**
- * Form ghi một lần sửa chữa, cải tạo công trình (QLTB-149). Vị trí chọn từ trên xuống (cơ sở → khối nhà →
+ * Form ghi một lần sửa chữa, cải tạo công trình. Vị trí chọn từ trên xuống (cơ sở → khối nhà →
  * phòng) và chỉ cần tới mức cụ thể nhất cần thiết; để trống cả ba là việc của cả trường.
  */
 function WorkFields({ control, record, place }: { control: Control<any>; record?: any; place?: string }) {

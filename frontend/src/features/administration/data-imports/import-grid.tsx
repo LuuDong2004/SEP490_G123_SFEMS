@@ -82,7 +82,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
   onSort: (key: string) => void;
   search: string;
   onSearch: (value: string) => void;
-  /** Giá trị chọn được theo cột của trang (QLTB-617): cột có ở đây mở danh sách chọn thay cho gõ tay. */
+  /** Giá trị chọn được theo cột của trang: cột có ở đây mở danh sách chọn thay cho gõ tay. */
   choices?: Record<string, string[]>;
 }) {
   const theme = useGridTheme();
@@ -195,7 +195,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
       case "_status":
         return readonlyText(IMPORT_ROW_STATUS[r.status], theme.statusCell[r.status]);
       case "_messages":
-        // Lỗi trước lưu ý, mỗi câu ghi rõ là Lỗi hay Lưu ý (QLTB-618): dòng vừa có lưu ý vừa có lỗi không còn nhìn như chỉ có lưu ý.
+        // Lỗi trước lưu ý, mỗi câu ghi rõ là Lỗi hay Lưu ý: dòng vừa có lưu ý vừa có lỗi không còn nhìn như chỉ có lưu ý.
         return readonlyText(messageText(r), r.messages.length ? theme.statusCell[r.status] : undefined);
       case "_change":
         return readonlyText(String(r.resolved.change ?? ""));

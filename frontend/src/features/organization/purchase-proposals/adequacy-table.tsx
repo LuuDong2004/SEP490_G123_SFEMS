@@ -102,7 +102,7 @@ function searchRows(rows: NormRow[], term: string): Set<number> | null {
 /** Nhãn cột cuối: Thiếu N / Đủ / Thừa N / Chưa tính được (rê chuột: vì sao) / Tự chọn / Không ghi số. */
 function StatusCell({ r }: { r: NormRow }) {
   const st = stateOf(r);
-  // Thiếu nhưng đề xuất chưa nhập về đã phủ hết phần thiếu: không còn là việc phải xin nữa (QLTB-495).
+  // Thiếu nhưng đề xuất chưa nhập về đã phủ hết phần thiếu: không còn là việc phải xin nữa.
   if (st === "short" && r.proposed > 0 && r.proposed >= (r.shortage ?? 0)) {
     return (
       <Tooltip>
@@ -199,7 +199,7 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
   collapsed?: boolean;
   /** Nút của cả bảng (vd. Xuất Excel), sát mép phải hàng công cụ. */
   actions?: ReactNode;
-  /** Báo các dòng đang hiện mỗi khi lọc / tìm đổi (QLTB-533/534: in danh sách thiếu, thừa). */
+  /** Báo các dòng đang hiện mỗi khi lọc / tìm đổi (để in danh sách thiếu, thừa). */
   onView?: (view: AdequacyView) => void;
   /** Cột "Điều chỉnh" cuối bảng (màn chuẩn của trường): nhãn đã duyệt / nháp và nút Điều chỉnh. */
   adjust?: (row: NormRow) => ReactNode;

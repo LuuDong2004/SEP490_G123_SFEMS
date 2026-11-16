@@ -3,4 +3,4 @@
 app.storage.endpoint=http://10.123.123.174:9000
 app.storage.access-key=
 app.storage.secret-key=
-app.storage.bucket=qltb-dev
+app.storage.bucket=sfems-dev

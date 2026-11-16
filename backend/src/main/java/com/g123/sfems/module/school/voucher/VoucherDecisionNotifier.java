@@ -9,7 +9,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Báo cho người lập khi phiếu của họ bị TRẢ LẠI hoặc bị TỪ CHỐI (QLTB-236), kèm lý do và lối mở đúng phiếu. Trước đó
+ * Báo cho người lập khi phiếu của họ bị TRẢ LẠI hoặc bị TỪ CHỐI, kèm lý do và lối mở đúng phiếu. Trước đó
  * người lập chỉ biết khi tình cờ mở lại danh sách.
  *
  * <p>Nghe đồng bộ ({@link EventListener}, không phải AFTER_COMMIT): dòng thông báo là bản ghi, phải nằm cùng giao

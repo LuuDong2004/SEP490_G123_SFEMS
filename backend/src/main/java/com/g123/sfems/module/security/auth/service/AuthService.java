@@ -146,7 +146,7 @@ public class AuthService {
                 .filter(candidate -> inArea(candidate, request));
         Instant now = Instant.now();
 
-        // Đang khoá tạm (sai mật khẩu 5 lần, QLTB-509): từ chối trước khi so mật khẩu, kể cả mật khẩu đúng.
+        // Đang khoá tạm (sai mật khẩu 5 lần): từ chối trước khi so mật khẩu, kể cả mật khẩu đúng.
         found.filter(User::canSignIn).ifPresent(candidate -> loginGuard.requireNotLocked(candidate, now));
 
         String hash = found.map(User::getPasswordHash).orElse(DUMMY_HASH);
@@ -175,7 +175,7 @@ public class AuthService {
             }
             mfaService.verifyForLogin(user.getId(), request.code());
         } else if (user.isMfaEmail()) {
-            // Qua email: chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập (QLTB-509).
+            // Qua email: chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập.
             if (noCode) {
                 emailMfa.sendForLogin(user.getId());
             }
@@ -217,7 +217,7 @@ public class AuthService {
             // the token above already burned it, so this ends the session.
             throw new BadCredentialsException("Tài khoản này đã bị khoá");
         }
-        // Đi tiếp CÙNG phiên: token mới của lần làm mới vẫn là phiên đã mở lúc đăng nhập (QLTB-242).
+        // Đi tiếp CÙNG phiên: token mới của lần làm mới vẫn là phiên đã mở lúc đăng nhập.
         return issue(user, now, new Session(used.getSessionId(), used.getSessionStartedAt()), client);
     }
 
@@ -280,7 +280,7 @@ public class AuthService {
         return issue(updated, now, session, client);
     }
 
-    /** Các phiên đang mở của chính mình (QLTB-242); phiên của request này được đánh dấu. */
+    /** Các phiên đang mở của chính mình; phiên của request này được đánh dấu. */
     @Transactional(readOnly = true)
     public List<MySession> mySessions() {
         Long id = currentUser().getId();

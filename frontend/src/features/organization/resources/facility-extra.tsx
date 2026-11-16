@@ -308,7 +308,7 @@ function CampusFields({ control, record }: { control: Control<any>; record?: any
 }
 
 /**
- * Ảnh hiện trạng, bản vẽ, hồ sơ pháp lý của cơ sở / khối nhà / phòng (QLTB-150). Thêm, xoá tệp ngay
+ * Ảnh hiện trạng, bản vẽ, hồ sơ pháp lý của cơ sở / khối nhà / phòng. Thêm, xoá tệp ngay
  * ở màn xem — ai sửa được bản ghi thì thêm được tệp (`_can.write`), còn lại chỉ xem.
  */
 const facilityFiles = (resource: string, description: string) =>
@@ -511,7 +511,7 @@ function useRoomForm(control: Control<any>, record?: any) {
   // Mã do máy chủ cấp theo quy tắc mã của trường (mặc định PH0001, PH0002…, như bản Jmix).
   useSchoolNextCode("rooms", control, record);
 
-  // Phòng MỚI: "Cho mượn" theo cờ của loại CSVC vừa chọn (QLTB-524, 192) — phòng bộ môn, đa chức năng, hội
+  // Phòng MỚI: "Cho mượn" theo cờ của loại CSVC vừa chọn — phòng bộ môn, đa chức năng, hội
   // trường thì có; phòng học, kho, thư viện, sân, cổng… thì không. Phòng đã có thì giữ lựa chọn đang lưu.
   // Cùng luật với RoomService.defaultLoanable.
   const roomTypeId = useWatch({ control, name: "roomType.id" });
@@ -612,7 +612,7 @@ function CheckGroup<V extends string | number>({ control, name, label, options }
   );
 }
 
-/** Lịch mở cửa của phòng chức năng (QLTB-656): phiếu mượn phòng ngoài lịch bị chặn. Không tích = mở mọi lúc. */
+/** Lịch mở cửa của phòng chức năng: phiếu mượn phòng ngoài lịch bị chặn. Không tích = mở mọi lúc. */
 function OpeningDays({ control }: { control: Control<any> }) {
   return <CheckGroup control={control} name="openDays" label="Ngày mở cửa" options={OPEN_DAYS.map((d) => ({ value: d.value, label: d.short }))} />;
 }
@@ -1364,7 +1364,7 @@ export const ROOM_EXTRA: CatalogExtra = {
     usageStatus: "DANG_SU_DUNG",
     managingStaff: { id: null },
     managingUnit: "",
-    // Chưa chọn loại phòng = chưa phân loại: không cho mượn cho tới khi chọn loại (QLTB-524).
+    // Chưa chọn loại phòng = chưa phân loại: không cho mượn cho tới khi chọn loại.
     loanable: false,
     structure: null,
     combinedType: { id: null },

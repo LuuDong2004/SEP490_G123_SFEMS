@@ -175,7 +175,7 @@ const BASE: CatalogConfig[] = [
     icon: Package,
     label: "Loại thiết bị",
     description: "Nhóm của phụ lục danh mục tối thiểu: tranh ảnh, bản đồ, dụng cụ, hoá chất…",
-    // Mã hai chữ cái (QLTB-419). Không phải thành phần LT của mã tài sản — LT là TB / PM / HL.
+    // Mã hai chữ cái. Không phải thành phần LT của mã tài sản — LT là TB / PM / HL.
     codeExample: "HC",
     nameExample: "Hoá chất",
     codePattern: { value: /^[A-Z]{2}$/, message: "Mã loại thiết bị gồm 2 chữ cái in hoa, vd. HC" },

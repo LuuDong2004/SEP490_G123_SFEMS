@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Tài liệu API (QLTB-449, 252) ở {@code /swagger-ui.html}: mọi endpoint, tham số, kiểu trả về — sinh từ chính code
+ * Tài liệu API ở {@code /swagger-ui.html}: mọi endpoint, tham số, kiểu trả về — sinh từ chính code
  * nên không lệch khỏi API thật. Xác thực bằng access token Bearer: tài khoản người dùng ({@code POST /api/auth/login})
  * hoặc khoá API của hệ thống đối tác ({@code POST /api/auth/token}).
  */

@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
  * bảng, và bộ xuất Excel ghi được bất kỳ báo cáo nào mà không cần biết nó là gì.
  * Thêm một báo cáo là thêm một nhánh ở {@link #build}, không thêm màn hình.
  *
- * <p>Danh mục bám mục 3.5.8 của hồ sơ mời thầu (Chương V, Sở GD&amp;ĐT TP.HCM): báo cáo
+ * <p>Danh mục bám yêu cầu báo cáo của Sở GD&amp;ĐT TP.HCM: báo cáo
  * theo đơn vị, địa bàn, cấp học, loại thiết bị, tình trạng và nguồn hình thành; báo cáo
  * kiểm kê, bảo trì, sửa chữa, điều chuyển, mượn/trả và nhu cầu mua sắm — cộng ba bảng
  * tổng hợp ở các mục khác: cơ sở vật chất (3.5.2), thiết bị hư hỏng / cần thay thế
@@ -573,7 +573,7 @@ public class ReportService {
     }
 
     /**
-     * Chi tiết từng khối nhà đang có (QLTB-155): cùng danh sách với màn Khối nhà của trường, kèm số phòng và diện
+     * Chi tiết từng khối nhà đang có: cùng danh sách với màn Khối nhà của trường, kèm số phòng và diện
      * tích phòng trong từng khối. Diện tích chưa khai để trống, không ghi 0. {@code cond} là mã hiện trạng — không
      * thành cột, màn hình đếm tốt / xuống cấp từ nó.
      */
@@ -597,7 +597,7 @@ public class ReportService {
                 rows);
     }
 
-    /** Chi tiết từng phòng đang có (QLTB-155): khối nhà, loại, môn, tầng, diện tích, sức chứa, hiện trạng, sử dụng. */
+    /** Chi tiết từng phòng đang có: khối nhà, loại, môn, tầng, diện tích, sức chứa, hiện trạng, sử dụng. */
     private Report facilityRooms(Params p) {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT s.code AS school_code, s.name AS school,"
                 + " b.name AS building, r.code AS room_code, r.name AS room_name,"

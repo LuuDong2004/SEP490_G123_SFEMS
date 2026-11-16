@@ -119,7 +119,7 @@ export const UserShow = () => {
             <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
           </p>
         </FormPanel>
-        {/* Phiên đang mở và lịch sử đăng nhập của tài khoản (QLTB-242). */}
+        {/* Phiên đang mở và lịch sử đăng nhập của tài khoản. */}
         {record?.id ? (
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <SessionsCard source={`users/${record.id}/sessions`} endPath={(sid) => `users/${record.id}/sessions/${sid}`}

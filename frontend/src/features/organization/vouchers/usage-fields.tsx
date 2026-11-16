@@ -10,7 +10,7 @@ import { PURPOSE_OPTIONS } from "./usage-form";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * Ô nhập của khối "mượn để làm gì" (QLTB-531) — chung cho phiếu mượn phòng và phiếu mượn thiết bị. Mục đích và
+ * Ô nhập của khối "mượn để làm gì" — chung cho phiếu mượn phòng và phiếu mượn thiết bị. Mục đích và
  * môn là LỰA CHỌN để thống kê được (theo môn, tỷ lệ tiết thực hành); nội dung bài dạy là chữ tự do, không bắt
  * buộc. Môn học lọc theo cấp học của trường (trường THCS không chọn môn tiểu học). Đặt trong lưới `grid` của form.
  * Giá trị mặc định, payload, ô bắt buộc: `usage-form.ts`.

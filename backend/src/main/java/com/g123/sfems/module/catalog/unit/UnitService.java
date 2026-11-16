@@ -32,7 +32,7 @@ public class UnitService extends CatalogService<Unit, UnitRequest, UnitPatchRequ
 
     /**
      * {@code allowsFraction=false} — chỉ đơn vị đếm nguyên (Lọ, Chai, Hộp…): ô "đơn vị bao bì" của quy cách hoá
-     * chất (QLTB-501) chỉ đưa ra những đơn vị này, không đưa Lít, Gam vốn là đơn vị đo.
+     * chất chỉ đưa ra những đơn vị này, không đưa Lít, Gam vốn là đơn vị đo.
      */
     @Override
     protected Specification<Unit> extraFilters(ListParams params) {

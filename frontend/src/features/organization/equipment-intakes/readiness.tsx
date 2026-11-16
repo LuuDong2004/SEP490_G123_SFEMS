@@ -38,7 +38,7 @@ type CatalogOf = (line: any) => { trackingType?: string; unit?: unknown; assetCa
 /**
  * Dòng hoá chất (theo phân loại của dòng, không thì của thiết bị) quản lý theo số lượng, có hàng nhận mà chưa
  * khai hạn sử dụng — cùng luật với `requireAssetProfileData` ở máy chủ. Thiếu hạn thì màn Thiết bị không báo
- * được lô sắp / đã hết hạn (QLTB-503).
+ * được lô sắp / đã hết hạn.
  */
 export function missingChemicalExpiry(line: any, catalog: ReturnType<CatalogOf>): boolean {
   return isChemical(line, catalog) && catalog?.trackingType === "bulk"

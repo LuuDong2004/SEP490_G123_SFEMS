@@ -51,7 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
  * khớp cơ quan quản lý hoặc phường/xã ({@link #narrow}) và tên không lặp trong tệp — khớp thì cập nhật / bỏ qua, không
  * khớp thì thêm mới, mơ hồ thì báo để ghi "Mã trường hiện có". Không còn ghi thêm bản trùng của trường đã có.
  * <b>Mã trường lấy theo mã Sở</b> (thêm mới và cập nhật) — mã tài sản dùng mã hai ký tự, không dùng mã trường. Không
- * ghép được thì là trường mới; mã hai ký tự để trống chờ chốt quy tắc (QLTB-346).
+ * ghép được thì là trường mới; mã hai ký tự để trống chờ chốt quy tắc.
  *
  * <p><b>Toàn vẹn với dữ liệu cũ:</b> trường đã có dữ liệu (tài khoản, cán bộ, cơ sở, phòng, lớp, tài sản) không đổi
  * cấp học qua tệp và không bị ngừng; một lần không ngừng quá {@link #MAX_DEACTIVATE_SHARE} số trường đang hoạt động.

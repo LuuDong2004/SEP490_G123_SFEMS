@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 
 /** Payload tạo phòng. */
 public record RoomRequest(
-        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã (QLTB-178); danh mục không có quy tắc thì báo thiếu.
+        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
         @Text(value = FieldRule.CODE, label = "Mã phòng")
         String code,
         @NotBlank(message = "Tên là bắt buộc")

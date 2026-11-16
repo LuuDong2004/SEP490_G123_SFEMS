@@ -1,7 +1,7 @@
 import { PASSWORD_LIMITS } from "@/shared/lib/field-rules";
 
 /**
- * Chính sách mật khẩu (QLTB-508, HSDT TL4.1.11) — cùng luật với `PasswordPolicy` ở máy chủ, tính sẵn ở trình
+ * Chính sách mật khẩu (HSDT TL4.1.11) — cùng luật với `PasswordPolicy` ở máy chủ, tính sẵn ở trình
  * duyệt để người đặt mật khẩu thấy còn thiếu gì TRƯỚC khi bấm lưu. Máy chủ vẫn là nơi quyết. Độ dài lấy từ
  * `field-rules.json` (sinh từ backend); tài khoản quyền cao (Quản trị, Sở) cần dài hơn.
  */

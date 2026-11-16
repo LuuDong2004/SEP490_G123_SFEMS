@@ -28,7 +28,7 @@ export function Kpi({ to, icon, label, value, hint, tone = "primary", meter, inf
   value: ReactNode;
   hint?: ReactNode;
   tone?: Tone;
-  /** `title`: rê chuột vào tỷ lệ để biết nó tính từ đâu (QLTB-515). */
+  /** `title`: rê chuột vào tỷ lệ để biết nó tính từ đâu. */
   /** Thanh tỷ lệ: `label` nói thanh đo cái gì (vd. "Đang sử dụng 255 / 643"), số % đứng bên phải. */
   meter?: { percent: number; label: string; title?: string };
 }) {

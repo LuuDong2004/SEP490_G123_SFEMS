@@ -99,7 +99,7 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
 
     /**
      * Kho thiết bị của một trường: phòng đang dùng mang loại {@code KHO}, không có thì phòng có tên chứa chữ
-     * "kho"; trường chưa khai kho thì {@code null}. Hàng ghi tăng luôn về kho (QLTB-382) — form chọn sẵn kho
+     * "kho"; trường chưa khai kho thì {@code null}. Hàng ghi tăng luôn về kho — form chọn sẵn kho
      * cho từng dòng, còn phiếu lập từ đề xuất mua sắm, từ kiểm kê hay qua API thì máy chủ dùng hàm này.
      * Đọc qua phạm vi dòng như mọi lần đọc phòng.
      */
@@ -157,7 +157,7 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /**
-     * Cho mượn mặc định theo cờ của loại CSVC (192 — QLTB-524): phòng bộ môn, phòng đa chức năng, nhà đa năng, hội
+     * Cho mượn mặc định theo cờ của loại CSVC (192): phòng bộ môn, phòng đa chức năng, nhà đa năng, hội
      * trường cho mượn; phòng học, kho, thư viện, sân, cổng… và phòng chưa phân loại thì không. Form đọc cùng cờ.
      */
     private static boolean defaultLoanable(Room item) {
@@ -178,7 +178,7 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /**
-     * Trường thêm một loại CSVC ngoài danh mục (QLTB-629) ngay từ form phòng. Quyền {@code rooms:write} kiểm ở
+     * Trường thêm một loại CSVC ngoài danh mục ngay từ form phòng. Quyền {@code rooms:write} kiểm ở
      * controller; ở đây kiểm trường nằm trong phạm vi người dùng.
      */
     @Transactional
@@ -387,7 +387,7 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /**
-     * Ghi kết quả kiểm kê hạng mục CSVC (QLTB-654) vào hồ sơ: kết cấu / hiện trạng thấy thực tế (trống = giữ nguyên).
+     * Ghi kết quả kiểm kê hạng mục CSVC vào hồ sơ: kết cấu / hiện trạng thấy thực tế (trống = giữ nguyên).
      */
     @Transactional
     public Room applyInventory(Long id, FacilityStructure structure, FacilityCondition condition) {

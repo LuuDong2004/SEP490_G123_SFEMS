@@ -178,7 +178,7 @@ export const SignInForm = () => {
   const [password, setPassword] = useState(initial.password);
   const [code, setCode] = useState("");
   const [needCode, setNeedCode] = useState(false);
-  // Câu máy chủ trả khi cần mã: mã ứng dụng hay mã vừa gửi tới email nào (QLTB-509).
+  // Câu máy chủ trả khi cần mã: mã ứng dụng hay mã vừa gửi tới email nào.
   const [codeHint, setCodeHint] = useState<string | null>(null);
 
   const { title } = useRefineOptions();

@@ -37,7 +37,7 @@ function snooze(key: string) {
 }
 
 /**
- * Nhắc bảo mật trên toàn ứng dụng (QLTB-243), một dải mỏng trên đầu nội dung:
+ * Nhắc bảo mật trên toàn ứng dụng, một dải mỏng trên đầu nội dung:
  *
  * <ul>
  *   <li>Tài khoản đặc quyền (quản trị) chưa có lớp xác thực thứ hai — BẮT BUỘC, không tắt được: máy chủ đã coi đó

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FACILITY_KIND_LABELS, type FacilityKind, type RoomTypeRecord } from "@/domains/facility/catalog";
 
 /**
- * Trường thêm một loại CSVC NGOÀI DANH MỤC (QLTB-629) ngay trên form phòng: loại chỉ trường này dùng, không vào
+ * Trường thêm một loại CSVC NGOÀI DANH MỤC ngay trên form phòng: loại chỉ trường này dùng, không vào
  * danh mục chuẩn của Sở. Thêm xong thì chọn luôn loại đó cho phòng.
  */
 export function CustomRoomTypeButton({ schoolId, onCreated }: { schoolId?: number | null; onCreated: (t: RoomTypeRecord) => void }) {

@@ -45,9 +45,9 @@ export type VoucherAction =
   | "recall"
   /** Mượn: ghi nhận trả. */
   | "return-items"
-  /** Mượn phòng: trả phòng, ghi tình trạng phòng (QLTB-530). */
+  /** Mượn phòng: trả phòng, ghi tình trạng phòng. */
   | "return-room"
-  /** Thu hồi nội bộ: bên đang giữ xác nhận đã giao (QLTB-582). */
+  /** Thu hồi nội bộ: bên đang giữ xác nhận đã giao. */
   | "hand-over"
   /** Báo hỏng: ghi kết quả xử lý. */
   | "result"
@@ -137,7 +137,7 @@ export function voucherStatusText(status: VoucherStatus, step: ApprovalStep | nu
   if (status === "APPROVED" && resource && APPROVED_LABEL_BY_RESOURCE[resource]) return APPROVED_LABEL_BY_RESOURCE[resource];
   if (status === "PENDING" && step) return `Chờ ${APPROVAL_STEP_LABELS[step]} duyệt`;
   // Phiếu bị người duyệt trả lại nằm ở trạng thái nháp để sửa được, nhưng với người lập nó KHÔNG phải
-  // một phiếu nháp bình thường: có việc phải làm trước khi trình lại (QLTB-387).
+  // một phiếu nháp bình thường: có việc phải làm trước khi trình lại.
   if (status === "DRAFT" && returned) return "Bị trả về";
   return VOUCHER_STATUS_LABELS[status];
 }
@@ -184,7 +184,7 @@ export type EquipmentLine = {
 };
 
 /**
- * Mục đích mượn (QLTB-531) — chung cho phiếu mượn phòng và phiếu mượn thiết bị. Danh sách CỐ ĐỊNH, cùng thứ tự với
+ * Mục đích mượn — chung cho phiếu mượn phòng và phiếu mượn thiết bị. Danh sách CỐ ĐỊNH, cùng thứ tự với
  * `UsagePurpose` ở backend: báo cáo đếm theo đúng các giá trị này (tỷ lệ tiết thực hành theo môn).
  */
 export type UsagePurpose = "THEORY" | "PRACTICE" | "EXTRACURRICULAR" | "PROFESSIONAL" | "TRAINING" | "OTHER";
@@ -213,7 +213,7 @@ export type VoucherUsage = {
   lessonContent: string | null;
 };
 
-/** Mục đích viết ra chữ cho màn xem; phiếu lập trước QLTB-531 chưa có mục đích. */
+/** Mục đích viết ra chữ cho màn xem; phiếu lập trước khi có ô mục đích thì chưa có. */
 export function usagePurposeText(u: Pick<VoucherUsage, "purposeType" | "purposeNote">): string {
   if (!u.purposeType) return "Chưa phân loại";
   if (u.purposeType === "OTHER") return u.purposeNote ? `Khác: ${u.purposeNote}` : "Khác";

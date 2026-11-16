@@ -174,7 +174,7 @@ public class InventoryCampaignService {
                     WHERE i.school_id = s.id AND i.campaign_id = ? AND i.status NOT IN ('CANCELLED', 'REJECTED')
                     ORDER BY i.id DESC LIMIT 1) x ON TRUE
                 LEFT JOIN LATERAL (
-                    -- Hạng mục CSVC đã kiểm / tổng của biên bản (QLTB-655).
+                    -- Hạng mục CSVC đã kiểm / tổng của biên bản.
                     SELECT COUNT(*) FILTER (WHERE l.checked) AS checked, COUNT(*) AS total
                     FROM inventory_facility_lines l WHERE l.session_id = x.id) f ON TRUE
                 WHERE (? OR s.department_of_education_id = ?)

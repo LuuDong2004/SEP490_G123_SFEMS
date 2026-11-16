@@ -68,7 +68,7 @@ public class ActivityLogController {
                 case "actorName" -> (root, q, cb) ->
                         ListParams.foldedLike(cb, root.get("actorName"), c.value());
                 case "resource", "action", "method" -> (root, q, cb) -> cb.equal(root.get(c.field()), c.value());
-                // Lịch sử đăng nhập của MỘT tài khoản (QLTB-242) — lần đăng nhập thành công mang id người làm.
+                // Lịch sử đăng nhập của MỘT tài khoản — lần đăng nhập thành công mang id người làm.
                 case "actorId" -> actorIdSpec(c.value());
                 case "statusCode" -> statusSpec(c);
                 case "createdAt" -> dateSpec(c);

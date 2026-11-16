@@ -38,7 +38,7 @@ public class InventorySessionController
         this.facilities = facilities;
     }
 
-    /** Hạng mục CSVC của biên bản (QLTB-654): khối nhà, phòng / hạng mục, kết cấu và hiện trạng sổ → thực tế. */
+    /** Hạng mục CSVC của biên bản: khối nhà, phòng / hạng mục, kết cấu và hiện trạng sổ → thực tế. */
     @GetMapping("/{id}/facility-lines")
     public InventoryFacilityApi.Lines facilityLines(@PathVariable Long id) {
         require("read");

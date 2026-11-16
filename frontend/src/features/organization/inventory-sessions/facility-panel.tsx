@@ -75,7 +75,7 @@ function NoteInput({ value, onSave }: { value: string | null; onSave: (v: string
 }
 
 /**
- * Hạng mục CSVC của biên bản kiểm kê (QLTB-654, 655): khối nhà và phòng / hạng mục trong phạm vi phiếu, kết cấu và
+ * Hạng mục CSVC của biên bản kiểm kê: khối nhà và phòng / hạng mục trong phạm vi phiếu, kết cấu và
  * hiện trạng trên sổ → thấy thực tế. Phiếu còn nháp thì ghi ngay từng ô; biên bản đã duyệt thì "Áp dụng vào hồ sơ CSVC"
  * ghi phần khác sổ vào hồ sơ (cán bộ áp → chờ lãnh đạo xác nhận).
  */

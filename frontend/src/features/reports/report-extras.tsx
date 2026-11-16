@@ -31,13 +31,13 @@ export const numeric = (t: ReportColumnType) => t === "number" || t === "money";
  * cột đó. Báo cáo không có ở đây thì không có ô lọc thêm. Xuất Excel vẫn ra đủ các dòng.
  */
 export const REPORT_FILTERS: Record<string, { key: string; label: string }[]> = {
-  // QLTB-544: môn, loại phòng, kết luận.
+  // Môn, loại phòng, kết luận.
   "room-standard": [
     { key: "subject", label: "môn" },
     { key: "room_type", label: "loại phòng" },
     { key: "verdict", label: "kết luận" },
   ],
-  // QLTB-549: khối nhà, loại phòng, môn (tháng / quý / năm học là ô chọn kỳ).
+  // Khối nhà, loại phòng, môn (tháng / quý / năm học là ô chọn kỳ).
   "room-usage": [
     { key: "building", label: "khối nhà" },
     { key: "room_type", label: "loại phòng" },
@@ -46,7 +46,7 @@ export const REPORT_FILTERS: Record<string, { key: string; label: string }[]> = 
 };
 
 /**
- * Bấm một dòng thì làm gì: mở hồ sơ tài sản / phiếu / phòng, hoặc xem các lượt mượn của phòng trong kỳ (QLTB-546).
+ * Bấm một dòng thì làm gì: mở hồ sơ tài sản / phiếu / phòng, hoặc xem các lượt mượn của phòng trong kỳ.
  * Id đi kèm dòng dưới dạng khoá ẩn (không có trong `columns`, không ra Excel).
  */
 export type RowAction =
@@ -58,10 +58,10 @@ export type RowAction =
 export function rowAction(report: string, row: Record<string, any>): RowAction | null {
   if (report === "room-usage" && row.room_id != null)
     return { bookings: { id: Number(row.room_id), name: String(row.room ?? "") }, title: "Xem các lượt mượn trong kỳ" };
-  // QLTB-597: một dòng "Thống kê mượn trả" mở các phiếu của nhóm đó trong kỳ.
+  // Một dòng "Thống kê mượn trả" mở các phiếu của nhóm đó trong kỳ.
   if (report === "loans" && row.group_key != null)
     return { loans: { key: String(row.group_key), name: String(row.name ?? "") }, title: "Xem các phiếu mượn trong kỳ" };
-  // QLTB-649: một trường trên "Đánh giá mức độ chuẩn CSVC" mở bản đánh giá chi tiết của trường đó.
+  // Một trường trên "Đánh giá mức độ chuẩn CSVC" mở bản đánh giá chi tiết của trường đó.
   if (report === "facility-standard" && row.school_id != null)
     return { standard: { id: Number(row.school_id), name: String(row.name ?? "") }, title: "Xem đánh giá chi tiết" };
   if (row.room_id != null) return { to: `/rooms/show/${row.room_id}`, title: "Mở hồ sơ phòng" };
@@ -102,7 +102,7 @@ const slot = (b: Booking) =>
     : b.periodFrom == null ? "—" : b.periodTo && b.periodTo !== b.periodFrom ? `Tiết ${b.periodFrom}–${b.periodTo}` : `Tiết ${b.periodFrom}`;
 
 /**
- * Lịch sử sử dụng MỘT phòng trong kỳ đang xem (QLTB-546): ngày, tiết / buổi, người mượn, môn, nội dung, mục đích,
+ * Lịch sử sử dụng MỘT phòng trong kỳ đang xem: ngày, tiết / buổi, người mượn, môn, nội dung, mục đích,
  * tình trạng lúc trả. Đọc từ chính danh sách phiếu mượn phòng — cùng quyền, cùng phạm vi.
  */
 export function RoomBookingsDialog({ room, from, to, onClose }: {

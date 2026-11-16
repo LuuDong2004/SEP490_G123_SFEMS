@@ -180,12 +180,12 @@ public class EquipmentIntakeLine extends BaseEntity {
     @Column(name = "other_info", length = 500)
     private String otherInfo;
 
-    /** Hạn sử dụng của LÔ vật tư tiêu hao, hoá chất (QLTB-391); thiết bị từng cái không có. Chép xuống tài sản. */
+    /** Hạn sử dụng của LÔ vật tư tiêu hao, hoá chất; thiết bị từng cái không có. Chép xuống tài sản. */
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
     /**
-     * Quy cách bao bì (QLTB-501) — ĐÃ BỎ quy đổi: phiếu lưu từ nay luôn để trống, số lượng của dòng theo đơn vị tính của
+     * Quy cách bao bì — ĐÃ BỎ quy đổi: phiếu lưu từ nay luôn để trống, số lượng của dòng theo đơn vị tính của
      * danh mục (g, ml…). Chỉ dòng cũ còn mang: đơn vị bao bì (Lọ, Chai…) và lượng trong một bao
      * bì tính theo đơn vị của thiết bị (100 ml). Có quy cách thì số lượng của dòng đếm theo bao bì và đơn giá
      * là giá một bao bì; lô vào sổ mang số lượng đã quy đổi ({@link #stockQuantity()}). Cùng trống hoặc cùng có.

@@ -69,7 +69,7 @@ public record UserRequest(
         @Valid
         UserProfileRequest profile) {
 
-    /** Mật khẩu bỏ khoảng trắng (QLTB-508). */
+    /** Mật khẩu bỏ khoảng trắng. */
     public UserRequest {
         password = PasswordPolicy.strip(password);
     }

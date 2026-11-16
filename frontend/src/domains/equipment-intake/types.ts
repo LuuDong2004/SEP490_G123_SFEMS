@@ -76,10 +76,10 @@ export type IntakeLine = {
   manufacturer: string | null;
   /** Cấu hình, công suất, xuất xứ… — chữ tự do. */
   otherInfo?: string | null;
-  /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất (QLTB-391); dòng thiết bị từng cái luôn null. */
+  /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất; dòng thiết bị từng cái luôn null. */
   expiryDate: string | null;
   /**
-   * Quy cách bao bì (QLTB-501) — ĐÃ BỎ quy đổi: phiếu mới luôn trống, số lượng theo đơn vị của danh mục. Chỉ phiếu cũ
+   * Quy cách bao bì — ĐÃ BỎ quy đổi: phiếu mới luôn trống, số lượng theo đơn vị của danh mục. Chỉ phiếu cũ
    * còn mang: khi đó số lượng đếm theo bao bì và `stockQuantity` là số đã quy đổi (màn xem phiếu vẫn hiện).
    */
   packUnit: { id: number; code?: string; name: string } | null;
@@ -101,7 +101,7 @@ export type EquipmentIntake = VoucherBase & {
   /** Nguồn hình thành của CẢ PHIẾU — quyết định nguồn kinh phí nào chọn được ở từng dòng. */
   originSource: { id: number; code?: string; name: string } | null;
   originNote: string | null;
-  /** Năm học của lần ghi tăng (QLTB-390). */
+  /** Năm học của lần ghi tăng. */
   schoolYear: { id: number; code?: string; name: string } | null;
   /** null = phiếu lập tay. */
   source: IntakeSource | null;

@@ -72,7 +72,7 @@ public record EquipmentIntakeLineInput(
         // Hạn sử dụng của lô vật tư tiêu hao, hoá chất; dòng thiết bị từng cái bỏ qua.
         @DateValue(value = DateRule.ANY, label = "Hạn sử dụng")
         LocalDate expiryDate,
-        // Quy cách bao bì của vật tư, hoá chất (QLTB-501): 1 <packUnit> = <packSize> <đơn vị của thiết bị>.
+        // Quy cách bao bì của vật tư, hoá chất: 1 <packUnit> = <packSize> <đơn vị của thiết bị>.
         IdRef packUnit,
         @DecimalMin(value = "0.001", message = "Lượng trong một bao bì phải lớn hơn 0")
         @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Quy cách")

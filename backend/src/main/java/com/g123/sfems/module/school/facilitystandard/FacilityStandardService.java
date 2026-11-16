@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Chấm mức độ chuẩn CSVC của trường (QLTB-647..649): đối chiếu phòng / hạng mục đang có với quy tắc chuẩn Sở khai
+ * Chấm mức độ chuẩn CSVC của trường: đối chiếu phòng / hạng mục đang có với quy tắc chuẩn Sở khai
  * ({@code facility_standard_rules}, 203) theo cấp học của trường.
  *
  * <ul>

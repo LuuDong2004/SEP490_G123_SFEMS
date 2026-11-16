@@ -278,7 +278,7 @@ export function DonutBreakdown({
             </span>
           </li>
         ))}
-        {/* Tỷ lệ % trên cái gì (QLTB-515): rê chuột vào ô % — không ghi công thức dưới chú giải. */}
+        {/* Tỷ lệ % trên cái gì: rê chuột vào ô % — không ghi công thức dưới chú giải. */}
         {total && onPick ? <li className="text-muted-foreground pt-1.5 text-xs">Bấm từng mục để xem chi tiết.</li> : null}
       </ul>
     </div>
@@ -365,7 +365,7 @@ export function StatTile({
   label: ReactNode;
   value: ReactNode;
   hint?: ReactNode;
-  /** Ô "?" cạnh nhãn: con số này tính từ đâu, theo công thức nào (QLTB-515). */
+  /** Ô "?" cạnh nhãn: con số này tính từ đâu, theo công thức nào. */
   info?: ReactNode;
   tone?: "primary" | "warning" | "destructive" | "success";
   href?: string;

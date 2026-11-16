@@ -13,7 +13,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 /**
- * Gửi thư (mã xác thực hai lớp, link đặt lại mật khẩu — QLTB-509).
+ * Gửi thư (mã xác thực hai lớp, link đặt lại mật khẩu).
  *
  * <p>Máy chủ thư khai bằng {@code spring.mail.*} (host, port, username, password) trong
  * {@code application-local.properties} hoặc biến môi trường. CHƯA khai thì Spring không dựng

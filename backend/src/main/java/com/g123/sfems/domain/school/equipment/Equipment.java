@@ -162,7 +162,7 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(name = "warranty_expiry")
     private LocalDate warrantyExpiry;
 
-    /** Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất (QLTB-391). */
+    /** Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất. */
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
@@ -407,7 +407,7 @@ public class Equipment extends SchoolOwnedEntity {
     }
 
     /**
-     * Lô đã quá hạn sử dụng (QLTB-566) — "Hết hạn sử dụng" là trạng thái TÍNH theo ngày, không lưu: trạng thái tài
+     * Lô đã quá hạn sử dụng — "Hết hạn sử dụng" là trạng thái TÍNH theo ngày, không lưu: trạng thái tài
      * sản chỉ đổi qua phiếu. Lô hết hạn không vào được phiếu dùng (tiêu hao…), chỉ vào phiếu tiêu huỷ.
      */
     public boolean isExpired() {

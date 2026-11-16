@@ -16,7 +16,7 @@ import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Biểu số liệu cơ sở vật chất (QLTB-643, 644, 155) — đúng các dòng của mẫu Sở GDĐT TP.HCM
+ * Biểu số liệu cơ sở vật chất — đúng các dòng của mẫu Sở GDĐT TP.HCM
  * ({@code FileMau_BaoCaoSoLieu.xlsx}): phần A thông tin chung (học sinh, đất, điểm trường, lớp, nhân sự, chỗ ăn /
  * ở / đọc), phần B hiện trạng CSVC theo khối — mỗi loại CSVC một dòng, số lượng và diện tích chia theo kết cấu
  * (kiên cố, bán kiên cố, tạm, nhờ / mượn / thuê).

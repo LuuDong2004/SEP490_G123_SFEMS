@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Kiểm kê hạng mục CSVC (QLTB-654, 655): phiếu kiểm kê kiểm thêm khối nhà và phòng / hạng mục trong phạm vi của nó.
+ * Kiểm kê hạng mục CSVC: phiếu kiểm kê kiểm thêm khối nhà và phòng / hạng mục trong phạm vi của nó.
  *
  * <p>Lập danh sách = chụp kết cấu và hiện trạng đang ghi trên hồ sơ (cả trường: mọi khối nhà và phòng / hạng mục còn
  * dùng; phiếu một phòng: chỉ phòng đó). Tổ kiểm kê ghi cái thấy thực tế khi phiếu còn nháp — cùng lúc với kiểm đếm tài

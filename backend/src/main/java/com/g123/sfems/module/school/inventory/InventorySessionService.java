@@ -110,7 +110,7 @@ public class InventorySessionService
             line.setEquipment(item);
             line.setExpectedRoom(item.getRoom());
             line.setExpectedCondition(item.getCondition());
-            // Lô hoá chất, vật tư (một mã, nhiều đơn vị): kiểm theo số lượng (QLTB-574).
+            // Lô hoá chất, vật tư (một mã, nhiều đơn vị): kiểm theo số lượng.
             if (item.getCatalog() != null && item.getCatalog().getTrackingType() == TrackingType.BULK) {
                 line.setExpectedQuantity(item.getQuantity());
             }
@@ -279,7 +279,7 @@ public class InventorySessionService
         return initialize(repository.persist(voucher));
     }
 
-    /** Tổ kiểm kê bắt buộc ngay lúc lập / sửa phiếu (QLTB-560) — không chỉ lúc trình. */
+    /** Tổ kiểm kê bắt buộc ngay lúc lập / sửa phiếu — không chỉ lúc trình. */
     private static String requireCouncil(String council) {
         String value = trimToNull(council);
         if (value == null) {
@@ -296,7 +296,7 @@ public class InventorySessionService
                     "Còn %d thiết bị chưa kiểm — ghi \"có\" hoặc \"không thấy\" cho mọi dòng trước khi trình biên bản"
                             .formatted(unchecked));
         }
-        // Biên bản kiểm kê phải nói AI đã kiểm (QLTB-381): không có tổ kiểm kê thì biên bản không có người ký.
+        // Biên bản kiểm kê phải nói AI đã kiểm: không có tổ kiểm kê thì biên bản không có người ký.
         if (voucher.getCouncil() == null || voucher.getCouncil().isBlank()) {
             throw new FieldValidationException("council",
                     "Chưa khai tổ kiểm kê — sửa phiếu, chọn người trong tổ rồi trình lại biên bản");
@@ -305,7 +305,7 @@ public class InventorySessionService
 
     /**
      * Biên bản được duyệt: ghi lịch sử kiểm kê cho mọi tài sản, rồi LẬP NGAY phiếu nháp cho từng nhóm chênh lệch
-     * (QLTB-606, 607 — đúng như hộp duyệt nói): thiếu → đề nghị ghi giảm do mất, hỏng → phiếu báo hỏng, sai vị trí →
+     * (607 — đúng như hộp duyệt nói): thiếu → đề nghị ghi giảm do mất, hỏng → phiếu báo hỏng, sai vị trí →
      * phiếu điều chuyển nội bộ, thừa → phiếu ghi tăng. Trạng thái tài sản KHÔNG đổi lúc duyệt: phiếu báo hỏng được ghi
      * nhận thì tài sản mới thành hỏng, đề nghị ghi giảm hoàn tất thì mới thành mất. Nhóm nào đã có phiếu thì bỏ qua;
      * nút "Nghiệp vụ đề xuất" ({@link #followUp}) vẫn lập lại được phần còn thiếu.

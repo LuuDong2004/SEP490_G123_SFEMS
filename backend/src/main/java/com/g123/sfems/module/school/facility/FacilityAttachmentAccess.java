@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Tệp đính kèm của cơ sở vật chất: ảnh hiện trạng, bản vẽ, hồ sơ pháp lý của cơ sở, khối nhà và
- * phòng (QLTB-150). Đọc / ghi được tệp là đọc / ghi được chính bản ghi đó, theo phạm vi dòng của
+ * phòng. Đọc / ghi được tệp là đọc / ghi được chính bản ghi đó, theo phạm vi dòng của
  * nó — không có mã quyền riêng cho tệp.
  */
 @Configuration

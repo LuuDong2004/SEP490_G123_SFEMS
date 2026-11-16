@@ -99,7 +99,7 @@ export const DataImportBatch = () => {
     queryKey: batchKey,
     queryFn: ({ signal }) => kyInstance.get(`data_imports/${id}`, { signal }).json<ImportBatch>(),
   });
-  // Giá trị chọn được cho các ô (QLTB-617) — tính lại khi dữ liệu lô đổi, vì mã phòng / cán bộ vừa thêm cũng chọn được.
+  // Giá trị chọn được cho các ô — tính lại khi dữ liệu lô đổi, vì mã phòng / cán bộ vừa thêm cũng chọn được.
   const { data: choices } = useQuery({
     queryKey: ["data_imports", id, "choices", JSON.stringify(batch?.sheets)],
     queryFn: ({ signal }) => kyInstance.get(`data_imports/${id}/choices`, { signal }).json<Record<string, Record<string, string[]>>>(),

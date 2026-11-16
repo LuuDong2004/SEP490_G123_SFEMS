@@ -174,7 +174,7 @@ export const Reports = () => {
         ? r.rows.reduce((s, row) => s + (Number(row[c.key]) || 0), 0)
         : null,
   );
-  // Các phiếu của một dòng "Thống kê mượn trả" (QLTB-597): cùng kỳ, cùng phạm vi, cùng chiều gộp với bảng đang xem.
+  // Các phiếu của một dòng "Thống kê mượn trả": cùng kỳ, cùng phạm vi, cùng chiều gộp với bảng đang xem.
   const openLoans = async (of: { key: string; name: string }) => {
     try {
       const list = await kyInstance.get("reports/loans/rows", { searchParams: { ...params, key: of.key } }).json<Report>();
@@ -245,7 +245,7 @@ export const Reports = () => {
                 {part.charAt(0).toUpperCase() + part.slice(1)}
               </Badge>
             ))}
-            {/* Số liệu chốt lúc nào (QLTB-545): lần đọc gần nhất từ máy chủ — Làm mới để lấy số mới. */}
+            {/* Số liệu chốt lúc nào: lần đọc gần nhất từ máy chủ — Làm mới để lấy số mới. */}
             {loaded && report.dataUpdatedAt ? (
               <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
                 <Clock className="size-3.5" />

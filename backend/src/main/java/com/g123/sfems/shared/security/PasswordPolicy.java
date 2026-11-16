@@ -34,13 +34,13 @@ public final class PasswordPolicy {
             "password", "passw", "pass", "matkhau", "admin", "administrator", "qwerty", "qwertyuiop", "asdfgh",
             "abc", "abcabc", "iloveyou", "welcome", "letmein", "login", "user", "test", "demo", "root", "master",
             "secret", "changeme", "default", "hello", "monkey", "dragon", "football", "sunshine", "princess",
-            "qltb", "giaoduc", "truonghoc", "vietnam", "hcm", "saigon");
+            "qltb", "sfems", "giaoduc", "truonghoc", "vietnam", "hcm", "saigon");
 
     private PasswordPolicy() {
     }
 
     /**
-     * Mật khẩu bỏ mọi khoảng trắng (QLTB-508: "hệ thống tự xoá khoảng trắng"): dấu cách gõ nhầm đầu / cuối, hay
+     * Mật khẩu bỏ mọi khoảng trắng ("hệ thống tự xoá khoảng trắng"): dấu cách gõ nhầm đầu / cuối, hay
      * dán kèm xuống dòng, không thành một mật khẩu khác với cái người dùng nghĩ mình đặt. Áp ở MỌI chỗ nhận mật
      * khẩu — đặt, đổi, đăng nhập — để hai phía luôn so cùng một chuỗi.
      */

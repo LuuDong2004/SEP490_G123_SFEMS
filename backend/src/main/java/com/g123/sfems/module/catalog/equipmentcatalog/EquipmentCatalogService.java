@@ -461,7 +461,7 @@ public class EquipmentCatalogService extends CatalogService<
     /**
      * Thiết bị CHUẨN cho một dòng của bộ tiêu chuẩn sắp áp dụng: cùng cấp học + môn + tên đã có thì dùng lại,
      * chưa có thì tạo. Đây là lối DUY NHẤT sinh ra thiết bị thuộc danh mục tối thiểu — không có đường thêm
-     * tay. Mã là {@code <cấp>-<mã môn>-<số>} — mã môn học, không phải chữ viết tắt (QLTB-414): {@code THCS-27-241}
+     * tay. Mã là {@code <cấp>-<mã môn>-<số>} — mã môn học, không phải chữ viết tắt: {@code THCS-27-241}
      * nối tiếp {@code THCS-27-240} của Khoa học tự nhiên; không gắn môn thì {@code 00} (Dùng chung). Cùng mã môn
      * với phần MH của mã định danh tài sản.
      */

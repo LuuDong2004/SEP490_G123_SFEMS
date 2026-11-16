@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Lưu trữ báo cáo (QLTB-231). {@code POST /api/reports/{name}/snapshots} lưu báo cáo với đúng bộ lọc đang xem;
+ * Lưu trữ báo cáo. {@code POST /api/reports/{name}/snapshots} lưu báo cáo với đúng bộ lọc đang xem;
  * {@code /api/report_snapshots} liệt kê, mở, xuất Excel, xoá bản đã lưu. Cùng quyền {@code reports:read} với xem báo
  * cáo — ai xem được báo cáo thì lưu được; xem bản nào thì theo nơi lập ({@link ReportSnapshotService}).
  */

@@ -816,7 +816,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     public Equipment generateLotFromIntakeLine(EquipmentIntakeLine line) {
         EquipmentIntake intake = line.getIntake();
         School school = intake.getSchool();
-        // Số lượng vào sổ ĐÃ QUY ĐỔI theo đơn vị của thiết bị (QLTB-501): 5 lọ × 100 ml = 500 ml.
+        // Số lượng vào sổ ĐÃ QUY ĐỔI theo đơn vị của thiết bị: 5 lọ × 100 ml = 500 ml.
         BigDecimal quantity = line.stockQuantity();
         Equipment item = new Equipment();
         item.setSchool(school);
@@ -1266,7 +1266,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                 specs.add("unrepairable".equals(criterion.value())
                         ? unrepairable() : (root, query, cb) -> cb.disjunction());
             } else if (criterion.field().equals("expiry")) {
-                // `expired`: lô đã quá hạn sử dụng (tiêu huỷ do hết hạn, QLTB-565); `valid`: không ghi hạn hoặc còn hạn.
+                // `expired`: lô đã quá hạn sử dụng (tiêu huỷ do hết hạn); `valid`: không ghi hạn hoặc còn hạn.
                 LocalDate today = LocalDate.now();
                 specs.add("expired".equals(criterion.value())
                         ? (root, query, cb) -> cb.lessThan(root.get("expiryDate"), today)

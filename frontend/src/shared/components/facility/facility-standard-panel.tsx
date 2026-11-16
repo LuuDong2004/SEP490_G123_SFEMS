@@ -35,7 +35,7 @@ function StatusBadge({ status, bold }: { status: StandardStatus; bold?: boolean 
 }
 
 /**
- * Đánh giá mức độ chuẩn CSVC của MỘT trường (QLTB-647, 648): ba mức theo TT 13/2020 sửa bởi TT 23/2024, chuẩn do Sở
+ * Đánh giá mức độ chuẩn CSVC của MỘT trường: ba mức theo TT 13/2020 sửa bởi TT 23/2024, chuẩn do Sở
  * khai ở Danh mục chung → Chuẩn CSVC. Bảng theo khối (dòng khối đậm), mỗi loại một dòng với kết quả ba mức và điều
  * kiện còn thiếu; nút tải bản Excel theo mẫu của Sở. Khung cao theo chỗ chứa nó (`min-h-0 flex-1`), bảng cuộn bên trong.
  */

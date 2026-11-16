@@ -141,7 +141,7 @@ export function useFacilitySectionTitle(schoolId: number, value: string): string
 }
 
 /**
- * Biểu số liệu CSVC của một trường ngay trong tab (QLTB-643): cùng bảng với Báo cáo → Biểu số liệu CSVC, cùng tệp
+ * Biểu số liệu CSVC của một trường ngay trong tab: cùng bảng với Báo cáo → Biểu số liệu CSVC, cùng tệp
  * Excel mẫu Sở. Trường lập biểu không phải sang phân hệ Báo cáo.
  */
 export function CsvcStatisticsPanel({ schoolId }: { schoolId: number }) {

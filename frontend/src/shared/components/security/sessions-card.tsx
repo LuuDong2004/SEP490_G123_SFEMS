@@ -37,7 +37,7 @@ export function describeAgent(ua: string | null) {
 }
 
 /**
- * Các phiên đăng nhập đang mở của một tài khoản (QLTB-242): thiết bị, IP, lúc mở, lần dùng gần nhất; mỗi phiên một
+ * Các phiên đăng nhập đang mở của một tài khoản: thiết bị, IP, lúc mở, lần dùng gần nhất; mỗi phiên một
  * nút Đăng xuất. Đăng xuất là thu hồi refresh token của phiên — thiết bị kia mất phiên ở lần làm mới token kế tiếp
  * (tối đa 15 phút, thời hạn của access token).
  *

@@ -43,7 +43,7 @@ type ItemRow = {
   originSource: { id: number; name: string } | null;
   /** Năm đưa vào sử dụng — trên hồ sơ, không có thì năm tiếp nhận. */
   inUseYear: number | null;
-  /** Hạn sử dụng của lô vật tư, hoá chất (QLTB-391). */
+  /** Hạn sử dụng của lô vật tư, hoá chất. */
   expiryDate: string | null;
   intake: { id: number; code?: string } | null;
   profileComplete?: boolean;

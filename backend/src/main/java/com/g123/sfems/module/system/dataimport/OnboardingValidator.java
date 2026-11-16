@@ -68,7 +68,7 @@ public class OnboardingValidator {
     /** Kết quả kiểm một dòng: trạng thái, lời nhắn, thứ hiện cho người nhập, và thứ để ghi. */
     public record Result(String status, List<Message> messages, Map<String, Object> resolved, Object payload) {
         /**
-         * Lỗi đứng TRƯỚC lưu ý (QLTB-618): dòng vừa có lưu ý vừa có lỗi từng hiện câu lưu ý ở đầu, lỗi thật bị khuất
+         * Lỗi đứng TRƯỚC lưu ý: dòng vừa có lưu ý vừa có lỗi từng hiện câu lưu ý ở đầu, lỗi thật bị khuất
          * phía sau — nhìn như một dòng "chỉ có lưu ý" mà vẫn không qua.
          */
         public Result {
@@ -248,7 +248,7 @@ public class OnboardingValidator {
             + "|NUOC_JAVEN|NUOC_GIA_VEN|NUOC_VOI|CON_|ETHANOL|ETANOL|GLUCOZO|SACCAROZO|KALI|NATRI|CANXI|MAGIE|NHOM_"
             + "|BARI|AMONI|MANGAN|IOT|PHENOL|GIAY_DO_PH|DAU_|PARAFIN|VASELIN)");
     private static final Pattern CODE = Pattern.compile("^[A-Za-z0-9._-]+$");
-    /** Tên lớp: 6A1, 10 CĐIA, và kiểu tiểu học 1/1, 2/3 (QLTB-621). */
+    /** Tên lớp: 6A1, 10 CĐIA, và kiểu tiểu học 1/1, 2/3. */
     private static final Pattern CLASS_CODE = Pattern.compile("^[\\p{L}\\p{N}._-][\\p{L}\\p{N}._ /-]*$");
     /** Một công thức hoá học đứng riêng: NaOH, H2SO4, Ca(OH)2, CaCl2.6H2O, KI. */
     private static final Pattern FORMULA = Pattern.compile("(?<![\\p{L}\\d])((?:[A-Z][a-z]?\\d*|\\((?:[A-Z][a-z]?\\d*)+\\)\\d*)"

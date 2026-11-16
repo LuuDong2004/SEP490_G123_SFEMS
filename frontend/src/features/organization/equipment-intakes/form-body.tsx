@@ -107,7 +107,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
     setExpandAt(Date.now());
     setTimeout(then, 0);
   };
-  // Lãnh đạo trường là người DUYỆT phiếu nhập — không có nút Trình (QLTB-386); phiếu đã lưu thì theo
+  // Lãnh đạo trường là người DUYỆT phiếu nhập — không có nút Trình; phiếu đã lưu thì theo
   // danh sách hành động máy chủ trả về.
   const canApprove = useCan({ resource: "equipment_intakes", action: "approve" }).data?.can ?? false;
   const { perspective } = usePerspective();
@@ -525,7 +525,7 @@ function Checklist({ items, onGo, labels = GROUP_LABELS }: { items: ReadinessIte
 }
 
 /**
- * Năm học LUÔN là năm học chứa ngày nhập (QLTB-390; trưởng nhóm 13/11/2026: không chọn được năm học đã qua) — ô Năm
+ * Năm học LUÔN là năm học chứa ngày nhập (trưởng nhóm 13/11/2026: không chọn được năm học đã qua) — ô Năm
  * học chỉ hiện, đổi ngày nhập là đổi năm, cả ở màn sửa. Ngày nhập không rơi vào năm học nào thì lấy năm học hiện hành.
  * Máy chủ tự đặt theo cùng luật và bỏ qua năm học form gửi lên; ở đây điền để người lập thấy ngay.
  */

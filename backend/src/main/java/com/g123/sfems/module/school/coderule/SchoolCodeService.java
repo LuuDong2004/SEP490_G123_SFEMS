@@ -201,7 +201,7 @@ public class SchoolCodeService {
             case "campuses" -> new Effective(target, label, "CS", 2, 1, false);
             case "subject_teams" -> new Effective(target, label, "TO", 2, 1, false);
             case "facility_works" -> new Effective(target, label, "SC", 3, 1, false);
-            // Theo năm (QLTB-584): BT-2026-001, sang năm đánh số lại từ 001.
+            // Theo năm: BT-2026-001, sang năm đánh số lại từ 001.
             case "maintenance_plans" -> new Effective(target, label, "BT-" + Year.now() + "-", 3, 1, false);
             default -> new Effective(target, label, "CB", 4, 1, false);
         };

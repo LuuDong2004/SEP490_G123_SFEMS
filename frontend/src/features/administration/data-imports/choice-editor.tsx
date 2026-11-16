@@ -8,7 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 const EMPTY = "__empty__";
 
 /**
- * Ô chọn trong lưới nhập dữ liệu (QLTB-617): cột có danh mục (loại phòng, khối, đơn vị tính, tình trạng, nguồn…) hoặc mã
+ * Ô chọn trong lưới nhập dữ liệu: cột có danh mục (loại phòng, khối, đơn vị tính, tình trạng, nguồn…) hoặc mã
  * tham chiếu (cơ sở, khối nhà, phòng, cán bộ) mở danh sách có ô tìm thay cho gõ tự do. Gõ chữ khi ô đang chọn thì chữ đó
  * thành từ tìm. Enter / bấm chọn ghi giá trị; Esc thôi, giữ giá trị cũ.
  */

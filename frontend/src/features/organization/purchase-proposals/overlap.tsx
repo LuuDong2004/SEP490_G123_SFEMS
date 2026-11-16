@@ -9,7 +9,7 @@ import type { ProposalOverlap } from "@/domains/procurement/types";
 import { voucherStatusText } from "@/domains/voucher/types";
 
 /**
- * Thiết bị đã có trong đề xuất khác (QLTB-495). Chỉ CẢNH BÁO, không chặn: trường có lý do xin thêm (phiếu
+ * Thiết bị đã có trong đề xuất khác. Chỉ CẢNH BÁO, không chặn: trường có lý do xin thêm (phiếu
  * trước bị cắt số lượng…), và người duyệt thấy cùng lời nhắc để quyết duyệt hay trả lại.
  */
 

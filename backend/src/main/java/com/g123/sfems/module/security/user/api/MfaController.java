@@ -43,7 +43,7 @@ public class MfaController {
         this.emailMfa = emailMfa;
     }
 
-    /** Bật / tắt xác thực hai lớp qua email cho chính mình — phải nhập lại mật khẩu (QLTB-509). */
+    /** Bật / tắt xác thực hai lớp qua email cho chính mình — phải nhập lại mật khẩu. */
     @PostMapping("/api/auth/mfa/email")
     public MfaService.Status email(@Valid @RequestBody EmailToggle request) {
         emailMfa.setEnabled(me(), request.enabled(), PasswordPolicy.strip(request.password()));

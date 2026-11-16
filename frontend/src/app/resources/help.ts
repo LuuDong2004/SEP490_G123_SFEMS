@@ -4,7 +4,7 @@ import type { ScreenHelp } from "@/shared/components/layout/help-button";
 import { MODULES } from "@/app/resources/modules";
 
 /**
- * Trợ giúp của các màn KHÔNG thuộc phân hệ nghiệp vụ (QLTB-513) — chủ yếu quản trị hệ thống. Màn thuộc phân hệ lấy
+ * Trợ giúp của các màn KHÔNG thuộc phân hệ nghiệp vụ — chủ yếu quản trị hệ thống. Màn thuộc phân hệ lấy
  * trợ giúp từ chính các bước Quy trình của phân hệ ({@link withHelp}), nên không phải viết hai lần.
  */
 const ADMIN_HELP: Record<string, ScreenHelp> = {

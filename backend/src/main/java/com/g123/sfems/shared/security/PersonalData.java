@@ -1,7 +1,7 @@
 package com.g123.sfems.shared.security;
 
 /**
- * Che bớt dữ liệu cá nhân trên đường truyền (QLTB-250): số điện thoại giữ 2 số đầu và 3 số cuối
+ * Che bớt dữ liệu cá nhân trên đường truyền: số điện thoại giữ 2 số đầu và 3 số cuối
  * ({@code 09*****123}), email giữ ký tự đầu, ký tự cuối của phần tên và nguyên tên miền ({@code n*****a@truong.edu.vn}).
  * Đủ để người xem nhận ra "đúng người này", không đủ để gọi điện hay gửi thư.
  *

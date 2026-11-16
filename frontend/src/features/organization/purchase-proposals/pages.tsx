@@ -44,8 +44,8 @@ import { cn } from "@/shared/lib/utils";
 const RESOURCE = "purchase_proposals";
 /**
  * Nguồn kinh phí dự kiến của một đề xuất MUA SẮM: hàng về sẽ ghi tăng với nguồn hình thành "Mua sắm", nên gồm
- * các nguồn đi được với nó (`OriginRule.MUA_SAM` ở máy chủ) — cả "Tài trợ" (nhà tài trợ cho tiền, trường tự mua —
- * QLTB-493), trừ "Chưa xác định nguồn".
+ * các nguồn đi được với nó (`OriginRule.MUA_SAM` ở máy chủ) — cả "Tài trợ" (nhà tài trợ cho tiền, trường tự mua)
+ *, trừ "Chưa xác định nguồn".
  */
 const PURCHASE_FUNDING = Object.fromEntries(
   Object.entries(FUNDING_LABELS).filter(([value]) => value !== "UNDETERMINED"),

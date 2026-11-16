@@ -1,7 +1,7 @@
 package com.g123.sfems.domain.school.voucher;
 
 /**
- * Mục đích mượn — của phiếu mượn phòng và phiếu mượn thiết bị (QLTB-531).
+ * Mục đích mượn — của phiếu mượn phòng và phiếu mượn thiết bị.
  *
  * <p>Là danh sách CỐ ĐỊNH chứ không phải danh mục người dùng sửa: báo cáo thống kê theo môn và tỷ lệ tiết thực
  * hành đếm đúng các giá trị này, nên đổi tên hay xoá một mục là số liệu các năm không còn so được với nhau.

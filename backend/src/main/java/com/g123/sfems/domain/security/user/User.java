@@ -67,7 +67,7 @@ public abstract class User {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    /** Lần đặt / đổi mật khẩu gần nhất — nhắc đổi định kỳ (QLTB-243). Đặt cùng lúc với {@link #passwordHash}. */
+    /** Lần đặt / đổi mật khẩu gần nhất — nhắc đổi định kỳ. Đặt cùng lúc với {@link #passwordHash}. */
     @Column(name = "password_changed_at")
     private Instant passwordChangedAt;
 
@@ -114,7 +114,7 @@ public abstract class User {
     @Column(name = "mfa_last_step")
     private Long mfaLastStep;
 
-    /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0 (QLTB-509). */
+    /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0. */
     @Column(name = "failed_login_count", nullable = false)
     private int failedLoginCount;
 

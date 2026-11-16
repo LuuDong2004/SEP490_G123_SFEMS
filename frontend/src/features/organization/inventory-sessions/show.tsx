@@ -471,7 +471,7 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
                         <TableCell className={edit}>
                           <span className="flex items-center gap-2">
                             <FoundToggle value={d.found} onChange={(v) => set(l.id, { found: v })} />
-                            {/* Hoá chất, vật tư theo lô: ghi số đếm được, trống là đủ như sổ (QLTB-574). */}
+                            {/* Hoá chất, vật tư theo lô: ghi số đếm được, trống là đủ như sổ. */}
                             {l.expectedQuantity != null && d.found === "yes" ? (
                               <Input className="h-8 w-24" inputMode="decimal" value={d.qty} placeholder={`${number.format(l.expectedQuantity)}`}
                                 title={`Số lượng đếm được — hệ thống ghi ${number.format(l.expectedQuantity)}`} aria-label="Số lượng đếm được"
@@ -852,7 +852,7 @@ export const InventorySessionShow = () => {
                 i + 1,
                 l.equipment.code,
                 l.equipment.name,
-                // Hoá chất, vật tư theo lô: thêm số lượng sổ ghi / đếm được (QLTB-574).
+                // Hoá chất, vật tư theo lô: thêm số lượng sổ ghi / đếm được.
                 `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
                 l.found == null ? "Chưa kiểm" : l.found
                   ? `${l.foundRoom?.name ?? "Như hệ thống"}${l.expectedQuantity != null ? ` · SL ${number.format(l.countedQuantity ?? l.expectedQuantity)}` : ""}`

@@ -550,7 +550,7 @@ public class UserService {
         });
     }
 
-    /** Các phiên đăng nhập đang mở của một tài khoản — quản trị viên xem (QLTB-242). */
+    /** Các phiên đăng nhập đang mở của một tài khoản — quản trị viên xem. */
     @Transactional(readOnly = true)
     public List<RefreshTokenService.SessionView> sessions(Long id) {
         return refreshTokenService.sessions(get(id).getId(), Instant.now());

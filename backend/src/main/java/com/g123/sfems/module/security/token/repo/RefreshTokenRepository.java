@@ -30,7 +30,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     List<RefreshToken> findByUserAndRevokedAtIsNull(User user);
 
-    /** Token còn dùng được của một tài khoản — mỗi cái là một phiên đang mở (QLTB-242). */
+    /** Token còn dùng được của một tài khoản — mỗi cái là một phiên đang mở. */
     @Query("select t from RefreshToken t where t.user.id = :userId and t.revokedAt is null and t.expiresAt > :now"
             + " order by t.createdAt desc")
     List<RefreshToken> findOpen(@Param("userId") Long userId, @Param("now") Instant now);

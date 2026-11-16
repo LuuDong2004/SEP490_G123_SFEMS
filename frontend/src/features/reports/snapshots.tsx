@@ -42,7 +42,7 @@ const cell = (v: unknown, type: string) => {
 const LEVEL_LABELS: Record<string, string> = { CITY: "Cấp Sở", BODY: "Cơ quan quản lý", SCHOOL: "Trường" };
 
 /**
- * Hộp "Lưu bản số liệu" của màn báo cáo (QLTB-231, mở từ menu ⚙): chụp lại số liệu đúng lúc lập, với đúng bộ lọc đang
+ * Hộp "Lưu bản số liệu" của màn báo cáo (mở từ menu ⚙): chụp lại số liệu đúng lúc lập, với đúng bộ lọc đang
  * xem, kèm ghi chú (vd "Nộp Sở quý III"). Bản lưu không sửa được — mở lại ở "Báo cáo đã lưu".
  */
 export function SaveSnapshotDialog({ name, params, open, onOpenChange: setOpen }: {

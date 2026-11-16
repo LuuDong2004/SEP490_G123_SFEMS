@@ -49,7 +49,7 @@ dependencies {
     implementation 'org.postgresql:postgresql'
     // Nội dung tệp đính kèm nằm trong MinIO (S3), database chỉ giữ khoá — xem shared/storage.
     implementation 'io.minio:minio:8.5.17'
-    // Tài liệu API (QLTB-449, 252): /v3/api-docs và /swagger-ui.html; tắt bằng APP_API_DOCS=false.
+    // Tài liệu API: /v3/api-docs và /swagger-ui.html; tắt bằng APP_API_DOCS=false.
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     // AI gợi ý sửa dòng lỗi ở vùng chờ nhập dữ liệu (OnboardingAiService). Tắt mặc định: APP_AI_ENABLED.
     implementation 'com.anthropic:anthropic-java:3.2.0'

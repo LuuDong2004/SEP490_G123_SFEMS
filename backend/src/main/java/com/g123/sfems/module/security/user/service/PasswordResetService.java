@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Quên mật khẩu (QLTB-509): người dùng nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của
+ * Quên mật khẩu: người dùng nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của
  * tài khoản; mở link, đặt mật khẩu mới (qua {@code PasswordPolicy}) là xong, mọi phiên cũ bị đăng xuất.
  *
  * <p>Câu trả lời cho yêu cầu luôn GIỐNG NHAU dù tài khoản có tồn tại, có email hay không — form quên mật khẩu

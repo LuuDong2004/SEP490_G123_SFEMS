@@ -141,14 +141,14 @@ public class SecurityConfig {
                         // things you must be able to do without a valid access
                         // token. Everything else needs one.
                         .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
-                        // Quên mật khẩu (QLTB-509): người đã quên mật khẩu thì không có token.
+                        // Quên mật khẩu: người đã quên mật khẩu thì không có token.
                         .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         // Ô "Trường" của màn đăng nhập: tên trường và tiền tố tài khoản, chỉ đọc.
                         .requestMatchers(HttpMethod.GET, "/api/auth/schools").permitAll()
                         // A partner system exchanging its API key for an access
                         // token is signing in, by another credential.
                         .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
-                        // Tài liệu API (QLTB-449): trang và bản mô tả mở để đối tác đọc trước khi có khoá; gọi API thì
+                        // Tài liệu API: trang và bản mô tả mở để đối tác đọc trước khi có khoá; gọi API thì
                         // vẫn cần token ("Authorize" trên trang). Tắt hẳn bằng APP_API_DOCS=false. Bản chính thức
                         // không mở: bản đồ mọi endpoint quản trị là thứ người dò lỗi cần đầu tiên — đối tác đọc ở UAT.
                         .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")

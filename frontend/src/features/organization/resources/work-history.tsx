@@ -34,8 +34,8 @@ function placeOf(level: Level, record: any) {
 }
 
 /**
- * Lịch sử sửa chữa, cải tạo NGAY TRONG hồ sơ phòng, khối nhà, cơ sở (QLTB-473), cùng nút "Ghi sửa chữa"
- * điền sẵn chỗ đang xem (QLTB-469) — không phải về Tổng quan trường, mở "Lịch sử sửa chữa" rồi mới ghi
+ * Lịch sử sửa chữa, cải tạo NGAY TRONG hồ sơ phòng, khối nhà, cơ sở, cùng nút "Ghi sửa chữa"
+ * điền sẵn chỗ đang xem — không phải về Tổng quan trường, mở "Lịch sử sửa chữa" rồi mới ghi
  * được. Khối nhà gồm cả việc của các phòng trong nó (máy chủ tự điền khối nhà khi chọn phòng), cơ sở
  * cũng vậy.
  */
@@ -149,7 +149,7 @@ const EMPTY = {
 };
 
 /**
- * "Ghi nhanh" (QLTB-472): trường hay sửa một loạt phòng cùng lúc (sơn lại cả dãy nhà A) — chọn khối nhà, tích
+ * "Ghi nhanh": trường hay sửa một loạt phòng cùng lúc (sơn lại cả dãy nhà A) — chọn khối nhà, tích
  * các phòng được làm, khai nội dung một lần. Mỗi phòng thành một bản ghi riêng (`POST /facility_works/bulk`)
  * để hồ sơ từng phòng có đủ lịch sử; không tích phòng nào là một bản ghi cho cả khối nhà (hoặc cơ sở, cả trường).
  */

@@ -22,7 +22,7 @@ public record ChangePasswordRequest(
         @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
         String newPassword) {
 
-    /** Bỏ khoảng trắng (QLTB-508). */
+    /** Bỏ khoảng trắng. */
     public ChangePasswordRequest {
         currentPassword = PasswordPolicy.strip(currentPassword);
         newPassword = PasswordPolicy.strip(newPassword);

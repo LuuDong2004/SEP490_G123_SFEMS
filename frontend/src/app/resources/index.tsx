@@ -155,7 +155,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       meta: { label, icon, parent: "reports", module: true, tabsEverywhere: true },
     })
   ),
-  // Thứ tự theo mục 3.5.8 của hồ sơ mời thầu và danh sách báo cáo của BA: tài sản (tổng hợp, trạng thái, tình
+  // Thứ tự theo yêu cầu báo cáo của Sở: tài sản (tổng hợp, trạng thái, tình
   // trạng, giá trị), cơ sở vật chất, hư hỏng, kiểm kê, bảo trì - sửa chữa, biến động - điều chuyển - mượn trả,
   // khai thác, mua sắm, định mức, chất lượng dữ liệu; chứng từ và ghi giảm đứng cuối. Cùng thứ tự với
   // `ReportService.DEFINITIONS` ở máy chủ.

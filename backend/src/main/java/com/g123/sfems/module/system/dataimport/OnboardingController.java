@@ -209,14 +209,14 @@ public class OnboardingController {
         return file(service.errorReport(id), "Kết quả kiểm tra lô " + id + ".xlsx");
     }
 
-    /** Giá trị chọn được cho từng ô của lô, theo trang → cột (QLTB-617). */
+    /** Giá trị chọn được cho từng ô của lô, theo trang → cột. */
     @GetMapping("/{id}/choices")
     @PreAuthorize("hasAuthority('data_imports:read')")
     public Map<String, Map<String, List<String>>> choices(@PathVariable long id) {
         return service.choices(id);
     }
 
-    /** Dữ liệu đã chuẩn hoá, cùng khuôn tệp mẫu, không cột kết quả kiểm tra (QLTB-619). */
+    /** Dữ liệu đã chuẩn hoá, cùng khuôn tệp mẫu, không cột kết quả kiểm tra. */
     @GetMapping("/{id}/export")
     @PreAuthorize("hasAuthority('data_imports:read')")
     public ResponseEntity<byte[]> export(@PathVariable long id) {
