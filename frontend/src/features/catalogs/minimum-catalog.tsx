@@ -512,7 +512,6 @@ export function MinimumCatalog() {
                   <TableHeader sticky>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-12 text-center">STT</TableHead>
-                      <TableHead className="w-28">Môn</TableHead>
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
                       {/* Định mức tách 4 cột: cần có (số + ĐVT) cho mỗi (số đối tượng + đối tượng) — "1 Bộ / 1 giáo viên". */}
@@ -888,7 +887,7 @@ type RowContext = {
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
-const EDITABLE_COLS = 12;
+const EDITABLE_COLS = 11;
 
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
@@ -950,7 +949,6 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
     <TableRow onClick={() => onOpen(row.id)}
       className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground")}>
       <TableCell className={cn("text-muted-foreground text-center tabular-nums", kind && KIND_BAR[kind])}>{index}</TableCell>
-      <TableCell className="truncate" title={row.subject?.name ?? undefined}>{row.subject?.name ?? muted}</TableCell>
       <TableCell className="whitespace-normal">
         <div className={cn("font-medium", removed && "line-through")}>
           {row.name}
@@ -1003,11 +1001,31 @@ type RowsProps = {
   onEdit: (id: number) => void;
 };
 
+/** Nhãn môn mở đầu mỗi nhóm dòng cùng môn (viên màu chính, chữ hoa nhỏ). */
+function SubjectRow({ name, cols }: { name: string; cols: number }) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={cols} className="py-2">
+        <span className="bg-primary text-primary-foreground rounded-md px-2.5 py-1 text-xs font-semibold tracking-wide uppercase">
+          {name}
+        </span>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function renderRows(rows: { row: EquipmentNorm; kind?: StandardChange["kind"] }[], offset: number, p: RowsProps) {
-  return rows.map(({ row, kind }, i) => (
-    <NormRow key={`${kind ?? ""}${row.id}`} row={row} index={offset + i + 1} kind={kind} ctx={p.ctx}
-      editable={p.cols === EDITABLE_COLS} selected={p.opened === row.id} onOpen={p.onOpen} onEdit={p.onEdit} />
-  ));
+  let last: string | undefined;
+  return rows.flatMap(({ row, kind }, i) => {
+    const subject = row.subject?.name ?? "Chưa gắn môn";
+    const head = subject !== last
+      ? [<SubjectRow key={`s${i}-${subject}`} name={subject} cols={p.cols} />]
+      : [];
+    last = subject;
+    return [...head,
+      <NormRow key={`${kind ?? ""}${row.id}`} row={row} index={offset + i + 1} kind={kind} ctx={p.ctx}
+        editable={p.cols === EDITABLE_COLS} selected={p.opened === row.id} onOpen={p.onOpen} onEdit={p.onEdit} />];
+  });
 }
 
 /** Chế độ Tất cả: các dòng của bộ, phân trang ở máy chủ; bản nháp gắn nhãn Mới / Đổi. */
