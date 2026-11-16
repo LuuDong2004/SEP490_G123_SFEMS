@@ -2,6 +2,7 @@ package com.g123.sfems.module.report;
 
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facilitystandard.FacilityStandardService;
 import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import java.sql.Date;
@@ -170,6 +171,7 @@ public class ReportService {
                     "Mỗi phòng cho mượn: số lượt mượn, số tiết đã dùng trong kỳ, tiết thực hành / lý thuyết, lần "
                             + "mượn gần nhất, số lần trả phòng có vấn đề.",
                     true, false, List.of()),
+            FacilityStandardReports.DEFINITION,
             new Definition("room-standard", "Đánh giá chuẩn phòng bộ môn",
                     "Mỗi phòng bộ môn: thiết bị phải có theo định mức \"tính cho 01 phòng\" của môn, đang đặt tại "
                             + "phòng đủ chưa — kèm diện tích, sức chứa, kết luận đạt / chưa đạt.",
@@ -290,14 +292,17 @@ public class ReportService {
     private final AdequacyService adequacy;
     private final AnalysisReports analysis;
     private final SupplyReports supply;
+    private final FacilityStandardReports facilityStandard;
     private final CsvcStatisticsReport csvc;
 
-    public ReportService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy) {
+    public ReportService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy,
+            FacilityStandardService facilityStandards) {
         this.jdbc = jdbc;
         this.visible = visible;
         this.adequacy = adequacy;
         this.analysis = new AnalysisReports(jdbc, this);
         this.supply = new SupplyReports(jdbc, this);
+        this.facilityStandard = new FacilityStandardReports(facilityStandards, this);
         this.csvc = new CsvcStatisticsReport(jdbc, this);
     }
 
@@ -376,6 +381,7 @@ public class ReportService {
             case "equipment-ledger" -> analysis.ledger(params, choice(definition, params));
             case "room-usage" -> analysis.roomUsage(params, from, to, period);
             case "room-standard" -> analysis.roomStandard(params);
+            case "facility-standard" -> facilityStandard.build(params);
             case "supply-consumption" -> supply.consumption(params, group, from, to, period);
             case "supply-expiry" -> supply.expiry(params, choice(definition, params));
             case "purchase" -> purchase(params, group,

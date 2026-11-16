@@ -147,6 +147,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
     [
       ["rpt_assets", "Thiết bị", <Boxes className="h-4 w-4" />],
       ["rpt_procurement", "Mua sắm & định mức", <ShoppingCart className="h-4 w-4" />],
+      ["rpt_facilities", "Cơ sở vật chất", <School className="h-4 w-4" />],
     ] as const
   ).map(
     ([name, label, icon]): ResourceProps => ({
@@ -202,6 +203,11 @@ export const resources: ResourceProps[] = withHelp(withModules([
     name: "report_adequacy",
     list: "/reports/adequacy",
     meta: { icon: <Gauge className="h-4 w-4" />, parent: "rpt_procurement" },
+  },
+  {
+    name: "report_facility_standard",
+    list: "/reports/facility-standard",
+    meta: { icon: <ShieldCheck className="h-4 w-4" />, parent: "rpt_facilities" },
   },
 
   // Section header. A resource with no route acts purely as a grouping node:

@@ -75,6 +75,7 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "reports": { read: ["admin", "so", "school"], write: ["admin", "so", "school"] },
   "inventory_campaigns": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "procurement_plans": { read: ["admin", "so", "school"], write: ["admin", "so"] },
+  "facility-standard": { read: ["admin", "so", "school"], write: [] },
   "school_overview": { read: ["admin", "so", "school"], write: [] },
   "voucher_events": { read: ["admin", "so", "school"], write: [] },
   "voucher_holds": { read: ["admin", "so", "school"], write: [] },

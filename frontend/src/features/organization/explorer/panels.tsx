@@ -1,4 +1,4 @@
-import { useInvalidate, useList, useNotification } from "@refinedev/core";
+import { useCan, useInvalidate, useList, useNotification } from "@refinedev/core";
 import { kyInstance } from "@/shared/api/data";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { errorMessage } from "@/shared/lib/api-error";
@@ -14,9 +14,11 @@ import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { CONDITION_LABELS, STRUCTURE_LABELS, USAGE_STATUS_LABELS, campusKindLabel } from "@/domains/facility/types";
 import type { FacilityTodoFilter } from "@/domains/facility/todo";
 import { FACILITY_CONDITION_VARIANTS, ROOM_USAGE_VARIANTS } from "@/shared/lib/status-variants";
+import { STAFF_TYPE_LABELS, POSITION_LABELS } from "@/domains/staff/types";
 import {
   DEPARTMENT_SOURCE_LABELS,
   DEPARTMENT_SOURCE_UNCERTAIN,
@@ -27,7 +29,9 @@ import { CatalogFormDialog, CatalogShowDialog } from "@/shared/components/catalo
 import { ORG_RESOURCES } from "@/features/organization/resources/registry";
 import { ClassBoard } from "@/features/organization/explorer/class-board";
 import { FacilityNav, useFacilitySectionTitle } from "@/features/organization/explorer/facility-nav";
+import { FacilityAssessment } from "@/features/organization/explorer/facility-assessment";
 import { QuickAddBuildings } from "@/features/organization/explorer/quick-add";
+import { StaffAccountCell } from "@/features/organization/explorer/staff-account";
 import type { FormDialogState } from "@/shared/components/catalog/form-dialog";
 import { useMemo, useState } from "react";
 
@@ -317,6 +321,32 @@ const campusColumns: MiniColumn[] = [
   { header: "", cell: (r) => (r.primaryCampus ? <Badge variant="info">Trường chính</Badge> : <span className="text-muted-foreground text-sm">{campusKindLabel(r)}</span>), className: "w-28" },
 ];
 
+const staffColumns: MiniColumn[] = [
+  { header: "Mã", cell: (r) => <span className="font-medium">{r.code}</span>, className: "w-40" },
+  { header: "Họ tên", cell: (r) => r.name },
+  { header: "Loại", cell: (r) => STAFF_TYPE_LABELS[r.staffType] ?? dash, className: "w-28" },
+  { header: "Chức vụ", cell: (r) => POSITION_LABELS[r.position] ?? dash },
+  { header: "Môn chính", cell: (r) => r.mainSubject?.name ?? dash },
+];
+
+/**
+ * Tài khoản đăng nhập: cấp / đặt lại mật khẩu / khoá ngay tại dòng (staff_accounts:write). Là việc của
+ * lãnh đạo trường và Sở, nên cột chỉ vẽ cho người có quyền đó — cán bộ thiết bị không thấy.
+ */
+const staffAccountColumn: MiniColumn = {
+  header: "Tài khoản",
+  cell: (r) => <StaffAccountCell staff={r} />,
+  className: "w-24 text-center",
+};
+
+const teamColumns: MiniColumn[] = [
+  { header: "Mã", cell: (r) => <span className="font-medium">{r.code}</span>, className: "w-24" },
+  { header: "Tên tổ", cell: (r) => r.name },
+  { header: "Tổ trưởng", cell: (r) => r.leader?.name ?? dash },
+  { header: "Môn phụ trách", cell: (r) => (r.subjects ?? []).map((s: any) => s.name).join(", ") || dash },
+  { header: "Giáo viên", cell: (r) => r.memberCount ?? 0, className: "w-24 tabular-nums" },
+];
+
 const bySchool = (id: number) => [{ field: "school.id", operator: "eq" as const, value: id }];
 
 // ---------------------------------------------------------------- Trường
@@ -336,12 +366,14 @@ const bySchool = (id: number) => [{ field: "school.id", operator: "eq" as const,
 export type FacilityCounts = Partial<Record<"classes" | "rooms" | "buildings" | "campuses" | "works" | "staff" | "teams" | "equipment", number>>;
 
 /**
- * HAI tab trong phạm vi đồ án: Hồ sơ trường (TC-01) và Cơ sở vật chất — phòng (TC-02). Đánh giá CSVC theo chuẩn
- * và Nhân sự (cán bộ, tổ bộ môn) nằm ngoài phạm vi nên không có tab; liên kết cũ tới chúng mở Hồ sơ trường.
+ * BỐN tab: Hồ sơ trường (TC-01), Cơ sở vật chất — phòng (TC-02), Đánh giá CSVC theo chuẩn, Nhân sự (cán bộ và
+ * tổ bộ môn là cùng một nhóm người — một tab, bên trong có ô chọn nhỏ).
  */
 const TAB_DEFS = [
   { value: "profile", label: "Hồ sơ trường", icon: School, count: null },
   { value: "facilities", label: "Cơ sở vật chất", icon: DoorOpen, count: "rooms" },
+  { value: "assessment", label: "Đánh giá CSVC", icon: BadgeCheck, count: null },
+  { value: "people", label: "Nhân sự", icon: IdCard, count: "staff" },
 ] as const;
 
 const FACILITY_PARTS = [
@@ -361,11 +393,11 @@ const PEOPLE_PARTS = [
 function groupOf(tab: string): string {
   // Phần cũ của tab Cơ sở vật chất nay là tab riêng: thông tin chung → Hồ sơ trường, chuẩn / biểu số liệu → Đánh giá.
   if (tab === "info") return "profile";
-  if (tab === "standard" || tab === "statistics" || tab === "assessment" || tab === "people") return "profile";
+  if (tab === "standard" || tab === "statistics") return "assessment";
   // "works": sổ sửa chữa từng là một phần của tab này — liên kết cũ vẫn mở đúng tab.
   // "classes": tab Lớp học cũ — lớp nay là một mục của cột trái Cơ sở vật chất (lớp gắn với phòng học).
   if (tab === "works" || tab === "classes" || FACILITY_PARTS.some((p) => p.value === tab)) return "facilities";
-  if (PEOPLE_PARTS.some((p) => p.value === tab)) return "profile";
+  if (PEOPLE_PARTS.some((p) => p.value === tab)) return "people";
   return TAB_DEFS.some((t) => t.value === tab) ? tab : "profile";
 }
 
@@ -392,6 +424,7 @@ export function SchoolFacilityTabs({
   const roomDialog = useQuickDialog("rooms", { school: { id: schoolId } });
   // Thêm nhân sự: người dùng chọn Loại (Giáo viên / Cán bộ) trong form; mặc định Giáo viên theo `STAFF_EXTRA.defaults`.
   const staffDialog = useQuickDialog("staff", { school: { id: schoolId } });
+  const mayManageAccounts = useCan({ resource: "staff_accounts", action: "edit" }).data?.can ?? false;
   // Lớp học ít trường: thêm / xem / sửa trong hộp thoại, không rời màn trường. Bấm một lớp là
   // xem chi tiết; nút Sửa trong đó mở form sửa (cùng khuôn với thêm mới).
   const classDialog = useQuickDialog("school_classes", { school: { id: schoolId } });
@@ -422,12 +455,15 @@ export function SchoolFacilityTabs({
     return [...cols.slice(0, 2), col, ...cols.slice(2)];
   };
   const teamDialog = useQuickDialog("subject_teams", { school: { id: schoolId } });
+  // Phần đang mở trong hai tab gộp. Bên gọi đưa giá trị cũ ("rooms", "teams"…) thì mở đúng phần đó.
+  const [peoplePart, setPeoplePart] = usePersistentState<(typeof PEOPLE_PARTS)[number]["value"]>("explorer.peoplePart", "staff");
   // Lịch sử sửa chữa, cải tạo (QLTB-149) nằm trong hộp chi tiết của từng cơ sở / khối nhà / hạng mục, không có nút
   // chung trên hàng công cụ.
   // "Thêm nhanh" (khối nhà): nút riêng cạnh nút thêm; hộp của nó do màn này mở.
   const [quickAdd, setQuickAdd] = useState<"buildings" | null>(null);
   const quickProps = (key: "buildings") => ({ open: quickAdd === key, onOpenChange: (o: boolean) => setQuickAdd(o ? key : null) });
   const quickMenu = (key: "buildings", label: string) => [{ label, short: "Thêm nhanh", icon: <ListPlus />, onSelect: () => setQuickAdd(key) }];
+  const people = PEOPLE_PARTS.find((p) => p.value === tab)?.value ?? peoplePart;
   // Cột trái của tab Cơ sở vật chất (như CSDL HCM): mục đang mở nhớ theo phiên; liên kết cũ (?tab=rooms…) vẫn mở đúng mục.
   const [section, setSection] = usePersistentState<string>("explorer.facilitySection", "rooms");
   const legacy = ["info", "standard", "statistics"];
@@ -438,6 +474,24 @@ export function SchoolFacilityTabs({
   const pickSection = (v: string) => { setTodo(null); setSection(v); onTab("facilities"); };
   const groupTitle = useFacilitySectionTitle(schoolId, sec);
   const groupId = sec.startsWith("g:") ? sec.slice(2) : null;
+  const pickPeople = (v: typeof people) => { setPeoplePart(v); onTab("people"); };
+  // Một ô thả xuống cho cả phần (cán bộ / tổ) lẫn loại cán bộ — thay hai dải chọn đứng liền nhau (góp ý 12/11/2026).
+  const [staffType, setStaffType] = usePersistentState<"all" | "staff" | "teacher">("explorer.staffType", "all");
+  const peopleValue = people === "teams" ? "teams" : staffType;
+  const peopleTop = (
+    <IconFilter labeled icon={<IdCard />} label="danh sách" value={peopleValue} baseline="all"
+      onChange={(v) => {
+        if (v === "teams") return pickPeople("teams");
+        setStaffType(v === "staff" || v === "teacher" ? v : "all");
+        pickPeople("staff");
+      }}
+      groups={[{ items: [
+        { key: "all", label: "Tất cả", count: counts?.staff },
+        { key: "staff", label: "Cán bộ" },
+        { key: "teacher", label: "Giáo viên" },
+        { key: "teams", label: "Tổ bộ môn", count: counts?.teams },
+      ] }]} />
+  );
   return (
     <>
       {campusDialog.element}
@@ -475,6 +529,10 @@ export function SchoolFacilityTabs({
         <TabsContent value="profile" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
           {profile}
         </TabsContent>
+        <TabsContent value="assessment" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
+          <FacilityAssessment schoolId={schoolId} onTab={onTab} onTodo={setTodo}
+            onAdd={(roomType) => roomDialog.open(undefined, { roomType })} />
+        </TabsContent>
         <TabsContent value="facilities" className="flex min-h-0 flex-1 flex-col pt-3">
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-5">
             <FacilityNav schoolId={schoolId} value={sec} onChange={pickSection}
@@ -511,6 +569,27 @@ export function SchoolFacilityTabs({
               )}
             </div>
           </div>
+        </TabsContent>
+        <TabsContent value="people" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
+          {people === "staff" ? (
+            <>
+              <MiniTable key={staffType} top={peopleTop} resource="staff" path="/staff"
+                filters={staffType === "all" ? bySchool(schoolId) : [...bySchool(schoolId), { field: "staffType", operator: "eq", value: staffType }]}
+                columns={mayManageAccounts ? [...staffColumns, staffAccountColumn] : staffColumns} createQuery={q}
+                emptyText={staffType === "staff" ? "Chưa có cán bộ nào." : staffType === "teacher" ? "Chưa có giáo viên nào." : "Chưa có cán bộ, giáo viên nào."}
+                createLabel={staffType === "staff" ? "Thêm cán bộ" : staffType === "teacher" ? "Thêm giáo viên" : "Thêm nhân sự"} searchPlaceholder="Tìm cán bộ, giáo viên theo mã hoặc tên..."
+                onCreate={() => staffDialog.open(undefined, staffType === "all" ? undefined : { staffType })} onOpen={(r) => staffDialog.view(r.id)} onEdit={(r) => staffDialog.open(r.id)}
+                quickButtons />
+            
+            </>
+          ) : (
+            <>
+              <MiniTable top={peopleTop} resource="subject_teams" path="/subject-teams" filters={bySchool(schoolId)} columns={teamColumns} createQuery={q}
+                emptyText="Chưa có tổ bộ môn nào." onCreate={() => teamDialog.open()} onOpen={(r) => teamDialog.view(r.id)} onEdit={(r) => teamDialog.open(r.id)} unit="tổ"
+                createLabel="Thêm tổ bộ môn" searchPlaceholder="Tìm tổ bộ môn theo mã hoặc tên..." quickButtons />
+            
+            </>
+          )}
         </TabsContent>
         </Card>
         </FillBox>

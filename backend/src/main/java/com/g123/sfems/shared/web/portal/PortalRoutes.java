@@ -97,6 +97,8 @@ public final class PortalRoutes {
         // Sở lập, trường xem.
         put(BUSINESS, EnumSet.of(SO), "inventory_campaigns", "procurement_plans");
         // Chỉ xem.
+        // Đánh giá CSVC theo chuẩn của một trường: trường xem trường mình, Sở xem toàn ngành.
+        put(BUSINESS, NONE, "facility-standard");
         put(BUSINESS, NONE, "school_overview", "voucher_events", "voucher_holds", "voucher_links");
         // Riêng trường — lối của lãnh đạo trường trên CHÍNH trường mình (trường lấy từ người gọi); quản trị không gắn
         // trường nên không mở ở cổng Admin (tài khoản do màn Người dùng quản lý).
