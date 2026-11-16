@@ -20,20 +20,20 @@ public record StandardReviseRequest(
         List<Long> standardIds,
         RevisionKind kind,
         @Valid Document document,
-        @Text(value = FieldRule.NOTE, label = "Lý do")
+        @Text(value = FieldRule.NOTE, label = "Lý do", min = 10)
         String reason,
         @Text(value = FieldRule.SHORT_TEXT, label = "Phiên bản", max = 50)
         String standardVersion) {
 
     /** Văn bản của lần sửa — thành một dòng trong danh sách văn bản căn cứ của bộ nháp. */
     public record Document(
-            @Text(value = FieldRule.SHORT_TEXT, label = "Số hiệu", max = 100)
+            @Text(value = FieldRule.SHORT_TEXT, label = "Số hiệu", max = 50, min = 3)
             String documentNo,
-            @Text(value = FieldRule.NOTE, label = "Trích yếu")
+            @Text(value = FieldRule.NOTE, label = "Trích yếu", min = 10)
             String documentName,
-            @Text(value = FieldRule.NAME, label = "Cơ quan ban hành")
+            @Text(value = FieldRule.NAME, label = "Cơ quan ban hành", max = 200, min = 2)
             String issuingAuthority,
-            @DateValue(value = DateRule.ANY, label = "Ngày ban hành")
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày ban hành")
             LocalDate issueDate,
             @DateValue(value = DateRule.ANY, label = "Ngày hiệu lực")
             LocalDate effectiveDate,

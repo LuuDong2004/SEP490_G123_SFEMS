@@ -16,7 +16,7 @@ public record EquipmentStandardPatchRequest(
         @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
         @Size(min = 1, message = "Tên không được để trống")
-        @Text(value = FieldRule.NAME, label = "Tên")
+        @Text(value = FieldRule.NAME, label = "Tên bộ", min = 5)
         String name,
         @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,

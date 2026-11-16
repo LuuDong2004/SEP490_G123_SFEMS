@@ -16,7 +16,7 @@ public record EquipmentStandardRequest(
         @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
         @NotBlank(message = "Tên là bắt buộc")
-        @Text(value = FieldRule.NAME, label = "Tên")
+        @Text(value = FieldRule.NAME, label = "Tên bộ", min = 5)
         String name,
         @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,

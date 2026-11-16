@@ -17,13 +17,13 @@ public record StandardDocumentInput(
         Long id,
         DocumentRole documentRole,
         @NotBlank(message = "Nhập số hiệu văn bản")
-        @Text(value = FieldRule.SHORT_TEXT, label = "Số hiệu", max = 100)
+        @Text(value = FieldRule.SHORT_TEXT, label = "Số hiệu", max = 50, min = 3)
         String documentNo,
-        @Text(value = FieldRule.NOTE, label = "Trích yếu")
+        @Text(value = FieldRule.NOTE, label = "Trích yếu", min = 10)
         String documentName,
-        @Text(value = FieldRule.NAME, label = "Cơ quan ban hành")
+        @Text(value = FieldRule.NAME, label = "Cơ quan ban hành", max = 200, min = 2)
         String issuingAuthority,
-        @DateValue(value = DateRule.ANY, label = "Ngày ban hành")
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày ban hành")
         LocalDate issueDate,
         @DateValue(value = DateRule.ANY, label = "Ngày hiệu lực")
         LocalDate effectiveDate,
