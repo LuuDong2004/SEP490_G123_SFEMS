@@ -513,9 +513,8 @@ export function MinimumCatalog() {
                       <TableHead className="w-12 text-center">STT</TableHead>
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
-                      <TableHead className="w-28 text-center">Số lượng cần</TableHead>
-                      {/* Định mức tính cho bao nhiêu (số) — gì (đối tượng): "1" · "giáo viên", "6" · "học sinh". */}
-                      <TableHead className="w-28 text-center">Số đối tượng</TableHead>
+                      {/* Định mức = số lượng / số đối tượng: "1/1" giáo viên, "1/6" học sinh, "7/1" lớp. */}
+                      <TableHead className="w-28 text-center">Định mức</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
                       <TableHead className="w-24">Người dùng</TableHead>
@@ -853,7 +852,7 @@ type RowContext = {
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
-const EDITABLE_COLS = 12;
+const EDITABLE_COLS = 11;
 
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
@@ -929,9 +928,8 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell className="text-center">
         {row.minQuantity == null
           ? <span className="text-muted-foreground text-xs" title={row.quantityText ?? undefined}>Không ghi</span>
-          : <span className="text-[0.9375rem] font-semibold tabular-nums">{row.minQuantity}</span>}
+          : <span className="tabular-nums"><span className="text-[0.9375rem] font-semibold">{row.minQuantity}</span>/{basisCount(row)}</span>}
       </TableCell>
-      <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
       <TableCell>{usersOf(row) ?? muted}</TableCell>
