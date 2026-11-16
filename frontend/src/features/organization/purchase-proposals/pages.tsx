@@ -208,25 +208,40 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
           disabled={schoolId == null} disabledLabel="Chọn trường trước" />
       ) : (
         <div className="overflow-x-auto border-t">
-          <Table>
+          {/* Cột cố định (`table-fixed`): cột Thiết bị lấy phần còn lại nhưng không dưới ~20rem — bảng giữ tối thiểu 72rem,
+              khung hẹp hơn thì CUỘN NGANG (thanh trượt dưới bảng) chứ không ép cột Thiết bị. Trước đây bảng tự giãn theo
+              chữ: cảnh báo trùng dài kéo cột Thiết bị, đẩy Số lượng / Đơn giá ra ngoài khung. */}
+          <Table className="min-w-[72rem] table-fixed [&_td]:align-middle">
+            <colgroup>
+              <col className="w-10" />
+              <col />
+              <col className="w-36" />
+              <col className="w-52" />
+              <col className="w-22" />
+              <col className="w-34" />
+              <col className="w-28" />
+              <col className="w-18" />
+              <col className="w-12" />
+            </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8">#</TableHead>
-                <TableHead className="min-w-52">Thiết bị</TableHead>
-                <TableHead className="min-w-28">Loại</TableHead>
-                <TableHead className="min-w-44">Tên / quy cách</TableHead>
-                <TableHead className="w-24">Số lượng</TableHead>
-                <TableHead className="w-36">Đơn giá (đ)</TableHead>
-                <TableHead className="min-w-28">Ưu tiên</TableHead>
-                <TableHead className="w-24" />
-                <TableHead className="w-10" />
+                <TableHead>#</TableHead>
+                <TableHead>Thiết bị</TableHead>
+                <TableHead>Loại</TableHead>
+                <TableHead>Tên / quy cách</TableHead>
+                <TableHead className="text-right">Số lượng</TableHead>
+                <TableHead className="text-right">Đơn giá (đ)</TableHead>
+                <TableHead>Ưu tiên</TableHead>
+                <TableHead />
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {fields.map((f: any, i) => (
                 <TableRow key={f.id}>
                   <TableCell className="text-muted-foreground tabular-nums">{i + 1}</TableCell>
-                  <TableCell>
+                  {/* whitespace-normal: ô bảng mặc định không xuống dòng — cảnh báo "Đã có trong …" dài tràn đè sang cột bên. */}
+                  <TableCell className="whitespace-normal">
                     {/* Hơn một nghìn thiết bị (danh mục tối thiểu): tìm ở máy chủ, không đổ sẵn vào ô chọn. */}
                     <Controller control={control} name={`lines.${i}.catalogId`} render={({ field }) => (
                       <AsyncCombobox<any>
