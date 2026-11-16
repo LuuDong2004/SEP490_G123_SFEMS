@@ -71,7 +71,10 @@ export function CatalogPickerDialog({
   description = "Chọn thiết bị trong danh mục để thêm vào phiếu ghi tăng.",
   header,
   body,
+  size = "picker",
 }: {
+  /** Cỡ hộp: `wide` khi thân thay thế là một bảng nhiều cột (bảng định mức của đề xuất mua sắm). */
+  size?: "picker" | "wide";
   title?: string;
   description?: string;
   /** Dải trên đầu hộp, dưới tiêu đề (vd. tab "Theo định mức" / "Toàn bộ danh mục" của đề xuất mua sắm). */
@@ -220,7 +223,7 @@ export function CatalogPickerDialog({
         onOpenChange(o);
       }}
     >
-      <DialogContent size="picker">
+      <DialogContent size={size}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {/* Giữ cho trình đọc màn hình (Radix cần một mô tả), ẩn khỏi mắt: bốn dòng chữ giải thích
