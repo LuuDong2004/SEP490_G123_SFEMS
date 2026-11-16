@@ -18,6 +18,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -25,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
@@ -145,6 +149,20 @@ public class ProcurementPlanController {
     @PreAuthorize("hasAuthority('procurement_plans:read')")
     public Response get(@PathVariable Long id) {
         return respond(service.get(id), service.detail(id));
+    }
+
+    /** Xuất Excel kế hoạch: trang chi tiết theo dòng đề xuất và trang tổng hợp theo thiết bị. */
+    @GetMapping("/{id}/export.xlsx")
+    @PreAuthorize("hasAuthority('procurement_plans:read')")
+    public ResponseEntity<byte[]> export(@PathVariable Long id) {
+        Response plan = respond(service.get(id), service.detail(id));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(plan.code() + ".xlsx", StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(ProcurementPlanExcel.write(plan));
     }
 
     /** Đề xuất chờ vào kế hoạch, kèm các dòng thiết bị — chọn đề xuất là các dòng của nó hiện ngay trên bảng. */
