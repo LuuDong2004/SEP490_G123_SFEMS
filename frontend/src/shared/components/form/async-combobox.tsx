@@ -74,6 +74,13 @@ type AsyncComboboxProps<T> = {
   icon?: ReactNode;
   /** Lọc sẵn danh sách, vd. chỉ mục còn dùng (`active = true`). */
   filters?: CrudFilter[];
+  /**
+   * Nút mở tự vẽ thay cho ô chọn (vd. liên kết "Đổi thiết bị" khi giá trị đã hiện ở chỗ khác bằng chữ đầy đủ). Phải là
+   * MỘT phần tử nhận ref (button) — nó được bọc `PopoverTrigger asChild`.
+   */
+  trigger?: ReactNode;
+  /** Ghim bản ghi đang chọn lên đầu danh sách ("Đang chọn" ✓), các mục còn lại dưới "Đổi sang" — mở ra là biết đang đổi từ cái gì. */
+  pinCurrent?: boolean;
 };
 
 /** Từ bao nhiêu mục trở lên thì danh sách có ô tìm. */
@@ -96,6 +103,8 @@ export function AsyncCombobox<T extends { id: number }>({
   onPick,
   icon,
   filters: baseFilters,
+  trigger,
+  pinCurrent,
 }: AsyncComboboxProps<T>) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -165,7 +174,9 @@ export function AsyncCombobox<T extends { id: number }>({
     // `modal`: nằm trong hộp thoại thì popover phải tự giữ cuộn, không thì lớp
     // khoá cuộn của hộp thoại nuốt mất bánh xe chuột trên danh sách.
     <Popover open={open} onOpenChange={setOpen} modal>
-      {icon ? (
+      {trigger ? (
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      ) : icon ? (
         <Tooltip delayDuration={200}>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
@@ -209,7 +220,9 @@ export function AsyncCombobox<T extends { id: number }>({
         // nút chỉ biểu tượng hẹp nên hộp tự lấy bề rộng theo nội dung.
         className={cn(
           "max-w-[calc(100vw-2rem)] p-0",
-          !fewItems ? "w-(--radix-popover-trigger-width) min-w-96" : icon ? "w-max min-w-44" : "w-(--radix-popover-trigger-width)"
+          // Nút mở tự vẽ thường nhỏ (một liên kết): hộp có bề rộng riêng, không theo nút.
+          trigger ? "w-[28rem]"
+            : !fewItems ? "w-(--radix-popover-trigger-width) min-w-96" : icon ? "w-max min-w-44" : "w-(--radix-popover-trigger-width)"
         )}
         align="start"
         // Có ô tìm thì con trỏ vào ô tìm; không có thì vào danh sách, để phím mũi tên / Enter vẫn chọn được.
@@ -253,7 +266,18 @@ export function AsyncCombobox<T extends { id: number }>({
               </CommandItem>
             ) : null}
 
-            {items.map((item: T) => (
+            {pinCurrent && value != null && !search && label ? (
+              <>
+                <div className="text-muted-foreground px-2 pt-2 pb-1 text-[0.6875rem] font-semibold tracking-wide uppercase">Đang chọn</div>
+                <CommandItem value="__current__" className="bg-accent/60 font-medium" onSelect={() => setOpen(false)}>
+                  <Check className="size-4" />
+                  <span className="truncate">{label}</span>
+                </CommandItem>
+                <div className="text-muted-foreground px-2 pt-2 pb-1 text-[0.6875rem] font-semibold tracking-wide uppercase">Đổi sang</div>
+              </>
+            ) : null}
+
+            {(pinCurrent && !search ? items.filter((item: T) => item.id !== value) : items).map((item: T) => (
               <CommandItem
                 key={item.id}
                 value={String(item.id)}
