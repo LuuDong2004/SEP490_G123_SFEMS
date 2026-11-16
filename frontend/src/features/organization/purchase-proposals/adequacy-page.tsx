@@ -1,6 +1,6 @@
-import { CircleAlert, CircleCheck, ClipboardCheck, Clock, Search, Wallet } from "lucide-react";
+import { CircleAlert, CircleCheck, ClipboardCheck, Clock, FileSpreadsheet, Loader2, Search, Wallet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
@@ -13,12 +13,15 @@ import { StepTitle } from "@/shared/components/voucher/voucher-layout";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import type {
   AdequacySummary,
+  CatalogBalance,
+  CatalogSchool,
   ProcurementSummary,
   SchoolAdequacy,
   SchoolStandardRow,
@@ -239,6 +242,120 @@ function ProcurementSummaryCard() {
   );
 }
 
+/**
+ * Cân đối theo thiết bị trên địa bàn: mỗi thiết bị một dòng, tổng thiếu / tổng thừa và phần điều chuyển
+ * được. Bấm một dòng để xem trường nào đang thiếu, trường nào thừa cùng thiết bị đó.
+ */
+function BalanceTable({ catalogs }: { catalogs: CatalogBalance[] }) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const { data: schools } = useQuery({
+    queryKey: [RESOURCE, "adequacy-catalog", openId],
+    enabled: openId != null,
+    queryFn: ({ signal }) =>
+      kyInstance
+        .get(`${RESOURCE}/adequacy-catalog`, { signal, searchParams: { catalogId: String(openId) } })
+        .json<CatalogSchool[]>(),
+  });
+  const moving = catalogs.filter((c) => c.transferable > 0);
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="border-b px-4 py-3">
+        <StepTitle
+          title="Cân đối thiết bị giữa các trường"
+          aside={catalogs.length > 0 ? `${moving.length} thiết bị điều chuyển được` : undefined}
+          hint={
+            <HelpHint>
+              Thiết bị trường này thừa là thứ trường khác đang thiếu. "Điều chuyển được" là phần nhỏ hơn của
+              tổng thiếu và tổng thừa — phần còn lại vẫn phải mua.
+            </HelpHint>
+          }
+        />
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className={cn(HEAD, "ps-4")}>Thiết bị</TableHead>
+            <TableHead className={cn(HEAD, "w-24 text-right")}>Thiếu</TableHead>
+            <TableHead className={cn(HEAD, "w-32 text-right")}>Số trường thiếu</TableHead>
+            <TableHead className={cn(HEAD, "w-24 text-right")}>Thừa</TableHead>
+            <TableHead className={cn(HEAD, "w-32 text-right")}>Số trường thừa</TableHead>
+            <TableHead className={cn(HEAD, "w-32 pe-4 text-right")}>Điều chuyển được</TableHead>          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {catalogs.length === 0 ? (
+            <TableEmpty colSpan={6} title="Chưa có thiết bị nào khai định mức." />
+          ) : (
+            catalogs.map((c) => (
+              <Fragment key={c.catalogId}>
+                <TableRow
+                  className={cn("group/row", LIFT_ROW, "cursor-pointer")}
+                  onClick={() => setOpenId(openId === c.catalogId ? null : c.catalogId)}
+                  title="Xem trường nào thiếu, trường nào thừa thiết bị này"
+                >
+                  <TableCell className="ps-4 whitespace-normal">
+                    <span className="font-medium">{c.name}</span>
+                    {c.subjectName ? (
+                      <span className="text-muted-foreground ms-2 text-xs">{c.subjectName}</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className={cn("text-right tabular-nums", c.shortage > 0 && "text-destructive-text font-medium")}>
+                    {c.shortage || "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-right tabular-nums">{c.shortSchools || "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{c.surplus || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-right tabular-nums">{c.surplusSchools || "—"}</TableCell>
+                  <TableCell className="text-success-text pe-4 text-right font-medium tabular-nums">
+                    {c.transferable || "—"}
+                  </TableCell>
+                </TableRow>
+                {openId === c.catalogId ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="bg-muted/40 p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className={cn(HEAD, "ps-10")}>Trường</TableHead>
+                            <TableHead className={cn(HEAD, "w-28 text-right")}>Phải có</TableHead>
+                            <TableHead className={cn(HEAD, "w-28 text-right")}>Đang có</TableHead>
+                            <TableHead className={cn(HEAD, "w-24 text-right")}>Thiếu</TableHead>
+                            <TableHead className={cn(HEAD, "w-24 pe-4 text-right")}>Thừa</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {!schools || schools.length === 0 ? (
+                            <TableEmpty colSpan={5} loading={!schools} title="Không trường nào khai định mức cho thiết bị này." />
+                          ) : (
+                            schools
+                              .filter((s) => s.shortage > 0 || s.surplus > 0)
+                              .map((s) => (
+                                <TableRow key={s.schoolId}>
+                                  <TableCell className="ps-10 whitespace-normal">
+                                    <span className="text-sm font-medium">{s.schoolName}</span>
+                                    <span className="text-muted-foreground ms-2 font-mono text-xs">{s.schoolCode}</span>
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums">{s.required ?? "—"}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{s.current}</TableCell>
+                                  <TableCell className={cn("text-right tabular-nums", s.shortage > 0 && "text-destructive-text font-medium")}>
+                                    {s.shortage || "—"}
+                                  </TableCell>
+                                  <TableCell className="pe-4 text-right tabular-nums">{s.surplus || "—"}</TableCell>
+                                </TableRow>
+                              ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
 /** Bảng tổng hợp đáp ứng định mức của mọi trường người xem được thấy — bấm một dòng để mở bảng chi tiết. */
 function SummaryTable({ data, onOpen }: { data: AdequacySummary | undefined; onOpen: (row: SchoolStandardRow) => void }) {
   const [term, setTerm] = useState("");
@@ -345,9 +462,36 @@ export const EquipmentAdequacy = () => {
   const open = (row: SchoolStandardRow) => setParams({ school: String(row.schoolId) }, { replace: true });
   const back = () => setParams({}, { replace: true });
 
+  // Xuất Excel đúng bảng đang xem: một trường thì bảng của trường, đang ở bảng tổng hợp thì bảng tổng hợp.
+  const [exporting, setExporting] = useState(false);
+  async function exportXlsx() {
+    setExporting(true);
+    try {
+      const path = schoolId != null ? `${RESOURCE}/adequacy.xlsx` : `${RESOURCE}/adequacy-summary.xlsx`;
+      const blob = await kyInstance
+        .get(path, { searchParams: schoolId != null ? { schoolId: String(schoolId) } : undefined })
+        .blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = schoolId != null ? `muc-dap-ung-${schoolId}.xlsx` : "muc-dap-ung-dinh-muc.xlsx";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <ListView>
-      <ListViewHeader />
+      <ListViewHeader
+        actions={
+          <Button variant="outline" onClick={exportXlsx} disabled={exporting}>
+            {exporting ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+            Xuất Excel
+          </Button>
+        }
+      />
       {/* Một trường: chỉ có bảng chi tiết của chính mình — không có gì để tổng hợp, cũng không chọn được
           trường khác (máy chủ chặn). */}
       {schoolId != null ? (
@@ -374,6 +518,7 @@ export const EquipmentAdequacy = () => {
       ) : (
         <div className="space-y-4">
           <SummaryTable data={summary} onOpen={open} />
+          <BalanceTable catalogs={summary?.catalogs ?? []} />
           {perspective === "school" ? null : <ProcurementSummaryCard />}
         </div>
       )}
