@@ -17,7 +17,7 @@ import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/types";
 
-import { PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
+import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
 
 const PLAN_SORTS = [
   { label: "Năm ngân sách mới nhất", field: "budgetYear", order: "desc" as const },
@@ -131,6 +131,7 @@ export const ProcurementPlanShow = () => {
           plan ? (
             <>
               <PrintButton />
+              <ExportButton planId={plan.id} code={plan.code} />
               {actions.has("return") ? <PlanReviewButton plan={plan} step="return" onDone={refresh} /> : null}
               {actions.has("approve") ? <PlanReviewButton plan={plan} step="approve" onDone={refresh} /> : null}
               {actions.has("delete") ? <DeleteButton recordItemId={plan.id} record={plan} /> : null}

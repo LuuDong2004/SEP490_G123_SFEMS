@@ -1,7 +1,7 @@
 import { useGetIdentity, useInvalidate, useNavigation, useNotification } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
-import { Check, CornerUpLeft, Loader2, Printer, Save, Send, X } from "lucide-react";
+import { Check, CornerUpLeft, FileSpreadsheet, Loader2, Printer, Save, Send, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useWatch, type Control } from "react-hook-form";
 import { Link } from "react-router";
@@ -672,6 +672,34 @@ export function PrintButton() {
     <Button type="button" variant="outline" onClick={() => window.print()}>
       <Printer />
       In kế hoạch
+    </Button>
+  );
+}
+
+/**
+ * Xuất Excel kế hoạch (NC-05, NC-06): hai trang chi tiết theo dòng đề xuất và tổng hợp theo thiết bị, để
+ * người duyệt in ra họp.
+ */
+export function ExportButton({ planId, code }: { planId: number; code: string }) {
+  const [busy, setBusy] = useState(false);
+  async function exportXlsx() {
+    setBusy(true);
+    try {
+      const blob = await kyInstance.get(`${RESOURCE}/${planId}/export.xlsx`).blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${code}.xlsx`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Button type="button" variant="outline" onClick={exportXlsx} disabled={busy}>
+      {busy ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+      Xuất Excel
     </Button>
   );
 }
