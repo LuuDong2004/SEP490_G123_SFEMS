@@ -206,6 +206,7 @@ export function MinimumCatalog() {
   const [viewingCatalog, setViewingCatalog] = useState<CatalogView | null>(null);
   const [form, setForm] = useState<FormDialogState>({ open: false });
   const [profile, setProfile] = useState<ProfileMode>(null);
+  const [viewDoc, setViewDoc] = useState<StandardDoc | null>(null);
 
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -327,7 +328,7 @@ export function MinimumCatalog() {
     }
   };
 
-  const ctx: RowContext = { level, docIndex, status, revisionDocId: standard?.revisionDocumentId ?? null, changeById };
+  const ctx: RowContext = { level, docIndex, status, revisionDocId: standard?.revisionDocumentId ?? null, changeById, onDoc: setViewDoc };
   const cols = editable ? EDITABLE_COLS : EDITABLE_COLS - 1;
   const subjectItems = groups.map((g) => ({ key: String(g.subjectId), label: g.subjectName ?? "Chưa gắn môn", count: g.catalogs ?? g.count }));
   const clearFilters = () => {
@@ -513,14 +514,15 @@ export function MinimumCatalog() {
                       <TableHead className="w-12 text-center">STT</TableHead>
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
-                      {/* Định mức = số lượng / số đối tượng: "1/1" giáo viên, "1/6" học sinh, "7/1" lớp. */}
-                      <TableHead className="w-28 text-center">Định mức</TableHead>
+                      {/* Định mức tách 4 cột: cần có (số + ĐVT) cho mỗi (số đối tượng + đối tượng) — "1 Bộ / 1 giáo viên". */}
+                      <TableHead className="w-20 text-center">Cần có</TableHead>
+                      <TableHead className="w-16">ĐVT</TableHead>
+                      <TableHead className="w-28 text-center">Số đối tượng</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
-                      <TableHead className="w-20">Đơn vị</TableHead>
-                      <TableHead className="w-40">Căn cứ</TableHead>
                       <TableHead className="w-28">Ngày lập</TableHead>
                       <TableHead className="w-28">Ngày áp dụng</TableHead>
+                      <TableHead className="w-40">Căn cứ</TableHead>
                       {editable ? <TableHead className="w-12" /> : null}
                     </TableRow>
                   </TableHeader>
@@ -560,6 +562,7 @@ export function MinimumCatalog() {
         </>
       )}
 
+      <DocumentDialog doc={viewDoc} onClose={() => setViewDoc(null)} />
       {standard ? (
         <StandardProfileDialog standard={standard} rows={filtering ? null : total} devices={devices} subjects={groups.length}
           canEdit={mayEditStandard && status !== "RETIRED"} mode={profile} onMode={setProfile} />
@@ -682,6 +685,37 @@ function LegalDocuments({ docs }: { docs: any[] }) {
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/** Xem một văn bản căn cứ từ cột Căn cứ: số hiệu, tên, ngày, liên kết gốc và tệp PDF (chỉ xem). */
+function DocumentDialog({ doc, onClose }: { doc: StandardDoc | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!doc} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>{doc?.documentNo}</DialogTitle>
+        </DialogHeader>
+        {doc ? (
+          <div className="grid gap-4">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <Fact label="Tên văn bản" wide>{doc.documentName}</Fact>
+              <Fact label="Vai trò">{DOCUMENT_ROLE_LABELS[doc.documentRole] ?? doc.documentRole}</Fact>
+              <Fact label="Ban hành">{doc.issueDate ? formatPlainDate(doc.issueDate) : null}</Fact>
+              <Fact label="Hiệu lực">{doc.effectiveDate ? formatPlainDate(doc.effectiveDate) : null}</Fact>
+              {doc.url ? (
+                <Fact label="Văn bản gốc">
+                  <a href={doc.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                    Mở<ExternalLink className="size-3.5" />
+                  </a>
+                </Fact>
+              ) : null}
+            </dl>
+            <AttachmentsPanel resource="equipment_standard_documents" recordId={doc.id} canWrite={false} compact title="Tệp văn bản" />
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -848,10 +882,12 @@ type RowContext = {
   /** Văn bản của lần sửa (bản nháp) — dòng theo văn bản này chưa áp dụng. */
   revisionDocId: number | null;
   changeById: Map<number, StandardChange>;
+  /** Bấm số hiệu ở cột Căn cứ: mở hộp xem văn bản (thông tin + tệp PDF). */
+  onDoc?: (doc: StandardDoc) => void;
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
-const EDITABLE_COLS = 10;
+const EDITABLE_COLS = 11;
 
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
@@ -923,20 +959,24 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell className="text-center">
         {row.minQuantity == null
           ? <span className="text-muted-foreground text-xs" title={row.quantityText ?? undefined}>Không ghi</span>
-          : <span className="inline-flex items-baseline gap-1 tabular-nums">
-              <span className="text-[0.9375rem] font-semibold">{row.minQuantity}</span>
-              <span className="text-muted-foreground text-base">/</span>
-              <span>{basisCount(row)}</span>
-            </span>}
+          : <span className="text-[0.9375rem] font-semibold tabular-nums">{row.minQuantity}</span>}
       </TableCell>
+      <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
+      <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
-      <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
-      <TableCell className="text-muted-foreground truncate">{docShort(doc?.documentNo ?? row.sourceDocument?.documentNo)}</TableCell>
       <TableCell className="text-muted-foreground tabular-nums">{doc?.issueDate ? formatPlainDate(doc.issueDate) : "—"}</TableCell>
       <TableCell className="tabular-nums">
         {pending ? <span className="text-muted-foreground">Chưa</span>
           : (doc?.effectiveDate ?? doc?.issueDate) ? formatPlainDate((doc.effectiveDate ?? doc.issueDate)!) : muted}
+      </TableCell>
+      <TableCell className="truncate" onClick={(e) => e.stopPropagation()}>
+        {doc ? (
+          <button type="button" className="text-primary max-w-full truncate hover:underline" title="Xem văn bản"
+            onClick={() => ctx.onDoc?.(doc)}>
+            {docShort(doc.documentNo)}
+          </button>
+        ) : <span className="text-muted-foreground">{docShort(row.sourceDocument?.documentNo)}</span>}
       </TableCell>
       {editable ? (
         <TableCell className="py-1">
