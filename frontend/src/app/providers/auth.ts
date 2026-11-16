@@ -1,6 +1,6 @@
 import type { AuthProvider } from "@refinedev/core";
 
-import { ADMIN_LOGIN_PATH, currentPortal, portalBase } from "@/shared/api/portal";
+import { portalBase } from "@/shared/api/portal";
 import { API_URL } from "@/shared/api/constants";
 import { connect, disconnect } from "@/shared/api/live";
 import { queryClient } from "@/shared/api/query-client";
@@ -50,14 +50,13 @@ async function readError(response: Response, fallback: string): Promise<ApiError
 }
 
 export const authProvider: AuthProvider = {
-  async login({ username, password, code, area }) {
+  async login({ username, password, code }) {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // `area`: khu đăng nhập — `admin` (màn /admin/login) chỉ nhận tài khoản quản trị hệ thống, `business` (mặc định)
-        // chỉ nhận tài khoản nghiệp vụ (cổng Admin cách ly, docs/kien-truc/11).
-        body: JSON.stringify({ username, password, code: code || undefined, area: area || undefined }),
+        // Màn đăng nhập chung: không gửi `area`, máy chủ nhận mọi loại tài khoản (docs/kien-truc/02).
+        body: JSON.stringify({ username, password, code: code || undefined }),
       });
 
       if (!response.ok) {
@@ -143,12 +142,11 @@ export const authProvider: AuthProvider = {
     // Before clearing the session, because the socket is authenticated as the
     // account that is leaving: left open, it would go on delivering to a page
     // that has signed out, and hand the next account somebody else's channel.
-    // Quản trị viên quay về màn đăng nhập của khu quản trị, người khác về màn đăng nhập chung.
-    const admin = currentPortal() === "admin";
     disconnect();
     clearSession();
     // Ra khỏi cổng: tải lại ở gốc để người đăng nhập sau vào đúng cổng của họ.
-    window.location.replace(admin ? ADMIN_LOGIN_PATH : "/login");
+    // Mọi loại tài khoản về cùng một màn đăng nhập.
+    window.location.replace("/login");
     return { success: true };
   },
 

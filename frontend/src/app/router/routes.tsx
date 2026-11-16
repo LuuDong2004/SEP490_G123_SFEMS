@@ -3,7 +3,6 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router";
 
 import { ForgotPassword, Login, ResetPassword } from "@/features/identity";
-import { ADMIN_LOGIN_PATH } from "@/shared/api/portal";
 import { homePath } from "@/shared/api/session";
 import { FullPageSpinner } from "@/shared/components/spinner";
 
@@ -58,8 +57,6 @@ export function AppRoutes({ ready }: { ready: boolean }) {
         }
       >
         <Route path="/login" element={<Login />} />
-        {/* Khu quản trị (cổng Admin cách ly): đăng nhập riêng, chỉ tài khoản quản trị hệ thống. */}
-        <Route path={ADMIN_LOGIN_PATH} element={<Login />} />
         {/* Quên mật khẩu (QLTB-509): người chưa đăng nhập mới cần. */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

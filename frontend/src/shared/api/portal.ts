@@ -36,31 +36,19 @@ export function withPortal(url: string, portal: Portal | null = currentPortal())
   return `${base}/${portal}/${rest}`;
 }
 
-/** Màn đăng nhập của khu quản trị (cổng Admin cách ly): chỉ nhận tài khoản quản trị hệ thống. */
-export const ADMIN_LOGIN_PATH = "/admin/login";
-
-/** Đang ở màn đăng nhập khu quản trị không — đọc từ địa chỉ trình duyệt, đúng cả khi gốc router là `/admin`. */
-export function isAdminLoginPath(pathname: string = window.location.pathname): boolean {
-  return pathname.replace(/\/+$/, "") === ADMIN_LOGIN_PATH;
-}
-
 /**
  * Đặt địa chỉ trình duyệt vào đúng cổng TRƯỚC khi dựng giao diện (gốc của router là cổng, docs/kien-truc/11):
  * - đã đăng nhập, địa chỉ chưa có cổng (liên kết cũ `/equipment/5`) → thêm cổng của mình;
  * - đã đăng nhập, địa chỉ ở cổng KHÁC (`/so/...` với tài khoản trường) → về trang đầu cổng của mình
  *   (máy chủ cũng chặn 403 nếu gọi thẳng API cổng khác);
- * - chưa đăng nhập, địa chỉ có cổng → bỏ cổng (màn đăng nhập ở gốc); riêng địa chỉ `/admin/...` → `/admin/login`,
- *   màn đăng nhập riêng của khu quản trị.
+ * - chưa đăng nhập, địa chỉ có cổng → bỏ cổng (`/admin/login` → `/login`): mọi loại tài khoản dùng một màn đăng nhập.
  */
 export function normalizePortalPath(): void {
   const { pathname, search, hash } = window.location;
   const mine = currentPortal();
   const there = portalInPath(pathname);
   let next: string | null = null;
-  if (!mine && there === "admin") {
-    // Chưa đăng nhập mà mở một địa chỉ của khu quản trị: về màn đăng nhập của khu đó, không về màn chung.
-    next = ADMIN_LOGIN_PATH;
-  } else if (mine && there !== mine) {
+  if (mine && there !== mine) {
     next = there ? `/${mine}/` : `/${mine}${pathname === "/" ? "/" : pathname}`;
   } else if (!mine && there) {
     next = pathname.slice(there.length + 1) || "/";

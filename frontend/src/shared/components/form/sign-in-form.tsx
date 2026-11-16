@@ -167,21 +167,14 @@ const DEV_CREDENTIALS = DEMO_LOGIN
   : { username: "", password: "" };
 
 /**
- * Khu đăng nhập (cổng Admin cách ly, docs/kien-truc/11): `business` (`/login`) chỉ nhận tài khoản Sở / UBND /
- * trường; `admin` (`/admin/login`) chỉ nhận tài khoản quản trị hệ thống — không ô chọn đơn vị, không khung dùng thử.
+ * Một màn đăng nhập chung cho mọi loại tài khoản (Sở / UBND / trường / quản trị — docs/kien-truc/02): đăng nhập xong
+ * giao diện tự vào cổng của loại. Quản trị viên vẫn qua kiểm IP và 2 lớp ở máy chủ.
  */
-export type SignInArea = "admin" | "business";
-
-export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
-  const admin = area === "admin";
-  const initial = admin
-    ? DEMO_ADMIN ?? { username: "", password: "" }
-    : DEV_CREDENTIALS;
+export const SignInForm = () => {
+  const initial = DEV_CREDENTIALS;
   const [username, setUsername] = useState(initial.username);
   // Người trong trường: chọn trường, chỉ gõ phần sau của tài khoản (`<mã trường>.<mã cán bộ>`).
-  const [school, setSchool] = useState<SignInSchool | null>(() =>
-    admin ? null : rememberedSchool()
-  );
+  const [school, setSchool] = useState<SignInSchool | null>(() => rememberedSchool());
   const [password, setPassword] = useState(initial.password);
   const [code, setCode] = useState("");
   const [needCode, setNeedCode] = useState(false);
@@ -201,7 +194,7 @@ export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
         ? `${school.prefix}.${typed}`
         : typed;
     login(
-      { username: full, password, code: needCode ? code : undefined, area },
+      { username: full, password, code: needCode ? code : undefined },
       {
         onSuccess: (data) => {
           if (!data.success && data.error?.name === "MfaRequired") {
@@ -222,7 +215,7 @@ export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
         : typed;
     setCode("");
     login(
-      { username: full, password, area },
+      { username: full, password },
       {
         onSuccess: (data) => {
           if (!data.success && data.error?.name === "MfaRequired")
@@ -246,12 +239,7 @@ export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
     setCode("");
     setNeedCode(false);
     setCodeHint(null);
-    // Tài khoản quản trị chỉ vào được ở khu quản trị.
-    login({
-      username: account.username,
-      password: account.password,
-      area: account === DEMO_ADMIN ? "admin" : "business",
-    });
+    login({ username: account.username, password: account.password });
   };
 
   return (
@@ -302,19 +290,16 @@ export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
           <div className="bg-card text-card-foreground space-y-6 rounded-3xl p-7 shadow-[0_30px_70px_-20px_rgb(0_0_0/.55)] sm:p-9">
             <div className="space-y-1">
               <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-                {admin ? <ShieldCheck className="text-primary size-6" /> : null}
-                {admin ? "Quản trị hệ thống" : "Đăng nhập"}
+                Đăng nhập
               </h1>
               <p className="text-muted-foreground text-sm">{title.text}</p>
             </div>
 
             <form onSubmit={handleSignIn} className="space-y-4">
-              {admin ? null : (
-                <div className="space-y-2">
-                  <Label>Đơn vị</Label>
-                  <SignInSchoolPicker value={school} onChange={setSchool} />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>Đơn vị</Label>
+                <SignInSchoolPicker value={school} onChange={setSchool} />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="username">
@@ -435,7 +420,7 @@ export const SignInForm = ({ area = "business" }: { area?: SignInArea }) => {
           {/* ------------------------------------------------------------------
               ĐĂNG NHẬP NHANH THEO VAI TRÒ — chỉ khi DEMO_LOGIN. Xem ghi chú ở đầu file.
              ------------------------------------------------------------------ */}
-          {DEMO_LOGIN && !admin ? (
+          {DEMO_LOGIN ? (
             <Sheet>
               <SheetTrigger asChild>
                 <button
