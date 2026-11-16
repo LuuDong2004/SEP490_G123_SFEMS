@@ -8,8 +8,10 @@ import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import type { NormRow, SchoolAdequacy } from "@/domains/procurement/types";
 
+import { TriangleAlert } from "lucide-react";
+
 import { AdequacyTable } from "./adequacy-table";
-import { overlapQuantity, type OverlapIndex } from "./overlap";
+import { overlapName, overlapQuantity, type OverlapIndex } from "./overlap";
 
 /** Một thiết bị được chọn để thêm thành dòng đề xuất. */
 export type PickedForProposal = { catalogId: number; label: string; quantity: number };
@@ -24,6 +26,12 @@ type Tab = "norm" | "catalog";
 function suggestedQuantity(row: NormRow, overlaps: OverlapIndex) {
   const proposed = Math.max(row.proposed, overlapQuantity(overlaps.get(row.catalogId!)));
   return Math.max((row.shortage ?? 0) - proposed, 1);
+}
+
+/** Đã xin đủ ở phiếu khác: phần đã xin phủ hết phần thiếu — tích vào thì số tự điền chỉ là 1. */
+function alreadyCovered(row: NormRow, overlaps: OverlapIndex) {
+  const proposed = Math.max(row.proposed, overlapQuantity(overlaps.get(row.catalogId!)));
+  return proposed > 0 && proposed >= (row.shortage ?? 0);
 }
 
 /**
@@ -84,6 +92,11 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
         { value: "catalog" as const, label: "Toàn bộ danh mục", hint: "Chọn bất kỳ thiết bị nào trong danh mục" }]} />
   );
 
+  // Báo ngay lúc tích (không đợi bấm Thêm): dòng "Đã đề xuất đủ" vẫn thêm được, nhưng chỉ với số lượng 1 — nói rõ vì
+  // sao và đã xin ở phiếu nào, kẻo người dùng thấy "Thiếu 4" mà dòng thêm vào là 1 (test luồng 16/11/2026).
+  const covered = [...selected.values()].filter((r) => alreadyCovered(r, overlaps));
+  const coveredCodes = [...new Set(covered.flatMap((r) => (overlaps.get(r.catalogId!) ?? []).map(overlapName)))];
+
   const normBody = (
     <>
       {/* Bảng lấp phần còn lại của hộp (cỡ hộp cố định nên đổi tab không co giãn) và cuộn bên trong; hàng nút bên
@@ -100,6 +113,16 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
         />
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-t pt-4">
+        {covered.length ? (
+          <p className="text-warning-text flex w-full items-start gap-2 text-sm">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span>
+              {covered.length} thiết bị đã xin đủ ở phiếu khác
+              {coveredCodes.length ? ` (${coveredCodes.slice(0, 3).join(", ")}${coveredCodes.length > 3 ? "…" : ""})` : ""}
+              {" "}— sẽ thêm số lượng 1, sửa lại được trên phiếu.
+            </span>
+          </p>
+        ) : null}
         <p className="text-muted-foreground text-xs">
           Số lượng tự điền phần còn thiếu, đã trừ số đã đề xuất ở phiếu khác. Sửa lại được ở từng dòng.
         </p>
