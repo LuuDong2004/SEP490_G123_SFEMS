@@ -928,7 +928,11 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell className="text-center">
         {row.minQuantity == null
           ? <span className="text-muted-foreground text-xs" title={row.quantityText ?? undefined}>Không ghi</span>
-          : <span className="tabular-nums"><span className="text-[0.9375rem] font-semibold">{row.minQuantity}</span>/{basisCount(row)}</span>}
+          : <span className="inline-flex items-baseline gap-1 tabular-nums">
+              <span className="text-[0.9375rem] font-semibold">{row.minQuantity}</span>
+              <span className="text-muted-foreground text-base">/</span>
+              <span>{basisCount(row)}</span>
+            </span>}
       </TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
