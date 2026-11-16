@@ -1,6 +1,7 @@
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
 import { BookOpen, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, Upload, ChevronRight, ChevronsLeft, ChevronsRight, CopyPlus, Ellipsis, ExternalLink, FileText, Pencil, Plus, Printer, Search, ShieldCheck, Trash2, FunnelX, CalendarRange, History, Undo2 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 import { useNavigate } from "react-router";
 
@@ -327,7 +328,7 @@ export function MinimumCatalog() {
   };
 
   const ctx: RowContext = { level, docIndex, status, revisionDocId: standard?.revisionDocumentId ?? null, changeById };
-  const cols = editable ? 12 : 11;
+  const cols = editable ? EDITABLE_COLS : EDITABLE_COLS - 1;
   const subjectItems = groups.map((g) => ({ key: String(g.subjectId), label: g.subjectName ?? "Chưa gắn môn", count: g.catalogs ?? g.count }));
   const clearFilters = () => {
     setQ("");
@@ -372,19 +373,18 @@ export function MinimumCatalog() {
           <FillBox>
             <div className="bg-card shadow-e1 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
               {/* Hàng 1: bộ nào, trạng thái, căn cứ — và việc làm được với bộ. */}
-              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2">
                 {standard ? (
-                  <div className="min-w-0 me-auto">
-                    <p className="text-[0.9375rem] font-semibold">
-                      {levelName} · <span className={STATUS_TEXT[status]}>{STATUS_LABEL[status]}</span>
-                    </p>
-                    <p className="text-muted-foreground text-[0.8125rem]">
-                      {whoLine(standard, status, notInForce)}
+                  <p className="me-auto min-w-0 truncate text-[0.9375rem]">
+                    <span className="font-semibold">{levelName}</span>
+                    {" · "}<span className={cn("font-semibold", STATUS_TEXT[status])}>{STATUS_LABEL[status]}</span>
+                    <span className="text-muted-foreground text-[0.8125rem]">
+                      {" · "}{whoLine(standard, status, notInForce)}
                       {siblingDrafts.length ? ` · cùng văn bản còn nháp: ${siblingDrafts.join(", ")}` : ""}
-                    </p>
-                  </div>
+                    </span>
+                  </p>
                 ) : (
-                  <Skeleton className="me-auto h-9 w-72" />
+                  <Skeleton className="me-auto h-6 w-72" />
                 )}
                 {standard && mayEditStandard && status === "DRAFT" ? (
                   <>
@@ -507,7 +507,7 @@ export function MinimumCatalog() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible">
-                <Table className="min-w-[76rem]">
+                <Table className="min-w-[76rem] table-fixed">
                   <TableHeader sticky>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-12 text-center">STT</TableHead>
@@ -515,12 +515,12 @@ export function MinimumCatalog() {
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
                       <TableHead className="w-28 text-center">Số lượng cần</TableHead>
                       {/* Định mức tính cho bao nhiêu (số) — gì (đối tượng): "1" · "giáo viên", "6" · "học sinh". */}
-                      <TableHead className="w-16 text-center">Mỗi</TableHead>
+                      <TableHead className="w-28 text-center">Số đối tượng</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
                       <TableHead className="w-24">Người dùng</TableHead>
                       <TableHead className="w-20">Đơn vị</TableHead>
-                      <TableHead className="w-24">Căn cứ</TableHead>
+                      <TableHead className="w-40">Căn cứ</TableHead>
                       <TableHead className="w-28">Ngày lập</TableHead>
                       <TableHead className="w-28">Ngày áp dụng</TableHead>
                       {editable ? <TableHead className="w-12" /> : null}
@@ -852,6 +852,9 @@ type RowContext = {
   changeById: Map<number, StandardChange>;
 };
 
+/** Số cột của bảng khi có cột nút Sửa. */
+const EDITABLE_COLS = 12;
+
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
   per_teacher: "giáo viên",
@@ -933,7 +936,7 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
       <TableCell>{usersOf(row) ?? muted}</TableCell>
       <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
-      <TableCell className="text-muted-foreground">{docShort(doc?.documentNo ?? row.sourceDocument?.documentNo)}</TableCell>
+      <TableCell className="text-muted-foreground truncate">{docShort(doc?.documentNo ?? row.sourceDocument?.documentNo)}</TableCell>
       <TableCell className="text-muted-foreground tabular-nums">{doc?.issueDate ? formatPlainDate(doc.issueDate) : "—"}</TableCell>
       <TableCell className="tabular-nums">
         {pending ? <span className="text-muted-foreground">Chưa</span>
@@ -954,15 +957,6 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
   );
 }
 
-/** Dòng tên môn chen giữa bảng mỗi khi môn đổi. */
-function SubjectRow({ name, cols }: { name: string; cols: number }) {
-  return (
-    <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={cols} className="bg-surface-subtle text-foreground/80 py-1.5 text-[0.8125rem] font-semibold">{name}</TableCell>
-    </TableRow>
-  );
-}
-
 type RowsProps = {
   ctx: RowContext;
   cols: number;
@@ -972,19 +966,10 @@ type RowsProps = {
 };
 
 function renderRows(rows: { row: EquipmentNorm; kind?: StandardChange["kind"] }[], offset: number, p: RowsProps) {
-  let last: string | null | undefined;
-  return rows.map(({ row, kind }, i) => {
-    const subject = row.subject?.name ?? "Chưa gắn môn";
-    const head = subject !== last ? <SubjectRow name={subject} cols={p.cols} /> : null;
-    last = subject;
-    return (
-      <Fragment key={`${kind ?? ""}${row.id}`}>
-        {head}
-        <NormRow row={row} index={offset + i + 1} kind={kind} ctx={p.ctx} editable={p.cols === 11}
-          selected={p.opened === row.id} onOpen={p.onOpen} onEdit={p.onEdit} />
-      </Fragment>
-    );
-  });
+  return rows.map(({ row, kind }, i) => (
+    <NormRow key={`${kind ?? ""}${row.id}`} row={row} index={offset + i + 1} kind={kind} ctx={p.ctx}
+      editable={p.cols === EDITABLE_COLS} selected={p.opened === row.id} onOpen={p.onOpen} onEdit={p.onEdit} />
+  ));
 }
 
 /** Chế độ Tất cả: các dòng của bộ, phân trang ở máy chủ; bản nháp gắn nhãn Mới / Đổi. */
@@ -999,13 +984,15 @@ function PagedRows({ filters, page, pageSize, onTotal, ...p }: RowsProps & {
     filters,
     sorters: [{ field: "sortOrder", order: "asc" }],
     pagination: { currentPage: page, pageSize },
+    // Giữ trang cũ trong lúc tải trang mới: bảng không co lại thành dòng "đang tải" rồi giãn ra (nhảy).
+    queryOptions: { placeholderData: keepPreviousData },
   });
   const rows = (result?.data ?? []) as EquipmentNorm[];
   const total = result?.total ?? 0;
   useEffect(() => {
     if (!query.isLoading) onTotal(total);
   }, [total, query.isLoading, onTotal]);
-  if (query.isLoading) return <TableEmpty colSpan={p.cols} loading />;
+  if (query.isLoading && !rows.length) return <TableEmpty colSpan={p.cols} loading />;
   return <>{renderRows(rows.map((row) => ({ row, kind: p.ctx.changeById.get(row.id)?.kind })), (page - 1) * pageSize, p)}</>;
 }
 
