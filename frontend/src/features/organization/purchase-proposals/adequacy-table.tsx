@@ -534,11 +534,13 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
       {reasonsNote}
 
       {groups.length === 0 ? emptyNote : (
-        <div className={cn("rounded-lg border", adjust ? "overflow-x-auto" : "overflow-hidden")}>
+        <div className={cn("rounded-lg border", adjust || select ? "overflow-x-auto" : "overflow-hidden")}>
           {/* Mỗi thiết bị MỘT dòng, mỗi thứ một cột: mã và lớp áp dụng có cột riêng thay vì nằm thành dòng
               chữ nhỏ dưới tên / dưới định mức — dòng thấp đi một nửa, và mắt lướt dọc từng cột được.
-              `table-fixed`: cột Thiết bị lấy phần còn lại và cắt ba chấm (rê chuột thấy đủ tên, loại). */}
-          <Table className={cn("table-fixed", adjust && "min-w-[73.75rem]")}>
+              `table-fixed`: cột Thiết bị lấy phần còn lại và cắt ba chấm (rê chuột thấy đủ tên, loại). Các cột kia
+              cộng lại ~54rem, nên khi chọn trong hộp thoại bảng giữ tối thiểu 72rem (cột Thiết bị còn ~17rem) và
+              cuộn ngang nếu hộp hẹp hơn — không thì cột Thiết bị bị ép về 0, tiêu đề Lớp đè lên Thiết bị. */}
+          <Table className={cn("table-fixed", adjust && "min-w-[73.75rem]", select && !adjust && "min-w-[72rem]")}>
             {tableHead}
             <TableBody>
               {groups.map((g) => {
