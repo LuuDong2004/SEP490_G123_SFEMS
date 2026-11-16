@@ -517,7 +517,6 @@ export function MinimumCatalog() {
                       <TableHead className="w-28 text-center">Định mức</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
-                      <TableHead className="w-24">Người dùng</TableHead>
                       <TableHead className="w-20">Đơn vị</TableHead>
                       <TableHead className="w-40">Căn cứ</TableHead>
                       <TableHead className="w-28">Ngày lập</TableHead>
@@ -852,7 +851,7 @@ type RowContext = {
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
-const EDITABLE_COLS = 11;
+const EDITABLE_COLS = 10;
 
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
@@ -871,10 +870,6 @@ function basisCount(row: EquipmentNorm): number {
 function applyTo(row: EquipmentNorm): string | null {
   if (row.minQuantity == null) return null;
   return `${row.basisSize && row.basisSize > 1 ? row.basisSize : 1} ${PER_LABEL[row.normBasis] ?? ""}`.trim();
-}
-
-function usersOf(row: EquipmentNorm): string | null {
-  return [row.forTeacher ? "GV" : null, row.forStudent ? "HS" : null].filter(Boolean).join(", ") || null;
 }
 
 /** Lớp ngắn cho cột: "1–3", "1, 2", "Mọi lớp". */
@@ -936,7 +931,6 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       </TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
-      <TableCell>{usersOf(row) ?? muted}</TableCell>
       <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
       <TableCell className="text-muted-foreground truncate">{docShort(doc?.documentNo ?? row.sourceDocument?.documentNo)}</TableCell>
       <TableCell className="text-muted-foreground tabular-nums">{doc?.issueDate ? formatPlainDate(doc.issueDate) : "—"}</TableCell>
@@ -1107,7 +1101,7 @@ function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog, onChang
                 </DrawerRow>
                 <DrawerRow label="Áp dụng cho">{applyTo(r) ?? "—"}</DrawerRow>
                 <DrawerRow label="Lớp">{gradesLabel(r.gradeLevels, ctx.level)}</DrawerRow>
-                <DrawerRow label="Người dùng">
+                <DrawerRow label="Đối tượng sử dụng">
                   {[r.forTeacher ? "Giáo viên" : null, r.forStudent ? "Học sinh" : null].filter(Boolean).join(", ") || "—"}
                 </DrawerRow>
                 {r.optional ? <p className="text-muted-foreground text-[0.8125rem]">Tự chọn — không tính đủ / thiếu.</p> : null}
