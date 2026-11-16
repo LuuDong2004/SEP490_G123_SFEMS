@@ -75,8 +75,9 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
 
   const normBody = (
     <>
-      {/* Chiều cao cố định như tab danh mục: đổi tab không làm hộp co giãn. */}
-      <div className="h-[min(32rem,60vh)] overflow-y-auto pe-1">
+      {/* Bảng lấp phần còn lại của hộp (cỡ hộp cố định nên đổi tab không co giãn) và cuộn bên trong; hàng nút bên
+          dưới luôn ở đáy hộp — trước đây bảng cao cố định đẩy hàng nút ra ngoài mép, phải cuộn cả hộp mới thấy. */}
+      <div className="min-h-0 flex-1 overflow-y-auto pe-1">
         <AdequacyTable
           data={adequacy}
           collapsed
@@ -87,7 +88,7 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
           }}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-t pt-4">
         <p className="text-muted-foreground text-xs">
           Số lượng tự điền phần còn thiếu, đã trừ số đã đề xuất ở phiếu khác. Sửa lại được ở từng dòng.
         </p>
@@ -108,6 +109,7 @@ export function ProposalPickerDialog({ open, onOpenChange, schoolId, adequacy, o
     <CatalogPickerDialog
       open={open}
       onOpenChange={close}
+      size="wide"
       schoolId={schoolId}
       exclude={exclude}
       title="Chọn thiết bị cần mua"
