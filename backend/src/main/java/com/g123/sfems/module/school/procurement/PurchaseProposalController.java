@@ -4,9 +4,14 @@ import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.module.school.voucher.VoucherController;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,6 +71,31 @@ public class PurchaseProposalController
     @PreAuthorize("hasAuthority('purchase_proposals:read')")
     public List<AdequacyService.CatalogSchool> adequacyCatalog(@RequestParam Long catalogId) {
         return adequacy.catalogSchools(catalogId);
+    }
+
+    /** Xuất Excel bảng đáp ứng định mức của một trường. */
+    @GetMapping("/adequacy.xlsx")
+    @PreAuthorize("hasAuthority('purchase_proposals:read')")
+    public ResponseEntity<byte[]> adequacyExcel(@RequestParam(required = false) Long schoolId) {
+        AdequacyService.SchoolAdequacy a = adequacy.forSchool(resolveSchool(schoolId));
+        return xlsx("Mức đáp ứng - " + a.schoolCode() + ".xlsx", AdequacyExcel.school(a));
+    }
+
+    /** Xuất Excel bảng tổng hợp đáp ứng định mức, kèm trang cân đối theo thiết bị. */
+    @GetMapping("/adequacy-summary.xlsx")
+    @PreAuthorize("hasAuthority('purchase_proposals:read')")
+    public ResponseEntity<byte[]> adequacySummaryExcel() {
+        return xlsx("Mức đáp ứng định mức.xlsx", AdequacyExcel.summary(adequacy.summary()));
+    }
+
+    /** Trả một tệp .xlsx dưới dạng tải về, cùng dáng với các đường xuất khác của nhóm. */
+    private static ResponseEntity<byte[]> xlsx(String filename, byte[] body) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 
     // ------------------------------------------------------------------ NC-02..04: đề xuất
