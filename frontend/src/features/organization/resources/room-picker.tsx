@@ -172,7 +172,7 @@ export function RoomPickerField({
         onClick={openDialog}
         disabled={!schoolId || !!disabledHint}
         aria-invalid={!!fieldState.error || undefined}
-        className="bg-field hover:border-primary/40 aria-invalid:border-destructive flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md border px-3 text-left text-sm transition-colors disabled:opacity-60"
+        className="bg-field shadow-e1 hover:border-primary/40 aria-invalid:border-destructive flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-full border border-input px-3.5 text-left text-sm transition-colors disabled:opacity-60"
       >
         {selected ? (
           <>

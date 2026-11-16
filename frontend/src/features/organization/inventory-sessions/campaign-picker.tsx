@@ -64,7 +64,7 @@ export function CampaignPickerField({ control, name, label, hint, current, onPic
               <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="bg-field hover:border-primary/40 flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md border px-3 text-left text-sm transition-colors"
+                className="bg-field shadow-e1 hover:border-primary/40 flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-full border border-input px-3.5 text-left text-sm transition-colors"
               >
                 <span className={cn("min-w-0 flex-1 truncate", !text && "text-muted-foreground")}>{text ?? "Trường tự kiểm kê"}</span>
                 <ChevronDown className="text-muted-foreground size-4 shrink-0 opacity-60" />

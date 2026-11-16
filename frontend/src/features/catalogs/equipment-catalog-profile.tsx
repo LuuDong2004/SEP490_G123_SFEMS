@@ -568,7 +568,7 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
           />
           <FormItem>
             <FormLabel>Đối tượng sử dụng</FormLabel>
-            <div className="bg-field flex h-9 items-center gap-4 rounded-md border px-3">
+            <div className="bg-field shadow-e1 flex h-9 items-center gap-4 rounded-full border border-input px-3.5">
               {(
                 [
                   ["usedByTeacher", "Giáo viên"],

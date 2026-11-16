@@ -291,7 +291,7 @@ export function NormMatrix() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="bg-field focus-within:border-ring flex h-9 w-full max-w-[20rem] items-center gap-2 rounded-md border px-2.5">
+        <label className="bg-field shadow-e1 focus-within:border-ring flex h-9 w-full max-w-[20rem] items-center gap-2 rounded-full border border-input px-2.5">
           <Search className="text-muted-foreground h-4 w-4" aria-hidden />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm mã, tên thiết bị" aria-label="Tìm"
             className="w-full bg-transparent text-sm outline-none" />

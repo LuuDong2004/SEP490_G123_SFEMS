@@ -225,7 +225,7 @@ function Stepper({ value, min, max, onChange, format }: {
 }) {
   const set = (v: number) => onChange(Math.min(max, Math.max(min, v)));
   return (
-    <div className="bg-field flex h-9 items-center rounded-md border">
+    <div className="bg-field shadow-e1 flex h-9 items-center rounded-full border">
       <button type="button" aria-label="Giảm" onClick={() => set(value - 1)} disabled={value <= min}
         className="text-muted-foreground hover:text-foreground flex h-full w-9 items-center justify-center disabled:opacity-40">
         <Minus className="size-4" />
