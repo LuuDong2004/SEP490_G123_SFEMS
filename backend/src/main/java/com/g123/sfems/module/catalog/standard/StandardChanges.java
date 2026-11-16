@@ -88,7 +88,8 @@ class StandardChanges {
                 touched.add(r.id());
             }
             for (Row o : olds) {
-                changes.add(new StandardChange("REMOVED", o.subjectId(), o.subjectName(), null, o.name(), o.topic(),
+                // Dòng bị bỏ mang id dòng của BỘ TRƯỚC: màn danh mục mở lại được nội dung cũ của nó.
+                changes.add(new StandardChange("REMOVED", o.subjectId(), o.subjectName(), o.id(), o.name(), o.topic(),
                         null, quantity(o), null));
             }
         }

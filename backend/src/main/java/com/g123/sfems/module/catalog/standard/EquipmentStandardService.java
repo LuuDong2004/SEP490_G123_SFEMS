@@ -19,10 +19,15 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -80,6 +85,8 @@ public class EquipmentStandardService extends CatalogService<
         }
         if (current.getStatus() == StandardStatus.ACTIVE) {
             requireUnchangedRoot(current, request);
+        } else if (current.getPreviousStandard() != null) {
+            requireRevisionDraftLocks(current, request);
         }
         // Văn bản của lần sửa là căn cứ của cả bản nháp — không xoá được; lập nhầm thì xoá bản nháp.
         Long revision = current.getRevisionDocumentId();
@@ -155,6 +162,99 @@ public class EquipmentStandardService extends CatalogService<
         }
         if (seen.size() != existing.size()) {
             throw new FieldValidationException("documents", "Không xoá văn bản của bộ đang áp dụng — Lập bộ mới theo văn bản mới.");
+        }
+    }
+
+    /**
+     * Bộ NHÁP lập từ "Lập bộ mới" (có bộ được thay): những gì hệ thống đã đặt lúc lập thì khoá — mã, cấp học, phiên
+     * bản, bộ được thay, năm học kết thúc (tự đặt khi bộ sau thay bộ này) — và các văn bản căn cứ chép từ bộ cũ
+     * (không sửa, không xoá). Sửa được: tên bộ, năm học bắt đầu, ghi chú, văn bản của lần sửa (giữ vai trò) và văn
+     * bản hướng dẫn / tham khảo thêm vào (không thêm văn bản căn cứ chính).
+     */
+    private static void requireRevisionDraftLocks(EquipmentStandard current, EquipmentStandardPatchRequest request) {
+        String locked = " do hệ thống đặt khi lập bộ — không sửa.";
+        if (request.code() != null && !request.code().trim().equals(current.getCode())) {
+            throw new FieldValidationException("code", "Mã bộ" + locked);
+        }
+        if (request.standardVersion() != null && !sameText(request.standardVersion(), current.getStandardVersion())) {
+            throw new FieldValidationException("standardVersion", "Phiên bản" + locked);
+        }
+        if (request.educationLevel() != null && !sameId(request.educationLevel(), current.getEducationLevel() == null
+                ? null : current.getEducationLevel().getId())) {
+            throw new FieldValidationException("educationLevel", "Cấp học" + locked);
+        }
+        if (request.previousStandard() != null && !sameId(request.previousStandard(), current.getPreviousStandard().getId())) {
+            throw new FieldValidationException("previousStandard", "Bộ được thay thế" + locked);
+        }
+        if (request.endSchoolYear() != null && request.endSchoolYear().id() != null) {
+            throw new FieldValidationException("endSchoolYear", "Năm học kết thúc tự đặt khi có bộ mới thay bộ này.");
+        }
+        if (request.startSchoolYear() != null && !sameId(request.startSchoolYear(), current.getStartSchoolYear() == null
+                ? null : current.getStartSchoolYear().getId())) {
+            throw new FieldValidationException("startSchoolYear", "Năm học áp dụng tự ghi lúc bấm Áp dụng.");
+        }
+        if (request.name() != null && !sameText(request.name(), current.getName())) {
+            throw new FieldValidationException("name", "Tên bộ" + locked);
+        }
+        if (request.documents() == null) {
+            return;
+        }
+        // Văn bản chép từ bộ cũ: văn bản của bản nháp có số hiệu trùng một văn bản của bộ được thay (so trên bản nháp
+        // hiện tại, để bản nháp cũ đã lỡ xoá một văn bản vẫn lưu được).
+        java.util.Set<String> previousNos = new java.util.HashSet<>();
+        for (EquipmentStandardDocument d : current.getPreviousStandard().getDocuments()) {
+            previousNos.add(d.getDocumentNo().trim().toLowerCase(java.util.Locale.ROOT));
+        }
+        Map<String, EquipmentStandardDocument> inherited = new HashMap<>();
+        for (EquipmentStandardDocument d : current.getDocuments()) {
+            String no = d.getDocumentNo().trim().toLowerCase(java.util.Locale.ROOT);
+            if (previousNos.contains(no) && !d.getId().equals(current.getRevisionDocumentId())) {
+                inherited.put(no, d);
+            }
+        }
+        Long revision = current.getRevisionDocumentId();
+        DocumentRole revisionRole = current.getDocuments().stream().filter(d -> d.getId().equals(revision))
+                .map(EquipmentStandardDocument::getDocumentRole).findFirst().orElse(null);
+        java.util.Set<String> kept = new java.util.HashSet<>();
+        for (int i = 0; i < request.documents().size(); i++) {
+            StandardDocumentInput input = request.documents().get(i);
+            String at = "documents." + i + ".";
+            String key = input.documentNo() == null ? "" : input.documentNo().trim().toLowerCase(java.util.Locale.ROOT);
+            EquipmentStandardDocument old = inherited.get(key);
+            if (old != null && (revision == null || !revision.equals(input.id()))) {
+                kept.add(key);
+                String fixed = " của văn bản chép từ bộ cũ không sửa được.";
+                if (input.documentRole() != old.getDocumentRole()) {
+                    throw new FieldValidationException(at + "documentRole", "Vai trò" + fixed);
+                }
+                if (!sameText(input.documentName(), old.getDocumentName())) {
+                    throw new FieldValidationException(at + "documentName", "Trích yếu" + fixed);
+                }
+                if (!sameText(input.issuingAuthority(), old.getIssuingAuthority())) {
+                    throw new FieldValidationException(at + "issuingAuthority", "Cơ quan ban hành" + fixed);
+                }
+                if (!java.util.Objects.equals(input.issueDate(), old.getIssueDate())
+                        || !java.util.Objects.equals(input.effectiveDate(), old.getEffectiveDate())) {
+                    throw new FieldValidationException(at + "issueDate", "Ngày" + fixed);
+                }
+                if (!sameText(input.url(), old.getUrl())) {
+                    throw new FieldValidationException(at + "url", "Đường dẫn" + fixed);
+                }
+                continue;
+            }
+            if (revision != null && revision.equals(input.id())) {
+                if (revisionRole != null && input.documentRole() != revisionRole) {
+                    throw new FieldValidationException(at + "documentRole", "Vai trò của văn bản lần sửa không đổi được.");
+                }
+                continue;
+            }
+            if (input.documentRole() == DocumentRole.MAIN) {
+                throw new FieldValidationException(at + "documentRole",
+                        "Bộ chỉ có MỘT văn bản căn cứ chính — văn bản thêm vào chỉ là hướng dẫn hoặc tham khảo.");
+            }
+        }
+        if (kept.size() != inherited.size()) {
+            throw new FieldValidationException("documents", "Không xoá văn bản chép từ bộ cũ.");
         }
     }
 
@@ -275,6 +375,10 @@ public class EquipmentStandardService extends CatalogService<
         if (request.documents() != null) {
             syncDocuments(item, request.documents());
         }
+        // Bản nháp lập từ "Lập bộ mới": phiên bản đi theo số thông tư của các văn bản — sửa số hiệu thì đổi theo.
+        if (item.getStatus() == StandardStatus.DRAFT && item.getPreviousStandard() != null && request.documents() != null) {
+            item.setStandardVersion(versionOf(item.getDocuments()));
+        }
         // Cờ "Đang hoạt động" của form không đổi được trạng thái: chỉ Áp dụng / Lập bộ mới đổi nó.
         item.setActive(item.getStatus() == StandardStatus.ACTIVE);
     }
@@ -347,9 +451,9 @@ public class EquipmentStandardService extends CatalogService<
         if (kind == RevisionKind.CORRECTION && reason == null) {
             throw new FieldValidationException("reason", "Nhập lý do đính chính");
         }
-        if (kind == RevisionKind.AMENDMENT || hasDoc) {
-            requireRevisionDocument(doc, kind == RevisionKind.AMENDMENT);
-        }
+        // Cả sửa đổi lẫn đính chính đều phải có văn bản (trưởng nhóm 16/11/2026): đính chính khai số, ngày ban hành
+        // của văn bản đính chính, kèm lý do bằng chữ.
+        requireRevisionDocument(doc, kind == RevisionKind.AMENDMENT);
         String standardVersion = request.standardVersion();
         EquipmentStandard source = get(id);
         if (source.getStatus() == StandardStatus.DRAFT) {
@@ -372,8 +476,6 @@ public class EquipmentStandardService extends CatalogService<
         draft.setSortOrder(source.getSortOrder());
         draft.setNote(source.getNote());
         draft.setEducationLevel(source.getEducationLevel());
-        draft.setStandardVersion(standardVersion == null || standardVersion.isBlank()
-                ? defaultVersion(source.getStandardVersion(), kind, hasDoc ? doc.issueDate() : null) : standardVersion.trim());
         draft.setPreviousStandard(source);
         draft.setStatus(StandardStatus.DRAFT);
         int order = 1;
@@ -406,18 +508,12 @@ public class EquipmentStandardService extends CatalogService<
             revision.setUrl(doc.url() == null || doc.url().isBlank() ? null : doc.url().trim());
             revision.setSortOrder(order++);
             draft.getDocuments().add(revision);
-            if (kind == RevisionKind.AMENDMENT) {
-                draft.setStartSchoolYear(schoolYearFrom(doc.effectiveDate()));
-            }
         }
-        // Đính chính không đổi mốc của văn bản — bản đính chính dùng từ năm học hiện hành.
-        if (kind == RevisionKind.CORRECTION) {
-            draft.setStartSchoolYear(entityManager().createQuery(
-                    "SELECT y FROM SchoolYear y WHERE y.current = true", SchoolYear.class)
-                    .setMaxResults(1).getResultStream().findFirst().orElse(null));
-        }
+        // Năm học áp dụng KHÔNG đặt lúc lập: nó là năm học của ngày bấm Áp dụng (trưởng nhóm 16/11/2026).
         draft.setRevisionKind(kind);
         draft.setRevisionNote(reason);
+        draft.setStandardVersion(standardVersion == null || standardVersion.isBlank()
+                ? versionOf(draft.getDocuments()) : standardVersion.trim());
         entityManager().persist(draft);
         entityManager().flush();
         if (revision != null) {
@@ -487,8 +583,21 @@ public class EquipmentStandardService extends CatalogService<
         if (norms == 0) {
             throw new FieldValidationException("status", "Bộ chưa có thiết bị nào.");
         }
+        // Văn bản của lần sửa chưa có hiệu lực thì chưa áp dụng được (đính chính không ghi ngày hiệu lực: ngày ban hành).
+        EquipmentStandardDocument basis = revisionDocument(draft);
+        LocalDate inForce = basis == null ? null
+                : basis.getEffectiveDate() != null ? basis.getEffectiveDate() : basis.getIssueDate();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        if (inForce != null && inForce.isAfter(today)) {
+            throw new FieldValidationException("status", "Văn bản " + basis.getDocumentNo() + " có hiệu lực từ "
+                    + inForce.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + " — chưa áp dụng được.");
+        }
         // Thời điểm xác nhận: từ đây bộ mới tính đủ / thiếu và báo cáo, bộ cũ hết hiệu lực — một mốc cho cả hai.
         java.time.Instant confirmedAt = java.time.Instant.now();
+        // Năm học áp dụng = năm học chứa ngày bấm Áp dụng. Bộ khai tay từ đầu (không lập từ bộ trước) đã khai thì giữ.
+        if (draft.getPreviousStandard() != null || draft.getStartSchoolYear() == null) {
+            draft.setStartSchoolYear(schoolYearFrom(today));
+        }
         StandardChanges.Diff diff = null;
         if (draft.getPreviousStandard() != null) {
             if (draft.getRevisionKind() == null) {
@@ -557,19 +666,35 @@ public class EquipmentStandardService extends CatalogService<
     }
 
 
+    /** Số hiệu thông tư viết gọn: "37/2021/TT-BGDĐT" → "37/2021"; số không theo khuôn ấy giữ nguyên. */
+    private static final Pattern CIRCULAR_NO = Pattern.compile("^(\\d+/\\d{4})(?:/.*)?$");
+
     /**
-     * Phiên bản mặc định của bộ nháp khi người lập để trống: nối lần sửa vào phiên bản cũ — "2021, sửa đổi 2023" →
-     * "2021, sửa đổi 2023, sửa đổi 2026" quá dài thì chỉ "Sửa đổi 2026". Cột 50 ký tự.
+     * Phiên bản của bộ = chuỗi số thông tư đã gộp vào nó, theo thứ tự (trưởng nhóm 16/11/2026: "2021, sửa đổi 2023"
+     * khó hiểu, gọi theo số thông tư): căn cứ chính, các văn bản sửa đổi, đính chính (tiền tố "ĐC") —
+     * "TT 37/2021 + 26/2023 + 16/2026". Văn bản hướng dẫn / tham khảo không vào. Cột 50 ký tự. Changelog 268 đặt lại
+     * bộ có sẵn cùng cách.
      */
-    private static String defaultVersion(String previous, RevisionKind kind, LocalDate issued) {
-        String step = kind == RevisionKind.CORRECTION ? "đính chính"
-                : "sửa đổi " + (issued != null ? issued.getYear() : LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).getYear());
-        String joined = previous == null || previous.isBlank() ? null : previous.trim() + ", " + step;
-        if (joined != null && joined.length() <= 50) {
-            return joined;
+    static String versionOf(Collection<EquipmentStandardDocument> docs) {
+        String chain = docs.stream()
+                .filter(d -> d.getDocumentRole() == DocumentRole.MAIN || d.getDocumentRole() == DocumentRole.AMENDMENT
+                        || d.getDocumentRole() == DocumentRole.CORRECTION)
+                .sorted(Comparator.comparing(EquipmentStandardDocument::getSortOrder,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(d -> {
+                    String no = d.getDocumentNo().trim();
+                    Matcher m = CIRCULAR_NO.matcher(no);
+                    String shortNo = m.matches() ? m.group(1) : no;
+                    return d.getDocumentRole() == DocumentRole.CORRECTION ? "ĐC " + shortNo : shortNo;
+                })
+                .collect(Collectors.joining(" + "));
+        if (chain.isEmpty()) {
+            return null;
         }
-        return Character.toUpperCase(step.charAt(0)) + step.substring(1);
+        String label = "TT " + chain;
+        return label.length() <= 50 ? label : label.substring(0, 50);
     }
+
     /** Văn bản của lần sửa, nếu còn trong căn cứ của bộ. */
     private static EquipmentStandardDocument revisionDocument(EquipmentStandard item) {
         Long id = item.getRevisionDocumentId();

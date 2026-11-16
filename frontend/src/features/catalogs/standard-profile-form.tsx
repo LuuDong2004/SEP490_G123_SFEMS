@@ -16,6 +16,7 @@ import { Textarea } from "@/shared/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { DOCUMENT_ROLE_LABELS } from "@/domains/equipment-standard/types";
+import { RevisionDraftFields } from "./revision-draft-form";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -32,6 +33,8 @@ export function StandardProfileForm({ standard, onCancel, onSaved }: {
 }) {
   const invalidate = useInvalidate();
   const locked = standard.status !== "DRAFT";
+  // Bản nháp lập từ "Lập bộ mới": form gọn, khoá thứ hệ thống đã đặt (`RevisionDraftFields`).
+  const revisionDraft = !locked && standard.previousStandard != null;
   const {
     refineCore: { onFinish, query },
     ...form
@@ -59,6 +62,10 @@ export function StandardProfileForm({ standard, onCancel, onSaved }: {
 
   const control = form.control;
   const submit = form.handleSubmit((values: any) => {
+    if (revisionDraft) {
+      // Bản nháp chỉ sửa văn bản căn cứ — tên, phiên bản, năm học áp dụng do hệ thống đặt (năm học ghi lúc bấm Áp dụng).
+      return onFinish({ documents: values.documents ?? [] } as any);
+    }
     if (locked) {
       // Năm kết thúc của bộ đang áp dụng tự đặt khi áp dụng bộ mới thay nó — không gửi.
       return onFinish({ startSchoolYear: values.startSchoolYear ?? null, note: values.note ?? "" } as any);
@@ -107,6 +114,20 @@ export function StandardProfileForm({ standard, onCancel, onSaved }: {
     </DialogFooter>
   );
 
+  if (revisionDraft) {
+    return (
+      <Form {...form}>
+        <form onSubmit={submit} className="space-y-5">
+          <RevisionDraftFields control={control} getValues={form.getValues} standard={standard} record={record} />
+          {form.formState.errors.root?.message ? (
+            <p className="text-destructive text-sm">{form.formState.errors.root.message}</p>
+          ) : null}
+          {footer}
+        </form>
+      </Form>
+    );
+  }
+
   if (locked) {
     return (
       <Form {...form}>
@@ -125,7 +146,7 @@ export function StandardProfileForm({ standard, onCancel, onSaved }: {
           <TextField control={control} name="code" label="Mã bộ" rule="CODE" rules={{ required: "Nhập mã bộ" }} />
           <RefField control={control} name="educationLevel" resource="education_levels" label="Cấp học"
             current={record?.educationLevel ?? standard.educationLevel} required />
-          <TextField control={control} name="standardVersion" label="Phiên bản" placeholder="2021, sửa đổi 2023"
+          <TextField control={control} name="standardVersion" label="Phiên bản" placeholder="TT 37/2021 + 26/2023"
             rule="SHORT_TEXT" max={50} rules={{ required: "Nhập phiên bản" }} />
           <RefField control={control} name="previousStandard" resource="equipment_standards" label="Thay thế bộ"
             current={record?.previousStandard ?? standard.previousStandard} />

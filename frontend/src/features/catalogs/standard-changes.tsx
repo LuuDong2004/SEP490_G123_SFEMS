@@ -11,6 +11,8 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 export type StandardChange = {
   kind: "ADDED" | "CHANGED" | "REMOVED";
   subjectName: string | null;
+  /** Dòng của bộ này (Mới / Đổi) hoặc dòng của bộ trước (Bỏ). */
+  normId: number | null;
   name: string;
   topic: string | null;
   fields: string | null;
@@ -43,7 +45,7 @@ export function useStandardChanges(standardId: number | null | undefined, enable
     changed: rows.filter((r) => r.kind === "CHANGED").length,
     removed: rows.filter((r) => r.kind === "REMOVED").length,
   }), [rows]);
-  return { rows, counts, loading: query.isLoading };
+  return { rows, counts, loading: query.isLoading, refetch: query.refetch };
 }
 
 /** "Mới 3 · Đổi 12 · Bỏ 1" — bỏ phần bằng 0. */
