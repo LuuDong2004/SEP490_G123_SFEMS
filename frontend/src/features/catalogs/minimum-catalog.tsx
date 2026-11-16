@@ -508,12 +508,11 @@ export function MinimumCatalog() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible">
-                <Table className="min-w-[80rem] table-fixed">
+                <Table className="min-w-[72rem] table-fixed">
                   <TableHeader sticky>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-12 text-center">STT</TableHead>
                       <TableHead className="w-28">Môn</TableHead>
-                      <TableHead className="w-48">Chủ đề</TableHead>
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
                       {/* Định mức tách 4 cột: cần có (số + ĐVT) cho mỗi (số đối tượng + đối tượng) — "1 Bộ / 1 giáo viên". */}
@@ -889,7 +888,7 @@ type RowContext = {
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
-const EDITABLE_COLS = 13;
+const EDITABLE_COLS = 12;
 
 const PER_LABEL: Record<string, string> = {
   per_class: "lớp",
@@ -952,10 +951,6 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground")}>
       <TableCell className={cn("text-muted-foreground text-center tabular-nums", kind && KIND_BAR[kind])}>{index}</TableCell>
       <TableCell className="truncate" title={row.subject?.name ?? undefined}>{row.subject?.name ?? muted}</TableCell>
-      <TableCell className="text-muted-foreground whitespace-normal">
-        {/* Chủ đề dài: tối đa 2 dòng, rê chuột xem đủ — hàng không cao vọt. */}
-        <span className="line-clamp-2" title={topicOf(row) ?? undefined}>{topicOf(row) ?? "—"}</span>
-      </TableCell>
       <TableCell className="whitespace-normal">
         <div className={cn("font-medium", removed && "line-through")}>
           {row.name}
