@@ -61,5 +61,7 @@ public record EquipmentNormPatchRequest(
         Boolean forTeacher,
         Boolean forStudent,
         Boolean optional,
-        IdRef sourceDocument) implements CatalogInput {
+        IdRef sourceDocument,
+        /** Văn bản căn cứ của lần sửa — bắt buộc với bộ đang áp dụng. */
+        IdRef legalDocument) implements CatalogInput {
 }

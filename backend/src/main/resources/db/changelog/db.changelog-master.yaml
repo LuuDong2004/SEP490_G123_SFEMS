@@ -486,3 +486,13 @@ databaseChangeLog:
       file: db/changelog/changes/263-standard-revision.sql
   - include:
       file: db/changelog/changes/264-standard-version-circulars.sql
+  - include:
+      file: db/changelog/changes/265-legal-documents.sql
+  - include:
+      file: db/changelog/changes/266-planned-unit-price.sql
+  - include:
+      file: db/changelog/changes/267-norm-effective-dates.sql
+  - include:
+      file: db/changelog/changes/268-norm-effective-main-date.sql
+  - include:
+      file: db/changelog/changes/269-norm-basis-by-circular.sql

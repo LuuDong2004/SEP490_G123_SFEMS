@@ -24,6 +24,7 @@ import {
 import { dateRules, maxLengthOf, mergeRules, textRules, type TextRule } from "@/shared/lib/field-rules";
 import { CODE_RULE_EXTRA } from "@/features/catalogs/code-rule-extra";
 import { NORM_EXTRA } from "@/features/catalogs/norm-extra";
+import { LEGAL_DOCUMENT_EXTRA } from "@/features/catalogs/legal-document-extra";
 import { EQUIPMENT_CATALOG_EXTRA } from "@/features/catalogs/equipment-catalog-extra";
 import { CONFIG_EXTRA } from "@/features/catalogs/config-extra";
 import { STANDARD_EXTRA } from "@/features/catalogs/standard-extra";
@@ -151,6 +152,7 @@ type SubjectLevelRow = {
 };
 
 export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
+  legal_documents: LEGAL_DOCUMENT_EXTRA,
   code_rules: CODE_RULE_EXTRA,
   equipment_standards: STANDARD_EXTRA,
   equipment_norms: NORM_EXTRA,

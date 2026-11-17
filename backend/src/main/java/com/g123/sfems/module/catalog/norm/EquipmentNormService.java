@@ -1,5 +1,14 @@
 package com.g123.sfems.module.catalog.norm;
 
+import com.g123.sfems.domain.catalog.standard.DocumentRole;
+import com.g123.sfems.domain.catalog.legaldocument.LegalDocument;
+import com.g123.sfems.module.catalog.legaldocument.LegalDocumentService;
+import java.util.Collection;
+import java.util.Map;
+import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
+import java.time.LocalDate;
 import com.g123.sfems.module.organization.school.service.CallerSchoolLevel;
 
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
@@ -62,6 +71,10 @@ public class EquipmentNormService
     private final UnitService units;
     private final EquipmentNormRepository normRepository;
     private final CallerSchoolLevel callerLevel;
+    private final LegalDocumentService legalDocuments;
+
+    private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public EquipmentNormService(
             EquipmentNormRepository repository,
@@ -73,7 +86,8 @@ public class EquipmentNormService
             GradeService grades,
             RoomTypeService roomTypes,
             UnitService units,
-            CallerSchoolLevel callerLevel) {
+            CallerSchoolLevel callerLevel,
+            LegalDocumentService legalDocuments) {
         super(repository, rowLevel, EquipmentNorm.class, EquipmentNorm::new, "Định mức");
         this.standards = standards;
         this.catalogs = catalogs;
@@ -84,6 +98,7 @@ public class EquipmentNormService
         this.units = units;
         this.normRepository = repository;
         this.callerLevel = callerLevel;
+        this.legalDocuments = legalDocuments;
     }
 
     /** Số dòng của mỗi môn, theo đúng bộ lọc của danh sách — đầu nhóm của màn danh mục tối thiểu. */
@@ -241,12 +256,66 @@ public class EquipmentNormService
         item.setForStudent(Boolean.TRUE.equals(request.forStudent()));
         item.setOptional(Boolean.TRUE.equals(request.optional()));
         item.setSourceDocument(documentOf(item.getStandard(), request.sourceDocument()));
+        if (item.getEffectiveFrom() == null) {
+            item.setEffectiveFrom(LocalDate.now(VN));
+        }
         inheritFromCatalog(item);
+        applyBasis(item, request.legalDocument());
+        // Danh mục tối thiểu là cấp cao nhất: dòng mới tự có thiết bị chuẩn (cùng cấp + môn + tên thì dùng lại), mã tự cấp.
+        if (item.getCatalog() == null && item.getStandard().getStatus() == StandardStatus.ACTIVE
+                && item.getStandard().getEducationLevel() != null) {
+            item.setCatalog(catalogs.ensureForStandard(item.getStandard().getEducationLevel(), item.getSubject(),
+                    item.getName(), item.getEquipmentType(), item.getUnit(), item.getDescription(), item.isForTeacher(),
+                    item.isForStudent(), legalBasisOf(item.getStandard())));
+            inheritFromCatalog(item);
+        }
+    }
+
+    /** Sửa một dòng là sửa luôn thiết bị chuẩn của nó, và tên của các dòng khác cùng thiết bị (định mức theo lớp). */
+    @Override
+    @Transactional
+    public EquipmentNorm update(Long id, EquipmentNormPatchRequest request) {
+        EquipmentNorm item = super.update(id, request);
+        EquipmentCatalog catalog = item.getCatalog();
+        if (catalog != null && catalog.getOwnerSchool() == null) {
+            catalogs.syncFromStandard(catalog, item.getName(), item.getSubject(), item.getEquipmentType(), item.getUnit(),
+                    item.getDescription(), item.isForTeacher(), item.isForStudent());
+            entityManager().createQuery(
+                    "UPDATE EquipmentNorm n SET n.name = :name WHERE n.catalog = :c AND n.id <> :id")
+                    .setParameter("name", item.getName()).setParameter("c", catalog).setParameter("id", item.getId())
+                    .executeUpdate();
+        }
+        return item;
+    }
+
+    /** Xoá dòng cuối cùng của một thiết bị chuẩn thì thiết bị cũng rời danh mục (xoá hẳn nếu chưa nơi nào dùng). */
+    @Override
+    @Transactional
+    public EquipmentNorm delete(Long id) {
+        EquipmentNorm item = super.delete(id);
+        EquipmentCatalog catalog = item.getCatalog();
+        if (catalog != null) {
+            entityManager().flush();
+            Long left = entityManager().createQuery(
+                    "SELECT count(n) FROM EquipmentNorm n WHERE n.catalog = :c", Long.class)
+                    .setParameter("c", catalog).getSingleResult();
+            if (left == 0) {
+                catalogs.releaseFromStandard(catalog.getId());
+            }
+        }
+        return item;
+    }
+
+    /** Căn cứ ghi trên thiết bị chuẩn mới: số hiệu các văn bản của bộ. */
+    private static String legalBasisOf(EquipmentStandard standard) {
+        return standard.getDocuments().stream().map(EquipmentStandardDocument::getDocumentNo)
+                .filter(no -> no != null && !no.isBlank()).collect(java.util.stream.Collectors.joining(", "));
     }
 
     @Override
     protected void applyUpdate(EquipmentNorm item, EquipmentNormPatchRequest request) {
         requireDraft(item.getStandard());
+        applyBasis(item, request.legalDocument());
         if (request.standard() != null && request.standard().id() != null) {
             item.setStandard(standards.get(request.standard().id()));
             requireDraft(item.getStandard());
@@ -330,7 +399,7 @@ public class EquipmentNormService
     }
 
     /**
-     * Lọc: {@code standard.id}, {@code catalog.id}, {@code equipmentType.id}, {@code subject.id};
+     * Lọc: {@code standard.id}, {@code catalog.id}, {@code equipmentType.id}, {@code subject.id}, {@code sourceDocument.id};
      * {@code gradeLevel=7} — dòng dùng cho lớp 7 (kể cả dòng không ghi lớp, tức mọi lớp);
      * {@code target=teacher|student} — đối tượng sử dụng; {@code normBasis=PER_CLASS}…
      */
@@ -341,7 +410,9 @@ public class EquipmentNormService
                 CatalogSpecifications.referenceFilter(params, "standard"),
                 CatalogSpecifications.referenceFilter(params, "catalog"),
                 CatalogSpecifications.referenceFilter(params, "equipmentType"),
-                CatalogSpecifications.referenceFilter(params, "subject")));
+                CatalogSpecifications.referenceFilter(params, "subject"),
+                // Lọc theo căn cứ (thông tư của dòng) — trưởng nhóm 17/11/2026.
+                CatalogSpecifications.referenceFilter(params, "sourceDocument")));
         for (ListParams.Criterion c : params.filters()) {
             if (c.value() == null || c.value().isBlank()) {
                 continue;
@@ -372,11 +443,49 @@ public class EquipmentNormService
                         root.get("standard").get("status").as(String.class), c.value().toUpperCase()));
                 case "normBasis" -> specs.add((root, q, cb) -> cb.equal(root.get("normBasis").as(String.class),
                         c.value().toUpperCase()));
+                case "at", "upcoming" -> {
+                }
                 default -> {
                 }
             }
         }
+        specs.add(dateScope(params));
         return Specification.allOf(specs);
+    }
+
+    /**
+     * {@code at=YYYY-MM-DD}: dòng áp dụng vào ngày đó; thêm {@code upcoming=true} thì kèm dòng bắt đầu SAU ngày đó (thay
+     * đổi sắp áp dụng). Không có {@code at} mà lọc {@code standardStatus=ACTIVE} thì là hôm nay. Bộ nháp không lọc ngày.
+     */
+    private static Specification<EquipmentNorm> dateScope(ListParams params) {
+        String at = null;
+        boolean upcoming = false;
+        boolean activeOnly = false;
+        for (ListParams.Criterion c : params.filters()) {
+            if (c.field().equals("at")) {
+                at = c.value();
+            } else if (c.field().equals("upcoming")) {
+                upcoming = "true".equalsIgnoreCase(c.value());
+            } else if (c.field().equals("standardStatus")) {
+                activeOnly = "ACTIVE".equalsIgnoreCase(c.value());
+            }
+        }
+        if (at == null && !activeOnly) {
+            return Specification.unrestricted();
+        }
+        LocalDate day;
+        try {
+            day = at == null || at.isBlank() ? LocalDate.now(VN) : LocalDate.parse(at);
+        } catch (DateTimeParseException e) {
+            throw new FieldValidationException("at", "Ngày xem không hợp lệ");
+        }
+        boolean future = upcoming;
+        return (root, q, cb) -> {
+            // Ngày áp dụng chỉ để biết (danh sách phẳng): chỉ dòng đã thôi áp dụng bị loại.
+            var on = cb.or(cb.isNull(root.get("effectiveTo")), cb.greaterThan(root.get("effectiveTo"), day));
+            var draft = cb.equal(root.get("standard").get("status"), StandardStatus.DRAFT);
+            return future ? cb.or(draft, on, cb.greaterThan(root.get("effectiveFrom"), day)) : cb.or(draft, on);
+        };
     }
 
     /** Loại, môn, đơn vị để trống thì theo thiết bị đã chọn — một thiết bị chỉ khai một lần. */
@@ -396,9 +505,68 @@ public class EquipmentNormService
         }
     }
 
+    /** Danh sách phẳng (trưởng nhóm 17/11/2026): bộ đang áp dụng xoá trực tiếp, kèm văn bản căn cứ ({@link #remove}). */
     @Override
     protected void beforeDelete(EquipmentNorm item) {
         requireDraft(item.getStandard());
+        if (item.getStandard().getStatus() == StandardStatus.ACTIVE && item.getEndDocument() == null) {
+            throw new FieldValidationException("legalDocument", "Chọn văn bản căn cứ của lần xoá");
+        }
+    }
+
+    /**
+     * Xoá khỏi danh mục theo văn bản căn cứ: ghi văn bản (và ngày hiệu lực của nó) lên dòng trước — nhật ký giữ lại
+     * "xoá theo văn bản nào" — rồi xoá.
+     */
+    @Transactional
+    public EquipmentNorm remove(Long id, IdRef legalRef) {
+        EquipmentNorm item = getWritable(id);
+        if (legalRef == null || legalRef.id() == null) {
+            throw new FieldValidationException("legalDocument", "Chọn văn bản căn cứ của lần xoá");
+        }
+        LegalDocument legal = legalDocuments.get(legalRef.id());
+        item.setEndDocument(standardDocumentFor(item.getStandard(), legal));
+        item.setEffectiveTo(legal.getEffectiveFrom().isAfter(item.getEffectiveFrom())
+                ? legal.getEffectiveFrom() : null);
+        entityManager().flush();
+        return delete(id);
+    }
+
+    /**
+     * Thêm / sửa ở bộ đang áp dụng phải có văn bản căn cứ (danh mục Văn bản quy định): văn bản thành căn cứ của dòng,
+     * ngày hiệu lực của văn bản thành ngày áp dụng của dòng. Bộ nháp (nhập phụ lục) không bắt.
+     */
+    private void applyBasis(EquipmentNorm item, IdRef legalRef) {
+        if (item.getStandard() == null || item.getStandard().getStatus() != StandardStatus.ACTIVE) {
+            return;
+        }
+        if (legalRef == null || legalRef.id() == null) {
+            throw new FieldValidationException("legalDocument", "Chọn văn bản căn cứ");
+        }
+        LegalDocument legal = legalDocuments.get(legalRef.id());
+        item.setSourceDocument(standardDocumentFor(item.getStandard(), legal));
+        item.setEffectiveFrom(legal.getEffectiveFrom());
+    }
+
+    /** Văn bản trong căn cứ của bộ, khớp số hiệu với văn bản đã chọn; chưa có thì thêm vào (vai trò sửa đổi). */
+    private EquipmentStandardDocument standardDocumentFor(EquipmentStandard standard, LegalDocument legal) {
+        for (EquipmentStandardDocument d : standard.getDocuments()) {
+            if (d.getDocumentNo() != null && d.getDocumentNo().trim().equalsIgnoreCase(legal.getCode().trim())) {
+                return d;
+            }
+        }
+        EquipmentStandardDocument d = new EquipmentStandardDocument(standard);
+        d.setDocumentRole(standard.getDocuments().isEmpty() ? DocumentRole.MAIN : DocumentRole.AMENDMENT);
+        d.setDocumentNo(legal.getCode());
+        d.setDocumentName(legal.getName());
+        d.setIssuingAuthority(legal.getIssuer());
+        d.setIssueDate(legal.getIssuedOn());
+        d.setEffectiveDate(legal.getEffectiveFrom());
+        d.setSortOrder(standard.getDocuments().stream().map(EquipmentStandardDocument::getSortOrder)
+                .filter(java.util.Objects::nonNull).max(Integer::compareTo).orElse(0) + 1);
+        standard.getDocuments().add(d);
+        entityManager().persist(d);
+        return d;
     }
 
     /** Mã dòng chỉ cần duy nhất TRONG một bộ: bộ mới chép nguyên mã của bộ cũ. */
@@ -419,6 +587,10 @@ public class EquipmentNormService
      * bản mới (`POST /equipment_standards/{id}/revise`), sửa trong bản nháp rồi áp dụng.
      */
     private static void requireDraft(EquipmentStandard standard) {
+        // Danh sách phẳng: bộ đang áp dụng thêm / sửa / xoá trực tiếp (không còn bản nháp); bộ đã hết hiệu lực chỉ xem.
+        if (standard != null && standard.getStatus() == StandardStatus.ACTIVE) {
+            return;
+        }
         if (standard != null && standard.getStatus() != StandardStatus.DRAFT) {
             throw new FieldValidationException("standard", standard.getStatus() == StandardStatus.ACTIVE
                     ? "Bộ đang áp dụng theo văn bản căn cứ — muốn thay đổi thiết bị, lập bộ mới theo văn bản mới."

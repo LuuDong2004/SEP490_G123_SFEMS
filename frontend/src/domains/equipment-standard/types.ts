@@ -56,6 +56,16 @@ export type EquipmentNorm = {
   /** Nhóm tự chọn (phương án thay thế, môn thể thao tự chọn) — không vào đủ / thiếu. */
   optional: boolean;
   sourceDocument: { id: number; documentNo: string; documentName: string | null } | null;
+  /** Áp dụng từ ngày (changelog 267). */
+  effectiveFrom: string;
+  /** Thôi áp dụng từ ngày (không tính ngày này); null = còn áp dụng. */
+  effectiveTo: string | null;
+  /** Dòng mà dòng này thay. */
+  replacesId: number | null;
+  /** Dòng thay dòng này (có thì "Đổi từ …", không thì "Bỏ từ …"). */
+  replacedById: number | null;
+  /** Văn bản căn cứ của lần bỏ / thay. */
+  endDocument: { id: number; documentNo: string; documentName: string | null } | null;
   createdAt: string;
   updatedAt: string | null;
 };

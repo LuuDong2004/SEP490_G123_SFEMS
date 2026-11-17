@@ -11,6 +11,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.bind.annotation.PathVariable;
+import com.g123.sfems.module.system.datachange.DataChangeResponse;
+import com.g123.sfems.module.system.datachange.DataChangeService;
+import com.g123.sfems.module.catalog.base.dto.IdRef;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -40,13 +45,15 @@ public class EquipmentNormController extends CatalogController<
     private final EquipmentNormService norms;
     private final EquipmentNormExcel excel;
     private final EquipmentNormDocumentImport documents;
+    private final DataChangeService dataChanges;
 
     public EquipmentNormController(EquipmentNormService service, RowLevelSecurity rowLevel, EquipmentNormExcel excel,
-            EquipmentNormDocumentImport documents) {
+            EquipmentNormDocumentImport documents, DataChangeService dataChanges) {
         super(service, rowLevel);
         this.norms = service;
         this.excel = excel;
         this.documents = documents;
+        this.dataChanges = dataChanges;
     }
 
     /**
@@ -133,6 +140,24 @@ public class EquipmentNormController extends CatalogController<
     @PreAuthorize("hasAuthority(#root.this.authority('write'))")
     public Map<String, Integer> batch(@Valid @RequestBody EquipmentNormBatchRequest body) {
         return Map.of("updated", norms.updateAll(body.items()));
+    }
+
+    /** {@code POST /api/equipment_norms/{id}/remove} {@code {"legalDocument": {"id": …}}} — xoá khỏi danh mục theo văn bản. */
+    @PostMapping("/{id}/remove")
+    @PreAuthorize("hasAuthority(#root.this.authority('delete'))")
+    public Object remove(@PathVariable Long id, @Valid @RequestBody RemoveRequest body) {
+        return EquipmentNormResponse.from(norms.remove(id, body.legalDocument()), null);
+    }
+
+    /** Văn bản căn cứ của lần xoá. */
+    public record RemoveRequest(IdRef legalDocument) {
+    }
+
+    /** {@code GET /api/equipment_norms/{id}/changes} — nhật ký của một dòng (thêm / sửa từng trường / xoá), mới trước. */
+    @GetMapping("/{id}/changes")
+    @PreAuthorize("hasAuthority(#root.this.authority('read'))")
+    public List<DataChangeResponse> changes(@PathVariable Long id) {
+        return dataChanges.ofRecord("equipment_norms", id);
     }
 
     /** {@code GET /api/equipment_norms/topics?standard.id=…} — các lựa chọn của ô lọc Chủ đề. */

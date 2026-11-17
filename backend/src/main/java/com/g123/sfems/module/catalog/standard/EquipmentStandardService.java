@@ -526,15 +526,17 @@ public class EquipmentStandardService extends CatalogService<
                 INSERT INTO equipment_norms (code, name, sort_order, active, note, standard_id, equipment_type_id,
                     subject_id, grade_id, room_type_id, min_quantity, unit_id, norm_basis, source_document_id,
                     created_at, catalog_id, basis_size, quantity_text, unit_text, grade_levels, item_no,
-                    section_name, topic, purpose, description, for_teacher, for_student, optional)
+                    section_name, topic, purpose, description, for_teacher, for_student, optional, effective_from)
                 SELECT n.code, n.name, n.sort_order, n.active, n.note, :draft, n.equipment_type_id,
                     n.subject_id, n.grade_id, n.room_type_id, n.min_quantity, n.unit_id, n.norm_basis,
                     (SELECT nd.id FROM equipment_standard_documents od
                      JOIN equipment_standard_documents nd ON nd.standard_id = :draft AND nd.document_no = od.document_no
                      WHERE od.id = n.source_document_id LIMIT 1),
                     now(), n.catalog_id, n.basis_size, n.quantity_text, n.unit_text, n.grade_levels, n.item_no,
-                    n.section_name, n.topic, n.purpose, n.description, n.for_teacher, n.for_student, n.optional
-                FROM equipment_norms n WHERE n.standard_id = :source""")
+                    n.section_name, n.topic, n.purpose, n.description, n.for_teacher, n.for_student, n.optional,
+                    n.effective_from
+                FROM equipment_norms n WHERE n.standard_id = :source
+                  AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE)""")
                 .setParameter("draft", draft.getId())
                 .setParameter("source", source.getId())
                 .executeUpdate();
@@ -653,7 +655,8 @@ public class EquipmentStandardService extends CatalogService<
         entityManager().createNativeQuery("""
                 UPDATE equipment_catalogs c SET minimum_required = EXISTS (
                     SELECT 1 FROM equipment_norms n JOIN equipment_standards s ON s.id = n.standard_id
-                    WHERE n.catalog_id = c.id AND n.active AND s.status = 'ACTIVE')
+                    WHERE n.catalog_id = c.id AND n.active AND s.status = 'ACTIVE'
+                      AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE))
                 WHERE c.owner_school_id IS NULL""").executeUpdate();
         if (diff != null) {
             EquipmentStandardDocument revision = revisionDocument(draft);

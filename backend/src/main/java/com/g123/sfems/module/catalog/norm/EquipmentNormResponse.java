@@ -8,6 +8,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 
 /** Hình dạng trên đường truyền của một dòng danh mục tối thiểu. */
@@ -40,6 +41,11 @@ public record EquipmentNormResponse(
         boolean forStudent,
         boolean optional,
         DocumentSummary sourceDocument,
+        LocalDate effectiveFrom,
+        LocalDate effectiveTo,
+        Long replacesId,
+        Long replacedById,
+        DocumentSummary endDocument,
         Instant createdAt,
         Instant updatedAt,
         @JsonProperty("_can") Map<String, Boolean> can) {
@@ -78,6 +84,11 @@ public record EquipmentNormResponse(
                 item.isForStudent(),
                 item.isOptional(),
                 DocumentSummary.of(item.getSourceDocument()),
+                item.getEffectiveFrom(),
+                item.getEffectiveTo(),
+                item.getReplaces() == null ? null : item.getReplaces().getId(),
+                item.getReplacedById(),
+                DocumentSummary.of(item.getEndDocument()),
                 item.getCreatedAt(), item.getUpdatedAt(),
                 rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }

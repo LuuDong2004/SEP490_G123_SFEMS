@@ -290,7 +290,6 @@ const TAB_SHORT: Record<string, string> = {
   equipment_configs: "Thông số kỹ thuật",
   equipment_standards: "Danh mục tối thiểu",
   equipment_norms: "Định mức",
-  norm_matrix: "Số lượng tối thiểu",
   acquisition_methods: "Hình thức mua",
   movement_reasons: "Lý do biến động",
   room_types: "Loại CSVC",

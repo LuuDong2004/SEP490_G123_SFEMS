@@ -118,7 +118,7 @@ public class AttachmentController {
         Set<String> allowed = rules.allowedExtensions() != null ? rules.allowedExtensions() : ALLOWED_EXTENSIONS;
         if (!allowed.contains(extension) || !ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FieldValidationException("file", rules.allowedExtensions() != null
-                    ? "Chỉ nhận ảnh " + String.join(", ", allowed.stream().sorted().map(e -> e.toUpperCase(Locale.ROOT)).toList())
+                    ? "Chỉ nhận tệp " + String.join(", ", allowed.stream().sorted().map(e -> e.toUpperCase(Locale.ROOT)).toList())
                     : "Chỉ nhận PDF, ảnh, tài liệu văn phòng, CSV, ZIP hoặc XML hoá đơn điện tử");
         }
         // Đuôi do người gửi đặt; nội dung thì không giả được bằng cách đổi tên.

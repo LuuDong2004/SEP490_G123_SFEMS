@@ -397,6 +397,15 @@
       "show": "Chi tiết năm học"
     }
   },
+  "legal_documents": {
+    "legal_documents": "Văn bản căn cứ",
+    "titles": {
+      "list": "Văn bản căn cứ",
+      "create": "Thêm văn bản căn cứ",
+      "edit": "Sửa văn bản căn cứ",
+      "show": "Chi tiết văn bản căn cứ"
+    }
+  },
   "movement_reasons": {
     "movement_reasons": "Lý do biến động",
     "titles": {

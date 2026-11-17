@@ -18,7 +18,7 @@ import {
 import { CATALOGS } from "@/app/resources";
 import { ENUM_CATALOGS } from "@/features/catalogs";
 
-import { EnumCatalogList, NormMatrix } from "@/features/catalogs";
+import { EnumCatalogList } from "@/features/catalogs";
 import {
   EquipmentLookup,
   EquipmentAdequacy,
@@ -402,6 +402,8 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
             </CanAccess>
           }
         />
+        {/* "Số lượng tối thiểu" đã gộp vào Danh mục thiết bị tối thiểu (trưởng nhóm 17/11/2026) — địa chỉ cũ chuyển sang đó. */}
+        <Route path="/norm-matrix" element={<Navigate to="/equipment-standards" replace />} />
         <Route
           path="/equipment-lookup"
           element={
@@ -423,14 +425,6 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
           element={
             <CanAccess resource="data_imports" action="show" fallback={<Forbidden resource="data_imports" />}>
               <DataImportBatch />
-            </CanAccess>
-          }
-        />
-        <Route
-          path="/norm-matrix"
-          element={
-            <CanAccess resource="norm_matrix" action="list" fallback={<Forbidden resource="equipment_norms" />}>
-              <NormMatrix />
             </CanAccess>
           }
         />

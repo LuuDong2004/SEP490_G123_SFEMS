@@ -1,9 +1,10 @@
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
-import { BookOpen, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, Upload, ChevronRight, ChevronsLeft, ChevronsRight, CopyPlus, Ellipsis, ExternalLink, FileText, Pencil, Plus, Printer, Search, ShieldCheck, Trash2, FunnelX, CalendarRange, History, Undo2 } from "lucide-react";
+import { BookOpen, Check, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, FileText, Pencil, Plus, Printer, Search, Trash2, FunnelX, History, Undo2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
-import { useFormContext, useWatch, type Control } from "react-hook-form";
-import { useNavigate } from "react-router";
+import { useFormState, useWatch, type Control } from "react-hook-form";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { API_URL } from "@/shared/api/constants";
 import { FillBox } from "@/shared/components/layout/fill-box";
@@ -11,45 +12,31 @@ import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
 import { errorMessage } from "@/shared/lib/api-error";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { cn } from "@/shared/lib/utils";
-import { formatDateTime, formatPlainDate } from "@/shared/lib/format";
+import { formatPlainDate } from "@/shared/lib/format";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { FormDialog, type FormDialogState } from "@/shared/components/catalog/form-dialog";
-import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
-import { FormSection } from "@/shared/components/form/form-section";
-import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { PrintSheet } from "@/shared/components/print/print-sheet";
 import { SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
-import { AlertDialog } from "@/shared/ui/alert-dialog";
-import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Badge } from "@/shared/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
+import { FormControl, FormField, FormItem, FormLabel } from "@/shared/ui/form";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Sheet, SheetClose, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/shared/ui/sheet";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { Segmented } from "@/shared/components/segmented";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import {
-  DOCUMENT_ROLE_LABELS,
-  REVISION_KIND_LABELS,
   LEVEL_GRADES,
   NORM_BASIS_LABELS,
   gradesLabel,
@@ -60,10 +47,11 @@ import {
 import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 
 import { EquipmentCatalogDetail } from "./equipment-catalog-profile";
-import { useLevelParam } from "./level-picker";
-import { ReviseDialog, type ReviseTarget } from "./revise-dialog";
-import { countsText, StandardChangesButton, useStandardChanges, type StandardChange } from "./standard-changes";
-import { StandardProfileForm } from "./standard-profile-form";
+import { OUTSIDE, useLevelParam } from "./level-picker";
+import { LegalDocDialog, type LegalDocDialogState } from "./legal-doc-dialog";
+import { useLegalEffectiveFrom } from "./legal-doc-picker";
+import { DeleteNormDialog, LegalBasisField, NormChangeLog } from "./norm-audit";
+import { countsText, useStandardChanges, type StandardChange } from "./standard-changes";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
@@ -72,8 +60,6 @@ import { TableEmpty } from "@/shared/components/data-table/table-empty";
 const ALL = "__all__";
 
 type StandardStatus = "DRAFT" | "ACTIVE" | "RETIRED";
-const STATUS_LABEL: Record<StandardStatus, string> = { DRAFT: "Bản nháp", ACTIVE: "Đang áp dụng", RETIRED: "Hết hiệu lực" };
-const STATUS_VARIANT: Record<StandardStatus, "warning" | "success" | "neutral"> = { DRAFT: "warning", ACTIVE: "success", RETIRED: "neutral" };
 
 const NORMS = "equipment_norms";
 
@@ -92,23 +78,27 @@ export function MinimumCatalog() {
   const standards = useMemo(() => standardsResult?.data ?? [], [standardsResult]);
   // Thông tư Sở chọn điều chỉnh khi Lập bộ mới: bộ ĐANG ÁP DỤNG của từng cấp, gọi theo thông tư gốc (TT 37 / 38 / 39).
   // Cấp đang có bản nháp chưa áp dụng thì không chọn được.
-  const reviseTargets = useMemo<ReviseTarget[]>(() => standards
-    .filter((s) => s.status === "ACTIVE")
-    .map((s) => {
-      const main = (s.documents ?? []).find((d: any) => d.documentRole === "main");
-      return {
-        id: s.id,
-        circular: (main?.documentNo ?? s.code).replace(/\/TT-.*$/i, ""),
-        level: s.educationLevel?.name ?? "",
-        version: s.standardVersion ?? null,
-        busy: standards.some((d) => d.status === "DRAFT" && d.previousStandard?.id === s.id),
-      };
-    })
-    .sort((a, b) => a.circular.localeCompare(b.circular, "vi", { numeric: true })), [standards]);
   // Văn bản của MỌI bộ theo id — dòng bị bỏ thuộc bộ trước, căn cứ của nó nằm ở bộ đó.
   const docIndex = useMemo(() => {
     const map = new Map<number, StandardDoc>();
     for (const s of standards) for (const d of (s.documents ?? []) as StandardDoc[]) map.set(d.id, d);
+    return map;
+  }, [standards]);
+  // Căn cứ của một dòng là CHUỖI thông tư (trưởng nhóm 17/11/2026: "từ thông tư + TT bổ sung, không chỉ cái ngọn"):
+  // thông tư gốc của bộ + các thông tư sửa đổi ban hành tới văn bản của dòng. Văn bản hợp nhất (VBHN) chỉ gom nội dung,
+  // không phải căn cứ — dòng ghi theo VBHN thì căn cứ là gốc + mọi sửa đổi trước nó.
+  const chainIndex = useMemo(() => {
+    const map = new Map<number, StandardDoc[]>();
+    for (const s of standards) {
+      const docs = (s.documents ?? []) as StandardDoc[];
+      const legal = docs.filter((d) => /^(main|amendment)$/i.test(d.documentRole))
+        .sort((a, b) => String(a.issueDate ?? "").localeCompare(String(b.issueDate ?? "")));
+      for (const d of docs) {
+        const upTo = String(d.issueDate ?? "9999");
+        const chain = legal.filter((x) => x.id === d.id || String(x.issueDate ?? "") <= upTo);
+        map.set(d.id, chain.length ? chain : [d]);
+      }
+    }
     return map;
   }, [standards]);
   const levels = useMemo(() => {
@@ -119,7 +109,7 @@ export function MinimumCatalog() {
   const [levelId, setLevelId] = usePersistentState<number | null>("tbdh.level", null, "local");
   const [standardId, setStandardId] = usePersistentState<number | null>("tbdh.standard", null, "local");
   const levelOf = (s: any) => s?.educationLevel?.id ?? null;
-  // Cấp học chọn ở menu xổ của TAB (?level=TH|THCS|THPT|outside). Địa chỉ không có cấp thì mở cấp xem lần trước.
+  // Cấp học chọn ở tên bộ trên đầu bảng (LevelSwitch) (?level=TH|THCS|THPT|outside). Địa chỉ không có cấp thì mở cấp xem lần trước.
   const remembered = levels.find((l) => l.id === levelId) ?? levels[0];
   const { outside, level: pickedLevel } = useLevelParam(levels, remembered?.code);
   const currentLevel = pickedLevel ?? remembered;
@@ -129,7 +119,8 @@ export function MinimumCatalog() {
     levelStandards.find((s) => s.status === "ACTIVE") ??
     levelStandards[0];
   const status: StandardStatus = standard?.status ?? "ACTIVE";
-  const editable = status === "DRAFT";
+  // Danh sách phẳng (trưởng nhóm 17/11/2026): bộ đang áp dụng thêm / sửa / xoá trực tiếp, nhật ký ghi lại mọi lần.
+  const editable = status === "ACTIVE";
   const level: string | undefined = standard?.educationLevel?.code;
 
   const [q, setQ] = useState("");
@@ -146,17 +137,22 @@ export function MinimumCatalog() {
     setView("all");
   }, [standard?.id]);
 
+  // Lọc theo căn cứ: thông tư của dòng (gốc / sửa đổi) — trưởng nhóm 17/11/2026.
+  const [basisDoc, setBasisDoc] = useState<string | null>(null);
+  useEffect(() => setBasisDoc(null), [standard?.id]);
   const filters: CrudFilter[] = useMemo(
     () => [
       { field: "standard.id", operator: "eq", value: standard?.id },
       ...(applied ? [{ field: "q", operator: "contains" as const, value: applied }] : []),
       ...(grade !== ALL ? [{ field: "gradeLevel", operator: "eq" as const, value: grade }] : []),
+      ...(basisDoc ? [{ field: "sourceDocument.id", operator: "eq" as const, value: basisDoc }] : []),
     ],
-    [standard?.id, applied, grade],
+    [standard?.id, applied, grade, basisDoc],
   );
   const query: Record<string, string> = { "standard.id": String(standard?.id ?? "") };
   if (applied) query.q = applied;
   if (grade !== ALL) query.gradeLevel = grade;
+  if (basisDoc) query["sourceDocument.id"] = basisDoc;
   const { result: groupsResult, query: groupsQuery } = useCustom<NormSubjectGroup[]>({
     url: `${API_URL}/${NORMS}/groups`,
     method: "get",
@@ -168,7 +164,6 @@ export function MinimumCatalog() {
     () => (Array.isArray(groupsData) ? (groupsData as NormSubjectGroup[]) : []),
     [groupsData],
   );
-  const total = groups.reduce((n, g) => n + g.count, 0);
   const devices = groups.reduce((n, g) => n + (g.catalogs ?? g.count), 0);
   const filtering = !!applied || grade !== ALL;
 
@@ -189,14 +184,13 @@ export function MinimumCatalog() {
   const subjectFilters: CrudFilter[] = subject ? [...filters, { field: "subject.id", operator: "eq", value: subject.subjectId ?? "none" }] : filters;
 
   // Thay đổi của bản nháp so với bộ nó thay — nhãn Mới / Đổi / Bỏ trên từng dòng.
-  const tracksChanges = editable && !!standard?.previousStandard;
+  const tracksChanges = false;
   const changes = useStandardChanges(standard?.id, tracksChanges);
   const changeById = useMemo(() => {
     const map = new Map<number, StandardChange>();
     for (const c of changes.rows) if (c.normId != null) map.set(c.normId, c);
     return map;
   }, [changes.rows]);
-  const changeCount = changes.rows.length;
   const showChanges = tracksChanges && view === "changes";
 
   const mayCreate = useCan({ resource: NORMS, action: "create" }).data?.can ?? false;
@@ -205,31 +199,21 @@ export function MinimumCatalog() {
   const [opened, setOpened] = useState<number | null>(null);
   const [viewingCatalog, setViewingCatalog] = useState<CatalogView | null>(null);
   const [form, setForm] = useState<FormDialogState>({ open: false });
-  const [profile, setProfile] = useState<ProfileMode>(null);
-  const [viewDoc, setViewDoc] = useState<StandardDoc | null>(null);
+  // Bấm số hiệu ở cột Căn cứ: mở hộp XEM của danh mục Văn bản căn cứ (cùng hộp với màn Văn bản căn cứ — có tệp, nút
+  // Hết hiệu lực, Sửa).
+  const { data: legalDocs } = useQuery({
+    queryKey: ["legal_documents", "picker"],
+    queryFn: () => kyInstance.get("legal_documents", { searchParams: { _start: "0", _end: "500" } }).json<{ id: number; code: string }[]>(),
+  });
+  const [legalView, setLegalView] = useState<LegalDocDialogState>(null);
+  const openDoc = (d: StandardDoc) => {
+    const legal = (legalDocs ?? []).find((x) => x.code === d.documentNo);
+    if (legal) setLegalView({ mode: "view", id: legal.id });
+  };
 
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
-  const [lifecycle, setLifecycle] = useState<"revise" | "apply" | "discard" | null>(null);
-  const applyDiff = useStandardChanges(standard?.id, lifecycle === "apply");
-  // Ngày văn bản lần sửa có hiệu lực (đính chính không ghi thì ngày ban hành) — còn ở tương lai thì chưa áp dụng được.
-  const revisionDoc: StandardDoc | undefined = ((standard?.documents ?? []) as StandardDoc[]).find((d) => d.id === standard?.revisionDocumentId);
-  const notInForce = useMemo(() => {
-    const from: string | null = revisionDoc?.effectiveDate ?? revisionDoc?.issueDate ?? null;
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    return from && from > today ? from : null;
-  }, [revisionDoc]);
-  const [busy, setBusy] = useState(false);
   const activeOfLevel = levelStandards.find((s) => s.status === "ACTIVE");
-  const siblingDrafts = useMemo(() => {
-    const docNo = (s: any) => (s.documents ?? []).find((d: any) => d.id === s.revisionDocumentId)?.documentNo;
-    const mine = standard?.status === "DRAFT" ? docNo(standard) : undefined;
-    if (!mine) return [];
-    return standards
-      .filter((s) => s.status === "DRAFT" && s.id !== standard?.id && docNo(s) === mine)
-      .map((s) => s.educationLevel?.name ?? s.code);
-  }, [standards, standard]);
   const docsLine = ((standard?.documents ?? []) as StandardDoc[]).map((d) => d.documentNo).join(", ");
 
   const exportQuery: Record<string, string> = { ...query, ...(subject ? { "subject.id": String(subject.subjectId ?? "none") } : {}) };
@@ -302,37 +286,18 @@ export function MinimumCatalog() {
     }
   };
 
-  const afterLifecycle = () => {
-    invalidate({ resource: "equipment_standards", invalidates: ["list", "detail"] });
-    invalidate({ resource: NORMS, invalidates: ["list"] });
-    invalidate({ resource: "equipment_catalogs", invalidates: ["list"] });
-    setLifecycle(null);
-  };
-  const runLifecycle = async () => {
-    if (!standard || !lifecycle || lifecycle === "revise") return;
-    setBusy(true);
-    try {
-      if (lifecycle === "apply") {
-        await kyInstance.post(`equipment_standards/${standard.id}/apply`);
-        notify?.({ type: "success", message: "Đã áp dụng bộ mới. Bộ cũ hết hiệu lực." });
-      } else {
-        await kyInstance.delete(`equipment_standards/${standard.id}`);
-        setStandardId(activeOfLevel?.id ?? null);
-        notify?.({ type: "success", message: "Đã xoá bộ nháp." });
-      }
-      afterLifecycle();
-    } catch (error) {
-      notify?.({ type: "error", message: await errorMessage(error), description: "Không thực hiện được" });
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const ctx: RowContext = { level, docIndex, status, revisionDocId: standard?.revisionDocumentId ?? null, changeById, onDoc: setViewDoc };
-  const cols = editable ? EDITABLE_COLS : EDITABLE_COLS - 1;
+  const [deleting, setDeleting] = useState<EquipmentNorm | null>(null);
+  const ctx: RowContext = {
+    level, docIndex, chainOf: (id) => (id != null ? chainIndex.get(id) ?? [] : []), status,
+    revisionDocId: standard?.revisionDocumentId ?? null, changeById, onDoc: openDoc,
+    onDelete: setDeleting,
+  };
+  const cols = editable && mayCreate ? EDITABLE_COLS : EDITABLE_COLS - 1;
   const subjectItems = groups.map((g) => ({ key: String(g.subjectId), label: g.subjectName ?? "Chưa gắn môn", count: g.catalogs ?? g.count }));
   const clearFilters = () => {
     setQ("");
+    setBasisDoc(null);
     setGrade(ALL);
     setSubjectKey(null);
   };
@@ -365,7 +330,12 @@ export function MinimumCatalog() {
       <ListViewHeader canCreate={false} title="Danh mục thiết bị dạy học tối thiểu" />
 
       {outside ? (
-        <OutsideCatalog onOpen={(id) => setViewingCatalog({ id })} />
+        <>
+          <div className="mb-3 text-[0.9375rem]">
+            <LevelSwitch levels={levels} current={OUTSIDE} />
+          </div>
+          <OutsideCatalog onOpen={(id) => setViewingCatalog({ id })} />
+        </>
       ) : (
         <>
           {status === "RETIRED" && standard ? (
@@ -373,39 +343,21 @@ export function MinimumCatalog() {
           ) : null}
           <FillBox>
             <div className="bg-card shadow-e1 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
-              {/* Hàng 1: bộ nào, trạng thái, căn cứ — và việc làm được với bộ. */}
+              {/* Hàng 1: bộ nào (bấm tên cấp để đổi cấp — thay cho menu xổ trên tab), trạng thái, căn cứ; việc làm với bộ. */}
               <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2">
                 {standard ? (
-                  <p className="me-auto min-w-0 truncate text-[0.9375rem]">
-                    <span className="font-semibold">{levelName}</span>
-                    {" · "}<span className={cn("font-semibold", STATUS_TEXT[status])}>{STATUS_LABEL[status]}</span>
-                    <span className="text-muted-foreground text-[0.8125rem]">
-                      {" · "}{whoLine(standard, status, notInForce)}
-                      {siblingDrafts.length ? ` · cùng văn bản còn nháp: ${siblingDrafts.join(", ")}` : ""}
-                    </span>
-                  </p>
+                  <div className="me-auto flex min-w-0 items-center gap-1 text-[0.9375rem]">
+                    <LevelSwitch levels={levels} current={currentLevel?.code} />
+                    <span className="text-success-text truncate font-semibold">{" · "}Đang áp dụng</span>
+                    <span className="text-muted-foreground truncate text-[0.8125rem]">{" · "}{basisLine(standard)}</span>
+                  </div>
                 ) : (
                   <Skeleton className="me-auto h-6 w-72" />
                 )}
-                {standard && mayEditStandard && status === "DRAFT" ? (
-                  <>
-                    {mayCreate ? (
-                      <Button variant="outline" size="sm" onClick={() => setForm({ open: true })}>
-                        <Plus />
-                        Thêm
-                      </Button>
-                    ) : null}
-                    <span title={notInForce ? `Văn bản có hiệu lực từ ${formatPlainDate(notInForce)}` : undefined}>
-                      <Button size="sm" disabled={notInForce != null} onClick={() => setLifecycle("apply")}>
-                        <ShieldCheck />
-                        Áp dụng
-                      </Button>
-                    </span>
-                  </>
-                ) : standard && mayEditStandard && status === "ACTIVE" ? (
-                  <Button variant="outline" size="sm" onClick={() => setLifecycle("revise")}>
-                    <CopyPlus />
-                    Lập bộ mới
+                {standard && editable && mayCreate ? (
+                  <Button size="sm" onClick={() => setForm({ open: true })}>
+                    <Plus />
+                    Thêm thiết bị
                   </Button>
                 ) : null}
                 {editable && mayCreate ? (
@@ -422,17 +374,6 @@ export function MinimumCatalog() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem onSelect={() => setProfile("view")}>
-                      <FileText />
-                      Hồ sơ bộ
-                    </DropdownMenuItem>
-                    {editable && mayEditStandard ? (
-                      <DropdownMenuItem onSelect={() => setProfile("edit")}>
-                        <Pencil />
-                        Sửa văn bản căn cứ
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem disabled={transfer !== null} onSelect={() => void exportXlsx()}>
                       <FileSpreadsheet />
                       Xuất Excel (.xlsx)
@@ -441,47 +382,10 @@ export function MinimumCatalog() {
                       <Printer />
                       In / lưu PDF
                     </DropdownMenuItem>
-                    {editable && mayCreate ? (
-                      <DropdownMenuItem disabled={transfer !== null} onSelect={() => importInput.current?.click()}>
-                        <Upload />
-                        Nhập Excel vào bản nháp
-                      </DropdownMenuItem>
-                    ) : null}
-                    {levelStandards.length > 1 ? (
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <History />
-                          Phiên bản của bộ
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className="max-w-[28rem]">
-                          <DropdownMenuRadioGroup value={String(standard?.id ?? "")}
-                            onValueChange={(v) => { setStandardId(Number(v)); setSubjectKey(null); }}>
-                            {levelStandards.map((v) => (
-                              <DropdownMenuRadioItem key={v.id} value={String(v.id)}>
-                                <span className="min-w-0 truncate">{v.standardVersion ?? v.code}</span>
-                                <Badge variant={STATUS_VARIANT[(v.status ?? "ACTIVE") as StandardStatus]} className="ms-auto shrink-0">
-                                  {STATUS_LABEL[(v.status ?? "ACTIVE") as StandardStatus]}
-                                </Badge>
-                              </DropdownMenuRadioItem>
-                            ))}
-                          </DropdownMenuRadioGroup>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                    ) : null}
-                    {editable && mayEditStandard ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={() => setLifecycle("discard")}>
-                          <Trash2 />
-                          Xoá bản nháp
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
-              {/* Hàng 2: tìm, lọc môn / lớp; bản nháp thêm Tất cả / Thay đổi. */}
+              {/* Hàng 2: tìm, lọc môn / lớp / căn cứ. */}
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2.5">
                 <div className="relative min-w-0 max-w-[20rem] grow basis-[12rem]">
                   <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
@@ -492,18 +396,14 @@ export function MinimumCatalog() {
                 <IconFilter labeled icon={<GraduationCap />} label="lớp" allLabel="Mọi lớp"
                   value={grade === ALL ? null : grade} onChange={(v) => setGrade(v ?? ALL)}
                   groups={[{ items: (level ? LEVEL_GRADES[level] ?? [] : []).map((g) => ({ key: String(g), label: `Lớp ${g}` })) }]} />
-                {[q.trim() !== "", grade !== ALL, !allSubjects].filter(Boolean).length >= 2 ? (
+                <IconFilter labeled icon={<FileText />} label="căn cứ" allLabel="Mọi căn cứ"
+                  value={basisDoc} onChange={setBasisDoc}
+                  groups={[{ items: basisDocs(standard).map((d) => ({ key: String(d.id), label: docShort(d.documentNo) })) }]} />
+                {[q.trim() !== "", grade !== ALL, !allSubjects, basisDoc != null].filter(Boolean).length >= 2 ? (
                   <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá lọc" title="Xoá lọc"
                     className="text-muted-foreground hover:text-foreground" onClick={clearFilters}>
                     <FunnelX />
                   </Button>
-                ) : null}
-                {tracksChanges ? (
-                  <Segmented label="Dòng của bản nháp" value={view} onChange={setView}
-                    options={[
-                      { value: "all", label: "Tất cả" },
-                      { value: "changes", label: `Thay đổi · ${changes.loading ? "…" : changeCount}` },
-                    ]} />
                 ) : null}
               </div>
 
@@ -512,6 +412,7 @@ export function MinimumCatalog() {
                   <TableHeader sticky>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-12 text-center">STT</TableHead>
+                      <TableHead className="w-32">Mã thiết bị</TableHead>
                       {/* Tên giữ tối thiểu 18rem: màn hẹp thì bảng cuộn ngang, không bóp tên còn vài chữ một dòng. */}
                       <TableHead className="min-w-[18rem]">Thiết bị</TableHead>
                       {/* Định mức tách 4 cột: cần có (số + ĐVT) cho mỗi (số đối tượng + đối tượng) — "1 Bộ / 1 giáo viên". */}
@@ -520,10 +421,9 @@ export function MinimumCatalog() {
                       <TableHead className="w-28 text-center">Số đối tượng</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
-                      <TableHead className="w-28">Ngày lập</TableHead>
-                      <TableHead className="w-28">Ngày áp dụng</TableHead>
-                      <TableHead className="w-40">Căn cứ</TableHead>
-                      {editable ? <TableHead className="w-12" /> : null}
+                      <TableHead className="w-28">Áp dụng từ</TableHead>
+                      <TableHead className="w-28">Căn cứ</TableHead>
+                      {editable && mayCreate ? <TableHead className="w-12" /> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -562,58 +462,10 @@ export function MinimumCatalog() {
         </>
       )}
 
-      <DocumentDialog doc={viewDoc} onClose={() => setViewDoc(null)} />
-      {standard ? (
-        <StandardProfileDialog standard={standard} rows={filtering ? null : total} devices={devices} subjects={groups.length}
-          canEdit={mayEditStandard && status !== "RETIRED"} mode={profile} onMode={setProfile} />
-      ) : null}
+      <LegalDocDialog state={legalView} onClose={() => setLegalView(null)} />
+      <DeleteNormDialog row={deleting} onClose={() => setDeleting(null)} />
 
-      <ReviseDialog targets={reviseTargets} initialId={standard?.id ?? null} open={lifecycle === "revise"}
-        onOpenChange={(o) => !o && setLifecycle(null)}
-        onCreated={(drafts) => {
-          const here = drafts.find((d) => levelStandards.some((s) => s.id === d.id) || d.educationLevel?.name === currentLevel?.name);
-          if (here) setStandardId(here.id);
-          notify?.({
-            type: "success",
-            message: `Đã lập bản nháp: ${drafts.map((d) => d.educationLevel?.name ?? "").filter(Boolean).join(", ")}. Sửa thiết bị rồi bấm Áp dụng từng bộ.`,
-          });
-          afterLifecycle();
-        }} />
 
-      <AlertDialog open={lifecycle === "apply" || lifecycle === "discard"} onOpenChange={(o) => !o && !busy && setLifecycle(null)}>
-        <ConfirmContent
-          tone={lifecycle === "discard" ? "danger" : lifecycle === "apply" ? "warning" : "neutral"}
-          title={lifecycle === "apply" ? "Áp dụng bộ này?" : "Xoá bản nháp?"}
-          description={
-            <div className="space-y-3">
-              {lifecycle === "apply" ? (
-                <p>
-                  Từ hôm nay, đủ / thiếu của các trường tính theo bộ này.
-                  {activeOfLevel ? (
-                    <> Bộ <span className="text-foreground font-medium">{activeOfLevel.standardVersion ?? activeOfLevel.code}</span> ngừng.</>
-                  ) : null}
-                </p>
-              ) : null}
-              {lifecycle === "apply" && standard?.previousStandard ? (
-                <p>
-                  So với bộ đang áp dụng:{" "}
-                  <span className="text-foreground font-medium">
-                    {applyDiff.loading ? "đang so…" : countsText(applyDiff.counts) || "chưa khác gì"}
-                  </span>
-                  .{standard.revisionKind === "AMENDMENT" ? " Dòng mới và dòng đổi lấy văn bản sửa đổi làm căn cứ." : null}
-                </p>
-              ) : lifecycle === "discard" ? (
-                <p>Bản nháp và mọi thiết bị trong đó bị xoá hẳn. Bộ đang áp dụng không bị ảnh hưởng.</p>
-              ) : null}
-            </div>
-          }
-          cancelLabel={lifecycle === "discard" ? "Không xoá" : "Chưa, để sau"}
-          confirmLabel={lifecycle === "apply" ? "Áp dụng" : "Xoá bản nháp"}
-          busy={busy}
-          keepOpen
-          onConfirm={() => void runLifecycle()}
-        />
-      </AlertDialog>
 
       <NormDrawer id={opened} ctx={ctx} editable={editable && mayEditStandard}
         onClose={() => setOpened(null)}
@@ -642,195 +494,6 @@ export function MinimumCatalog() {
 }
 
 
-/**
- * Các văn bản căn cứ của bộ — vai trò, số hiệu, tên, cơ quan ban hành, ngày ban hành / hiệu lực, liên
- * kết văn bản gốc — và TỆP của từng văn bản (bản PDF thông tư, xem ngay trong trình duyệt). Tệp gắn
- * theo văn bản (`equipment_standard_documents`); thêm / xoá tệp cần quyền sửa bộ tiêu chuẩn.
- */
-function LegalDocuments({ docs }: { docs: any[] }) {
-  const mayWrite = useCan({ resource: "equipment_standards", action: "edit" }).data?.can ?? false;
-  // Bảng: một văn bản một dòng — số hiệu, vai trò, tên, ngày; tệp PDF của văn bản ở cột cuối.
-  return (
-    <div className="bg-card shadow-e1 overflow-hidden rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Số hiệu</TableHead>
-            <TableHead>Vai trò</TableHead>
-            <TableHead>Tên văn bản</TableHead>
-            <TableHead>Ban hành</TableHead>
-            <TableHead>Hiệu lực</TableHead>
-            <TableHead>Tệp</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {!docs.length ? <TableEmpty colSpan={6} compact title="Bộ chưa khai văn bản căn cứ." /> : docs.map((d) => (
-            <TableRow key={d.id}>
-              <TableCell className="font-medium whitespace-nowrap">
-                {d.url ? (
-                  <a href={d.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
-                    {d.documentNo}<ExternalLink className="size-3.5" />
-                  </a>
-                ) : d.documentNo}
-              </TableCell>
-              <TableCell><Badge variant="neutral">{DOCUMENT_ROLE_LABELS[d.documentRole] ?? d.documentRole}</Badge></TableCell>
-              <TableCell className="min-w-[14rem] whitespace-normal">{d.documentName ?? "—"}</TableCell>
-              <TableCell className="tabular-nums">{d.issueDate ? formatPlainDate(d.issueDate) : "—"}</TableCell>
-              <TableCell className="tabular-nums">{d.effectiveDate ? formatPlainDate(d.effectiveDate) : "—"}</TableCell>
-              <TableCell className="min-w-[12rem] whitespace-normal">
-                <AttachmentsPanel resource="equipment_standard_documents" recordId={d.id} canWrite={mayWrite} field compact title="" />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-/** Xem một văn bản căn cứ từ cột Căn cứ: số hiệu, tên, ngày, liên kết gốc và tệp PDF (chỉ xem). */
-function DocumentDialog({ doc, onClose }: { doc: StandardDoc | null; onClose: () => void }) {
-  return (
-    <Dialog open={!!doc} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent size="sm">
-        <DialogHeader>
-          <DialogTitle>{doc?.documentNo}</DialogTitle>
-        </DialogHeader>
-        {doc ? (
-          <div className="grid gap-4">
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <Fact label="Tên văn bản" wide>{doc.documentName}</Fact>
-              <Fact label="Vai trò">{DOCUMENT_ROLE_LABELS[doc.documentRole] ?? doc.documentRole}</Fact>
-              <Fact label="Ban hành">{doc.issueDate ? formatPlainDate(doc.issueDate) : null}</Fact>
-              <Fact label="Hiệu lực">{doc.effectiveDate ? formatPlainDate(doc.effectiveDate) : null}</Fact>
-              {doc.url ? (
-                <Fact label="Văn bản gốc">
-                  <a href={doc.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
-                    Mở<ExternalLink className="size-3.5" />
-                  </a>
-                </Fact>
-              ) : null}
-            </dl>
-            <AttachmentsPanel resource="equipment_standard_documents" recordId={doc.id} canWrite={false} compact title="Tệp văn bản" />
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Một ô "nhãn trên, giá trị dưới" của lưới hồ sơ bộ; `wide` chiếm cả hàng (ghi chú, bộ được thay). */
-function Fact({ label, wide, children }: { label: string; wide?: boolean; children?: ReactNode }) {
-  return (
-    <div className={cn("min-w-0", wide && "col-span-full")}>
-      <dt className="text-muted-foreground text-xs">{label}:</dt>
-      <dd className="mt-0.5 font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
-    </div>
-  );
-}
-
-/** Hộp Hồ sơ bộ: thông tin bộ, con số, văn bản căn cứ kèm tệp; sửa tại chỗ. */
-/** Hộp Hồ sơ bộ: đóng, đang xem, hay đang sửa tại chỗ. */
-type ProfileMode = null | "view" | "edit";
-
-function StandardProfileDialog({ standard, rows, devices, subjects, canEdit, mode, onMode }: {
-  standard: any;
-  rows: number | null;
-  devices: number;
-  subjects: number;
-  /** Có quyền sửa bộ: nút "Sửa" ở chân hộp — chính hộp chuyển sang ô nhập. */
-  canEdit: boolean;
-  /** Màn cha giữ: menu ⋯ mở xem ("Hồ sơ bộ") hoặc mở thẳng chế độ sửa ("Sửa văn bản căn cứ"). */
-  mode: ProfileMode;
-  onMode: (mode: ProfileMode) => void;
-}) {
-  // Sửa mở thẳng từ dải vàng thì Huỷ / Lưu đóng hộp; sửa từ hồ sơ đang xem thì về lại hồ sơ.
-  const [editFromView, setEditFromView] = useState(false);
-  const prevMode = useRef<ProfileMode>(mode);
-  useEffect(() => {
-    if (mode === "edit" && prevMode.current !== "edit") setEditFromView(prevMode.current === "view");
-    prevMode.current = mode;
-  }, [mode]);
-  const leaveEdit = () => onMode(editFromView ? "view" : null);
-  const docs: any[] = standard.documents ?? [];
-  const revisionDoc = docs.find((d) => d.id === standard.revisionDocumentId);
-  const status: StandardStatus = standard.status ?? "ACTIVE";
-  const figures = [
-    { label: "Thiết bị", value: devices },
-    { label: "Dòng phụ lục", value: rows ?? "—" },
-    { label: "Môn / hoạt động", value: subjects },
-    { label: "Văn bản căn cứ", value: docs.length },
-  ];
-  // Hồ sơ bộ trong hộp thoại — cùng khuôn với "Hồ sơ trường": đầu, dải con số, các nhóm nhãn — giá trị.
-  return (
-      <Dialog open={mode !== null} onOpenChange={(o) => onMode(o ? "view" : null)}>
-        <DialogContent size={mode === "edit" && standard.status !== "DRAFT" ? "formFit" : "wideFit"} className="overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex flex-wrap items-center gap-2">
-              {/* Tiêu đề nói việc đang làm: xem hồ sơ thì tên bộ; sửa thì "Sửa bản nháp" / "Năm học áp dụng" kèm cấp. */}
-              {mode === "edit"
-                ? `${standard.status === "DRAFT" ? "Sửa bản nháp" : "Năm học áp dụng"} · ${standard.educationLevel?.name ?? standard.name}`
-                : standard.name}
-              <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
-            </DialogTitle>
-            <DialogDescription className="sr-only">Hồ sơ bộ danh mục tối thiểu</DialogDescription>
-          </DialogHeader>
-          {mode === "edit" && canEdit ? (
-            <StandardProfileForm standard={standard} onCancel={leaveEdit} onSaved={leaveEdit} />
-          ) : (
-          <>
-          <div className="space-y-5">
-            {/* Mỗi thông tin một lần: trạng thái ở tiêu đề; mã, cấp, phiên bản, hiệu lực, con số trong một lưới. */}
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-4">
-              <Fact label="Mã bộ"><span className="font-mono">{standard.code}</span></Fact>
-              <Fact label="Cấp học">{standard.educationLevel?.name}</Fact>
-              <Fact label="Phiên bản">{standard.standardVersion}</Fact>
-              {standard.appliedAt ? <Fact label="Áp dụng từ">{formatDateTime(standard.appliedAt)}</Fact> : null}
-              {standard.retiredAt ? <Fact label="Hết hiệu lực từ">{formatDateTime(standard.retiredAt)}</Fact> : null}
-              <Fact label="Năm học áp dụng">
-                {standard.startSchoolYear || standard.endSchoolYear
-                  ? `${standard.startSchoolYear?.code ?? "…"} → ${standard.endSchoolYear?.code ?? "nay"}` : null}
-              </Fact>
-              {figures.map((f) => (
-                <Fact key={f.label} label={f.label}><span className="text-base font-semibold tabular-nums">{f.value}</span></Fact>
-              ))}
-              {standard.previousStandard ? <Fact label="Thay thế bộ" wide>{standard.previousStandard.name}</Fact> : null}
-              {standard.revisionKind ? (
-                <Fact label="Lần sửa" wide>
-                  {REVISION_KIND_LABELS[standard.revisionKind] ?? standard.revisionKind}
-                  {revisionDoc ? ` theo ${revisionDoc.documentNo}` : ""}
-                  {standard.revisionNote ? ` — ${standard.revisionNote}` : ""}
-                </Fact>
-              ) : null}
-              {standard.note ? <Fact label="Ghi chú" wide>{standard.note}</Fact> : null}
-            </dl>
-
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Văn bản căn cứ</h3>
-              <LegalDocuments docs={docs} />
-            </section>
-          </div>
-          <DialogFooter>
-            <div className="sm:me-auto">
-              <StandardChangesButton standardId={standard.id} hasPrevious={!!standard.previousStandard} />
-            </div>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">Đóng</Button>
-            </DialogClose>
-            {canEdit ? (
-              <Button type="button" onClick={() => onMode("edit")}>
-                {standard.status === "DRAFT" ? <Pencil /> : <CalendarRange />}
-                {standard.status === "DRAFT" ? "Sửa" : "Đặt năm học áp dụng"}
-              </Button>
-            ) : null}
-          </DialogFooter>
-          </>
-          )}
-        </DialogContent>
-      </Dialog>
-  );
-}
-
 /** Số dòng mỗi trang mặc định. */
 const PAGE = 20;
 
@@ -845,45 +508,70 @@ type StandardDoc = {
   url: string | null;
 };
 
-const STATUS_TEXT: Record<StandardStatus, string> = { DRAFT: "text-warning-text", ACTIVE: "text-success-text", RETIRED: "text-muted-foreground" };
 
 /** "37/2021/TT-BGDĐT" → "TT 37/2021"; văn bản khác giữ nguyên số hiệu. */
+/** Thông tư căn cứ của bộ (gốc + sửa đổi, đính chính) theo ngày ban hành — không gồm văn bản hợp nhất. */
+function basisDocs(standard: any): StandardDoc[] {
+  return ((standard?.documents ?? []) as StandardDoc[])
+    .filter((d) => /^(main|amendment|correction)$/i.test(d.documentRole))
+    .sort((a, b) => (a.issueDate ?? "").localeCompare(b.issueDate ?? ""));
+}
+
+const basisLine = (standard: any) => basisDocs(standard).map((d) => docShort(d.documentNo)).join(" + ");
+
+/**
+ * Tên bộ trên đầu bảng, bấm để đổi cấp (Tiểu học / THCS / THPT; "Ngoài danh mục" không nằm ở đây) — trưởng nhóm 17/11/2026: chọn
+ * cấp ở đây, không ở menu xổ trên tab. Ghi `?level=` lên địa chỉ.
+ */
+function LevelSwitch({ levels, current }: { levels: any[]; current?: string }) {
+  const [, setParams] = useSearchParams();
+  const pick = (code: string) => setParams((p) => {
+    const next = new URLSearchParams(p);
+    next.set("level", code);
+    return next;
+  });
+  const name = current === OUTSIDE ? null : levels.find((l) => l.code === current)?.name;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="hover:text-primary inline-flex min-w-0 items-center gap-1 font-semibold">
+          <span className="truncate">{name ? `Bộ danh mục thiết bị tối thiểu cấp ${name}` : "Thiết bị ngoài danh mục tối thiểu"}</span>
+          <ChevronDown className="size-4 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[22rem]">
+        {levels.map((l) => (
+          <DropdownMenuItem key={l.id} onSelect={() => pick(l.code)}>
+            Bộ danh mục thiết bị tối thiểu cấp {l.name}
+            {current === l.code ? <Check className="text-primary ms-auto size-4" /> : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function docShort(no: string | null | undefined): string {
   if (!no) return "—";
   const tt = /^(.+?)\/TT-/i.exec(no);
   return tt ? `TT ${tt[1]}` : no;
 }
 
-/** Dòng phụ đầu khung: căn cứ của bộ và mốc thời gian theo trạng thái. */
-function whoLine(standard: any, status: StandardStatus, notInForce: string | null): string {
-  const docs = ((standard.documents ?? []) as StandardDoc[])
-    .filter((d) => d.documentRole === "main" || d.documentRole === "amendment" || d.documentRole === "correction")
-    .sort((a, b) => (a.issueDate ?? "").localeCompare(b.issueDate ?? ""));
-  const basis = docs.length ? docs.map((d) => docShort(d.documentNo)).join(" + ") : (standard.standardVersion ?? standard.code);
-  const day = (v: string | null | undefined) => (v ? formatPlainDate(v.slice(0, 10)) : null);
-  const parts = [basis];
-  if (status === "DRAFT") {
-    if (standard.createdAt) parts.push(`lập ${day(standard.createdAt)}`);
-    parts.push(notInForce ? `áp dụng được từ ${day(notInForce)}` : "áp dụng được ngay");
-  } else if (status === "ACTIVE") {
-    if (standard.appliedAt) parts.push(`áp dụng từ ${day(standard.appliedAt)}`);
-    else if (standard.startSchoolYear) parts.push(`áp dụng từ năm học ${standard.startSchoolYear.code}`);
-  } else if (standard.retiredAt) {
-    parts.push(`hết hiệu lực từ ${day(standard.retiredAt)}`);
-  }
-  return parts.join(" · ");
-}
 
 /** Phần dùng chung của mọi dòng: cấp học, văn bản theo id, trạng thái bộ, thay đổi của bản nháp. */
 type RowContext = {
   level?: string;
   docIndex: Map<number, StandardDoc>;
+  /** Chuỗi căn cứ của văn bản ghi trên dòng: thông tư gốc + các thông tư sửa đổi tới nó. */
+  chainOf: (docId: number | null | undefined) => StandardDoc[];
   status: StandardStatus;
   /** Văn bản của lần sửa (bản nháp) — dòng theo văn bản này chưa áp dụng. */
   revisionDocId: number | null;
   changeById: Map<number, StandardChange>;
   /** Bấm số hiệu ở cột Căn cứ: mở hộp xem văn bản (thông tin + tệp PDF). */
   onDoc?: (doc: StandardDoc) => void;
+  /** Xoá khỏi danh mục (hỏi lại; nhật ký giữ lần xoá). */
+  onDelete?: (row: EquipmentNorm) => void;
 };
 
 /** Số cột của bảng khi có cột nút Sửa. */
@@ -943,12 +631,12 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
 }) {
   const doc = row.sourceDocument ? ctx.docIndex.get(row.sourceDocument.id) : undefined;
   const removed = kind === "REMOVED";
-  const pending = ctx.status === "DRAFT" && doc != null && doc.id === ctx.revisionDocId;
   const muted = <span className="text-muted-foreground">—</span>;
   return (
     <TableRow onClick={() => onOpen(row.id)}
       className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground")}>
       <TableCell className={cn("text-muted-foreground text-center tabular-nums", kind && KIND_BAR[kind])}>{index}</TableCell>
+      <TableCell className="truncate font-mono text-xs">{row.catalog?.code ?? muted}</TableCell>
       <TableCell className="whitespace-normal">
         <div className={cn("font-medium", removed && "line-through")}>
           {row.name}
@@ -965,13 +653,10 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
-      <TableCell className="text-muted-foreground tabular-nums">{doc?.issueDate ? formatPlainDate(doc.issueDate) : "—"}</TableCell>
-      <TableCell className="tabular-nums">
-        {pending ? <span className="text-muted-foreground">Chưa</span>
-          : (doc?.effectiveDate ?? doc?.issueDate) ? formatPlainDate((doc.effectiveDate ?? doc.issueDate)!) : muted}
-      </TableCell>
+      <TableCell className="tabular-nums">{row.effectiveFrom ? formatPlainDate(row.effectiveFrom) : muted}</TableCell>
       <TableCell className="truncate" onClick={(e) => e.stopPropagation()}>
         {doc ? (
+          // Chỉ thông tư của CHÍNH dòng (gốc, hay thông tư sửa đổi mục này) — chuỗi đầy đủ ở hộp chi tiết của dòng.
           <button type="button" className="text-primary max-w-full truncate hover:underline" title="Xem văn bản"
             onClick={() => ctx.onDoc?.(doc)}>
             {docShort(doc.documentNo)}
@@ -979,14 +664,29 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
         ) : <span className="text-muted-foreground">{docShort(row.sourceDocument?.documentNo)}</span>}
       </TableCell>
       {editable ? (
-        <TableCell className="py-1">
-          {!removed ? (
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Sửa" title="Sửa"
-              className="text-muted-foreground hover:text-primary"
-              onClick={(e) => { e.stopPropagation(); onEdit(row.id); }}>
-              <Pencil />
-            </Button>
-          ) : null}
+        <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Thao tác" title="Thao tác"
+                className="text-muted-foreground hover:text-primary">
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onSelect={() => onEdit(row.id)}>
+                <Pencil />
+                Sửa
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onOpen(row.id)}>
+                <History />
+                Lịch sử thay đổi
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => ctx.onDelete?.(row)}>
+                <Trash2 />
+                Xoá khỏi danh mục
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TableCell>
       ) : null}
     </TableRow>
@@ -1105,7 +805,7 @@ function DrawerRow({ label, children }: { label: string; children: ReactNode }) 
  * Ngăn bên phải của một dòng: cần bao nhiêu, cho ai, lớp nào; đơn vị, thiết bị trong danh mục; mục đích và mô tả (gập);
  * căn cứ — có từ văn bản nào, bản nháp thêm / đổi / bỏ gì. Bản nháp sửa (mở form) hoặc bỏ dòng ngay từ đây.
  */
-function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog, onChanged }: {
+function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog }: {
   id: number | null;
   ctx: RowContext;
   editable: boolean;
@@ -1125,7 +825,12 @@ function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog, onChang
   if (r) {
     const fromRevision = doc != null && doc.id === ctx.revisionDocId && ctx.status === "DRAFT";
     if (doc && !fromRevision) {
-      log.push({ tone: "bg-muted-foreground/40", text: <>Có từ {docShort(doc.documentNo)}</>, sub: <>ban hành {day(doc.issueDate)} · áp dụng từ {day(doc.effectiveDate ?? doc.issueDate)}</> });
+      const [first, ...amends] = ctx.chainOf(doc.id);
+      const root = first ?? doc;
+      log.push({ tone: "bg-muted-foreground/40", text: <>Có từ {docShort(root.documentNo)}</>, sub: <>ban hành {day(root.issueDate)} · áp dụng từ {day(root.effectiveDate ?? root.issueDate)}</> });
+      for (const a of amends) {
+        log.push({ tone: "bg-muted-foreground/40", text: <>Sửa đổi, bổ sung theo {docShort(a.documentNo)}</>, sub: <>ban hành {day(a.issueDate)} · áp dụng từ {day(a.effectiveDate ?? a.issueDate)}</> });
+      }
     }
     const by = revision ? ` theo ${docShort(revision.documentNo)}` : "";
     if (change?.kind === "ADDED") log.push({ tone: "bg-success", text: <>Thêm{by}</>, sub: "chưa áp dụng" });
@@ -1175,6 +880,10 @@ function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog, onChang
                     </button>
                   </DrawerRow>
                 ) : null}
+                {r.quantityText || r.itemNo ? (
+                  <DrawerRow label="Phụ lục ghi">{r.quantityText || "—"}{r.itemNo ? ` · mục ${r.itemNo}` : ""}</DrawerRow>
+                ) : null}
+                {r.note ? <DrawerRow label="Ghi chú">{r.note}</DrawerRow> : null}
               </section>
               <section>
                 <details className="group/details">
@@ -1187,27 +896,35 @@ function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog, onChang
                   </div>
                 </details>
               </section>
-              <section>
-                <div className="grid gap-2 text-[0.8125rem]">
+              <section className="space-y-2">
+                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Lịch sử</p>
+                <div className="grid gap-3 text-[0.8125rem]">
                   {log.map((l, i) => (
                     <div key={i} className="flex gap-2">
                       <i className={cn("mt-1.5 size-2 shrink-0 rounded-full", l.tone)} />
                       <span>{l.text}{l.sub ? <><br /><span className="text-muted-foreground">{l.sub}</span></> : null}</span>
                     </div>
                   ))}
+                  <NormChangeLog id={r.id} format={(field, v) => {
+                    const ref = /^#(\d+)$/.exec(v);
+                    if (ref && (field === "sourceDocument" || field === "endDocument")) {
+                      const d = ctx.docIndex.get(Number(ref[1]));
+                      return d ? docShort(d.documentNo) : undefined;
+                    }
+                    if (field === "normBasis") return PER_LABEL[v.toLowerCase()] ? `theo ${PER_LABEL[v.toLowerCase()]}` : undefined;
+                    return undefined;
+                  }} />
                 </div>
-                <p className="text-muted-foreground text-xs">Phụ lục ghi: {r.quantityText || "—"}{r.itemNo ? ` · mục ${r.itemNo}` : ""}</p>
-                {r.note ? <p className="text-muted-foreground text-xs">Ghi chú: {r.note}</p> : null}
               </section>
             </div>
           )}
         </div>
         <SheetFooter className="flex-row gap-2 border-t px-6 py-3">
           {canChange && id != null ? (
-            <DeleteButton resource={NORMS} recordItemId={id} variant="outline" className="text-destructive hover:text-destructive"
-              onSuccess={() => { onChanged(); onClose(); }}>
-              Bỏ
-            </DeleteButton>
+            <Button type="button" variant="outline" className="text-destructive hover:text-destructive"
+              onClick={() => { if (r) { ctx.onDelete?.(r); onClose(); } }}>
+              Xoá
+            </Button>
           ) : null}
           <span className="flex-1" />
           <SheetClose asChild>
@@ -1450,6 +1167,7 @@ function NormFormDialog({ state, onOpenChange, standard }: {
       onOpenChange={onOpenChange}
       size="wide"
       defaultValues={{
+        legalDocument: { id: null },
         standard: { id: standard.id },
         name: "",
         active: true,
@@ -1478,92 +1196,90 @@ function NormFormDialog({ state, onOpenChange, standard }: {
 }
 
 function NormFields({ control, record, level }: { control: Control<any>; record?: any; level?: string }) {
-  const { setValue, getValues } = useFormContext();
   const basis = useWatch({ control, name: "normBasis" });
-  // Chọn thiết bị trong danh mục khi ô tên còn trống: lấy tên của thiết bị, khỏi gõ lại.
-  const catalogId = useWatch({ control, name: "catalog.id" });
-  const { result: picked } = useOne<any>({
-    resource: "equipment_catalogs",
-    id: catalogId ?? "",
-    queryOptions: { enabled: !!catalogId && catalogId !== record?.catalog?.id },
-  });
-  useEffect(() => {
-    if (picked?.name && !getValues("name")) setValue("name", picked.name, { shouldDirty: true });
-  }, [picked, getValues, setValue]);
+  const legalId = useWatch({ control, name: "legalDocument.id" });
+  const appliesFrom = useLegalEffectiveFrom(legalId);
+  const qty = useWatch({ control, name: "minQuantity" });
+  // Chọn trước rồi mới điền sau (trưởng nhóm 17/11/2026): chưa chọn văn bản căn cứ thì mọi ô khác khoá; chưa ghi "Cần
+  // có" thì ĐVT / Đối tượng / Số đối tượng khoá (dòng chỉ ghi chữ theo phụ lục); có số thì hai ô kia bắt buộc.
+  const noBasis = !legalId;
+  const hasQty = qty !== null && qty !== undefined && String(qty).trim() !== "";
+  const perGroup = basis === "per_student" || basis === "per_class";
   return (
-    <div className="space-y-5">
-      <FormSection title="Thiết bị" compact>
-        <div className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <TextField control={control} name="name" label="Tên thiết bị" className="sm:col-span-2" rule="NAME"
-            rules={{ required: "Nhập tên thiết bị" }} />
-          <FormField
-            control={control}
-            name="catalog.id"
-            render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Trong danh mục thiết bị</FormLabel>
-                <AsyncCombobox<any>
-                  resource="equipment_catalogs"
-                  value={field.value}
-                  onChange={(id) => field.onChange(id)}
-                  labelOf={(c) => `${c.code} · ${c.name}`}
-                  fallbackLabel={record?.catalog ? `${record.catalog.code} · ${record.catalog.name}` : null}
-                  placeholder="Vui lòng chọn thiết bị, để trống nếu chưa có"
-                  searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
-                  clearable
-                  clearLabel="Không gắn"
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <RefField control={control} name="subject" resource="subjects" label="Môn / hoạt động" current={record?.subject} />
-          <TextField control={control} name="sectionName" label="Nhóm trong phụ lục" rule="NOTE" placeholder="Thiết bị dùng chung › Tranh ảnh" />
-          <TextField control={control} name="topic" label="Chủ đề dạy học" className="sm:col-span-2" rule="NOTE" />
-        </div>
-      </FormSection>
-      <FormSection title="Định mức" compact>
-        <div className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <TextField control={control} name="minQuantity" label="Số lượng tối thiểu" type="number" step="any"
-            numberRule="DECIMAL_QUANTITY" />
-          <SelectField control={control} name="normBasis" label="Tính theo" options={BASIS_OPTIONS} />
-          {basis === "per_student" || basis === "per_class" ? (
-            <TextField control={control} name="basisSize" label={basis === "per_student" ? "Cỡ nhóm học sinh" : "Số lớp dùng chung"}
-              type="number" numberRule="COUNT" placeholder={basis === "per_student" ? "6 — một bộ / 6 HS" : "5 — một bộ / 5 lớp"} />
-          ) : (
-            <div className="hidden lg:block" />
-          )}
-          <RefField control={control} name="unit" resource="units" label="Đơn vị tính" current={record?.unit} />
-          <TextField control={control} name="quantityText" label="Số lượng (theo phụ lục)" placeholder="01/4 đến 6HS" rule="SHORT_TEXT" max={100} />
+    <div className="space-y-4">
+      {/* Một màn, không cuộn (trưởng nhóm 17/11/2026): bỏ tiêu đề nhóm, căn cứ đứng cùng hàng với mã và môn. Thêm / sửa
+          phải có văn bản căn cứ; ngày áp dụng lấy theo hiệu lực của văn bản. */}
+      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_14rem]">
+        <LegalBasisField control={control} block />
+        <FormItem>
+          <FormLabel>Áp dụng từ</FormLabel>
+          <div className="bg-muted/40 text-muted-foreground flex h-9 items-center rounded-full border px-3.5 text-sm tabular-nums">
+            {appliesFrom ? formatPlainDate(appliesFrom) : "—"}
+          </div>
+        </FormItem>
+        {/* Danh mục tối thiểu là cấp cao nhất: dòng tự gắn thiết bị chuẩn của nó (thêm mới thì mã tự cấp) — chỉ hiện mã. */}
+        <FormItem>
+          <FormLabel>Mã thiết bị</FormLabel>
+          <div className="bg-muted/40 text-muted-foreground flex h-9 items-center rounded-full border px-3.5 font-mono text-sm">
+            {record?.catalog?.code ?? "Tự cấp"}
+          </div>
+        </FormItem>
+        <RefField control={control} name="subject" resource="subjects" label="Môn / hoạt động" current={record?.subject} required
+          disabledHint={noBasis ? "Chọn văn bản căn cứ trước" : undefined} />
+      </div>
+      <fieldset disabled={noBasis} className="min-w-0 space-y-4 disabled:opacity-60">
+      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <TextField control={control} name="name" label="Tên thiết bị" rule="NAME" rules={{ required: "Nhập tên thiết bị" }} />
+        <TextField control={control} name="sectionName" label="Nhóm trong phụ lục" rule="NOTE" placeholder="Tranh ảnh" />
+        <TextField control={control} name="topic" label="Chủ đề dạy học" rule="NOTE" />
+      </div>
+      <div className="border-t pt-4">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-4">
+          <TextField control={control} name="minQuantity" label="Cần có" type="number" step="any" className="w-24"
+            numberRule="DECIMAL_QUANTITY"
+            rules={{ validate: (v: any) => v === null || v === undefined || String(v).trim() === "" || Number(v) > 0 || "Phải lớn hơn 0" }} />
+          <RefField control={control} name="unit" resource="units" label="ĐVT" current={record?.unit} className="w-36"
+            required={hasQty} disabledHint={!hasQty ? "Ghi Cần có trước" : undefined}
+            validate={(v: any) => !hasQty || !!v?.id || "Chọn ĐVT"} />
+          <fieldset disabled={!hasQty} className="contents">
+            <SelectField control={control} name="normBasis" label="Đối tượng" options={BASIS_OPTIONS} className="w-48"
+              rules={{ validate: (v: any) => !hasQty || !!v || "Chọn đối tượng" }} />
+            {perGroup ? (
+              <TextField control={control} name="basisSize" label="Số đối tượng" type="number" numberRule="COUNT" className="w-28"
+                placeholder={basis === "per_student" ? "6" : "5"}
+                rules={{ validate: (v: any) => !hasQty || (v !== null && v !== undefined && String(v).trim() !== "" && Number(v) >= 1)
+                  || "Nhập số đối tượng" }} />
+            ) : null}
+          </fieldset>
+          <TextField control={control} name="quantityText" label="Số lượng (theo phụ lục)" placeholder="01/4 đến 6HS"
+            rule="SHORT_TEXT" max={100} className="w-44" />
           <GradeLevelsField control={control} level={level} />
+        </div>
+        <div className="mt-4 flex flex-wrap items-start gap-x-6 gap-y-4">
           <AudienceField control={control} />
           <FormField
             control={control}
             name="optional"
             render={({ field }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Nhóm tự chọn</FormLabel>
-                <label className="flex min-h-9 items-center gap-2 text-sm">
+              <FormItem>
+                <FormLabel>Tự chọn</FormLabel>
+                <label className="flex min-h-9 items-center gap-2 text-sm" title="Môn hoặc phương án trường tự chọn — không tính vào đủ / thiếu">
                   <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(v === true)} />
-                  Môn hoặc phương án trường tự chọn, không tính vào đủ / thiếu
+                  Không tính đủ / thiếu
                 </label>
               </FormItem>
             )}
           />
+          <TextField control={control} name="note" label="Ghi chú" rule="NOTE" className="min-w-[16rem] flex-1" />
         </div>
-      </FormSection>
-      <FormSection title="Mục đích và mô tả" compact>
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <TextareaField control={control} name="purpose" label="Mục đích sử dụng" rows={6} rule="LONG_TEXT" max={20000} />
-          <TextareaField control={control} name="description" label="Mô tả chi tiết" rows={6} rule="LONG_TEXT" max={20000} />
+      </div>
+      <div className="border-t pt-4">
+        <div className="grid items-start gap-x-4 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <TextareaField control={control} name="purpose" label="Mục đích sử dụng" rows={3} className="max-w-none" boxClassName="h-[16rem] max-h-[16rem]" rule="LONG_TEXT" max={20000} />
+          <TextareaField control={control} name="description" label="Mô tả chi tiết" rows={3} className="max-w-none" boxClassName="h-[16rem] max-h-[16rem]" rule="LONG_TEXT" max={20000} />
         </div>
-      </FormSection>
-      <FormSection title="Căn cứ" compact>
-        <div className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <TextField control={control} name="itemNo" label="Số thứ tự trong phụ lục" placeholder="1.2" rule="SHORT_TEXT" max={20} />
-          <TextField control={control} name="note" label="Ghi chú" className="sm:col-span-3" rule="NOTE" />
-        </div>
-      </FormSection>
+      </div>
+      </fieldset>
     </div>
   );
 }
@@ -1585,7 +1301,7 @@ function GradeLevelsField({ control, level }: { control: Control<any>; level?: s
         };
         return (
           <FormItem>
-            <FormLabel>Lớp áp dụng</FormLabel>
+            <FormLabel title="Không chọn lớp nào là mọi lớp">Lớp áp dụng</FormLabel>
             <FormControl>
               <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1">
                 {grades.map((g) => (
@@ -1596,7 +1312,6 @@ function GradeLevelsField({ control, level }: { control: Control<any>; level?: s
                 ))}
               </div>
             </FormControl>
-            <p className="text-muted-foreground text-xs">Không chọn lớp nào là mọi lớp.</p>
           </FormItem>
         );
       }}
@@ -1619,6 +1334,9 @@ function AudienceField({ control }: { control: Control<any> }) {
             key={name}
             control={control}
             name={name}
+            rules={name === "forTeacher"
+              ? { validate: (v: any, values: any) => !!v || !!values?.forStudent || "Chọn giáo viên hoặc học sinh" }
+              : undefined}
             render={({ field }) => (
               <label className="flex items-center gap-1.5 text-sm">
                 <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(v === true)} />
@@ -1628,7 +1346,14 @@ function AudienceField({ control }: { control: Control<any> }) {
           />
         ))}
       </div>
+      <AudienceError control={control} />
     </FormItem>
   );
+}
+
+function AudienceError({ control }: { control: Control<any> }) {
+  const { errors } = useFormState({ control, name: "forTeacher" });
+  const message = (errors?.forTeacher as { message?: string } | undefined)?.message;
+  return message ? <p className="text-destructive text-sm">{message}</p> : null;
 }
 

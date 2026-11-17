@@ -15,7 +15,9 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Một dòng của Danh mục thiết bị dạy học tối thiểu — đúng một dòng phụ lục của thông tư: thiết bị
@@ -120,6 +122,28 @@ public class EquipmentNorm extends CatalogEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "source_document_id")
     private EquipmentStandardDocument sourceDocument;
+
+    /** Ngày dòng bắt đầu áp dụng (changelog 267). */
+    @Column(name = "effective_from", nullable = false)
+    private LocalDate effectiveFrom;
+
+    /** Ngày dòng thôi áp dụng — không tính ngày này; {@code null} = còn áp dụng. */
+    @Column(name = "effective_to")
+    private LocalDate effectiveTo;
+
+    /** Dòng mà dòng này thay (sửa = đóng dòng cũ, mở dòng mới cùng mã). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "replaces_norm_id")
+    private EquipmentNorm replaces;
+
+    /** Văn bản căn cứ của lần bỏ / thay dòng này. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "end_document_id")
+    private EquipmentStandardDocument endDocument;
+
+    /** Dòng thay dòng này (nếu có) — điền khi đọc danh sách, không lưu. */
+    @Transient
+    private Long replacedById;
 
     public EquipmentStandard getStandard() {
         return standard;
@@ -295,5 +319,59 @@ public class EquipmentNorm extends CatalogEntity {
 
     public void setSourceDocument(EquipmentStandardDocument sourceDocument) {
         this.sourceDocument = sourceDocument;
+    }
+
+    public LocalDate getEffectiveFrom() {
+        return effectiveFrom;
+    }
+
+    public void setEffectiveFrom(LocalDate effectiveFrom) {
+        this.effectiveFrom = effectiveFrom;
+    }
+
+    public LocalDate getEffectiveTo() {
+        return effectiveTo;
+    }
+
+    public void setEffectiveTo(LocalDate effectiveTo) {
+        this.effectiveTo = effectiveTo;
+    }
+
+    public EquipmentNorm getReplaces() {
+        return replaces;
+    }
+
+    public void setReplaces(EquipmentNorm replaces) {
+        this.replaces = replaces;
+    }
+
+    public EquipmentStandardDocument getEndDocument() {
+        return endDocument;
+    }
+
+    public void setEndDocument(EquipmentStandardDocument endDocument) {
+        this.endDocument = endDocument;
+    }
+
+    public Long getReplacedById() {
+        return replacedById;
+    }
+
+    public void setReplacedById(Long replacedById) {
+        this.replacedById = replacedById;
+    }
+
+    /** Áp dụng vào ngày {@code day}. */
+    public boolean effectiveOn(LocalDate day) {
+        return effectiveFrom != null && !effectiveFrom.isAfter(day) && (effectiveTo == null || effectiveTo.isAfter(day));
+    }
+
+    /**
+     * Vế SQL "dòng {@code alias} áp dụng HÔM NAY" — mọi truy vấn tính đủ / thiếu, báo cáo đọc định mức phải ghép nó
+     * (dòng sắp áp dụng / đã thôi áp dụng vẫn nằm cùng bộ).
+     */
+    public static String effectiveTodaySql(String alias) {
+        // Ngày áp dụng (theo văn bản căn cứ) chỉ để biết — danh mục là danh sách phẳng, dòng có trong bộ là đang tính.
+        return " (" + alias + ".effective_to IS NULL OR " + alias + ".effective_to > CURRENT_DATE) ";
     }
 }

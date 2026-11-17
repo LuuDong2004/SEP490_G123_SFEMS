@@ -1,5 +1,6 @@
 package com.g123.sfems.module.report;
 
+import com.g123.sfems.domain.catalog.standard.EquipmentNorm;
 import com.g123.sfems.module.report.ReportService.Column;
 import com.g123.sfems.module.report.ReportService.Params;
 import com.g123.sfems.module.report.ReportService.Report;
@@ -555,7 +556,7 @@ final class AnalysisReports {
                 + "  JOIN equipment_standards sd ON sd.education_level_id = s.education_level_id AND sd.status = 'ACTIVE'"
                 + "  JOIN equipment_norms n ON n.standard_id = sd.id AND n.norm_basis = 'PER_ROOM'"
                 + "   AND n.subject_id = r.subject_id AND NOT n.optional AND n.min_quantity IS NOT NULL"
-                + "   AND n.catalog_id IS NOT NULL"
+                + "   AND n.catalog_id IS NOT NULL AND" + EquipmentNorm.effectiveTodaySql("n")
                 + "  WHERE" + FacilityCounting.COUNTED_ROOM + "AND r.subject_id IS NOT NULL"
                 + reports.scope("r.school_id", p)
                 + "  GROUP BY r.id, n.catalog_id),"

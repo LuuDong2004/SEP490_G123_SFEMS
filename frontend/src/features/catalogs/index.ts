@@ -10,4 +10,3 @@ export const EducationLevelCreate = lazyNamed(() => import("./education-levels/c
 export const EducationLevelEdit = lazyNamed(() => import("./education-levels/edit"), "EducationLevelEdit");
 export const EducationLevelShow = lazyNamed(() => import("./education-levels/show"), "EducationLevelShow");
 export const EnumCatalogList = lazyNamed(() => import("./enum-catalog-list"), "EnumCatalogList");
-export const NormMatrix = lazyNamed(() => import("./norm-matrix"), "NormMatrix");

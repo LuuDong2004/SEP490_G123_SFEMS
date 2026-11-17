@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router";
 export const OUTSIDE = "outside";
 
 /**
- * Cấp học đang xem của màn Danh mục tối thiểu / Số lượng tối thiểu — chọn ở menu xổ của TAB (`meta.tabMenu`), nằm
+ * Cấp học đang xem của màn Danh mục tối thiểu / Số lượng tối thiểu — chọn ở tên bộ trên đầu bảng, nằm
  * trên địa chỉ trang `?level=TH|THCS|THPT|outside` nên gửi liên kết là mở đúng cấp. Địa chỉ không có cấp, hoặc có cấp
  * tài khoản không thấy (trường chỉ thấy cấp của mình), thì tự ghi lại thành `fallback` để chữ trên tab khớp màn.
  */

@@ -492,7 +492,7 @@ public class AdequacyService {
                 FROM equipment_norms n
                 JOIN equipment_standards sd ON sd.id = n.standard_id AND sd.active
                 JOIN education_levels lv ON lv.id = sd.education_level_id
-                WHERE n.active AND n.catalog_id = ?
+                WHERE n.active AND n.catalog_id = ? AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE)
                 ORDER BY (lv.code = ?) DESC, n.sort_order, n.id""",
                 (rs, i) -> new NormLine(rs.getString("code"), rs.getString("level_code"), rs.getString("level_name"),
                         rs.getString("item_no"), rs.getString("section_name"), rs.getString("topic"),
@@ -837,7 +837,7 @@ public class AdequacyService {
                 LEFT JOIN equipment_catalogs c ON c.id = n.catalog_id
                 LEFT JOIN subjects sj ON sj.id = n.subject_id
                 LEFT JOIN equipment_types t ON t.id = n.equipment_type_id
-                WHERE n.active
+                WHERE n.active AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE)
                 ORDER BY n.sort_order, n.id""")) {
             byLevel.computeIfAbsent((String) n.get("level_code"), k -> new ArrayList<>()).add(n);
         }

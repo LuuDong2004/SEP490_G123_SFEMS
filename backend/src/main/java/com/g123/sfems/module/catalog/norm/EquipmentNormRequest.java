@@ -61,19 +61,21 @@ public record EquipmentNormRequest(
         Boolean forTeacher,
         Boolean forStudent,
         Boolean optional,
-        IdRef sourceDocument) implements CatalogInput {
+        IdRef sourceDocument,
+        /** Văn bản căn cứ của lần thêm (danh mục Văn bản quy định) — bắt buộc với bộ đang áp dụng. */
+        IdRef legalDocument) implements CatalogInput {
 
     EquipmentNormRequest withSortOrder(Integer order) {
         return new EquipmentNormRequest(code, name, order, active, note, standard, catalog,
                 equipmentType, subject, grade, roomType, minQuantity, unit, normBasis, basisSize, quantityText,
                 unitText, gradeLevels, itemNo, sectionName, topic, purpose, description, forTeacher, forStudent,
-                optional, sourceDocument);
+                optional, sourceDocument, legalDocument);
     }
 
     EquipmentNormRequest withCode(String generated) {
         return new EquipmentNormRequest(generated, name, sortOrder, active, note, standard, catalog,
                 equipmentType, subject, grade, roomType, minQuantity, unit, normBasis, basisSize, quantityText,
                 unitText, gradeLevels, itemNo, sectionName, topic, purpose, description, forTeacher, forStudent,
-                optional, sourceDocument);
+                optional, sourceDocument, legalDocument);
     }
 }

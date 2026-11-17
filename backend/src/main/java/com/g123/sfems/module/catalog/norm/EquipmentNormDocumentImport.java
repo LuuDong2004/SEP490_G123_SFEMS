@@ -260,7 +260,7 @@ public class EquipmentNormDocumentImport {
                     null, r.minQuantity(), unit == null ? null : new IdRef(unit), r.normBasis(), r.basisSize(),
                     r.quantityText(), unit == null ? r.unitText() : null, r.gradeLevels(), r.itemNo(), r.sectionName(),
                     r.topic(), cut(r.purpose(), 20_000), cut(r.description(), 20_000), r.forTeacher(), r.forStudent(),
-                    r.optional(), null));
+                    r.optional(), null, null));
         }
         int deleted = norms.replaceSubjects(standardId, stats.keySet(), requests);
         return new Result(false, level, requests.size(), subjects, changes, requests.size(), deleted);

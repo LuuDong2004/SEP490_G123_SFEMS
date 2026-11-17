@@ -179,7 +179,7 @@ public class EquipmentNormExcel {
                     null, null, q.min(), unit == null ? null : new IdRef(unit), q.basis(), q.size(),
                     v.get("quantity"), unitText, parseGrades(v.get("note")), null, null, v.get("topic"),
                     v.get("purpose"), v.get("description"), audience.contains("GIAO_VIEN"),
-                    audience.contains("HOC_SINH"), Boolean.FALSE, null));
+                    audience.contains("HOC_SINH"), Boolean.FALSE, null, null));
         }
         if (!errors.isEmpty()) {
             String shown = String.join("; ", errors.subList(0, Math.min(MAX_REPORTED, errors.size())));

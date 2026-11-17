@@ -53,7 +53,7 @@ function SourceDocumentField({ control, record }: { control: Control<any>; recor
       name="sourceDocument.id"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Văn bản quy định</FormLabel>
+          <FormLabel>Văn bản căn cứ</FormLabel>
           <Select
             disabled={!standardId}
             onValueChange={(v) => field.onChange(v === NONE ? null : Number(v))}
@@ -246,6 +246,6 @@ export const NORM_EXTRA = {
       label: "Tính theo",
       value: r?.normBasis ? <Badge variant="neutral">{NORM_BASIS_LABELS[r.normBasis]}</Badge> : "—",
     },
-    { label: "Văn bản quy định", value: r?.sourceDocument?.documentNo ?? "—" },
+    { label: "Văn bản căn cứ", value: r?.sourceDocument?.documentNo ?? "—" },
   ],
 };

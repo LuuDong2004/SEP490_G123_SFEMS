@@ -66,7 +66,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   equipment_configs: "Thông số kỹ thuật theo từng thiết bị",
   equipment_standards: "Danh mục thiết bị tối thiểu theo thông tư",
   equipment_norms: "Số lượng tối thiểu từng thiết bị theo cấp, khối",
-  norm_matrix: "Mỗi thiết bị trường phải có bao nhiêu, tính theo gì",
   // Tài chính, nghiệp vụ
   origin_sources: "Thiết bị từ đâu ra: kế hoạch mua sắm, được điều chuyển, được tặng…",
   funding_sources: "Tiền từ đâu: ngân sách, học phí, tài trợ…",

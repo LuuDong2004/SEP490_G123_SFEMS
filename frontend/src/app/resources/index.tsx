@@ -41,25 +41,13 @@ import {
   Workflow,
   UserCog,
   MonitorCog,
-  Grid3x3,
 } from "lucide-react";
 import { CATALOGS as SHARED_CATALOGS } from "@/features/catalogs";
 import { ENUM_CATALOGS } from "@/features/catalogs";
 import { ORG_RESOURCES } from "@/features/organization";
 import { withModules } from "@/app/resources/modules";
 import { withHelp } from "@/app/resources/help";
-import type { TabMenuItem } from "@/shared/components/layout/module-tabs";
 
-/**
- * Menu xổ của tab Danh mục tối thiểu và Số lượng tối thiểu: chọn cấp học (mã `education_levels.code`) hoặc
- * thiết bị ngoài danh mục. Màn đọc `?level=` (`useLevelParam`); cấp tài khoản không thấy thì màn tự về cấp có.
- */
-const LEVEL_TAB_MENU: TabMenuItem[] = [
-  { param: "level", value: "TH", label: "Tiểu học" },
-  { param: "level", value: "THCS", label: "Trung học cơ sở", short: "THCS" },
-  { param: "level", value: "THPT", label: "Trung học phổ thông", short: "THPT" },
-  { param: "level", value: "outside", label: "Ngoài danh mục tối thiểu", short: "Ngoài danh mục", separatorBefore: true },
-];
 
 /**
  * Chỗ của các resource sinh từ registry của feature (không khai tay ở dưới) trong menu
@@ -412,15 +400,8 @@ export const resources: ResourceProps[] = withHelp(withModules([
         tabOrder: c.resource === "origin_sources" ? 1 : c.resource === "acquisition_methods" ? 3 : undefined,
         countResource: c.countResource,
         countFilters: c.countFilters,
-        // Danh mục tối thiểu: tab xổ ra các cấp học và "Ngoài danh mục tối thiểu".
-        tabMenu: c.resource === "equipment_standards" ? LEVEL_TAB_MENU : undefined,
       },
     },
-    // Số lượng tối thiểu: các cột phép tính số phải có dùng, ngay sau Danh mục thiết bị tối thiểu. Mượn quyền
-    // `equipment_norms:*` (PERMISSION_ALIASES) — cùng dữ liệu, cùng API, chỉ là cách xem / sửa khác.
-    ...(c.resource === "equipment_standards"
-      ? [{ name: "norm_matrix", list: "/norm-matrix", meta: { icon: <Grid3x3 className="h-4 w-4" />, parent: c.group, label: "Số lượng tối thiểu", tabMenu: LEVEL_TAB_MENU } }]
-      : []),
   ]),
   // Danh mục cố định, chỉ đọc: chỉ có màn danh sách.
   ...ENUM_CATALOGS.map(

@@ -84,7 +84,7 @@ public final class PortalRoutes {
         // Danh mục, chuẩn: Sở ghi, mọi cổng nghiệp vụ đọc.
         put(BUSINESS, EnumSet.of(SO), "acquisition_methods", "equipment_catalogs", "equipment_configs",
                 "equipment_norms", "equipment_standards", "equipment_types", "facility_groups",
-                "facility_standard_rules", "grades", "movement_reasons", "room_types", "school_years", "semesters",
+                "facility_standard_rules", "grades", "legal_documents", "movement_reasons", "room_types", "school_years", "semesters",
                 "subject_groups", "subjects", "units");
         put(BUSINESS, NONE, "origin_sources", "voucher_forms");
         // Dữ liệu của trường: trường ghi, Sở xem toàn ngành.

@@ -124,7 +124,7 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
       })]),
       helper.accessor("code", {
         id: "code",
-        meta: { fill: !extra?.codeSize },
+        meta: { fill: !extra?.codeSize, fixed: !!extra?.codeFixed },
         ...(extra?.codeSize ? { size: extra.codeSize, minSize: extra.codeSize } : {}),
         header: config.codeLabel ?? "Mã",
         enableSorting: true,
@@ -322,7 +322,15 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
       {config.pageForm && config.formDialog ? (
         <CatalogFormDialog config={config} state={dialog} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
       ) : null}
-      {config.pageForm ? null : (
+      {extra?.RecordDialog ? (
+        <extra.RecordDialog
+          state={dialog.open ? { mode: dialog.id ? "edit" : "create", id: dialog.id } : viewing != null ? { mode: "view", id: viewing } : null}
+          onClose={() => {
+            setDialog({ open: false });
+            setViewing(null);
+          }}
+        />
+      ) : config.pageForm ? null : (
         <>
           <CatalogFormDialog config={config} state={dialog} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
           <CatalogShowDialog
@@ -384,6 +392,16 @@ function CatalogRouteDialog({ config, editing }: { config: CatalogConfig; editin
     if (window.history.length > 1) navigate(-1);
     else navigate(config.path);
   };
+  const RecordDialog = config.extra?.RecordDialog;
+  if (RecordDialog) {
+    return (
+      <>
+        <CatalogList config={config} />
+        <RecordDialog state={open ? { mode: editing && id ? "edit" : "create", id: editing && id ? Number(id) : undefined } : null}
+          onClose={leave} />
+      </>
+    );
+  }
   return (
     <>
       <CatalogList config={config} />
@@ -952,7 +970,8 @@ export function CatalogFormDialog({
   onOpenChange: (open: boolean) => void;
   /** Giá trị điền sẵn khi thêm, ví dụ `{ school: { id: 3 } }`. */
   presets?: Record<string, unknown>;
-  onSaved?: () => void;
+  /** Gọi sau khi lưu, kèm bản ghi vừa lưu (để màn gọi chọn luôn nó). */
+  onSaved?: (record?: { id?: number }) => void;
 }) {
   const extra = config.extra;
   // Tiêu đề lấy cùng nguồn với tiêu đề trang (`<resource>.titles.create|edit` trong vi.json) khi có —

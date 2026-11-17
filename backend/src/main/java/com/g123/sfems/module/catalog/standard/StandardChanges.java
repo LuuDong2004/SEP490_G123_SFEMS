@@ -49,7 +49,11 @@ class StandardChanges {
     }
 
     /** Kết quả so: danh sách để hiện / ghi, và id các dòng của bộ này đã thêm hoặc đổi (để gắn căn cứ). */
-    record Diff(List<StandardChange> changes, List<Long> touchedNormIds) {
+    record Diff(List<StandardChange> changes, List<Long> touchedNormIds, Map<Long, Long> pairs) {
+
+        Diff(List<StandardChange> changes, List<Long> touchedNormIds) {
+            this(changes, touchedNormIds, Map.of());
+        }
     }
 
     Diff compare(long standardId, Long previousId) {
@@ -62,6 +66,8 @@ class StandardChanges {
 
         List<StandardChange> changes = new ArrayList<>();
         List<Long> touched = new ArrayList<>();
+        // Dòng đổi: id dòng của bộ này → id dòng tương ứng của bộ trước.
+        Map<Long, Long> pairs = new LinkedHashMap<>();
         for (Long subject : subjects) {
             List<Row> rows = nowBySubject.getOrDefault(subject, List.of());
             List<Row> olds = new ArrayList<>(beforeBySubject.getOrDefault(subject, List.of()));
@@ -82,6 +88,7 @@ class StandardChanges {
                 if (fields.isEmpty()) {
                     continue;
                 }
+                pairs.put(r.id(), o.id());
                 boolean qty = fields.contains("số lượng") || fields.contains("khối lớp");
                 changes.add(new StandardChange("CHANGED", r.subjectId(), r.subjectName(), r.id(), r.name(), r.topic(),
                         String.join(", ", fields), qty ? quantity(o) : null, qty ? quantity(r) : null));
@@ -93,7 +100,7 @@ class StandardChanges {
                         null, quantity(o), null));
             }
         }
-        return new Diff(changes, touched);
+        return new Diff(changes, touched, pairs);
     }
 
     /** Ghi danh sách lúc áp dụng — thay danh sách cũ nếu có. */

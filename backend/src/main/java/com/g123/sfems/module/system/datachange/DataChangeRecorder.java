@@ -21,6 +21,11 @@ import java.util.Set;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.event.spi.EventType;
+import org.hibernate.engine.spi.SharedSessionContractImplementor;
+import org.hibernate.event.spi.PostDeleteEvent;
+import org.hibernate.event.spi.PostDeleteEventListener;
+import org.hibernate.event.spi.PostInsertEvent;
+import org.hibernate.event.spi.PostInsertEventListener;
 import org.hibernate.event.spi.PostUpdateEvent;
 import org.hibernate.event.spi.PostUpdateEventListener;
 import org.hibernate.persister.entity.EntityPersister;
@@ -41,12 +46,18 @@ import org.springframework.stereotype.Component;
  * ({@link #SKIP}); mật khẩu chỉ ghi "đã đổi", không ghi giá trị.
  */
 @Component
-class DataChangeRecorder implements PostUpdateEventListener {
+class DataChangeRecorder implements PostUpdateEventListener, PostInsertEventListener, PostDeleteEventListener {
 
     /** Bảng ngoài danh mục dùng chung mà một lần sửa đáng để lại vết. */
     private static final Set<String> TABLES = Set.of("schools", "departments_of_education", "staff", "rooms",
             "buildings", "campuses", "school_classes", "subject_teams", "users", "facility_works",
             "school_code_rules", "approval_flows");
+
+    /**
+     * Bảng ghi cả lần THÊM và XOÁ một bản ghi (không chỉ sửa) — danh mục tối thiểu là danh sách phẳng, thêm / sửa / xoá
+     * trực tiếp, nhật ký là thứ duy nhất giữ lại "ai bỏ thiết bị nào lúc nào" (trưởng nhóm 17/11/2026).
+     */
+    private static final Set<String> WHOLE_RECORD = Set.of("equipment_norms");
 
     /** Trường kỹ thuật, tự đổi theo thao tác khác — ghi vào chỉ làm lịch sử rối. */
     private static final Set<String> SKIP = Set.of("updatedAt", "updatedById", "createdAt", "createdById", "version",
@@ -72,6 +83,10 @@ class DataChangeRecorder implements PostUpdateEventListener {
     void register() {
         emf.unwrap(SessionFactoryImplementor.class).getServiceRegistry().requireService(EventListenerRegistry.class)
                 .appendListeners(EventType.POST_UPDATE, this);
+        emf.unwrap(SessionFactoryImplementor.class).getServiceRegistry().requireService(EventListenerRegistry.class)
+                .appendListeners(EventType.POST_INSERT, this);
+        emf.unwrap(SessionFactoryImplementor.class).getServiceRegistry().requireService(EventListenerRegistry.class)
+                .appendListeners(EventType.POST_DELETE, this);
     }
 
     @Override
@@ -140,6 +155,47 @@ class DataChangeRecorder implements PostUpdateEventListener {
         });
     }
 
+    @Override
+    public void onPostInsert(PostInsertEvent event) {
+        whole(event.getEntity(), event.getId(), event.getSession(), "(thêm)", null, true);
+    }
+
+    @Override
+    public void onPostDelete(PostDeleteEvent event) {
+        whole(event.getEntity(), event.getId(), event.getSession(), "(xoá)", null, false);
+    }
+
+    /** Một dòng nhật ký cho cả bản ghi: thêm (giá trị mới = nhãn) hoặc xoá (giá trị cũ = nhãn). */
+    private void whole(Object entity, Object rawId, SharedSessionContractImplementor session, String field,
+            String unused, boolean added) {
+        Table table = entity.getClass().getAnnotation(Table.class);
+        if (table == null || !WHOLE_RECORD.contains(table.name()) || !(rawId instanceof Number id)) {
+            return;
+        }
+        Long actorId = CurrentUser.id().orElse(null);
+        String actorName = actorId == null ? "Hệ thống" : actors.current();
+        String label = cut(label(entity), 255);
+        Timestamp now = Timestamp.from(Instant.now());
+        session.doWork(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(INSERT)) {
+                ps.setTimestamp(1, now);
+                if (actorId == null) {
+                    ps.setNull(2, Types.BIGINT);
+                } else {
+                    ps.setLong(2, actorId);
+                }
+                ps.setString(3, cut(actorName, 150));
+                ps.setString(4, table.name());
+                ps.setLong(5, id.longValue());
+                ps.setString(6, label);
+                ps.setString(7, field);
+                ps.setString(8, added ? null : label);
+                ps.setString(9, added ? label : null);
+                ps.executeUpdate();
+            }
+        });
+    }
+
     /** Tên bảng của entity nếu nó được theo dõi, không thì {@code null}. */
     private static String resourceOf(Object entity) {
         Table table = entity.getClass().getAnnotation(Table.class);
@@ -173,9 +229,19 @@ class DataChangeRecorder implements PostUpdateEventListener {
         return s.isBlank() ? null : s;
     }
 
-    /** Nhãn của một bản ghi: tên, không có thì mã, tên đăng nhập, cuối cùng là id. */
+    /** Nhãn của một bản ghi: tên, không có thì mã, tên đăng nhập, cuối cùng là id. Danh mục tối thiểu: "mã · tên". */
     private static String label(Object entity) {
-        for (String getter : List.of("getName", "getFullName", "getCode", "getUsername")) {
+        Table table = entity.getClass().getAnnotation(Table.class);
+        if (table != null && WHOLE_RECORD.contains(table.name())) {
+            try {
+                Object code = entity.getClass().getMethod("getCode").invoke(entity);
+                Object name = entity.getClass().getMethod("getName").invoke(entity);
+                return code + " · " + name;
+            } catch (ReflectiveOperationException ignored) {
+                // rơi xuống cách chung
+            }
+        }
+        for (String getter : List.of("getName", "getFullName", "getCode", "getDocumentNo", "getUsername")) {
             try {
                 Method m = entity.getClass().getMethod(getter);
                 Object v = m.invoke(entity);

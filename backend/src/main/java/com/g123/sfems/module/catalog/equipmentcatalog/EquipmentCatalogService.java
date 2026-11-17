@@ -504,6 +504,71 @@ public class EquipmentCatalogService extends CatalogService<
         return saved;
     }
 
+    /**
+     * Danh mục tối thiểu là cấp cao nhất (trưởng nhóm 17/11/2026): sửa một dòng ở đó là sửa luôn thiết bị chuẩn của nó —
+     * tên, môn, loại, đơn vị, mô tả, đối tượng sử dụng. Mã giữ nguyên (mã đã in trên tem, dùng trong mã tài sản).
+     */
+    @Transactional
+    public void syncFromStandard(EquipmentCatalog item, String name, Subject subject, EquipmentType type, Unit unit,
+            String description, boolean forTeacher, boolean forStudent) {
+        if (item == null || item.getOwnerSchool() != null) {
+            return;
+        }
+        item.setName(name.trim());
+        item.setSubject(subject);
+        if (type != null) {
+            item.setEquipmentType(type);
+        }
+        if (unit != null) {
+            item.setUnit(unit);
+        }
+        item.setDescription(blankToNull(description));
+        item.setUsedByTeacher(forTeacher);
+        item.setUsedByStudent(forStudent);
+        item.setMinimumRequired(Boolean.TRUE);
+    }
+
+    /**
+     * Dòng cuối cùng của một thiết bị chuẩn vừa bị xoá khỏi danh mục tối thiểu: chưa nơi nào dùng thiết bị (tài sản,
+     * phiếu, tồn kho, điều chỉnh chuẩn…) thì xoá luôn thiết bị; đã dùng thì giữ (dữ liệu của trường không vỡ), chỉ bỏ cờ
+     * "thuộc danh mục tối thiểu". Bảng tham chiếu đọc từ khoá ngoại của CSDL — thêm bảng mới không phải sửa ở đây.
+     */
+    @Transactional
+    public void releaseFromStandard(Long id) {
+        if (id == null) {
+            return;
+        }
+        EquipmentCatalog item = entityManager().find(EquipmentCatalog.class, id);
+        if (item == null || item.getOwnerSchool() != null) {
+            return;
+        }
+        entityManager().flush();
+        List<Object[]> refs = entityManager().createNativeQuery("""
+                SELECT c.conrelid::regclass::text, a.attname::text
+                FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+                WHERE c.confrelid = 'equipment_catalogs'::regclass AND c.confdeltype <> 'c'""").getResultList();
+        boolean used = false;
+        for (Object[] r : refs) {
+            String table = (String) r[0];
+            String column = (String) r[1];
+            if (!table.matches("[a-z_]+") || !column.matches("[a-z_]+")) {
+                continue;
+            }
+            Object hit = entityManager().createNativeQuery(
+                    "SELECT EXISTS (SELECT 1 FROM " + table + " WHERE " + column + " = ?1)")
+                    .setParameter(1, id).getSingleResult();
+            if (Boolean.TRUE.equals(hit)) {
+                used = true;
+                break;
+            }
+        }
+        if (used) {
+            item.setMinimumRequired(Boolean.FALSE);
+        } else {
+            entityManager().remove(item);
+        }
+    }
+
     @Override
     protected void applyUpdate(EquipmentCatalog item, EquipmentCatalogPatchRequest request) {
         if (request.teachingCode() != null) {

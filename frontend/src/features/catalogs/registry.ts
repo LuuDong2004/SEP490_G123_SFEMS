@@ -17,8 +17,10 @@ import {
   Package,
   Tags,
   Users,
+  ScrollText,
 } from "lucide-react";
 
+import { LEGAL_DOC_NUMBER } from "@/domains/legal-document/types";
 import type { CatalogConfig } from "@/shared/components/catalog/types";
 import { CATALOG_EXTRAS } from "@/features/catalogs/extras";
 
@@ -217,6 +219,20 @@ const BASE: CatalogConfig[] = [
     description: "Danh mục thiết bị dạy học tối thiểu theo cấp học (TT 37, 38, 39/2021, sửa đổi bởi TT 26/2023).",
     codeExample: "TT37-2021-THCS",
     nameExample: "Danh mục thiết bị tối thiểu cấp THCS",
+  },
+  {
+    resource: "legal_documents",
+    path: "/legal-documents",
+    group: "catalog_equip",
+    icon: ScrollText,
+    label: "Văn bản căn cứ",
+    description: "Thông tư của Bộ về thiết bị dạy học và cơ sở vật chất.",
+    codeLabel: "Số hiệu",
+    codeExample: "37/2021/TT-BGDĐT",
+    codeMax: 50,
+    codePattern: { value: LEGAL_DOC_NUMBER, message: "Số hiệu chỉ gồm chữ, số và dấu / . -" },
+    nameLabel: "Tên văn bản",
+    nameExample: "Ban hành Danh mục thiết bị dạy học tối thiểu cấp Tiểu học",
   },
   {
     resource: "equipment_norms",

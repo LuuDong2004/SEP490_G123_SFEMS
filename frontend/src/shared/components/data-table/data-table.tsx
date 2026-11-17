@@ -214,12 +214,15 @@ export function DataTable<TData extends BaseRecord>({
   const leafColumns = table.reactTable.getVisibleLeafColumns();
   // Chia phần bề rộng DƯ (bảng rộng hơn tổng cỡ cột) theo tỷ lệ cỡ của từng cột — không dồn hết cho một cột "fill"
   // (cột Trường ngắn chữ thành khoảng trắng lớn, cột ngày vẫn bị cắt). Cột hẹp (≤ 100px: STT, ô chọn, thao tác) và
-  // cột ghim không nhận thêm; cột đánh dấu `meta.fill` (cột tên) nhận gấp đôi.
+  // cột ghim không nhận thêm; cột đánh dấu `meta.fill` (cột tên) nhận gấp đôi, cột `meta.fixed` (mã, ngày, nhãn ngắn)
+  // giữ đúng cỡ khai báo.
   // (Bề rộng khung đo bằng ResizeObserver — `calc()` có % trên ô bảng bị Chrome coi như `auto`, nên tính ra px.)
   const [boxW, setBoxW] = useState(0);
   const spread = useMemo(() => {
-    const weight = (c: Column<TData>) => (c.getSize() <= 100 || c.getIsPinned() ? 0
-      : c.getSize() * ((c.columnDef.meta as { fill?: boolean } | undefined)?.fill ? 2 : 1));
+    const weight = (c: Column<TData>) => {
+      const meta = c.columnDef.meta as { fill?: boolean; fixed?: boolean } | undefined;
+      return c.getSize() <= 100 || c.getIsPinned() || meta?.fixed ? 0 : c.getSize() * (meta?.fill ? 2 : 1);
+    };
     const all = leafColumns.reduce((s, c) => s + weight(c), 0);
     const total = leafColumns.reduce((s, c) => s + c.getSize(), 0);
     const extra = Math.max(0, boxW - total);

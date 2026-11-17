@@ -47,6 +47,7 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "facility_groups": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "facility_standard_rules": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "grades": { read: ["admin", "so", "school"], write: ["admin", "so"] },
+  "legal_documents": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "movement_reasons": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "room_types": { read: ["admin", "so", "school"], write: ["admin", "so"] },
   "school_years": { read: ["admin", "so", "school"], write: ["admin", "so"] },

@@ -266,8 +266,19 @@ export type CatalogExtra = {
    * bên trong). Thêm / sửa / xem của chính danh mục vẫn đi qua các màn chung.
    */
   ListPage?: import("react").ComponentType<{ config: CatalogConfig }>;
+  /**
+   * Hộp thoại RIÊNG thay cho cặp hộp chung Thêm / Sửa (`CatalogFormDialog`) và Xem (`CatalogShowDialog`) — khi
+   * ba màn phải cùng một bố cục và có phần hộp chung không làm được (vd. văn bản căn cứ: PDF bắt buộc lúc thêm).
+   */
+  RecordDialog?: import("react").ComponentType<{
+    state: { mode: "create" | "edit" | "view"; id?: number } | null;
+    onClose: () => void;
+    onSaved?: (record: { id: number }) => void;
+  }>;
   /** Độ rộng cột Mã (px) khi mã dài hơn mặc định — vd. mã tài sản 79.T6.00.TB.007.26. */
   codeSize?: number;
+  /** Cột Mã giữ đúng `codeSize`, không nhận phần bề rộng dư của bảng (dư dồn cho cột tên). */
+  codeFixed?: boolean;
   /** Cột mã là MÃ TÀI SẢN chuẩn: tô nổi số thứ tự (`AssetCode`). */
   assetCode?: boolean;
   /**

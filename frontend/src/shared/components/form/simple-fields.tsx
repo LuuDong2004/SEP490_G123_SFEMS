@@ -126,7 +126,7 @@ export function DateField({ control, name, label, description, rules, className,
  * cao sẵn ba dòng cho một ô phần lớn để trống.
  */
 export function TextareaField({ control, name, label, description, rules, className, rows = 1, inGrid, placeholder,
-  rule, max, min }:
+  rule, max, min, boxClassName }:
   Base & Omit<RuleProps, "numberRule"> & {
     rows?: number;
     placeholder?: string;
@@ -135,6 +135,8 @@ export function TextareaField({ control, name, label, description, rules, classN
      * "Ghi chú" một dòng đi cùng hàng với ô cuối của lưới, không chiếm riêng một hàng gần như trống.
      */
     inGrid?: boolean;
+    /** Lớp cho chính ô nhập (vd. cao cố định để form vừa một màn). */
+    boxClassName?: string;
   }) {
   return (
     <FormField
@@ -145,7 +147,7 @@ export function TextareaField({ control, name, label, description, rules, classN
         <FormItem className={cn(inGrid ? "@md:col-span-2" : "max-w-xl @2xl:max-w-[calc((100%-2rem)*2/3+1rem)] @4xl:max-w-[calc((100%-3rem)/2+1rem)]", className)}>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Textarea rows={rows} placeholder={placeholder} className={rows === 1 ? "min-h-9" : undefined} value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
+            <Textarea rows={rows} placeholder={placeholder} className={cn(rows === 1 && "min-h-9", boxClassName)} value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
               maxLength={rule ? maxLengthOf(rule, max) : undefined} />
           </FormControl>
           {rule ? <LengthCounter value={field.value} max={maxLengthOf(rule, max)} /> : null}
