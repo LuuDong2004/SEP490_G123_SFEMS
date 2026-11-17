@@ -50,6 +50,16 @@ public class RowLevelContextProviders {
     }
 
     /**
+     * Phạm vi cơ sở của tài khoản trường (270) — null là cả trường. Cùng nguồn với {@code user.schoolId} (entry của
+     * authority cache), không tốn truy vấn. Dữ liệu CSVC, thiết bị lọc theo nó qua {@code CampusScope}; chính sách
+     * dòng có thể so nó với {@code campus.id}.
+     */
+    @Bean
+    RowLevelContextProvider currentCampusId() {
+        return provider("user.campusId", Long.class, RowLevelPrincipal::campusId);
+    }
+
+    /**
      * Cơ quan quản lý của tài khoản — Sở hoặc UBND.
      *
      * <p>Đây là khoá làm cho "Sở quản lý THÔNG QUA UBND" thành một luật chạy

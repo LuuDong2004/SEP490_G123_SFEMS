@@ -1,5 +1,7 @@
 package com.g123.sfems.module.school.facility;
 
+import com.g123.sfems.module.catalog.base.CampusRule;
+import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.persistence.criteria.JoinType;
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
 import com.g123.sfems.domain.school.facility.Building;
@@ -101,10 +103,13 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
      * Kho thiết bị của một trường: phòng đang dùng mang loại {@code KHO}, không có thì phòng có tên chứa chữ
      * "kho"; trường chưa khai kho thì {@code null}. Hàng ghi tăng luôn về kho — form chọn sẵn kho
      * cho từng dòng, còn phiếu lập từ đề xuất mua sắm, từ kiểm kê hay qua API thì máy chủ dùng hàm này.
-     * Đọc qua phạm vi dòng như mọi lần đọc phòng.
+     * Đọc qua phạm vi dòng như mọi lần đọc phòng. Tài khoản bị giới hạn trong một cơ sở của trường đó: kho của cơ sở
+     * mình (cơ sở chưa có kho thì {@code null}).
      */
     public Room storeroomOf(Long schoolId) {
+        Long campus = campusScope.pinnedCampusIn(schoolId);
         Specification<Room> spec = rowLevel.<Room>scope(Room.class, Action.READ)
+                .and(campus == null ? Specification.unrestricted() : campusRule().inCampus(campus))
                 .and((root, q, cb) -> cb.equal(root.get("school").get("id"), schoolId))
                 .and((root, q, cb) -> cb.isTrue(root.get("active")));
         List<Room> rooms = repository.findAll(spec, Sort.by("name"));
@@ -713,5 +718,18 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
 
     private static boolean present(IdRef ref) {
         return ref != null && ref.id() != null;
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (270), xem {@link CampusScope}. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<Room> campusRule() {
+        return campusScope.rooms();
     }
 }

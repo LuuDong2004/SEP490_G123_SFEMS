@@ -37,11 +37,14 @@ public class StaffAccountService {
     private final StaffService staff;
     private final UserService users;
     private final RoleService roles;
+    private final SchoolUserService schoolUsers;
 
-    public StaffAccountService(StaffService staff, UserService users, RoleService roles) {
+    public StaffAccountService(StaffService staff, UserService users, RoleService roles,
+            SchoolUserService schoolUsers) {
         this.staff = staff;
         this.users = users;
         this.roles = roles;
+        this.schoolUsers = schoolUsers;
     }
 
     /** Kết quả cấp / đặt lại: tài khoản kèm mật khẩu tạm (chỉ trả một lần, không lưu ở đâu). */
@@ -49,7 +52,7 @@ public class StaffAccountService {
     }
 
     @Transactional
-    public Issued create(Long staffId, String requestedUsername, String requestedRole) {
+    public Issued create(Long staffId, String requestedUsername, String requestedRole, Long campusId) {
         Staff person = staff.getWritable(staffId);
         if (person.getAccount() != null) {
             throw new ConflictException("Cán bộ này đã có tài khoản " + person.getAccount().getUsername());
@@ -71,6 +74,8 @@ public class StaffAccountService {
                 username, email, person.getName(), password, UserStatus.ACTIVE,
                 new SchoolRef(person.getSchool().getId()), null,
                 List.of(new RoleRef(roleId)), null));
+        // Phạm vi cơ sở (270): trống = cả trường; kiểm cùng trường, còn dùng ở SchoolUserService.
+        schoolUsers.assignCampus(user, campusId);
         staff.linkAccount(staffId, user);
         return new Issued(user.getId(), user.getUsername(), role, password);
     }

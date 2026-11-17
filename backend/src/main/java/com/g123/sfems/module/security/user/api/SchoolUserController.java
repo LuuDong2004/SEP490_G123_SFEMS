@@ -1,6 +1,7 @@
 package com.g123.sfems.module.security.user.api;
 
 import com.g123.sfems.domain.security.user.UserStatus;
+import com.g123.sfems.module.security.user.api.dto.CampusRef;
 import com.g123.sfems.module.security.user.api.dto.UserResponse;
 import com.g123.sfems.module.security.user.service.SchoolUserService;
 import com.g123.sfems.module.security.user.service.SchoolUserService.Issued;
@@ -49,7 +50,10 @@ public class SchoolUserController {
             String email,
 
             @Text(value = FieldRule.CODE, label = "Vai trò", max = 64)
-            String role) {
+            String role,
+
+            /** Phạm vi: vắng / {@code {"id": null}} = cả trường. */
+            CampusRef campus) {
     }
 
     public record PatchRequest(
@@ -62,7 +66,10 @@ public class SchoolUserController {
             @Text(value = FieldRule.CODE, label = "Vai trò", max = 64)
             String role,
 
-            UserStatus status) {
+            UserStatus status,
+
+            /** Vắng = để nguyên; {@code {"id": null}} = cả trường. */
+            CampusRef campus) {
     }
 
     /** Tài khoản kèm mật khẩu tạm — chỉ ở lần tạo / đặt lại. */
@@ -88,13 +95,15 @@ public class SchoolUserController {
     @PostMapping
     @PreAuthorize("hasAuthority('school_users:write')")
     public IssuedResponse create(@Valid @RequestBody CreateRequest request) {
-        return IssuedResponse.of(service.create(request.username(), request.fullName(), request.email(), request.role()));
+        return IssuedResponse.of(service.create(request.username(), request.fullName(), request.email(), request.role(),
+                request.campus()));
     }
 
     @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @PreAuthorize("hasAuthority('school_users:write')")
     public UserResponse update(@PathVariable Long id, @Valid @RequestBody PatchRequest request) {
-        return UserResponse.from(service.update(id, request.fullName(), request.email(), request.role(), request.status()));
+        return UserResponse.from(service.update(id, request.fullName(), request.email(), request.role(), request.status(),
+                request.campus()));
     }
 
     @PostMapping("/{id}/password")

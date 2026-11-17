@@ -29,6 +29,7 @@ public record StaffResponse(
         String email,
         List<RefSummary> subjects,
         RefSummary mainSubject,
+        RefSummary campus,
         Account account,
         Instant createdAt,
         Instant updatedAt,
@@ -59,6 +60,7 @@ public record StaffResponse(
                 full ? item.getEmail() : PersonalData.email(item.getEmail()),
                 item.getSubjects().stream().map(RefSummary::of).toList(),
                 RefSummary.of(item.getMainSubject()),
+                RefSummary.of(item.getCampus()),
                 Account.of(item),
                 item.getCreatedAt(), item.getUpdatedAt(),
                 can);

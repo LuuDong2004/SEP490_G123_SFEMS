@@ -496,3 +496,7 @@ databaseChangeLog:
       file: db/changelog/changes/268-norm-effective-main-date.sql
   - include:
       file: db/changelog/changes/269-norm-basis-by-circular.sql
+  - include:
+      file: db/changelog/changes/270-user-campus.sql
+  - include:
+      file: db/changelog/changes/271-staff-campus.sql

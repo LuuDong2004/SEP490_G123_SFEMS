@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.staff;
 
+import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.staff.StaffAccountService.Issued;
 import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
@@ -29,7 +30,9 @@ public class StaffAccountController {
 
     public record CreateRequest(
             @Text(value = FieldRule.USERNAME, label = "Tên đăng nhập") String username,
-            @Text(value = FieldRule.CODE, label = "Vai trò") String role) {
+            @Text(value = FieldRule.CODE, label = "Vai trò") String role,
+            /** Phạm vi: vắng / {@code {"id": null}} = cả trường. */
+            IdRef campus) {
     }
 
     public record StatusRequest(boolean active) {
@@ -38,7 +41,8 @@ public class StaffAccountController {
     /** Cấp tài khoản — trả về tên đăng nhập và mật khẩu tạm (chỉ lần này). */
     @PostMapping
     public Issued create(@PathVariable Long id, @Valid @RequestBody(required = false) CreateRequest request) {
-        return accounts.create(id, request == null ? null : request.username(), request == null ? null : request.role());
+        return accounts.create(id, request == null ? null : request.username(), request == null ? null : request.role(),
+                request == null || request.campus() == null ? null : request.campus().id());
     }
 
     /** Đặt lại mật khẩu — mật khẩu tạm mới, mọi phiên đang mở của tài khoản bị đăng xuất. */

@@ -78,6 +78,8 @@ export type VoucherBase = {
   /** Chỉ có ở DANH SÁCH: tối đa 3 tài sản đầu của phiếu (mã, tên) — để danh sách nói phiếu về cái gì. */
   lineItems?: { code: string | null; name: string | null }[];
   lineCount?: number;
+  /** Chỉ có ở DANH SÁCH, với tài khoản cả trường của trường nhiều cơ sở: các cơ sở phiếu chạm tới. */
+  campuses?: { id: number; name: string; primary?: boolean; branch?: boolean }[];
 };
 
 export type VoucherEventAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT" | "CANCEL" | "COMPLETE" | "DISPUTE";

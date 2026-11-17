@@ -4,6 +4,7 @@ import com.g123.sfems.shared.web.HeavyQuery;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.module.organization.school.repo.SchoolRepository;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
@@ -52,11 +53,14 @@ public class SchoolOverviewController {
     private final SchoolRepository schools;
     private final RowLevelSecurity rowLevel;
     private final JdbcTemplate jdbc;
+    private final CampusScope campusScope;
 
-    public SchoolOverviewController(SchoolRepository schools, RowLevelSecurity rowLevel, JdbcTemplate jdbc) {
+    public SchoolOverviewController(SchoolRepository schools, RowLevelSecurity rowLevel, JdbcTemplate jdbc,
+            CampusScope campusScope) {
         this.schools = schools;
         this.rowLevel = rowLevel;
         this.jdbc = jdbc;
+        this.campusScope = campusScope;
     }
 
     public record SchoolStats(
@@ -162,15 +166,20 @@ public class SchoolOverviewController {
         }
         Long[] ids = visible.stream().map(School::getId).toArray(Long[]::new);
 
-        Map<Long, Long> staff = count("SELECT school_id, count(*) FROM staff WHERE school_id = ANY(?) GROUP BY school_id", ids);
-        Map<Long, Long> campuses = count("SELECT school_id, count(*) FROM campuses WHERE school_id = ANY(?) GROUP BY school_id", ids);
-        Map<Long, Long> buildings = count("SELECT school_id, count(*) FROM buildings WHERE school_id = ANY(?) GROUP BY school_id", ids);
-        Map<Long, Long> rooms = count("SELECT school_id, count(*) FROM rooms WHERE school_id = ANY(?) GROUP BY school_id", ids);
+        Pin pin = pin();
+        Map<Long, Long> staff = count("SELECT school_id, count(*) FROM staff WHERE school_id = ANY(?)" + pin.staff()
+                + " GROUP BY school_id", ids);
+        Map<Long, Long> campuses = count("SELECT school_id, count(*) FROM campuses WHERE school_id = ANY(?)"
+                + pin.campuses() + " GROUP BY school_id", ids);
+        Map<Long, Long> buildings = count("SELECT school_id, count(*) FROM buildings WHERE school_id = ANY(?)"
+                + pin.buildings() + " GROUP BY school_id", ids);
+        Map<Long, Long> rooms = count("SELECT school_id, count(*) FROM rooms WHERE school_id = ANY(?)" + pin.rooms()
+                + " GROUP BY school_id", ids);
 
         Map<Long, long[]> classes = new HashMap<>();
         withArray(ids, array -> jdbc.query(
                 // Một nguồn với mọi số CSVC: lớp năm học hiện hành (FacilityCounting).
-                "SELECT cl.school_id, cl.classes, coalesce(cl.students, 0) FROM (" + FacilityCounting.CLASS_COUNTS
+                "SELECT cl.school_id, cl.classes, coalesce(cl.students, 0) FROM (" + pin.classCounts()
                         + ") cl WHERE cl.school_id = ANY(?)",
                 rs -> {
                     classes.put(rs.getLong(1), new long[] {rs.getLong(2), rs.getLong(3)});
@@ -183,7 +192,7 @@ public class SchoolOverviewController {
                         + " count(*) FILTER (WHERE " + Equipment.brokenSql("") + "),"
                         + " count(*) FILTER (WHERE status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')),"
                         + " coalesce(sum(original_value), 0)"
-                        + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK
+                        + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK + pin.equipment()
                         + " GROUP BY school_id",
                 rs -> {
                     long sid = rs.getLong(1);
@@ -388,14 +397,15 @@ public class SchoolOverviewController {
         if (ids.length == 0) {
             return empty();
         }
-        long staff = sum("SELECT count(*) FROM staff WHERE school_id = ANY(?)", ids);
-        long campuses = sum("SELECT count(*) FROM campuses WHERE school_id = ANY(?)", ids);
-        long buildings = sum("SELECT count(*) FROM buildings WHERE school_id = ANY(?)", ids);
-        long rooms = sum("SELECT count(*) FROM rooms WHERE school_id = ANY(?)", ids);
+        Pin pin = pin();
+        long staff = sum("SELECT count(*) FROM staff WHERE school_id = ANY(?)" + pin.staff(), ids);
+        long campuses = sum("SELECT count(*) FROM campuses WHERE school_id = ANY(?)" + pin.campuses(), ids);
+        long buildings = sum("SELECT count(*) FROM buildings WHERE school_id = ANY(?)" + pin.buildings(), ids);
+        long rooms = sum("SELECT count(*) FROM rooms WHERE school_id = ANY(?)" + pin.rooms(), ids);
         long[] cls = new long[2];
         withArray(ids, array -> jdbc.query(
                 "SELECT coalesce(sum(cl.classes), 0), coalesce(sum(cl.students), 0) FROM ("
-                        + FacilityCounting.CLASS_COUNTS + ") cl WHERE cl.school_id = ANY(?)",
+                        + pin.classCounts() + ") cl WHERE cl.school_id = ANY(?)",
                 rs -> {
                     cls[0] = rs.getLong(1);
                     cls[1] = rs.getLong(2);
@@ -409,7 +419,7 @@ public class SchoolOverviewController {
                         + " count(*) FILTER (WHERE " + Equipment.brokenSql("") + "),"
                         + " count(*) FILTER (WHERE status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')),"
                         + " coalesce(sum(original_value), 0)"
-                        + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK,
+                        + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK + pin.equipment(),
                 rs -> {
                     eq[0] = rs.getLong(1);
                     eq[1] = rs.getLong(2);
@@ -420,6 +430,47 @@ public class SchoolOverviewController {
 
         return new SchoolStats(null, null, "Tổng", null, staff, campuses, buildings, rooms,
                 eq[0], eq[1], eq[2], value[0] == null ? BigDecimal.ZERO : value[0], cls[0], cls[1]);
+    }
+
+    /**
+     * Vế lọc theo cơ sở của tài khoản bị giới hạn (271) — chỉ số của cơ sở mình; không giới hạn thì rỗng. Bảng không
+     * đặt bí danh nên vế gọi cột bằng tên bảng ({@code staff.campus_id}…).
+     */
+    private record Pin(Long campus) {
+
+        private String c() {
+            return String.valueOf(campus.longValue());
+        }
+
+        String staff() {
+            return campus == null ? " " : FacilityCounting.ownCampusInSql("staff.campus_id", "staff.school_id", c());
+        }
+
+        String campuses() {
+            return campus == null ? " " : FacilityCounting.ownCampusInSql("campuses.id", "campuses.school_id", c());
+        }
+
+        String buildings() {
+            return campus == null ? " "
+                    : FacilityCounting.ownCampusInSql("buildings.campus_id", "buildings.school_id", c());
+        }
+
+        String rooms() {
+            return campus == null ? " " : FacilityCounting.roomInCampusSql("rooms.id", "rooms.school_id", c());
+        }
+
+        String equipment() {
+            return campus == null ? " "
+                    : FacilityCounting.roomInCampusSql("equipment.room_id", "equipment.school_id", c());
+        }
+
+        String classCounts() {
+            return campus == null ? FacilityCounting.CLASS_COUNTS : FacilityCounting.classCountsOf(campus);
+        }
+    }
+
+    private Pin pin() {
+        return new Pin(campusScope.pinnedCampusId());
     }
 
     private long sum(String sql, Long[] ids) {

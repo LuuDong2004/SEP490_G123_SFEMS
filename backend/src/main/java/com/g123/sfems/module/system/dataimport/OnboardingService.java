@@ -736,7 +736,7 @@ public class OnboardingService {
                     Long id = staff.create(new StaffRequest(c.code(), c.name(), null, true, c.note(), school, c.type(),
                             c.position(), c.department() != null ? c.department() : c.team(), c.phone(), c.email(),
                             c.subjects().stream().map(IdRef::new).toList(),
-                            c.mainSubject() == null ? null : new IdRef(c.mainSubject()))).getId();
+                            c.mainSubject() == null ? null : new IdRef(c.mainSubject()), null)).getId();
                     put(s, c.code(), id);
                     record("staff", id);
                     if (c.team() != null && c.type() == StaffType.TEACHER) {

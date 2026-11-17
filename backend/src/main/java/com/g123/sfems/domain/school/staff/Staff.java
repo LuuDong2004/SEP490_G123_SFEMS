@@ -3,6 +3,7 @@ package com.g123.sfems.domain.school.staff;
 import com.g123.sfems.domain.catalog.enums.StaffPosition;
 import com.g123.sfems.domain.catalog.subject.Subject;
 import com.g123.sfems.domain.school.base.SchoolOwnedEntity;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.Column;
@@ -64,6 +65,11 @@ public class Staff extends SchoolOwnedEntity {
     @JoinColumn(name = "main_subject_id")
     private Subject mainSubject;
 
+    /** Cơ sở làm việc (271) — trống = cơ sở chính. Phạm vi cơ sở của tài khoản, giáo viên theo cơ sở ở báo cáo. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
+
     /**
      * Tài khoản đăng nhập của cán bộ này, nếu đã cấp. EAGER: danh sách cán bộ hiện tên đăng nhập và
      * trạng thái trên mỗi dòng, và chỉ cán bộ đã có tài khoản mới tốn một lần đọc.
@@ -114,6 +120,14 @@ public class Staff extends SchoolOwnedEntity {
 
     public Set<Subject> getSubjects() {
         return subjects;
+    }
+
+    public Campus getCampus() {
+        return campus;
+    }
+
+    public void setCampus(Campus campus) {
+        this.campus = campus;
     }
 
     public Subject getMainSubject() {

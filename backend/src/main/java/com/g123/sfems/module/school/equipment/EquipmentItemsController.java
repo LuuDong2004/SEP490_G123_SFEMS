@@ -46,7 +46,8 @@ public class EquipmentItemsController {
                 new EquipmentSummaryService.Filters(
                         longOrNull(raw.getFirst("school.id")), raw.getFirst("schoolBody"), raw.getFirst("catalogType"),
                         longOrNull(raw.getFirst("catalogTree")), raw.getFirst("subject"), params.search().orElse(null),
-                        null, raw.getFirst("assetStatus"), raw.getFirst("condition"), raw.getFirst("catalogScope")),
+                        null, raw.getFirst("assetStatus"), raw.getFirst("condition"), raw.getFirst("catalogScope"),
+                        longOrNull(raw.getFirst("campus"))),
                 new EquipmentSummaryService.ItemFilters(
                         raw.getFirst("kind"), longOrNull(raw.getFirst("catalog.id")), raw.getFirst("room.id"),
                         raw.getFirst("status"),

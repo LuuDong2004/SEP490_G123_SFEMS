@@ -3,6 +3,8 @@ package com.g123.sfems.module.school.equipment;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facility.CampusScope;
+import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.shared.cache.SharedCache;
 import com.g123.sfems.shared.office.XlsxWriter;
 import com.g123.sfems.shared.web.ListParams;
@@ -60,26 +62,28 @@ public class EquipmentSummaryService {
     public record Filters(Long schoolId, String schoolBody, String catalogType, Long catalogTree, String subject,
                           String q, List<Long> schoolIds, String assetStatus, String condition,
                           /** in: trong danh mục của Sở; out: ngoài danh mục (trường tự thêm); trống: cả hai. */
-                          String catalogScope) {
+                          String catalogScope,
+                          /** Cơ sở (bộ lọc Cơ sở): thiết bị ở phòng thuộc cơ sở đó, chưa xếp phòng = cơ sở chính. */
+                          Long campusId) {
         public Filters(Long schoolId, String schoolBody, String catalogType, Long catalogTree, String subject, String q) {
-            this(schoolId, schoolBody, catalogType, catalogTree, subject, q, null, null, null, null);
+            this(schoolId, schoolBody, catalogType, catalogTree, subject, q, null, null, null, null, null);
         }
 
         public Filters(Long schoolId, String schoolBody, String catalogType, Long catalogTree, String subject, String q,
                        List<Long> schoolIds) {
-            this(schoolId, schoolBody, catalogType, catalogTree, subject, q, schoolIds, null, null, null);
+            this(schoolId, schoolBody, catalogType, catalogTree, subject, q, schoolIds, null, null, null, null);
         }
 
         /** Cùng bộ lọc, gói vào MỘT trường (trang Excel của từng trường). */
         Filters withSchool(Long id) {
             return new Filters(id, schoolBody, catalogType, catalogTree, subject, q, null, assetStatus, condition,
-                    catalogScope);
+                    catalogScope, campusId);
         }
 
         /** Cùng bộ lọc, bỏ ô tìm — bảng chi tiết tự tìm trên mã / tên tài sản. */
         Filters withoutQuery() {
             return new Filters(schoolId, schoolBody, catalogType, catalogTree, subject, null, schoolIds, assetStatus,
-                    condition, catalogScope);
+                    condition, catalogScope, campusId);
         }
     }
 
@@ -94,12 +98,14 @@ public class EquipmentSummaryService {
     private final EquipmentCatalogService catalogs;
     private final SummaryCache<Map<String, Object>> cache;
     private final SummaryCache<Long> countCache;
+    private final CampusScope campusScope;
 
     public EquipmentSummaryService(JdbcTemplate jdbc, VisibleSchools visible, EquipmentCatalogService catalogs,
-                                   SharedCache shared) {
+                                   SharedCache shared, CampusScope campusScope) {
         this.jdbc = jdbc;
         this.visible = visible;
         this.catalogs = catalogs;
+        this.campusScope = campusScope;
         Duration ttl = Duration.ofSeconds(CACHE_SECONDS);
         this.cache = new SummaryCache<>(ttl, 300, shared, "equipment-summary", shared.mapType(String.class, Object.class));
         this.countCache = new SummaryCache<>(ttl, 500, shared, "equipment-items-count", shared.type(Long.class));
@@ -230,6 +236,7 @@ public class EquipmentSummaryService {
             return work.get();
         }
         String key = (scope == null ? "*" : new TreeSet<>(scope).toString()) + "|" + by + "|" + f
+                + "|c" + campusScope.effectiveFilter(f.campusId())
                 + (by == By.ROOM ? "|" + from + "|" + pageSize : "");
         return cache.get(key, work);
     }
@@ -563,7 +570,9 @@ public class EquipmentSummaryService {
                        c.code AS catalog_code, c.name AS catalog_name, (c.owner_school_id IS NOT NULL) AS out_of_catalog,
                        u.name AS unit_name,
                        pu.name AS pack_unit_name, e.pack_size,
-                       r.name AS room_name, sc.name AS school_name
+                       r.name AS room_name, sc.name AS school_name,
+                       cp.id AS campus_id, cp.name AS campus_name, cp.is_primary AS campus_main,
+                       cp.branch AS campus_branch
                 FROM equipment e
                 LEFT JOIN units pu ON pu.id = e.pack_unit_id
                 JOIN equipment_catalogs c ON c.id = e.catalog_id
@@ -573,6 +582,7 @@ public class EquipmentSummaryService {
                 LEFT JOIN equipment_intake_lines il ON il.id = e.intake_line_id
                 LEFT JOIN equipment_intakes i ON i.id = il.intake_id
                 LEFT JOIN origin_sources os ON os.id = COALESCE(e.origin_source_id, i.origin_source_id)
+                LEFT JOIN campuses cp ON cp.id = """ + FacilityCounting.campusOfRoomSql("e.room_id", "e.school_id") + """
                 WHERE e.id IN (""" + String.join(",", Collections.nCopies(ids.size(), "?")) + ")", args.toArray())) {
             byId.put(((Number) r.get("id")).longValue(), r);
         }
@@ -604,6 +614,15 @@ public class EquipmentSummaryService {
         out.put("outOfCatalog", Boolean.TRUE.equals(r.get("out_of_catalog")));
         out.put("room", r.get("room_id") == null ? null : ref(r.get("room_id"), null, r.get("room_name")));
         out.put("school", ref(r.get("school_id"), null, r.get("school_name")));
+        // Cơ sở thực (phòng → khối nhà → cơ sở chính), cho cột / nhãn Cơ sở.
+        if (r.get("campus_id") == null) {
+            out.put("campus", null);
+        } else {
+            Map<String, Object> campus = ref(r.get("campus_id"), null, r.get("campus_name"));
+            campus.put("primary", Boolean.TRUE.equals(r.get("campus_main")));
+            campus.put("branch", Boolean.TRUE.equals(r.get("campus_branch")));
+            out.put("campus", campus);
+        }
         out.put("quantity", r.get("quantity"));
         out.put("unit", r.get("unit_name"));
         out.put("packUnitName", r.get("pack_unit_name"));
@@ -675,6 +694,8 @@ public class EquipmentSummaryService {
             where.append(ids.isEmpty() ? " AND FALSE "
                     : " AND c.id IN (" + ids.stream().map(String::valueOf).collect(Collectors.joining(",")) + ") ");
         }
+        // Cơ sở: tài khoản bị giới hạn luôn lọc theo cơ sở của mình, bộ lọc gửi lên không nới được.
+        where.append(campusScope.sqlFilter("x.room_id", "x.school_id", campusScope.effectiveFilter(f.campusId()), args));
         codes(where, args, "x.status", f.assetStatus());
         codes(where, args, "x.condition", f.condition());
         if ("in".equals(f.catalogScope())) {

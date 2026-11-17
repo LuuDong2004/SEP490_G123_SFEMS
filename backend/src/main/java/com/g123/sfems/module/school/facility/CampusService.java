@@ -1,5 +1,7 @@
 package com.g123.sfems.module.school.facility;
 
+import com.g123.sfems.module.catalog.base.CampusRule;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
@@ -88,5 +90,18 @@ public class CampusService extends SchoolOwnedService<Campus, CampusRequest, Cam
                 .setFlushMode(FlushModeType.COMMIT)
                 .setParameter("school", schoolId)
                 .getSingleResult();
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (270), xem {@link CampusScope}. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<Campus> campusRule() {
+        return campusScope.campuses();
     }
 }

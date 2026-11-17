@@ -277,6 +277,6 @@ class CompilerAgreementTest {
     }
 
     private static RowLevelPrincipal principal(Long schoolId) {
-        return new RowLevelPrincipal(1L, schoolId, null, Set.of("USER"), Set.of(1L));
+        return new RowLevelPrincipal(1L, schoolId, null, null, Set.of("USER"), Set.of(1L));
     }
 }

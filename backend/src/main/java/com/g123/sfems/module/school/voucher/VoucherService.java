@@ -6,6 +6,7 @@ import com.g123.sfems.domain.school.voucher.VoucherStatus;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.organization.school.service.SchoolService;
+import com.g123.sfems.module.school.facility.CampusScope.CampusLabel;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.data.RecordAccess;
@@ -63,6 +64,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
     protected final EntityManager entityManager;
     protected final VoucherForms forms;
     protected final VoucherHolds holds;
+    protected final VoucherCampus campus;
     private final Class<V> type;
     private final String resource;
     private final Supplier<V> factory;
@@ -77,6 +79,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         this.entityManager = deps.entityManager();
         this.forms = deps.forms();
         this.holds = deps.holds();
+        this.campus = deps.campus();
         this.type = type;
         this.resource = resource;
         this.factory = factory;
@@ -170,6 +173,25 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
 
     protected abstract Specification<V> filters(ListParams params);
 
+    /**
+     * Móc: phiếu chạm cơ sở nào — thuộc tính phòng / thiết bị ở đầu phiếu và trên dòng ({@link VoucherCampus}). Mặc
+     * định: dòng {@code lines} trỏ tới thiết bị. Loại phiếu có phòng ở đầu phiếu, phòng trên dòng hay không có dòng
+     * thiết bị thì đè.
+     */
+    protected VoucherCampus.Shape campusShape() {
+        return VoucherCampus.Shape.LINES;
+    }
+
+    /** Phiếu chạm cơ sở của người gọi (không bị giới hạn thì mọi phiếu) — ghép vào mọi đường đọc. */
+    protected Specification<V> campusRead() {
+        return campus.pinned(campusShape());
+    }
+
+    /** Nhãn Cơ sở của các phiếu trên một trang danh sách (rỗng khi không cần — xem {@link VoucherCampus#labels}). */
+    public Map<Long, List<CampusLabel>> campusLabels(List<Long> ids) {
+        return campus.<V>labels(campusShape(), ids, spec -> repository.findAll(spec));
+    }
+
     protected Set<String> sortable() {
         return Set.of("id", "code", "status", "createdAt", "updatedAt");
     }
@@ -196,6 +218,8 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         }
         Page<V> page = repository.findAll(
                 rowLevel.<V>scope(type, Action.READ)
+                        .and(campusRead())
+                        .and(campus.filter(campusShape(), params))
                         .and(awaiting)
                         .and(Specification.allOf(common))
                         .and(CatalogSpecifications.referenceFilter(params, "school"))
@@ -210,18 +234,18 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
     }
 
     public List<V> getMany(List<Long> ids) {
-        List<V> rows = repository.findAll(rowLevel.byIds(type, Action.READ, ids));
+        List<V> rows = repository.findAll(rowLevel.byIds(type, Action.READ, ids).and(campusRead()));
         rows.forEach(this::initialize);
         return rows;
     }
 
     public V readable(Long id) {
-        return repository.findOne(rowLevel.byId(type, Action.READ, id))
+        return repository.findOne(rowLevel.byId(type, Action.READ, id).and(campusRead()))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
     }
 
     public V writable(Long id) {
-        return repository.findOne(rowLevel.byId(type, Action.WRITE, id))
+        return repository.findOne(rowLevel.byId(type, Action.WRITE, id).and(campusRead()))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
     }
 
@@ -235,6 +259,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         applyCreate(voucher, request);
         voucher.setDetails(forms.header(resource, request.details(), null, voucher.getSchool().getId(), null));
         validate(voucher);
+        campus.requireWritable(campusShape(), voucher, Set.of());
         V saved = repository.persist(voucher);
         repository.flush();
         rowLevel.checkWritable(saved);
@@ -251,12 +276,15 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         if (school != null && school.id() != null && !school.id().equals(voucher.getSchool().getId())) {
             throw new FieldValidationException("school", "Không đổi được trường sau khi tạo phiếu");
         }
+        // Cơ sở: chỉ kiểm phòng / thiết bị MỚI thêm — phiếu chạm hai cơ sở vẫn sửa được phần của mình.
+        Set<String> anchored = campus.anchorKeys(campusShape(), voucher);
         applyUpdate(voucher, request);
         if (request.details() != null) {
             voucher.setDetails(forms.header(resource, request.details(), voucher.getDetails(),
                     voucher.getSchool().getId(), null));
         }
         validate(voucher);
+        campus.requireWritable(campusShape(), voucher, anchored);
         rowLevel.checkWritable(voucher);
         return initialize(repository.persist(voucher));
     }
@@ -346,7 +374,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
 
     @Transactional
     public V delete(Long id) {
-        V voucher = repository.findOne(rowLevel.byId(type, Action.DELETE, id))
+        V voucher = repository.findOne(rowLevel.byId(type, Action.DELETE, id).and(campusRead()))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
         lockAndReread(voucher);
         workflow.requireDeletable(voucher, resource);

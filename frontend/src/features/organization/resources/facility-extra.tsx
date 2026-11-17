@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormContext, useFormState, useWatch, type Control } from "react-hook-form";
 
 import { Badge } from "@/shared/ui/badge";
+import { CampusCell, CampusTableFilter } from "@/shared/components/campus/campus";
 import { FillPanelContext } from "@/shared/components/layout/fill-panel";
 import { cn } from "@/shared/lib/utils";
 import { lowerLabel } from "@/shared/lib/label";
@@ -238,6 +239,14 @@ export function SameSchoolRef({
   );
 }
 
+/** Cột Cơ sở: cơ sở thực của dòng (ghi trên nó, không thì cơ sở chính) kèm loại. */
+const campusColumn: ColumnDef<any, any> = {
+  id: "campus",
+  header: "Cơ sở",
+  enableSorting: false,
+  cell: ({ row }) => <CampusCell campus={row.original.campus} />,
+};
+
 export const refCell = (key: string, header: string): ColumnDef<any, any> => ({
   id: key,
   header,
@@ -456,8 +465,9 @@ export const BUILDING_EXTRA = {
   FormBody: BuildingFormBody,
   dialogSize: "formFit" as const,
   dialogHeader: true,
+  ListFilters: CampusTableFilter,
   columns: [
-    refCell("campus", "Cơ sở"),
+    campusColumn,
     {
       id: "floorCount",
       header: "Số tầng",
@@ -1379,11 +1389,13 @@ export const ROOM_EXTRA: CatalogExtra = {
   FormFooterNote: RoomFormFooterNote,
   // Không `dialogHeader` (biểu tượng + mô tả): hộp Sửa giữ đúng tiêu đề của hộp xem (tên phòng), bấm Sửa tiêu đề không
   // đổi kiểu (trưởng nhóm, 12/11/2026) — xem `CatalogFormDialog`.
+  ListFilters: CampusTableFilter,
   columns: [
     // Trường đứng NGAY SAU tên phòng, không ở cuối: bảng phòng có nhiều cột nhất trong các danh mục
     // của trường, và ở màn 1280px cột cuối bị đẩy ra ngoài — với người xem nhiều trường (quản trị,
     // Sở) thì "phòng của trường nào" là thứ phải thấy đầu tiên, không phải thứ phải cuộn ngang mới thấy.
     schoolColumn,
+    campusColumn,
     refCell("building", "Khối nhà"),
     refCell("roomType", "Loại CSVC"),
     refCell("subject", "Môn"),

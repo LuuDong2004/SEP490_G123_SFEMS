@@ -43,13 +43,15 @@ public class FacilityInfoController {
     private final SchoolService schools;
     private final VisibleSchools visibleSchools;
     private final RowLevelSecurity rowLevel;
+    private final CampusScope campusScope;
 
     public FacilityInfoController(JdbcTemplate jdbc, SchoolService schools, VisibleSchools visibleSchools,
-            RowLevelSecurity rowLevel) {
+            RowLevelSecurity rowLevel, CampusScope campusScope) {
         this.jdbc = jdbc;
         this.schools = schools;
         this.visibleSchools = visibleSchools;
         this.rowLevel = rowLevel;
+        this.campusScope = campusScope;
     }
 
     /** Một cơ sở; học sinh / lớp chia từ lớp năm nay theo phòng học của lớp (xem {@link FacilityCounting}). */
@@ -174,9 +176,18 @@ public class FacilityInfoController {
     }
 
     private FacilityInfo info(long id, BigDecimal landArea, BigDecimal constructionArea) {
+        // Tài khoản một cơ sở (271): chỉ số của cơ sở mình — lớp, cơ sở, khối nhà, phòng. Diện tích đất / xây dựng
+        // là của cả trường, giữ nguyên.
+        Long pinned = campusScope.pinnedCampusIn(id);
+        String pinRoom = pinned == null ? " "
+                : FacilityCounting.roomInCampusSql("r.id", "r.school_id", String.valueOf(pinned.longValue()));
+        String pinCampus = pinned == null ? " " : " AND c.id = " + pinned.longValue() + " ";
+        String pinBuilding = pinned == null ? " "
+                : FacilityCounting.ownCampusInSql("bb.campus_id", "bb.school_id", String.valueOf(pinned.longValue()));
         // Học sinh / lớp: một nguồn — lớp đang dùng của năm học hiện hành. Không có lớp = null, không mượn số khác.
         List<Map<String, Object>> cls = jdbc.queryForList(
-                "SELECT classes, students, missing_size FROM (" + FacilityCounting.CLASS_COUNTS
+                "SELECT classes, students, missing_size FROM ("
+                        + (pinned == null ? FacilityCounting.CLASS_COUNTS : FacilityCounting.classCountsOf(pinned))
                         + ") cl WHERE cl.school_id = ?", id);
         Integer classCount = cls.isEmpty() ? null : (int) n(cls.getFirst().get("classes"));
         Integer studentCount = cls.isEmpty() || cls.getFirst().get("students") == null ? null
@@ -186,8 +197,8 @@ public class FacilityInfoController {
         List<CampusInfo> campuses = jdbc.query("""
                 SELECT c.id, c.code, c.name, c.is_primary, c.branch, x.classes, x.students FROM campuses c
                 LEFT JOIN (%s) x ON x.campus_id = c.id
-                WHERE c.school_id = ? AND c.active ORDER BY c.is_primary DESC, c.branch DESC, c.sort_order NULLS LAST, c.name
-                """.formatted(FacilityCounting.CLASS_COUNTS_BY_CAMPUS),
+                WHERE c.school_id = ? AND c.active%s ORDER BY c.is_primary DESC, c.branch DESC, c.sort_order NULLS LAST, c.name
+                """.formatted(FacilityCounting.CLASS_COUNTS_BY_CAMPUS, pinCampus),
                 (rs, i) -> {
                     Integer classes = rs.getObject("classes") == null ? (hasClasses ? 0 : null) : rs.getInt("classes");
                     Integer students = rs.getObject("students") == null ? (hasClasses && classes == 0 ? 0 : null)
@@ -196,7 +207,7 @@ public class FacilityInfoController {
                             rs.getBoolean("is_primary") ? "MAIN" : rs.getBoolean("branch") ? "BRANCH" : "POINT",
                             students, classes);
                 }, id);
-        String counted = FacilityCounting.COUNTED_ROOM;
+        String counted = FacilityCounting.COUNTED_ROOM + pinRoom;
         Map<String, Object> c = jdbc.queryForMap("""
                 SELECT count(*) FILTER (WHERE %1$s AND t.kind IS DISTINCT FROM 'AREA') AS rooms,
                        count(*) FILTER (WHERE %1$s AND t.kind = 'AREA') AS areas,
@@ -211,8 +222,8 @@ public class FacilityInfoController {
                 """.formatted(counted), id);
         Map<String, Object> b = jdbc.queryForMap("""
                 SELECT count(*) AS buildings
-                FROM buildings WHERE school_id = ? AND active
-                """, id);
+                FROM buildings bb WHERE bb.school_id = ? AND bb.active%s
+                """.formatted(pinBuilding), id);
         List<GroupCount> groups = new ArrayList<>(jdbc.query("""
                 SELECT g.id, g.code, g.name, count(r.id) AS n, coalesce(sum(r.area), 0) AS area
                 FROM facility_groups g

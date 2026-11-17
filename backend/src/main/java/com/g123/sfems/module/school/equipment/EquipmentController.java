@@ -82,13 +82,14 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
             @RequestParam(required = false) String assetStatus,
             @RequestParam(required = false) String condition,
             @RequestParam(required = false) String catalogScope,
+            @RequestParam(required = false) Long campus,
             @RequestParam(name = "_start", defaultValue = "0") int start,
             @RequestParam(name = "_end", defaultValue = "20") int end) {
         // _start / _end chỉ có nghĩa với by=room: phân trang theo kho/phòng (xem EquipmentSummaryService.screen).
         return summary.screen(
                 "room".equalsIgnoreCase(by) ? EquipmentSummaryService.By.ROOM : EquipmentSummaryService.By.CATALOG,
                 new EquipmentSummaryService.Filters(schoolId, schoolBody, catalogType, catalogTree, subject, q, null,
-                        assetStatus, condition, catalogScope),
+                        assetStatus, condition, catalogScope, campus),
                 start, end - start);
     }
 
@@ -107,12 +108,13 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
             @RequestParam(required = false) String assetStatus,
             @RequestParam(required = false) String condition,
             @RequestParam(required = false) String catalogScope,
+            @RequestParam(required = false) Long campus,
             @RequestParam(defaultValue = "false") boolean perSchool) {
         boolean byRoom = "room".equalsIgnoreCase(by);
         byte[] body = summary.excel(
                 byRoom ? EquipmentSummaryService.By.ROOM : EquipmentSummaryService.By.CATALOG,
                 new EquipmentSummaryService.Filters(schoolId, schoolBody, catalogType, catalogTree, subject, q, schools,
-                        assetStatus, condition, catalogScope),
+                        assetStatus, condition, catalogScope, campus),
                 perSchool);
         String filename = byRoom ? "Thiết bị theo kho phòng.xlsx" : "Thiết bị tổng hợp.xlsx";
         return ResponseEntity.ok()

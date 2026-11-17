@@ -2,14 +2,18 @@ package com.g123.sfems.module.school.staff;
 
 import com.g123.sfems.domain.catalog.enums.StaffPosition;
 import com.g123.sfems.domain.catalog.subject.Subject;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.school.staff.Staff;
 import com.g123.sfems.domain.school.staff.StaffType;
 import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.module.catalog.base.CampusRule;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.subject.SubjectService;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
+import com.g123.sfems.module.school.facility.CampusScope;
+import com.g123.sfems.module.school.facility.CampusService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -22,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,7 +58,7 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
     /** Cán bộ trong phạm vi GHI của người gọi — ngoài phạm vi là 404, như mọi lối sửa khác. */
     @Transactional(readOnly = true)
     public Staff getWritable(Long id) {
-        return repository.findOne(scopes.byId(Staff.class, Action.WRITE, id))
+        return repository.findOne(scopes.byId(Staff.class, Action.WRITE, id).and(campusRead()))
                 .orElseThrow(() -> new ResourceNotFoundException("Staff", id));
     }
 
@@ -207,6 +212,41 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
             syncSubjects(item, request.subjects());
         }
         setMainSubject(item, request.mainSubject());
+        if (request.campus() != null && request.campus().id() != null) {
+            setCampus(item, request.campus().id());
+        } else {
+            // Tài khoản một cơ sở tạo cán bộ: mặc định cơ sở của mình (trống = cơ sở chính, sẽ bị từ chối).
+            Long pinned = campusScope.pinnedCampusIn(item.getSchool().getId());
+            if (pinned != null) {
+                setCampus(item, pinned);
+            }
+        }
+    }
+
+    /** Cơ sở làm việc: cùng trường, còn dùng (giữ nguyên cơ sở đang gán dù đã ngừng). */
+    private void setCampus(Staff item, Long campusId) {
+        Campus campus = campuses.get(campusId);
+        if (!Objects.equals(item.getCampus() == null ? null : item.getCampus().getId(), campus.getId())
+                && !Boolean.TRUE.equals(campus.getActive())) {
+            throw new FieldValidationException("campus", "Cơ sở \"" + campus.getName() + "\" đã ngừng dùng");
+        }
+        requireSameSchool(item, campus, "campus");
+        item.setCampus(campus);
+    }
+
+    private CampusService campuses;
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (271), xem {@link CampusScope}. */
+    @Autowired
+    void setCampuses(CampusService campuses, CampusScope campusScope) {
+        this.campuses = campuses;
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<Staff> campusRule() {
+        return campusScope.staff();
     }
 
     @Override
@@ -258,6 +298,13 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
         }
         if (request.mainSubject() != null) {
             setMainSubject(item, request.mainSubject());
+        }
+        if (request.campus() != null) {
+            if (request.campus().id() == null) {
+                item.setCampus(null);
+            } else {
+                setCampus(item, request.campus().id());
+            }
         }
         if (changedToStaff) {
             item.getSubjects().clear();

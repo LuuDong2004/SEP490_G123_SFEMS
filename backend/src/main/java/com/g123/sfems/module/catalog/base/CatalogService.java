@@ -9,6 +9,7 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.web.ListParams;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -128,8 +129,52 @@ public abstract class CatalogService<
      */
     protected Specification<T> listSpecification(ListParams params) {
         return rowLevel.scope(type, Action.READ)
+                .and(campusRead())
                 .and(CatalogSpecifications.<T>from(params, searchFields()))
-                .and(extraFilters(params));
+                .and(extraFilters(params))
+                .and(campusFilter(params));
+    }
+
+    /**
+     * Móc: phạm vi cơ sở của loại này ({@link CampusRule}). Mặc định {@code null} — không chia theo cơ sở (danh
+     * mục, cán bộ, tổ chuyên môn). Dữ liệu CSVC / thiết bị ghi đè bằng rule của {@code CampusScope}.
+     */
+    protected CampusRule<T> campusRule() {
+        return null;
+    }
+
+    /** Dòng thuộc cơ sở của người gọi (không bị giới hạn thì mọi dòng) — ghép vào mọi đường đọc. */
+    protected Specification<T> campusRead() {
+        CampusRule<T> rule = campusRule();
+        return rule == null ? Specification.unrestricted() : rule.pinned();
+    }
+
+    /** Từ chối (422) bản ghi ngoài cơ sở của người gọi — mọi đường ghi gọi nó. */
+    protected void requireCampus(T item) {
+        CampusRule<T> rule = campusRule();
+        if (rule != null) {
+            rule.requireWritable(item);
+        }
+    }
+
+    /** {@code campus=<id>}: dòng có cơ sở thực là cơ sở đó (dòng chưa gán cơ sở tính vào cơ sở chính). */
+    private Specification<T> campusFilter(ListParams params) {
+        CampusRule<T> rule = campusRule();
+        if (rule == null) {
+            return Specification.unrestricted();
+        }
+        List<Specification<T>> specs = new ArrayList<>();
+        for (ListParams.Criterion criterion : params.filters()) {
+            if (!"campus".equals(criterion.field()) || criterion.value() == null || criterion.value().isBlank()) {
+                continue;
+            }
+            try {
+                specs.add(rule.inCampus(Long.parseLong(criterion.value().trim())));
+            } catch (NumberFormatException e) {
+                specs.add((root, query, cb) -> cb.disjunction());
+            }
+        }
+        return Specification.allOf(specs);
     }
 
     /** Các cột ô tìm kiếm ({@code q}) dò trong — mặc định mã và tên. */
@@ -150,6 +195,17 @@ public abstract class CatalogService<
     }
 
     public T get(Long id) {
+        T item = repository.findOne(rowLevel.byId(type, Action.READ, id).and(campusRead()))
+                .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
+        loadForResponse(item);
+        return item;
+    }
+
+    /**
+     * Như {@link #get} nhưng không lọc theo CƠ SỞ (vẫn theo phạm vi dòng) — cho phiếu: phiếu chạm hai cơ sở vẫn nạp
+     * lại được dòng của cơ sở kia, còn thêm mới thì phạm vi cơ sở của phiếu ({@code VoucherCampus}) kiểm và báo 422.
+     */
+    public T getAcrossCampuses(Long id) {
         T item = repository.findOne(rowLevel.byId(type, Action.READ, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
         loadForResponse(item);
@@ -158,12 +214,14 @@ public abstract class CatalogService<
 
     /** Bản ghi trong phạm vi GHI của người gọi — cho những việc làm đổi nó ngoài form sửa (tệp đính kèm…). */
     public T getWritable(Long id) {
-        return repository.findOne(rowLevel.byId(type, Action.WRITE, id))
+        T item = repository.findOne(rowLevel.byId(type, Action.WRITE, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
+        requireCampus(item);
+        return item;
     }
 
     public List<T> getMany(List<Long> ids) {
-        List<T> items = repository.findAll(rowLevel.byIds(type, Action.READ, ids));
+        List<T> items = repository.findAll(rowLevel.byIds(type, Action.READ, ids).and(campusRead()));
         items.forEach(this::loadForResponse);
         return items;
     }
@@ -202,6 +260,7 @@ public abstract class CatalogService<
         // đó, và kiểm chính sách trên bản ghi chưa dựng xong thì sai.
         repository.flush();
         rowLevel.checkWritable(saved);
+        requireCampus(saved);
         loadForResponse(saved);
         return saved;
     }
@@ -210,6 +269,8 @@ public abstract class CatalogService<
     public T update(Long id, P request) {
         T item = repository.findOne(rowLevel.byId(type, Action.WRITE, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
+        // Cơ sở: vế USING (bản đang có) ở đây, vế WITH CHECK (bản sau khi gán) cạnh checkWritable bên dưới.
+        requireCampus(item);
 
         if (request.code() != null) {
             // Kiểm TRƯỚC khi gán: truy vấn kiểm trùng làm Hibernate đẩy bản ghi
@@ -240,6 +301,7 @@ public abstract class CatalogService<
         applyUpdate(item, request);
 
         rowLevel.checkWritable(item);
+        requireCampus(item);
         T saved = repository.persist(item);
         loadForResponse(saved);
         return saved;
@@ -254,6 +316,7 @@ public abstract class CatalogService<
     public T delete(Long id) {
         T item = repository.findOne(rowLevel.byId(type, Action.DELETE, id))
                 .orElseThrow(() -> new ResourceNotFoundException(type.getSimpleName(), id));
+        requireCampus(item);
         beforeDelete(item);
         // Trước khi xoá: phản hồi của lệnh xoá vọng lại chính bản ghi này.
         loadForResponse(item);

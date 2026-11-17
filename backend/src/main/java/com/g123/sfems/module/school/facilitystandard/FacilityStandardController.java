@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,14 +38,16 @@ public class FacilityStandardController {
 
     @GetMapping("/schools/{schoolId}")
     @PreAuthorize("hasAnyAuthority('rooms:read', 'reports:read')")
-    public FacilityStandardService.Evaluation evaluate(@PathVariable Long schoolId) {
-        return standards.evaluate(schoolId);
+    public FacilityStandardService.Evaluation evaluate(@PathVariable Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        return standards.evaluate(schoolId, campusId);
     }
 
     @GetMapping("/schools/{schoolId}/export")
     @PreAuthorize("hasAnyAuthority('rooms:read', 'reports:read')")
-    public ResponseEntity<byte[]> export(@PathVariable Long schoolId) {
-        FacilityStandardService.Evaluation evaluation = standards.evaluate(schoolId);
+    public ResponseEntity<byte[]> export(@PathVariable Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        FacilityStandardService.Evaluation evaluation = standards.evaluate(schoolId, campusId);
         byte[] body = FacilityStandardExcel.write(evaluation);
         String file = "Danh gia muc do chuan - " + DownloadNames.safe(evaluation.school().name()) + ".xlsx";
         return ResponseEntity.ok()

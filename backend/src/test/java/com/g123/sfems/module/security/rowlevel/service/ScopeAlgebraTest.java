@@ -206,7 +206,7 @@ class ScopeAlgebraTest {
     }
 
     private static RowLevelPrincipal holding(String... roleCodes) {
-        return new RowLevelPrincipal(1L, 7L, null, Set.of(roleCodes), Set.of());
+        return new RowLevelPrincipal(1L, 7L, null, null, Set.of(roleCodes), Set.of());
     }
 
     /**

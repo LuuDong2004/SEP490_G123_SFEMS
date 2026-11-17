@@ -93,6 +93,11 @@ export type Authorities = {
    */
   schoolId?: number | null;
   managingBodyId?: number | null;
+  /**
+   * Phạm vi cơ sở của tài khoản trường: có = chỉ thấy, chỉ sửa dữ liệu của cơ sở này (máy chủ đã lọc); trống = cả
+   * trường. Màn hình ẩn bộ lọc Cơ sở khi đã bị giới hạn.
+   */
+  campusId?: number | null;
 };
 
 /** The token pair as `/api/auth/login` and `/api/auth/refresh` return it. */
@@ -176,6 +181,11 @@ export function getIdentity(): Identity | null {
  */
 export function getAuthorities(): Authorities | null {
   return readJson<Authorities>(STORAGE_KEYS.authorities);
+}
+
+/** Cơ sở mà tài khoản bị giới hạn trong, hoặc `null` = cả trường. */
+export function getPinnedCampusId(): number | null {
+  return getAuthorities()?.campusId ?? null;
 }
 
 /**

@@ -149,7 +149,8 @@ public class UserService {
                 h[1] == null ? null : ((Number) h[1]).longValue(),
                 h[2] == null ? null : ((Number) h[2]).longValue(),
                 (Instant) h[3],
-                Boolean.TRUE.equals(h[4]) || Boolean.TRUE.equals(h[5])));
+                Boolean.TRUE.equals(h[4]) || Boolean.TRUE.equals(h[5]),
+                h[6] == null ? null : ((Number) h[6]).longValue()));
     }
 
     /** Tài khoản dưới dạng bộ nhớ đệm quyền đọc — xem {@link #authorityFacts}. Các tập đã sắp xếp. */
@@ -157,7 +158,9 @@ public class UserService {
                                  Set<String> permissionCodes, Long schoolId, Long managingBodyId,
                                  Instant passwordChangedAt,
                                  /* Đã có lớp xác thực thứ hai (ứng dụng hoặc email) — cổng Admin bắt buộc. */
-                                 boolean secondFactor) {
+                                 boolean secondFactor,
+                                 /* Phạm vi cơ sở của tài khoản trường (270); null = cả trường. */
+                                 Long campusId) {
     }
 
     public List<User> getMany(List<Long> ids) {

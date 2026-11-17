@@ -1,6 +1,7 @@
 package com.g123.sfems.module.security.user.service;
 
 import com.g123.sfems.shared.security.PasswordPolicy;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.security.role.Role;
 import com.g123.sfems.domain.security.user.SchoolUser;
 import com.g123.sfems.domain.security.user.User;
@@ -8,18 +9,23 @@ import com.g123.sfems.domain.security.user.UserStatus;
 import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.module.security.role.service.RoleService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
+import com.g123.sfems.module.school.facility.CampusService;
+import com.g123.sfems.module.security.user.api.dto.CampusRef;
 import com.g123.sfems.module.security.user.api.dto.RoleRef;
 import com.g123.sfems.module.security.user.api.dto.SchoolRef;
 import com.g123.sfems.module.security.user.api.dto.UserPatchRequest;
 import com.g123.sfems.module.security.user.api.dto.UserRequest;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -46,11 +52,16 @@ public class SchoolUserService {
     private final UserService users;
     private final RoleService roles;
     private final RowLevelPrincipalResolver principals;
+    private final CampusService campuses;
+    private final ApplicationEventPublisher events;
 
-    public SchoolUserService(UserService users, RoleService roles, RowLevelPrincipalResolver principals) {
+    public SchoolUserService(UserService users, RoleService roles, RowLevelPrincipalResolver principals,
+            CampusService campuses, ApplicationEventPublisher events) {
         this.users = users;
         this.roles = roles;
         this.principals = principals;
+        this.campuses = campuses;
+        this.events = events;
     }
 
     /** Tài khoản vừa tạo / vừa đặt lại mật khẩu, kèm mật khẩu tạm (trả MỘT lần). */
@@ -73,7 +84,7 @@ public class SchoolUserService {
     }
 
     @Transactional
-    public Issued create(String username, String fullName, String email, String role) {
+    public Issued create(String username, String fullName, String email, String role, CampusRef campus) {
         String cleanUsername = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
         String password = temporaryPassword();
         User user = users.create(new UserRequest(
@@ -86,15 +97,25 @@ public class SchoolUserService {
                 null,
                 List.of(new RoleRef(schoolRole(role).getId())),
                 null));
+        if (campus != null) {
+            assignCampus(user, campus.id());
+        }
         return new Issued(user, password);
     }
 
     @Transactional
-    public User update(Long id, String fullName, String email, String role, UserStatus status) {
+    public User update(Long id, String fullName, String email, String role, UserStatus status, CampusRef campus) {
         User target = get(id);
         boolean self = CurrentUser.id().filter(target.getId()::equals).isPresent();
         if (self && (role != null || status != null)) {
             throw new FieldValidationException("role", "Không tự đổi vai trò hay trạng thái của chính mình");
+        }
+        if (campus != null) {
+            Long current = target instanceof SchoolUser m && m.getCampus() != null ? m.getCampus().getId() : null;
+            if (self && !Objects.equals(current, campus.id())) {
+                throw new FieldValidationException("campus", "Không tự đổi phạm vi của chính mình");
+            }
+            assignCampus(target, campus.id());
         }
         return users.update(id, new UserPatchRequest(
                 null,
@@ -118,6 +139,38 @@ public class SchoolUserService {
     public User delete(Long id) {
         get(id);
         return users.delete(id);
+    }
+
+    /**
+     * Gán phạm vi cơ sở (270): {@code null} = cả trường. Cơ sở phải cùng trường với tài khoản và còn dùng. Đổi phạm vi
+     * là đổi quyền: phát {@link AuthoritiesChanged.ForUser} như đổi vai, để yêu cầu kế tiếp của tài khoản đó (và tab
+     * đang mở, qua {@code X-Auth-Version}) thấy phạm vi mới. Lối cấp tài khoản cho cán bộ cũng đi qua đây.
+     */
+    @Transactional
+    public void assignCampus(User user, Long campusId) {
+        if (!(user instanceof SchoolUser member)) {
+            throw new FieldValidationException("campus", "Chỉ tài khoản trường có phạm vi cơ sở");
+        }
+        Campus campus = null;
+        if (campusId != null) {
+            try {
+                campus = campuses.get(campusId);
+            } catch (ResourceNotFoundException e) {
+                throw new FieldValidationException("campus", "Cơ sở không thuộc trường");
+            }
+            if (!campus.getSchool().getId().equals(member.getSchool().getId())) {
+                throw new FieldValidationException("campus", "Cơ sở không thuộc trường");
+            }
+            if (!Boolean.TRUE.equals(campus.getActive())) {
+                throw new FieldValidationException("campus", "Cơ sở đã ngừng sử dụng");
+            }
+        }
+        Long before = member.getCampus() == null ? null : member.getCampus().getId();
+        if (Objects.equals(before, campusId)) {
+            return;
+        }
+        member.setCampus(campus);
+        events.publishEvent(new AuthoritiesChanged.ForUser(member.getId()));
     }
 
     private Long schoolId() {

@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.procurement;
 
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -101,9 +103,12 @@ public class AdequacyService {
     private final AtomicLong summaryGeneration = new AtomicLong();
     private static final int MAX_SUMMARIES = 500;
 
-    public AdequacyService(JdbcTemplate jdbc, VisibleSchools visibleSchools) {
+    private final CampusScope campuses;
+
+    public AdequacyService(JdbcTemplate jdbc, VisibleSchools visibleSchools, CampusScope campuses) {
         this.jdbc = jdbc;
         this.visibleSchools = visibleSchools;
+        this.campuses = campuses;
     }
 
     /** Một thiết bị của danh mục tối thiểu, ở một trường. */
@@ -197,22 +202,53 @@ public class AdequacyService {
     public record Snapshot(int current, Integer required) {
     }
 
+    /** Cả trường — số nộp Sở; điều chỉnh chuẩn (154) đọc đúng số này, không theo cơ sở. */
     public SchoolAdequacy forSchool(Long schoolId) {
+        return forSchool(schoolId, null, false);
+    }
+
+    /**
+     * Một trường, theo cơ sở: tài khoản bị giới hạn luôn là cơ sở của mình; tài khoản cả trường chọn được một cơ sở
+     * của trường ({@code campusId}), không chọn = cả trường.
+     */
+    public SchoolAdequacy forSchool(Long schoolId, Long campusId) {
+        return forSchool(schoolId, campusId, true);
+    }
+
+    private SchoolAdequacy forSchool(Long schoolId, Long campusId, boolean byCampus) {
         Set<Long> visible = visibleSchools();
         if (visible != null && !visible.contains(schoolId)) {
             throw new ResourceNotFoundException("School", schoolId);
         }
-        List<SchoolAdequacy> result = compute(Set.of(schoolId));
+        List<SchoolAdequacy> result = compute(Set.of(schoolId), byCampus ? campusIn(schoolId, campusId) : null);
         if (result.isEmpty()) {
             throw new ResourceNotFoundException("School", schoolId);
         }
         return result.get(0);
     }
 
-    /** Tổng hợp cho cơ quan quản lý: mọi trường người xem được thấy. */
+    /** Cơ sở áp cho một trường: cơ sở của tài khoản bị giới hạn, không thì cơ sở chọn nếu thuộc trường đó. */
+    private Long campusIn(Long schoolId, Long requested) {
+        Long pinned = campuses.pinnedCampusId();
+        if (pinned != null) {
+            return pinned;
+        }
+        return requested != null && Objects.equals(campuses.schoolOfCampus(requested), schoolId) ? requested : null;
+    }
+
+    /** Tổng hợp cả trường cho mọi trường người xem được thấy (điều chỉnh chuẩn đọc số này). */
     @Transactional(propagation = Propagation.SUPPORTS)
     public Summary summary() {
-        return summaryEntry().summary();
+        return summaryEntry(null).summary();
+    }
+
+    /**
+     * Tổng hợp theo cơ sở: tài khoản bị giới hạn LUÔN chỉ cơ sở của mình; tài khoản khác chọn một cơ sở
+     * ({@code campusId}) thì chỉ trường của cơ sở đó, đếm trong cơ sở đó; không chọn = cả trường.
+     */
+    @Transactional(propagation = Propagation.SUPPORTS)
+    public Summary summary(Long campusId) {
+        return summaryEntry(campuses.effectiveFilter(campusId)).summary();
     }
 
     /**
@@ -225,9 +261,16 @@ public class AdequacyService {
      * lần giữ một kết nối. {@code SUPPORTS}: không tự mở giao dịch, nên người đang chờ không giữ kết
      * nối nào; các câu của phép tính mỗi câu mượn rồi trả kết nối.
      */
-    private SummaryEntry summaryEntry() {
+    private SummaryEntry summaryEntry(Long campusId) {
         Set<Long> visible = visibleSchools();
-        String key = visible == null ? "*" : new TreeSet<>(visible).toString();
+        if (campusId != null) {
+            // Một cơ sở: chỉ trường của nó, trong phạm vi người xem (không nới).
+            Long school = campuses.schoolOfCampus(campusId);
+            visible = school == null || (visible != null && !visible.contains(school)) ? Set.of() : Set.of(school);
+        }
+        // Khoá đệm mang cơ sở: cùng tập trường mà khác cơ sở là con số khác.
+        String key = (visible == null ? "*" : new TreeSet<>(visible).toString())
+                + (campusId == null ? "" : "@" + campusId);
         Cached<SummaryEntry> hit = summaryCache.get(key);
         if (hit != null && hit.fresh()) {
             return hit.value();
@@ -239,7 +282,7 @@ public class AdequacyService {
         }
         try {
             long generationAtStart = summaryGeneration.get();
-            SummaryEntry fresh = computeSummary(visible);
+            SummaryEntry fresh = computeSummary(visible, campusId);
             if (summaryGeneration.get() == generationAtStart) {
                 if (summaryCache.size() >= MAX_SUMMARIES) {
                     evictOldestSummary();
@@ -283,7 +326,7 @@ public class AdequacyService {
     private record SummaryEntry(Summary summary, List<SchoolSummary> schools, Map<Long, int[]> catalogSchools) {
     }
 
-    private SummaryEntry computeSummary(Set<Long> visible) {
+    private SummaryEntry computeSummary(Set<Long> visible, Long campusId) {
         // Duyệt TỪNG TRƯỜNG rồi bỏ: chỉ giữ dòng tóm tắt và các bộ đếm, không giữ ~700 dòng định mức của
         // mọi trường cùng lúc (toàn ngành là hơn một triệu đối tượng NormRow sống tới cuối phép tính).
         List<SchoolSummary> unsorted = new ArrayList<>();
@@ -292,7 +335,7 @@ public class AdequacyService {
         Map<Long, String> sampleLevel = new HashMap<>();
         Map<String, int[]> perSubject = new LinkedHashMap<>();
         Map<Long, IntList> perCatalogSchools = new HashMap<>();
-        computeEach(visible, a -> {
+        computeEach(visible, campusId, a -> {
             int schoolIndex = unsorted.size();
             unsorted.add(new SchoolSummary(a.schoolId(), a.schoolCode(), a.schoolName(), a.level(), a.levelCode(),
                     a.district(), a.norms(), a.met(), a.unknown(), a.shortItems(), a.shortageTotal(),
@@ -439,7 +482,7 @@ public class AdequacyService {
     public List<CatalogSchool> catalogSchools(Long catalogId) {
         // Đọc từ bản tổng hợp đã đệm của cùng phạm vi (cùng các trường đã có thiết bị, cùng phép tính),
         // không tính lại định mức của mọi trường cho mỗi cú bấm một dòng.
-        SummaryEntry entry = summaryEntry();
+        SummaryEntry entry = summaryEntry(campuses.effectiveFilter(null));
         int[] packed = entry.catalogSchools().getOrDefault(catalogId, new int[0]);
         List<CatalogSchool> out = new ArrayList<>(packed.length / 5);
         for (int i = 0; i + 4 < packed.length; i += 5) {
@@ -505,7 +548,7 @@ public class AdequacyService {
                 : norms.isEmpty() ? "NOT_MINIMUM" : "OTHER_LEVEL";
         NormRow adequacy = null;
         if (applies) {
-            adequacy = compute(Set.of(schoolId)).stream()
+            adequacy = compute(Set.of(schoolId), campusIn(schoolId, null)).stream()
                     .flatMap(a -> a.rows().stream())
                     .filter(r -> catalogId.equals(r.catalogId()))
                     .findFirst().orElse(null);
@@ -516,12 +559,15 @@ public class AdequacyService {
     }
 
     public Snapshot snapshot(Long schoolId, Long catalogId) {
+        // Tài khoản một cơ sở: số đang có và định mức của cơ sở đó; còn lại cả trường.
+        Long campus = campusIn(schoolId, null);
         Integer current = jdbc.queryForObject("""
                 SELECT COALESCE(SUM(COALESCE(e.quantity, 1)), 0)::int FROM equipment e
-                WHERE e.school_id = ? AND e.catalog_id = ? AND e.status IN %s""".formatted(USABLE),
+                WHERE e.school_id = ? AND e.catalog_id = ? AND e.status IN %s%s""".formatted(USABLE,
+                inCampus("e.room_id", "e.school_id", campus)),
                 Integer.class, schoolId, catalogId);
         Integer required = null;
-        List<SchoolAdequacy> rows = compute(Set.of(schoolId));
+        List<SchoolAdequacy> rows = compute(Set.of(schoolId), campus);
         if (!rows.isEmpty()) {
             required = rows.get(0).rows().stream()
                     .filter(r -> catalogId.equals(r.catalogId()))
@@ -542,21 +588,49 @@ public class AdequacyService {
             Integer classCount, Integer studentCount) {
     }
 
-    /** {@code schoolIds == null} là mọi trường. */
-    private List<SchoolAdequacy> compute(Set<Long> schoolIds) {
+    /** {@code schoolIds == null} là mọi trường; {@code campusId}: chỉ một cơ sở (null = cả trường). */
+    private List<SchoolAdequacy> compute(Set<Long> schoolIds, Long campusId) {
         List<SchoolAdequacy> result = new ArrayList<>();
-        computeEach(schoolIds, result::add);
+        computeEach(schoolIds, campusId, result::add);
         return result;
+    }
+
+    /** Vế lọc cơ sở trên phòng {@code roomIdExpr} (trống = cơ sở chính); rỗng khi không lọc. */
+    private static String inCampus(String roomIdExpr, String schoolIdExpr, Long campusId) {
+        return campusId == null ? "" : FacilityCounting.roomInCampusSql(roomIdExpr, schoolIdExpr,
+                String.valueOf(campusId.longValue()));
     }
 
     /**
      * Như {@link #compute}, nhưng giao từng trường cho {@code sink} ngay khi tính xong thay vì gom cả
      * danh sách — phép tổng hợp toàn ngành chỉ cần giữ một trường một lúc.
      */
-    private void computeEach(Set<Long> schoolIds, Consumer<SchoolAdequacy> sink) {
+    private void computeEach(Set<Long> schoolIds, Long campusId, Consumer<SchoolAdequacy> sink) {
         if (schoolIds != null && schoolIds.isEmpty()) {
             return;
         }
+        // Một cơ sở (giai đoạn 3): lớp theo phòng học của lớp, giáo viên theo cơ sở của cán bộ, phòng bộ môn và thiết
+        // bị theo cơ sở của phòng (không phòng → cơ sở chính), đề xuất mua sắm thuộc cơ sở chính. Điều chỉnh chuẩn
+        // là của cả trường: thay thế / ngoài danh mục áp ở mọi cơ sở (đếm thiết bị của cơ sở), ĐỔI SỐ LƯỢNG chỉ áp
+        // ở cơ sở chính — số đã duyệt là cho cả trường, nhân nó lên từng cơ sở là đòi gấp đôi.
+        if (campusId != null) {
+            Long school = campuses.schoolOfCampus(campusId);
+            if (school == null || (schoolIds != null && !schoolIds.contains(school))) {
+                return;
+            }
+            schoolIds = Set.of(school);
+        }
+        String classCounts = campusId == null ? FacilityCounting.CLASS_COUNTS
+                : "SELECT * FROM (" + FacilityCounting.CLASS_COUNTS_BY_CAMPUS + ") z WHERE z.campus_id = "
+                        + campusId.longValue();
+        String classCampus = inCampus("c.room_id", "c.school_id", campusId);
+        String staffCampus = campusId == null ? "" : " AND (SELECT " + FacilityCounting.EFFECTIVE_CAMPUS
+                + " FROM (SELECT 1) one" + FacilityCounting.campusJoins("st.campus_id", "st.school_id") + ") = "
+                + campusId.longValue();
+        String roomCampus = inCampus("r.id", "r.school_id", campusId);
+        String eqCampus = inCampus("e.room_id", "e.school_id", campusId);
+        String proposalCampus = inCampus("NULL", "p.school_id", campusId);
+        boolean quantityAdjustments = campusId == null || campuses.isMainCampus(campusId);
         String ids = schoolIds == null ? null
                 : schoolIds.stream().map(String::valueOf).collect(Collectors.joining(","));
         String schoolFilter = ids == null ? "" : " AND s.id IN (" + ids + ")";
@@ -572,7 +646,7 @@ public class AdequacyService {
                 LEFT JOIN wards w ON w.id = s.ward_id
                 LEFT JOIN (%s) cl ON cl.school_id = s.id
                 WHERE s.status = 'ACTIVE'%s
-                ORDER BY s.name""".formatted(FacilityCounting.CLASS_COUNTS, schoolFilter),
+                ORDER BY s.name""".formatted(classCounts, schoolFilter),
                 (rs, i) -> new School(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
                         rs.getString("level"), rs.getString("level_code"), rs.getString("district"),
                         (Integer) rs.getObject("class_count"), (Integer) rs.getObject("student_count")));
@@ -587,7 +661,8 @@ public class AdequacyService {
                 SELECT c.school_id, g.code AS grade, c.student_count
                 FROM school_classes c JOIN school_years y ON y.id = c.school_year_id AND y.is_current
                 JOIN grades g ON g.id = c.grade_id
-                WHERE c.active%s""".formatted(ids == null ? "" : " AND c.school_id IN (" + ids + ")"), rs -> {
+                WHERE c.active%s%s""".formatted(ids == null ? "" : " AND c.school_id IN (" + ids + ")", classCampus),
+                rs -> {
             Integer grade = gradeNumber(rs.getString("grade"));
             if (grade != null) {
                 classes.computeIfAbsent(rs.getLong("school_id"), k -> new ArrayList<>())
@@ -603,14 +678,15 @@ public class AdequacyService {
                 FROM staff st
                 JOIN (SELECT id AS staff_id, main_subject_id AS subject_id FROM staff WHERE main_subject_id IS NOT NULL
                       UNION SELECT staff_id, subject_id FROM staff_subjects) x ON x.staff_id = st.id
-                WHERE st.active AND st.staff_type = 'TEACHER'%s
-                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND st.school_id IN (" + ids + ")"), rs -> {
+                WHERE st.active AND st.staff_type = 'TEACHER'%s%s
+                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND st.school_id IN (" + ids + ")", staffCampus),
+                rs -> {
             teachers.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>())
                     .put(rs.getLong("subject_id"), rs.getInt("n"));
         });
         jdbc.query("""
-                SELECT school_id, count(*) AS n FROM staff WHERE active AND staff_type = 'TEACHER'%s
-                GROUP BY 1""".formatted(ids == null ? "" : " AND school_id IN (" + ids + ")"),
+                SELECT st.school_id, count(*) AS n FROM staff st WHERE st.active AND st.staff_type = 'TEACHER'%s%s
+                GROUP BY 1""".formatted(ids == null ? "" : " AND st.school_id IN (" + ids + ")", staffCampus),
                 rs -> {
                     allTeachers.put(rs.getLong("school_id"), rs.getInt("n"));
                 });
@@ -621,8 +697,9 @@ public class AdequacyService {
         jdbc.query("""
                 SELECT r.school_id, r.subject_id, count(*) AS n FROM rooms r
                 WHERE""" + FacilityCounting.COUNTED_ROOM + """
-                AND r.subject_id IS NOT NULL%s
-                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND r.school_id IN (" + ids + ")"), rs -> {
+                AND r.subject_id IS NOT NULL%s%s
+                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND r.school_id IN (" + ids + ")", roomCampus),
+                rs -> {
             subjectRooms.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>())
                     .put(rs.getLong("subject_id"), rs.getInt("n"));
         });
@@ -632,7 +709,7 @@ public class AdequacyService {
         jdbc.query("""
                 SELECT e.school_id, e.catalog_id, c.equipment_type_id, SUM(COALESCE(e.quantity, 1))::int AS n
                 FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id
-                WHERE e.status IN %s%s GROUP BY 1, 2, 3""".formatted(USABLE, eqFilter), rs -> {
+                WHERE e.status IN %s%s%s GROUP BY 1, 2, 3""".formatted(USABLE, eqFilter, eqCampus), rs -> {
             long school = rs.getLong("school_id");
             byCatalog.computeIfAbsent(school, k -> new HashMap<>()).merge(rs.getLong("catalog_id"), rs.getInt("n"),
                     Integer::sum);
@@ -645,8 +722,9 @@ public class AdequacyService {
         jdbc.query("""
                 SELECT p.school_id, l.catalog_id, SUM(l.quantity)::int AS n
                 FROM purchase_proposals p JOIN purchase_proposal_lines l ON l.proposal_id = p.id
-                WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL%s
-                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND p.school_id IN (" + ids + ")"), rs -> {
+                WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL%s%s
+                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND p.school_id IN (" + ids + ")", proposalCampus),
+                rs -> {
             proposedByCatalog.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>())
                     .merge(rs.getLong("catalog_id"), rs.getInt("n"), Integer::sum);
         });
@@ -705,6 +783,9 @@ public class AdequacyService {
                         : typeId == null ? 0 : eqType.getOrDefault(typeId, 0);
                 int prop = catalogId == null ? 0 : proposed.getOrDefault(catalogId, 0);
                 Adjustment adj = catalogId == null ? null : ownAdjustments.get(catalogId);
+                if (adj != null && !quantityAdjustments && "QUANTITY".equals(adj.method())) {
+                    adj = null;
+                }
                 Integer required = effectiveRequired(req.value(), adj);
                 int have = current + substituted(adj);
                 Integer shortage = required == null ? null : Math.max(0, required - have);

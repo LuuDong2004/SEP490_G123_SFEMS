@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useNavigation } from "@refinedev/core";
 import { Outlet } from "react-router";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
@@ -17,6 +17,8 @@ import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-t
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
 import { FilterField, FilterPopover, OptionChoices } from "@/shared/components/data-table/filter-popover";
 import { SchoolFilter } from "@/shared/components/data-table/ref-filter";
+import { CampusesCell, CampusTableFilter } from "@/shared/components/campus/campus";
+import { useCampusScope } from "@/shared/components/campus/use-campus";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { AwaitingMeToggle } from "@/shared/components/voucher/awaiting-me-toggle";
 import { WorkQueueToggle, type WorkQueue } from "@/shared/components/voucher/work-queue-toggle";
@@ -130,6 +132,14 @@ export function VoucherList<T extends VoucherBase>({
         } satisfies ColumnDef<T, any>]
       : []),
     ...columns,
+    // Cơ sở mà phiếu chạm tới — chỉ hiện với tài khoản cả trường của trường nhiều cơ sở (bật / tắt ở dưới).
+    {
+      id: "campus",
+      header: "Cơ sở",
+      size: 150,
+      enableSorting: false,
+      cell: ({ row }) => <CampusesCell campuses={row.original.campuses} />,
+    },
     {
       id: "status",
       accessorKey: "status",
@@ -163,13 +173,17 @@ export function VoucherList<T extends VoucherBase>({
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     defaultColumn: RESIZABLE_COLUMN_DEFAULTS,
-    initialState: { columnPinning: { right: ["actions"] } },
+    initialState: { columnPinning: { right: ["actions"] }, columnVisibility: { campus: false } },
     refineCoreProps: {
       syncWithLocation: true,
       pagination: { pageSize: DEFAULT_PAGE_SIZE },
       filters: initialFilters || permanentFilters ? { initial: initialFilters, permanent: permanentFilters } : undefined,
     },
   });
+  const campusScope = useCampusScope();
+  useEffect(() => {
+    table.reactTable.getColumn("campus")?.toggleVisibility(campusScope.show);
+  }, [campusScope.show, table.reactTable]);
   // Ô nào trong hộp "Bộ lọc" đang lọc — để tô viền xanh.
   const filterOn = (field: string) => (table.reactTable.getState().columnFilters as unknown as { id: string; value: unknown }[])
     .some((e) => e.id === field && e.value != null && e.value !== "");
@@ -205,6 +219,7 @@ export function VoucherList<T extends VoucherBase>({
                 </span>
                 <span className="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
                   {perspective === "school" ? null : <span>{r.school?.name}</span>}
+                  {campusScope.show && r.campuses?.length ? <span>{r.campuses.map((c) => c.name).join(", ")}</span> : null}
                   <span>Lập {formatDateTime(r.createdAt)}</span>
                   {r.lineItems?.length ? <span className="text-foreground truncate">{r.lineItems[0].name}{(r.lineCount ?? 1) > 1 ? ` +${(r.lineCount ?? 1) - 1}` : ""}</span> : null}
                 </span>
@@ -220,6 +235,7 @@ export function VoucherList<T extends VoucherBase>({
               filters={
                 <>
                   <SchoolFilter table={table} />
+                  <CampusTableFilter table={table} />
                   {/* Ghi qua `columnFilters` (OptionChoices), không qua `refineCore.setFilters`: bộ lọc đặt thẳng vào lõi
                       bị `useTable` xoá ngay ở lần render sau — trước đây chọn trạng thái không lọc được gì. */}
                   {/* Trạng thái, hình thức, thời gian gom vào MỘT nút "Bộ lọc" — bốn ô chọn xếp hàng làm rối hàng công cụ. */}

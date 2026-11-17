@@ -34,5 +34,7 @@ public record StaffPatchRequest(
         @Text(value = FieldRule.EMAIL, label = "Email")
         String email,
         List<IdRef> subjects,
-        IdRef mainSubject) implements SchoolOwnedInput {
+        IdRef mainSubject,
+        // Cơ sở làm việc — trống = cơ sở chính (271).
+        IdRef campus) implements SchoolOwnedInput {
 }

@@ -55,9 +55,10 @@ public class ReportSnapshotController {
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String condition,
+            @RequestParam(required = false) Long campusId,
             @Valid @RequestBody(required = false) SaveRequest body) {
         return snapshots.save(name, new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
-                typeId, status, condition),
+                typeId, status, condition, campusId),
                 body == null ? null : body.note());
     }
 

@@ -3,10 +3,12 @@ package com.g123.sfems.module.school.team;
 import com.g123.sfems.domain.catalog.subject.Subject;
 import com.g123.sfems.domain.school.staff.Staff;
 import com.g123.sfems.domain.school.team.SubjectTeam;
+import com.g123.sfems.module.catalog.base.CampusRule;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.subject.SubjectService;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.staff.StaffService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,6 +49,19 @@ public class SubjectTeamService
         this.teams = repository;
         this.staff = staff;
         this.subjects = subjects;
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (271): tổ theo cơ sở của tổ trưởng. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<SubjectTeam> campusRule() {
+        return campusScope.subjectTeams();
     }
 
     @Override

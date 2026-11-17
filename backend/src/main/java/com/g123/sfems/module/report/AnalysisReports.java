@@ -168,7 +168,8 @@ final class AnalysisReports {
         String select = g.label() + " AS name" + (g.code() == null ? "" : ", " + g.code() + " AS code");
         String f = from.toString();
         String t = to.toString();
-        String scopeLoan = reports.scope("x.school_id", p);
+        String scopeLoan = reports.scope("x.school_id", p) + reports.campusVoucher("equipment_loans", "x", p);
+        String scopeBooking = reports.scope("x.school_id", p) + reports.campusVoucher("room_bookings", "x", p);
         List<Map<String, Object>> loanRows = jdbc.queryForList("SELECT " + select + ", " + g.keyOf(true)
                 + " AS group_key, COUNT(DISTINCT x.id) AS loans, COUNT(ll.id) AS items,"
                 + " COUNT(ll.id) FILTER (WHERE ll.return_outcome IS NOT NULL) AS returned,"
@@ -188,7 +189,7 @@ final class AnalysisReports {
         jdbc.queryForList("SELECT " + select + ", " + g.keyOf(false) + " AS group_key, COUNT(x.id) AS n"
                 + " FROM room_bookings x JOIN schools s ON s.id = x.school_id" + g.joins(false)
                 + " WHERE x.status NOT IN" + ReportService.NOT_LIVE + " AND x.booking_date BETWEEN ?::date AND ?::date"
-                + scopeLoan + " GROUP BY 1" + (g.code() == null ? "" : ", 2") + ", " + (g.code() == null ? "2" : "3"),
+                + scopeBooking + " GROUP BY 1" + (g.code() == null ? "" : ", 2") + ", " + (g.code() == null ? "2" : "3"),
                 f, t).forEach(b -> {
                     Map<String, Object> row = byKey.computeIfAbsent(String.valueOf(b.get("group_key")), k -> {
                         // Nhóm chỉ có mượn phòng (không có phiếu mượn thiết bị nào) vẫn phải hiện.
@@ -215,7 +216,7 @@ final class AnalysisReports {
                 + " UNION ALL SELECT " + g.keyOf(false) + ", x.requester_id FROM room_bookings x"
                 + " JOIN schools s ON s.id = x.school_id" + g.joins(false)
                 + " WHERE x.status NOT IN" + ReportService.NOT_LIVE + " AND x.booking_date BETWEEN ?::date AND ?::date"
-                + scopeLoan + ") t GROUP BY GROUPING SETS ((k), ())", f, t, f, t)
+                + scopeBooking + ") t GROUP BY GROUPING SETS ((k), ())", f, t, f, t)
                 .forEach(r -> people.put(r.get("k") == null ? "" : String.valueOf(r.get("k")), r.get("n")));
         List<Map<String, Object>> rows = new ArrayList<>(byKey.values());
         long total = 0;
@@ -270,7 +271,8 @@ final class AnalysisReports {
         LoanGroup g = loanGroup(group);
         String f = from.toString();
         String t = to.toString();
-        String scope = reports.scope("x.school_id", p);
+        String scope = reports.scope("x.school_id", p) + reports.campusVoucher("equipment_loans", "x", p);
+        String scopeBooking = reports.scope("x.school_id", p) + reports.campusVoucher("room_bookings", "x", p);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM ("
                 + " SELECT x.id AS loan_id, NULL::bigint AS booking_id, 'Mượn thiết bị' AS kind, x.code,"
                 + " x.loan_date AS day, s.name AS school, bw.name AS person, " + purposeLabel("x.purpose_type")
@@ -288,7 +290,7 @@ final class AnalysisReports {
                 + " FROM room_bookings x JOIN schools s ON s.id = x.school_id" + g.joins(false)
                 + " LEFT JOIN staff bw ON bw.id = x.requester_id LEFT JOIN subjects sj2 ON sj2.id = x.subject_id"
                 + " WHERE x.status NOT IN" + ReportService.NOT_LIVE + " AND x.booking_date BETWEEN ?::date AND ?::date"
-                + scope + " AND " + g.keyOf(false) + " = ?"
+                + scopeBooking + " AND " + g.keyOf(false) + " = ?"
                 + ") v ORDER BY day DESC, code", f, t, key, f, t, key);
         return new Report("loans", "Các phiếu mượn", reports.subtitle(p, period),
                 List.of(col("code", "Số phiếu", "text"), col("kind", "Loại", "text"), col("day", "Ngày mượn", "date"),
@@ -331,7 +333,8 @@ final class AnalysisReports {
         List<Map<String, Object>> rows = jdbc.queryForList("WITH book AS ("
                 + " SELECT CASE WHEN " + otherBook + " THEN 0 ELSE xc.id END AS gk, COUNT(*) AS n"
                 + " FROM equipment x JOIN equipment_catalogs xc ON xc.id = x.catalog_id"
-                + " WHERE x.status NOT IN" + ReportService.OFF_BOOK + reports.scope("x.school_id", p) + " GROUP BY 1),"
+                + " WHERE x.status NOT IN" + ReportService.OFF_BOOK + reports.scope("x.school_id", p)
+                + reports.campusRoom("x.room_id", "x.school_id", p) + " GROUP BY 1),"
                 + " agg AS (SELECT CASE WHEN " + other + " THEN 0 ELSE c.id END AS gk,"
                 + " CASE WHEN " + other + " THEN NULL ELSE c.code END AS code,"
                 + " CASE WHEN " + other + " THEN '" + ReportService.OTHER_LABEL + "' ELSE COALESCE(c.name, e.name) END AS name,"
@@ -346,7 +349,7 @@ final class AnalysisReports {
                 + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id"
                 + " LEFT JOIN equipment_types et ON et.id = c.equipment_type_id"
                 + " WHERE d.status NOT IN" + ReportService.NOT_LIVE + " AND (" + cur + " OR " + prev + ")"
-                + reports.scope("d.school_id", p)
+                + reports.scope("d.school_id", p) + reports.campusRoom("e.room_id", "e.school_id", p)
                 + " GROUP BY 1, 2, 3, 4)"
                 + " SELECT agg.code, agg.name, agg.type, agg.current, agg.previous, agg.change, agg.assets, agg.schools,"
                 + " COALESCE(book.n, 0) AS on_book FROM agg LEFT JOIN book ON book.gk = agg.gk"
@@ -528,7 +531,7 @@ final class AnalysisReports {
                 // Chỉ phòng bộ môn, phòng chức năng: loại CSVC có cờ functional (192);
                 // phòng chưa phân loại thì tính khi có gắn môn. Phòng học thường (kể cả có ghi môn), kho, thư viện thì không.
                 + " WHERE (rt.functional OR (r.room_type_id IS NULL AND r.subject_id IS NOT NULL))"
-                + reports.scope("r.school_id", p)
+                + reports.scope("r.school_id", p) + reports.campusRoom("r.id", "r.school_id", p)
                 + " GROUP BY s.name, b.name, r.id, r.name, rt.name, sj.name"
                 + " ORDER BY bookings DESC, periods DESC, s.name, r.name",
                 from.toString(), to.toString(), from.toString(), to.toString());
@@ -558,7 +561,7 @@ final class AnalysisReports {
                 + "   AND n.subject_id = r.subject_id AND NOT n.optional AND n.min_quantity IS NOT NULL"
                 + "   AND n.catalog_id IS NOT NULL AND" + EquipmentNorm.effectiveTodaySql("n")
                 + "  WHERE" + FacilityCounting.COUNTED_ROOM + "AND r.subject_id IS NOT NULL"
-                + reports.scope("r.school_id", p)
+                + reports.scope("r.school_id", p) + reports.campusRoom("r.id", "r.school_id", p)
                 + "  GROUP BY r.id, n.catalog_id),"
                 + " have AS (SELECT need.room_id, need.catalog_id, need.required,"
                 + "  (SELECT COALESCE(SUM(CASE WHEN c.tracking_type = 'BULK' THEN x.quantity ELSE 1 END), 0)"
@@ -581,7 +584,7 @@ final class AnalysisReports {
                 + " LEFT JOIN room_types rt ON rt.id = r.room_type_id LEFT JOIN subjects sj ON sj.id = r.subject_id"
                 + " LEFT JOIN have h ON h.room_id = r.id"
                 + " WHERE" + FacilityCounting.COUNTED_ROOM + "AND r.subject_id IS NOT NULL"
-                + reports.scope("r.school_id", p)
+                + reports.scope("r.school_id", p) + reports.campusRoom("r.id", "r.school_id", p)
                 + " GROUP BY s.name, r.id, r.name, rt.name, sj.name, r.area, r.capacity"
                 // Chưa đạt lên đầu (thiếu nhiều trước), rồi Đạt, cuối cùng phòng chưa xác định được.
                 + " ORDER BY COUNT(h.catalog_id) = 0, short DESC, s.name, r.name");

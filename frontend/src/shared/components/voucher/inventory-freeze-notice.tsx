@@ -25,6 +25,8 @@ type ActiveInventory = {
   status: "DRAFT" | "PENDING" | "APPROVED";
   roomName: string | null;
   canOpen: boolean;
+  /** Kiểm kê toàn một cơ sở (tài khoản một cơ sở lập, không chọn phòng). */
+  campusName?: string | null;
 };
 
 /** Dải cảnh báo khi trường có phiếu kiểm kê chưa duyệt xong (nháp hoặc chờ duyệt). Chỉ tài khoản của trường. */
@@ -39,9 +41,11 @@ export function InventoryFreezeNotice({ resource, className }: { resource: strin
   });
   if (!enabled) return null;
   if (!data?.length) return null;
-  const s = data.find((item) => item.roomName == null) ?? data[0];
+  const s = data.find((item) => item.roomName == null && !item.campusName) ?? data.find((item) => item.roomName == null) ?? data[0];
   // Tên phòng thường đã có chữ "Phòng" ("Phòng thí nghiệm") — không ghi thành "phòng Phòng thí nghiệm".
-  const scope = !s.roomName ? "cả trường" : /^phòng\s/i.test(s.roomName) ? s.roomName : `phòng ${s.roomName}`;
+  const scope = s.roomName
+    ? /^phòng\s/i.test(s.roomName) ? s.roomName : `phòng ${s.roomName}`
+    : s.campusName ? `cơ sở ${s.campusName}` : "cả trường";
   const what = s.code ?? `phiếu nháp “${s.title}”`;
   // Một dòng ngắn nói chuyện gì + trạng thái; dòng nhỏ nói hệ quả; nút mở phiếu tách riêng bên phải — không để cả
   // đoạn văn màu cam dài hết bề ngang.

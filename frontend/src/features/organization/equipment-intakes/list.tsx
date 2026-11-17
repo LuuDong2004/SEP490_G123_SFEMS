@@ -21,6 +21,8 @@ import { useFillHeight } from "@/shared/hooks/use-fill-height";
 import { DEFAULT_PAGE_SIZE, formatPlainDate } from "@/shared/lib/format";
 import type { EquipmentIntake } from "@/domains/equipment-intake/types";
 import { autoVisible, useColumnsKey } from "@/shared/components/data-table/column-prefs";
+import { CampusesCell, CampusTableFilter } from "@/shared/components/campus/campus";
+import { useCampusScope } from "@/shared/components/campus/use-campus";
 
 const STATUS_OPTIONS = Object.entries(VOUCHER_STATUS_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -137,6 +139,10 @@ export const EquipmentIntakeList = () => {
         cell: ({ row }) => <VoucherStatusBadge status={row.original.status} step={row.original.approvalStep} returned={!!row.original.returnNote} short />,
       }),
       h.display({
+        id: "campus", header: "Cơ sở", size: 150,
+        cell: ({ row }) => <CampusesCell campuses={row.original.campuses} />,
+      }),
+      h.display({
         id: "school", header: "Trường", size: 160,
         cell: ({ row }) => row.original.school?.name ?? "—",
       }),
@@ -185,6 +191,11 @@ export const EquipmentIntakeList = () => {
   useEffect(() => {
     table.reactTable.getColumn("school")?.toggleVisibility(autoVisible(columnsKey, "school", many));
   }, [many, table.reactTable, columnsKey]);
+  // Cột Cơ sở: tài khoản cả trường của trường nhiều cơ sở.
+  const campusScope = useCampusScope();
+  useEffect(() => {
+    table.reactTable.getColumn("campus")?.toggleVisibility(autoVisible(columnsKey, "campus", campusScope.show));
+  }, [campusScope.show, table.reactTable, columnsKey]);
 
   const statusValue = (table.reactTable.getState().columnFilters as { id: string; value: unknown }[]).find((f) => f.id === "status")?.value;
   const statusFilter = statusValue != null && statusValue !== "" ? String(statusValue) : null;
@@ -228,6 +239,8 @@ export const EquipmentIntakeList = () => {
                           ngày lập, phiếu đã duyệt mang ngày ghi tăng (`intakeDate`). */}
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <PeriodSelect table={table as any} field="intakeDate" />
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      <CampusTableFilter table={table as any} />
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <AwaitingMeToggle table={table as any} resource="equipment_intakes" />
                     </>

@@ -58,29 +58,31 @@ public class PurchaseProposalController
     }
 
     @GetMapping("/adequacy")
-    public AdequacyService.SchoolAdequacy adequacy(@RequestParam(required = false) Long schoolId) {
+    public AdequacyService.SchoolAdequacy adequacy(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
         require("read");
-        return adequacy.forSchool(resolveSchool(schoolId));
+        return adequacy.forSchool(resolveSchool(schoolId), campusId);
     }
 
     @GetMapping("/adequacy.xlsx")
-    public ResponseEntity<byte[]> adequacyExcel(@RequestParam(required = false) Long schoolId) {
+    public ResponseEntity<byte[]> adequacyExcel(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
         require("read");
-        AdequacyService.SchoolAdequacy a = adequacy.forSchool(resolveSchool(schoolId));
+        AdequacyService.SchoolAdequacy a = adequacy.forSchool(resolveSchool(schoolId), campusId);
         return xlsx("Thiết bị tối thiểu - " + a.schoolCode() + ".xlsx", AdequacyExcel.school(a));
     }
 
     @HeavyQuery
     @GetMapping("/adequacy-summary")
-    public AdequacyService.Summary adequacySummary() {
+    public AdequacyService.Summary adequacySummary(@RequestParam(required = false) Long campusId) {
         require("read");
-        return adequacy.summary();
+        return adequacy.summary(campusId);
     }
 
     @GetMapping("/adequacy-summary.xlsx")
-    public ResponseEntity<byte[]> adequacySummaryExcel() {
+    public ResponseEntity<byte[]> adequacySummaryExcel(@RequestParam(required = false) Long campusId) {
         require("read");
-        return xlsx("Đáp ứng thiết bị tối thiểu.xlsx", AdequacyExcel.summary(adequacy.summary()));
+        return xlsx("Đáp ứng thiết bị tối thiểu.xlsx", AdequacyExcel.summary(adequacy.summary(campusId)));
     }
 
     /** Một thiết bị: trường nào thiếu, trường nào thừa — để cân đối trên địa bàn. */

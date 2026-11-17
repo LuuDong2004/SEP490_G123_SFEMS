@@ -1,5 +1,7 @@
 package com.g123.sfems.module.school.facility;
 
+import com.g123.sfems.module.catalog.base.CampusRule;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -218,5 +220,18 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
 
     private static boolean present(IdRef ref) {
         return ref != null && ref.id() != null;
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (270), xem {@link CampusScope}. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<Building> campusRule() {
+        return campusScope.buildings();
     }
 }

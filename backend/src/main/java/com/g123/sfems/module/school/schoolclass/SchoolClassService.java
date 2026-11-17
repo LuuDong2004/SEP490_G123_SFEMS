@@ -1,5 +1,8 @@
 package com.g123.sfems.module.school.schoolclass;
 
+import com.g123.sfems.module.catalog.base.CampusRule;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.domain.school.schoolclass.SchoolClass;
 import com.g123.sfems.domain.school.staff.StaffType;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
@@ -204,5 +207,18 @@ public class SchoolClassService
 
     private static <R> R ref(IdRef ref, Function<Long, R> loader) {
         return ref == null || ref.id() == null ? null : loader.apply(ref.id());
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (270), xem {@link CampusScope}. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<SchoolClass> campusRule() {
+        return campusScope.byRoom(SchoolClass::getRoom, SchoolClass::getSchool);
     }
 }

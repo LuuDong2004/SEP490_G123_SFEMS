@@ -81,7 +81,7 @@ public class StaffImport implements ImportTarget<StaffRequest> {
                     ? StaffType.TEACHER : StaffType.STAFF;
         }
         return new Parsed<>(new StaffRequest(code, name, null, true, note, new IdRef(schoolId), type, position,
-                department, phone, email, null, null), errors, code);
+                department, phone, email, null, null, null), errors, code);
     }
 
     @Override

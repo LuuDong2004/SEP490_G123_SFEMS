@@ -51,7 +51,7 @@ public class VoucherLines {
         if (ref == null || ref.id() == null) {
             throw new FieldValidationException("lines", "Dòng %d: chưa chọn thiết bị".formatted(lineNo));
         }
-        Equipment item = equipment.get(ref.id());
+        Equipment item = equipment.getAcrossCampuses(ref.id());
         if (!item.getSchool().getId().equals(school.getId())) {
             throw new FieldValidationException("lines",
                     "Dòng %d (%s): thiết bị không thuộc trường của phiếu".formatted(lineNo, item.getCode()));

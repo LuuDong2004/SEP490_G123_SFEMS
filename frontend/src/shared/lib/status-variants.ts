@@ -126,3 +126,10 @@ export const STANDARD_STATUS_VARIANTS: Record<"PASS" | "FAIL" | "NONE", BadgeVar
   FAIL: "destructive",
   NONE: "neutral",
 };
+
+/** Loại cơ sở (nhãn ở `domains/facility/types.ts` — `campusKindLabel`): trường chính nổi, phân hiệu / điểm trường trung tính. */
+export const CAMPUS_KIND_VARIANTS: Record<"main" | "branch" | "site", BadgeVariant> = {
+  main: "info",
+  branch: "neutral",
+  site: "neutral",
+};

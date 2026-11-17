@@ -38,6 +38,8 @@ public record UserResponse(
         /** Null for an account that has not been placed. */
         /** Rỗng với tài khoản chưa thuộc trường nào. */
         SchoolSummary school,
+        /** Phạm vi cơ sở của tài khoản trường; rỗng = cả trường. */
+        CampusSummary campus,
         ManagingBodySummary managingBody,
         /** Phần riêng theo loại tài khoản (bảng con). */
         Profile profile,
@@ -85,6 +87,18 @@ public record UserResponse(
         }
     }
 
+    /** Cơ sở mà tài khoản bị giới hạn trong — đủ cho nhãn "Phạm vi". */
+    public record CampusSummary(Long id, String name, boolean primary) {
+
+        static CampusSummary of(User user) {
+            if (!(user instanceof SchoolUser s) || s.getCampus() == null) {
+                return null;
+            }
+            return new CampusSummary(s.getCampus().getId(), s.getCampus().getName(),
+                    Boolean.TRUE.equals(s.getCampus().getPrimaryCampus()));
+        }
+    }
+
     public record SchoolSummary(Long id, String code, String name) {
 
         static SchoolSummary from(School school) {
@@ -125,6 +139,7 @@ public record UserResponse(
                         .map(RoleSummary::from)
                         .toList(),
                 user.schoolOrNull() == null ? null : SchoolSummary.from(user.schoolOrNull()),
+                CampusSummary.of(user),
                 user.managingBodyOrNull() == null
                         ? null
                         : ManagingBodySummary.from(user.managingBodyOrNull()),

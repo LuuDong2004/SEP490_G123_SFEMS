@@ -3,6 +3,7 @@ package com.g123.sfems.module.school.facilitystandard;
 import com.g123.sfems.domain.catalog.facilitygroup.FacilityLevels;
 import com.g123.sfems.domain.catalog.facilitystandard.FacilityStandardRule;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,22 +105,37 @@ public class FacilityStandardService {
 
     private final JdbcTemplate jdbc;
     private final VisibleSchools visible;
+    private final CampusScope campuses;
 
-    public FacilityStandardService(JdbcTemplate jdbc, VisibleSchools visible) {
+    public FacilityStandardService(JdbcTemplate jdbc, VisibleSchools visible, CampusScope campuses) {
         this.jdbc = jdbc;
         this.visible = visible;
+        this.campuses = campuses;
     }
 
-    /** Đánh giá một trường; trường ngoài phạm vi của người xem là 404. */
     public Evaluation evaluate(Long schoolId) {
-        List<SchoolInfo> schools = schools(" AND s.id = " + schoolId.longValue() + " " + visible.sqlFilter("s.id"));
+        return evaluate(schoolId, null);
+    }
+
+    /**
+     * Đánh giá một trường; trường ngoài phạm vi của người xem là 404. {@code campusId}: chỉ phòng, lớp của một cơ sở —
+     * tài khoản bị giới hạn luôn là cơ sở của mình; cơ sở của trường khác thì bỏ qua (cả trường).
+     */
+    public Evaluation evaluate(Long schoolId, Long campusId) {
+        Long campus = campuses.effectiveFilter(campusId);
+        if (campus != null && campuses.pinnedCampusId() == null
+                && !Objects.equals(campuses.schoolOfCampus(campus), schoolId)) {
+            campus = null;
+        }
+        List<SchoolInfo> schools = schools(" AND s.id = " + schoolId.longValue() + " " + visible.sqlFilter("s.id"),
+                campus);
         if (schools.isEmpty()) {
             throw new ResourceNotFoundException("School", schoolId);
         }
         SchoolInfo school = schools.getFirst();
         Catalog catalog = catalog();
-        Map<Long, RoomStat> stats = roomStats(" AND r.school_id = " + school.id() + " ").getOrDefault(school.id(),
-                Map.of());
+        Map<Long, RoomStat> stats = roomStats(" AND r.school_id = " + school.id() + " ", campus)
+                .getOrDefault(school.id(), Map.of());
         List<String> warnings = new ArrayList<>();
         if (school.levelCode() == null) {
             warnings.add("Trường chưa có cấp học — không chấm được.");
@@ -147,13 +164,18 @@ public class FacilityStandardService {
      * phạm vi {@link VisibleSchools}), chỉ ghép id số; luôn có khoảng trắng hai đầu.
      */
     public List<Summary> summaries(String schoolFilter) {
-        List<SchoolInfo> schools = schools(schoolFilter);
+        return summaries(schoolFilter, null);
+    }
+
+    /** Như {@link #summaries(String)}, chỉ phòng, lớp của cơ sở {@code campusId} (đã áp phạm vi cơ sở của người gọi). */
+    public List<Summary> summaries(String schoolFilter, Long campusId) {
+        List<SchoolInfo> schools = schools(schoolFilter, campusId);
         if (schools.isEmpty()) {
             return List.of();
         }
         Catalog catalog = catalog();
         Map<Long, Map<Long, RoomStat>> stats = roomStats(" AND r.school_id IN (SELECT s.id FROM schools s WHERE TRUE"
-                + schoolFilter + ") ");
+                + schoolFilter + ") ", campusId);
         List<Summary> out = new ArrayList<>();
         for (SchoolInfo school : schools) {
             List<Group> groups = evaluate(school, catalog, stats.getOrDefault(school.id(), Map.of()));
@@ -502,14 +524,18 @@ public class FacilityStandardService {
         return new Catalog(types, rules);
     }
 
-    private List<SchoolInfo> schools(String filter) {
+    private List<SchoolInfo> schools(String filter, Long campusId) {
+        // Một cơ sở: lớp của cơ sở đó (theo phòng học của lớp — FacilityCounting.CLASS_COUNTS_BY_CAMPUS).
+        String classes = campusId == null ? FacilityCounting.CLASS_COUNTS
+                : "SELECT * FROM (" + FacilityCounting.CLASS_COUNTS_BY_CAMPUS + ") z WHERE z.campus_id = "
+                        + campusId.longValue();
         return jdbc.query("""
                 SELECT s.id, s.code, s.name, lv.code AS level_code, lv.name AS level_name, d.name AS body,
                        cl.students, cl.classes, cl.missing_size
                 FROM schools s
                 LEFT JOIN education_levels lv ON lv.id = s.education_level_id
                 LEFT JOIN departments_of_education d ON d.id = s.department_of_education_id
-                LEFT JOIN (""" + FacilityCounting.CLASS_COUNTS + """
+                LEFT JOIN (""" + classes + """
                 ) cl ON cl.school_id = s.id
                 WHERE TRUE""" + filter + " ORDER BY s.name, s.id",
                 (rs, i) -> new SchoolInfo(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
@@ -522,7 +548,9 @@ public class FacilityStandardService {
      * Số phòng, tổng / nhỏ nhất diện tích theo (trường, loại). Một phòng tính cho loại chính và loại dùng kết hợp
      * (một lần nếu hai loại trùng nhau).
      */
-    private Map<Long, Map<Long, RoomStat>> roomStats(String filter) {
+    private Map<Long, Map<Long, RoomStat>> roomStats(String schoolFilter, Long campusId) {
+        String filter = campusId == null ? schoolFilter
+                : schoolFilter + FacilityCounting.roomInCampusSql("r.id", "r.school_id", String.valueOf(campusId.longValue()));
         Map<Long, Map<Long, RoomStat>> out = new HashMap<>();
         jdbc.query("""
                 SELECT r.school_id, t.type_id, count(*) AS n, COALESCE(sum(r.area), 0) AS total,

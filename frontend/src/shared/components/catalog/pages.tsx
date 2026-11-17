@@ -278,7 +278,8 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
       onRowDoubleClick={config.pageForm ? undefined : (r) => openRow(r.id)}
       toolbar={
         // Không có lọc nâng cao: ô tìm (mã, tên — không phân biệt dấu) và cột trái đã đủ cho danh mục.
-        <ListToolbar table={table} search={<DataTableQuickFilter table={table} />} />
+        <ListToolbar table={table} search={<DataTableQuickFilter table={table} />}
+          filters={extra?.ListFilters ? <extra.ListFilters table={table} /> : undefined} />
       }
     />
   );

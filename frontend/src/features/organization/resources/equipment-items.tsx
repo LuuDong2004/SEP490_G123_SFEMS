@@ -7,6 +7,8 @@ import { createColumnHelper, type RowSelectionState } from "@tanstack/react-tabl
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DeleteButton } from "@/shared/components/buttons/delete";
+import { CampusName, CampusTableFilter } from "@/shared/components/campus/campus";
+import { useCampusScope } from "@/shared/components/campus/use-campus";
 import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
 import { CrossLink } from "@/shared/components/cross-link";
@@ -34,6 +36,8 @@ type ItemRow = {
   catalog: { id: number; code: string; name: string };
   room: { id: number; name: string } | null;
   school: { id: number; name: string };
+  /** Cơ sở thực (phòng → khối nhà → cơ sở chính). */
+  campus: { id: number; name: string; primary?: boolean; branch?: boolean } | null;
   quantity: number;
   unit: string | null;
   status: string;
@@ -120,6 +124,10 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
               Chưa xếp phòng
             </CrossLink>
           )),
+      }),
+      h.display({
+        id: "campus", header: "Cơ sở", size: 150,
+        cell: ({ row }) => <CampusName campus={row.original.campus} />,
       }),
       h.accessor("quantity", {
         // Đủ chỗ cho "1.500 Gam", "9,75 kg" — 72px cắt mất đơn vị thành "200 G..." (trưởng nhóm 15/11/2026).
@@ -282,6 +290,11 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
   useEffect(() => {
     table.reactTable.getColumn("school")?.toggleVisibility(autoVisible(columnsKey, "school", many));
   }, [many, table.reactTable, columnsKey]);
+  // Cột Cơ sở: chỉ khi trường có nhiều cơ sở và tài khoản chưa bị giới hạn trong một cơ sở.
+  const campusScope = useCampusScope();
+  useEffect(() => {
+    table.reactTable.getColumn("campus")?.toggleVisibility(autoVisible(columnsKey, "campus", campusScope.show));
+  }, [campusScope.show, table.reactTable, columnsKey]);
 
   // Thiết bị đã ra khỏi hệ thống: lọc bằng nhóm "Đã ra khỏi hệ thống" trong Bộ lọc.
   return (
@@ -303,6 +316,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
           <ListToolbar
             table={table as any}
             search={<DataTableQuickFilter table={table as any} />}
+            filters={<CampusTableFilter table={table as any} />}
             searchClassName="sm:max-w-sm"
           />
         }

@@ -2,6 +2,7 @@ package com.g123.sfems.module.report;
 
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facilitystandard.FacilityStandardService;
 import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
@@ -95,18 +96,30 @@ public class ReportService {
     /**
      * Tham số của một lần xem. {@code bodyId}, {@code levelId}, {@code schoolId} lọc theo cơ quan quản lý
      * (địa bàn), cấp học, trường; {@code group} chọn chiều tổng hợp; {@code typeId}, {@code status},
-     * {@code condition} lọc tài sản theo loại thiết bị, trạng thái, tình trạng ({@link ReportFilters}).
+     * {@code condition} lọc tài sản theo loại thiết bị, trạng thái, tình trạng ({@link ReportFilters});
+     * {@code campusId} — cơ sở ({@link #campus}): tài khoản bị giới hạn luôn là cơ sở của mình, gửi lên không nới được.
      */
     public record Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
-            String group, String choice, Long typeId, String status, String condition) {
+            String group, String choice, Long typeId, String status, String condition, Long campusId) {
 
         public Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
                 String group, String choice) {
-            this(from, to, year, bodyId, levelId, schoolId, group, choice, null, null, null);
+            this(from, to, year, bodyId, levelId, schoolId, group, choice, null, null, null, null);
+        }
+
+        public Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
+                String group, String choice, Long typeId, String status, String condition) {
+            this(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition, null);
+        }
+
+        /** Cùng tham số, cơ sở khác — {@link ReportService#resolve} gắn cơ sở thực sự áp dụng. */
+        Params withCampus(Long campus) {
+            return new Params(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition,
+                    campus);
         }
 
         boolean filtered() {
-            return bodyId != null || levelId != null || schoolId != null;
+            return bodyId != null || levelId != null || schoolId != null || campusId != null;
         }
     }
 
@@ -294,12 +307,16 @@ public class ReportService {
     private final SupplyReports supply;
     private final FacilityStandardReports facilityStandard;
     private final CsvcStatisticsReport csvc;
+    private final CampusScope campuses;
+    private final ReportCampus campus;
 
     public ReportService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy,
-            FacilityStandardService facilityStandards) {
+            FacilityStandardService facilityStandards, CampusScope campuses) {
         this.jdbc = jdbc;
         this.visible = visible;
         this.adequacy = adequacy;
+        this.campuses = campuses;
+        this.campus = new ReportCampus(campuses);
         this.analysis = new AnalysisReports(jdbc, this);
         this.supply = new SupplyReports(jdbc, this);
         this.facilityStandard = new FacilityStandardReports(facilityStandards, this);
@@ -311,13 +328,13 @@ public class ReportService {
      * khác. Cùng tham số, cùng phạm vi với khi xem.
      */
     public byte[] csvcWorkbook(Params params) {
-        Params p = ReportFilters.only(params, ReportFilters.of(CsvcStatisticsReport.NAME));
+        Params p = ReportFilters.only(resolve(params), ReportFilters.of(CsvcStatisticsReport.NAME));
         return CsvcStatisticsXlsx.write(csvc.header(p), csvc.build(p).rows());
     }
 
     /** Các phiếu của một dòng "Thống kê mượn trả" — dòng có khoá {@code key} ở chiều {@code params.group()}. */
     public Report loanRows(Params params, String key) {
-        Params p = ReportFilters.only(params, ReportFilters.of("loans"));
+        Params p = ReportFilters.only(resolve(params), ReportFilters.of("loans"));
         LocalDate to = p.to() == null ? LocalDate.now() : p.to();
         LocalDate from = p.from() == null ? to.withDayOfYear(1) : p.from();
         Definition definition = DEFINITIONS.stream().filter(d -> d.name().equals("loans")).findFirst().orElseThrow();
@@ -332,13 +349,21 @@ public class ReportService {
 
     public Report build(String name, Params params) {
         // Bộ lọc theo tài sản báo cáo không nhận thì gạt đi trước khi tính, không lặng lẽ áp vào truy vấn khác nghĩa.
-        Report report = compute(name, ReportFilters.only(params, ReportFilters.of(name)));
+        Report report = compute(name, ReportFilters.only(resolve(params), ReportFilters.of(name)));
         // Cột ngày từ JDBC là java.sql.Date, mà Jackson ghi nó thành MỘT THỜI ĐIỂM theo UTC — 16/10 ở Việt Nam ra
         // "2026-10-15T17:00:00Z", và màn hình đọc nhầm sang ngày hôm trước. Đổi về ngày lịch thuần trước khi trả.
         for (Map<String, Object> row : report.rows()) {
             row.replaceAll((k, v) -> v instanceof Date d ? d.toLocalDate() : v);
         }
         return report;
+    }
+
+    /**
+     * Cơ sở thực sự áp dụng: tài khoản bị giới hạn LUÔN là cơ sở của mình (gửi cơ sở khác lên không nới được); tài
+     * khoản cả trường / Sở / UBND là cơ sở đang chọn, không chọn = cả trường (số nộp Sở).
+     */
+    Params resolve(Params params) {
+        return params.withCampus(campuses.effectiveFilter(params.campusId()));
     }
 
     private Report compute(String name, Params params) {
@@ -517,7 +542,7 @@ public class ReportService {
                     + " COUNT(*) FILTER (WHERE " + good + ") AS rooms_good,"
                     + " COUNT(*) FILTER (WHERE " + poor + ") AS rooms_poor"
                     + " FROM rooms r JOIN schools s ON s.id = r.school_id" + d.joins()
-                    + " WHERE r.active" + scope("r.school_id", p)
+                    + " WHERE r.active" + scope("r.school_id", p) + campusRoom("r.id", "r.school_id", p)
                     + " GROUP BY " + d.groupBy() + " ORDER BY rooms DESC, name");
             return new Report("facilities", "Tổng hợp cơ sở vật chất theo loại phòng", subtitle(p, null),
                     List.of(col("name", d.header(), "text"), col("schools", "Số trường", "number"),
@@ -527,10 +552,12 @@ public class ReportService {
                     rows);
         }
         boolean bySchool = d.code() != null;
-        String room = "FROM rooms r WHERE r.school_id = s.id AND r.active";
-        String building = "FROM buildings b WHERE b.school_id = s.id AND b.active";
+        String room = "FROM rooms r WHERE r.school_id = s.id AND r.active" + campusRoom("r.id", "r.school_id", p);
+        String building = "FROM buildings b WHERE b.school_id = s.id AND b.active"
+                + campusOwn("b.campus_id", "b.school_id", p);
         List<Map<String, Object>> rows = jdbc.queryForList("WITH per AS (SELECT s.id,"
-                + " (SELECT COUNT(*) FROM campuses c WHERE c.school_id = s.id AND c.active) AS campuses,"
+                + " (SELECT COUNT(*) FROM campuses c WHERE c.school_id = s.id AND c.active"
+                + campusOwn("c.id", "c.school_id", p) + ") AS campuses,"
                 + " (SELECT COUNT(*) " + building + ") AS buildings,"
                 + " (SELECT COALESCE(SUM(b.floor_area), 0) " + building + ") AS floor_area,"
                 + " (SELECT COUNT(*) " + room + ") AS rooms,"
@@ -578,14 +605,14 @@ public class ReportService {
      * thành cột, màn hình đếm tốt / xuống cấp từ nó.
      */
     private Report facilityBuildings(Params p) {
-        String room = "FROM rooms r WHERE r.building_id = b.id AND r.active";
+        String room = "FROM rooms r WHERE r.building_id = b.id AND r.active" + campusRoom("r.id", "r.school_id", p);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT s.code AS school_code, s.name AS school,"
                 + " c.name AS campus, b.code AS building_code, b.name AS building_name, b.floor_count, b.built_year,"
                 + " b.floor_area, (SELECT COUNT(*) " + room + ") AS rooms,"
                 + " (SELECT SUM(r.area) " + room + ") AS room_area,"
                 + " " + facilityConditionLabel("b.condition") + " AS condition, b.condition AS cond"
                 + " FROM buildings b JOIN schools s ON s.id = b.school_id LEFT JOIN campuses c ON c.id = b.campus_id"
-                + " WHERE b.active" + scope("b.school_id", p)
+                + " WHERE b.active" + scope("b.school_id", p) + campusOwn("b.campus_id", "b.school_id", p)
                 + " ORDER BY s.name, c.name NULLS LAST, b.sort_order, b.name");
         return new Report("facilities", "Danh sách khối nhà", subtitle(p, null),
                 List.of(col("school_code", "Mã trường", "text"), col("school", "Trường", "text"),
@@ -609,7 +636,7 @@ public class ReportService {
                 + " FROM rooms r JOIN schools s ON s.id = r.school_id"
                 + " LEFT JOIN buildings b ON b.id = r.building_id LEFT JOIN room_types rt ON rt.id = r.room_type_id"
                 + " LEFT JOIN subjects sj ON sj.id = r.subject_id"
-                + " WHERE r.active" + scope("r.school_id", p)
+                + " WHERE r.active" + scope("r.school_id", p) + campusRoom("r.id", "r.school_id", p)
                 + " ORDER BY s.name, b.name NULLS LAST, r.floor NULLS LAST, r.sort_order, r.name");
         return new Report("facilities", "Danh sách phòng", subtitle(p, null),
                 List.of(col("school_code", "Mã trường", "text"), col("school", "Trường", "text"),
@@ -681,17 +708,21 @@ public class ReportService {
                        COUNT(l.id) AS items,
                        COUNT(l.id) FILTER (WHERE l.found) AS found,
                        COUNT(l.id) FILTER (WHERE NOT l.found) AS missing,
-                       COALESCE((SELECT SUM(x.quantity) FROM inventory_surplus x WHERE x.session_id = i.id), 0) AS surplus,
+                       COALESCE((SELECT SUM(x.quantity) FROM inventory_surplus x WHERE x.session_id = i.id\
+                       """ + campusRoom("x.room_id", "i.school_id", p) + """
+                       ), 0) AS surplus,
                        COUNT(l.id) FILTER (WHERE l.found AND l.found_room_id IS NOT NULL
                                            AND l.found_room_id IS DISTINCT FROM l.expected_room_id) AS wrong_room,
                        COUNT(l.id) FILTER (WHERE l.found AND l.found_condition IS NOT NULL
                                            AND l.found_condition IS DISTINCT FROM l.expected_condition) AS wrong_condition
                 FROM inventory_sessions i
                 JOIN schools s ON s.id = i.school_id
-                LEFT JOIN inventory_lines l ON l.session_id = i.id
+                LEFT JOIN inventory_lines l ON l.session_id = i.id\
+                """ + campusRoom("COALESCE(l.expected_room_id, l.found_room_id)", "i.school_id", p) + """
                 WHERE i.status NOT IN ('CANCELLED', 'REJECTED')
                   AND COALESCE(i.inventory_date, i.created_at::date) BETWEEN ?::date AND ?::date\
-                """ + scope("i.school_id", p) + " GROUP BY i.id, s.name ORDER BY 3 DESC, s.name",
+                """ + scope("i.school_id", p) + campusVoucher("inventory_sessions", "i", p)
+                + " GROUP BY i.id, s.name ORDER BY 3 DESC, s.name",
                 from.toString(), to.toString());
         return new Report("inventory", "Kết quả kiểm kê", subtitle(p, period),
                 List.of(col("code", "Số phiếu", "text"), col("school", "Trường", "text"),
@@ -711,16 +742,20 @@ public class ReportService {
                 + " COUNT(*) FILTER (WHERE result = 'REPAIRED') AS repaired,"
                 + " COUNT(*) FILTER (WHERE result = 'UNREPAIRABLE') AS unrepairable,"
                 + " COALESCE(SUM(cost_estimated), 0) AS est, COALESCE(SUM(cost_actual), 0) AS act"
-                + " FROM repair_orders WHERE work_kind = 'REPAIR' AND" + live
-                + " AND request_date BETWEEN ?::date AND ?::date GROUP BY school_id),"
-                + " war AS (SELECT school_id, COUNT(*) AS n, COALESCE(SUM(cost), 0) AS cost FROM warranty_claims"
-                + " WHERE" + live + " AND request_date BETWEEN ?::date AND ?::date GROUP BY school_id),"
+                + " FROM repair_orders v WHERE work_kind = 'REPAIR' AND" + live
+                + " AND request_date BETWEEN ?::date AND ?::date" + campusVoucher("repair_orders", "v", p)
+                + " GROUP BY school_id),"
+                + " war AS (SELECT school_id, COUNT(*) AS n, COALESCE(SUM(cost), 0) AS cost FROM warranty_claims v"
+                + " WHERE" + live + " AND request_date BETWEEN ?::date AND ?::date"
+                + campusVoucher("warranty_claims", "v", p) + " GROUP BY school_id),"
                 + " mai AS (SELECT school_id, COUNT(*) AS n, COUNT(*) FILTER (WHERE status = 'COMPLETED') AS done,"
                 + " COALESCE(SUM(cost_actual), 0) AS cost FROM ("
-                + " SELECT school_id, status, cost_actual FROM maintenance_orders"
+                + " SELECT school_id, status, cost_actual FROM maintenance_orders v"
                 + " WHERE" + live + " AND maintenance_date BETWEEN ?::date AND ?::date"
-                + " UNION ALL SELECT school_id, status, cost_actual FROM repair_orders"
+                + campusVoucher("maintenance_orders", "v", p)
+                + " UNION ALL SELECT school_id, status, cost_actual FROM repair_orders v"
                 + " WHERE work_kind = 'MAINTENANCE' AND" + live + " AND request_date BETWEEN ?::date AND ?::date"
+                + campusVoucher("repair_orders", "v", p)
                 + ") m GROUP BY school_id)"
                 + " SELECT " + d.select() + ","
                 + " COALESCE(SUM(rep.n), 0) AS repairs, COALESCE(SUM(rep.done), 0) AS repairs_done,"
@@ -754,7 +789,8 @@ public class ReportService {
                        h.action, COUNT(DISTINCT h.equipment_id) AS n
                 FROM equipment_history h JOIN equipment e ON e.id = h.equipment_id
                 WHERE h.created_at >= ?::date AND h.created_at < (?::date + 1)\
-                """ + scope("e.school_id", p) + " GROUP BY 1, 2, 3 ORDER BY 2", from.toString(), to.toString());
+                """ + scope("e.school_id", p) + campusRoom("e.room_id", "e.school_id", p)
+                + " GROUP BY 1, 2, 3 ORDER BY 2", from.toString(), to.toString());
         List<String> actions = List.of("GHI_TANG", "CAP_PHAT", "THU_HOI", "DIEU_CHUYEN", "MUON", "BAO_HONG",
                 "SUA_CHUA", "BAO_HANH", "THANH_LY", "TIEU_HUY", "MAT");
         // Đủ mọi tháng trong kỳ, tháng không phát sinh là dòng số 0: thiếu chúng thì biểu đồ dồn hai tháng có số
@@ -791,8 +827,8 @@ public class ReportService {
                            COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed,
                            COUNT(*) FILTER (WHERE status = 'REJECTED') AS rejected,
                            COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled
-                    FROM %s WHERE created_at >= ?::date AND created_at < (?::date + 1)""".formatted(t.getKey())
-                    + scope("school_id", p), from.toString(), to.toString());
+                    FROM %s v WHERE created_at >= ?::date AND created_at < (?::date + 1)""".formatted(t.getKey())
+                    + scope("v.school_id", p) + campusVoucher(t.getKey(), "v", p), from.toString(), to.toString());
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("voucher", t.getValue());
             row.putAll(r);
@@ -810,7 +846,7 @@ public class ReportService {
     private Report adequacyReport(Params p) {
         Set<Long> only = p.filtered() ? filteredSchools(p) : null;
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (AdequacyService.SchoolSummary s : adequacy.summary().rows()) {
+        for (AdequacyService.SchoolSummary s : adequacy.summary(p.campusId()).rows()) {
             if (only != null && !only.contains(s.schoolId())) {
                 continue;
             }
@@ -842,7 +878,7 @@ public class ReportService {
                 JOIN schools s ON s.id = l.school_id
                 LEFT JOIN staff st ON st.id = l.borrower_id
                 WHERE l.status = 'APPROVED' AND l.due_date < CURRENT_DATE\
-                """ + scope("l.school_id", p) + " ORDER BY l.due_date");
+                """ + scope("l.school_id", p) + campusVoucher("equipment_loans", "l", p) + " ORDER BY l.due_date");
         return new Report("overdue-loans", "Thiết bị mượn quá hạn",
                 subtitle(p, "tính đến " + vn(LocalDate.now())),
                 List.of(col("code", "Số phiếu", "text"), col("school", "Trường", "text"),
@@ -863,7 +899,8 @@ public class ReportService {
                 FROM disposals d JOIN schools s ON s.id = d.school_id
                 WHERE d.status = 'COMPLETED'
                   AND COALESCE(d.executed_date, d.completed_at::date) BETWEEN ?::date AND ?::date\
-                """ + scope("d.school_id", p) + " ORDER BY 4", from.toString(), to.toString());
+                """ + scope("d.school_id", p) + campusVoucher("disposals", "d", p) + " ORDER BY 4",
+                from.toString(), to.toString());
         return new Report("disposals", "Thiết bị ghi giảm", subtitle(p, period),
                 List.of(col("code", "Số phiếu", "text"), col("school", "Trường", "text"), col("kind", "Hình thức", "text"),
                         col("done_date", "Ngày thực hiện", "date"), col("decision_no", "Số quyết định", "text"),
@@ -898,7 +935,8 @@ public class ReportService {
                 + " FROM purchase_proposals p JOIN schools s ON s.id = p.school_id"
                 + " LEFT JOIN purchase_proposal_lines l ON l.proposal_id = p.id" + d.joins()
                 + " WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.budget_year = ?"
-                + scope("p.school_id", p) + " GROUP BY " + d.groupBy() + " ORDER BY amount DESC, name", year);
+                + scope("p.school_id", p) + campusVoucher("purchase_proposals", "p", p)
+                + " GROUP BY " + d.groupBy() + " ORDER BY amount DESC, name", year);
         List<Column> columns = leadColumns(d);
         if (d.code() == null) {
             columns.add(col("schools", "Số trường", "number"));
@@ -1042,7 +1080,8 @@ public class ReportService {
                   -- Điều chuyển giữa trường ghi hai dòng (đổi trường, rồi phòng ở trường nhận): giữ dòng đổi trường.
                   AND NOT (h.voucher_resource = 'equipment_transfers' AND h.field = 'room')
                   AND h.created_at >= ?::date AND h.created_at < (?::date + 1)\
-                """ + " AND ((TRUE" + scope("e.school_id", p) + ") OR (t.id IS NOT NULL" + scope("t.school_id", p)
+                """ + " AND ((TRUE" + scope("e.school_id", p) + campusRoom("e.room_id", "e.school_id", p)
+                + ") OR (t.id IS NOT NULL" + scope("t.school_id", p) + campusVoucher("equipment_transfers", "t", p)
                 + ")) ORDER BY h.created_at DESC, e.code LIMIT " + LIST_LIMIT, from.toString(), to.toString());
         return new Report("transfers", "Lịch sử điều chuyển thiết bị", subtitle(p, period),
                 List.of(col("moved_date", "Ngày", "date"), col("kind", "Hình thức", "text"),
@@ -1082,6 +1121,7 @@ public class ReportService {
                 + " JOIN equipment_loans l ON l.id = ll.loan_id WHERE l.status NOT IN" + NOT_LIVE
                 + " AND l.loan_date BETWEEN ?::date AND ?::date GROUP BY ll.equipment_id) lc ON lc.equipment_id = e.id"
                 + " WHERE e.status NOT IN" + OFF_BOOK + scope("e.school_id", p)
+                + campusRoom("e.room_id", "e.school_id", p)
                 + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name", f, f, t, f, t);
         boolean rooms = !"type".equals(group);
         if (rooms) {
@@ -1089,7 +1129,7 @@ public class ReportService {
             jdbc.queryForList("SELECT " + d.select() + ", COUNT(b.id) AS n FROM room_bookings b"
                     + " JOIN schools s ON s.id = b.school_id" + d.joins()
                     + " WHERE b.status NOT IN" + NOT_LIVE + " AND b.booking_date BETWEEN ?::date AND ?::date"
-                    + scope("b.school_id", p) + " GROUP BY " + d.groupBy(), f, t)
+                    + scope("b.school_id", p) + campusVoucher("room_bookings", "b", p) + " GROUP BY " + d.groupBy(), f, t)
                     .forEach(r -> bookings.put(r.get("name") + "|" + r.get("code"), r.get("n")));
             rows.forEach(r -> r.put("bookings", bookings.getOrDefault(r.get("name") + "|" + r.get("code"), 0L)));
         }
@@ -1153,6 +1193,11 @@ public class ReportService {
         if (p.schoolId() != null) {
             sql.append(" AND ").append(column).append(" = ").append(p.schoolId().longValue()).append(' ');
         }
+        if (p.campusId() != null) {
+            // Lọc một cơ sở = chỉ trường của cơ sở đó; vế theo phòng / phiếu ({@link #campusRoom}…) hẹp tiếp.
+            sql.append(" AND ").append(column).append(" IN (SELECT fc.school_id FROM campuses fc WHERE fc.id = ")
+                    .append(p.campusId().longValue()).append(") ");
+        }
         if (p.bodyId() != null || p.levelId() != null) {
             sql.append(" AND ").append(column).append(" IN (SELECT fs.id FROM schools fs WHERE TRUE");
             if (p.bodyId() != null) {
@@ -1171,7 +1216,36 @@ public class ReportService {
      * danh — cho báo cáo về tài sản. Báo cáo không khai bộ lọc thì {@link ReportFilters#only} đã gạt nó đi.
      */
     String assets(String alias, Params p) {
-        return scope(alias + ".school_id", p) + ReportFilters.sql(alias, p);
+        return scope(alias + ".school_id", p) + ReportFilters.sql(alias, p)
+                + campusRoom(alias + ".room_id", alias + ".school_id", p);
+    }
+
+    /**
+     * Vế lọc cơ sở cho bản ghi gắn phòng {@code roomIdExpr} của trường {@code schoolIdExpr} — phòng trống thuộc cơ sở
+     * chính ({@code "NULL"}: bản ghi không có phòng). Không lọc cơ sở thì rỗng. Có khoảng trắng hai đầu.
+     */
+    String campusRoom(String roomIdExpr, String schoolIdExpr, Params p) {
+        return ReportCampus.room(roomIdExpr, schoolIdExpr, p.campusId());
+    }
+
+    /** Vế lọc cơ sở cho bản ghi mang cơ sở của chính nó (khối nhà, cơ sở). */
+    String campusOwn(String campusIdExpr, String schoolIdExpr, Params p) {
+        return ReportCampus.own(campusIdExpr, schoolIdExpr, p.campusId());
+    }
+
+    /** Vế lọc cơ sở cho phiếu bảng {@code table} (bí danh {@code alias}) — phiếu chạm cơ sở, như danh sách phiếu. */
+    String campusVoucher(String table, String alias, Params p) {
+        return campusVoucher(table, alias, p.campusId());
+    }
+
+    /** Như trên, với cơ sở đã xác định (bảng điều khiển: cơ sở của tài khoản bị giới hạn). */
+    String campusVoucher(String table, String alias, Long campusId) {
+        return campus.voucher(table, alias, campusId);
+    }
+
+    /** Vế lọc cơ sở cho kế hoạch bảo trì (bí danh {@code alias}). */
+    String campusPlan(String alias, Long campusId) {
+        return campus.maintenancePlan(alias, campusId);
     }
 
     /** Tên dòng gộp thiết bị ngoài danh mục ở báo cáo nhiều trường. */
@@ -1206,6 +1280,9 @@ public class ReportService {
         }
         if (p.schoolId() != null) {
             parts.add(nameOf("schools", p.schoolId()));
+        }
+        if (p.campusId() != null) {
+            parts.add(nameOf("campuses", p.campusId()));
         }
         if (p.typeId() != null) {
             parts.add(nameOf("equipment_types", p.typeId()));

@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.module.school.voucher.VoucherCampus;
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
 import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
@@ -55,11 +56,14 @@ public class InventoryCampaignService {
     private final InventorySessionRepository sessions;
     private final ApplicationEventPublisher publisher;
 
+    private final VoucherCampus campus;
+
     public InventoryCampaignService(InventoryCampaignRepository repository, InventorySessionRepository sessions,
             RowLevelPrincipalResolver principals,
             DepartmentOfEducationService bodies, ManagedSchoolsCache managedSchools, RowLevelSecurity rowLevel,
-            JdbcTemplate jdbc, ApplicationEventPublisher publisher) {
+            JdbcTemplate jdbc, ApplicationEventPublisher publisher, VoucherCampus campus) {
         this.publisher = publisher;
+        this.campus = campus;
         this.repository = repository;
         this.sessions = sessions;
         this.principals = principals;
@@ -214,6 +218,7 @@ public class InventoryCampaignService {
             return Set.of();
         }
         Specification<InventorySession> spec = rowLevel.<InventorySession>scope(InventorySession.class, Action.READ)
+                .and(campus.pinned(InventorySessionService.CAMPUS))
                 .and((root, q, cb) -> root.get("id").in(ids));
         return sessions.findAll(spec).stream().map(InventorySession::getId).collect(Collectors.toSet());
     }

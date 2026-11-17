@@ -18,5 +18,6 @@ public record VoucherServiceDeps(
         RowLevelPrincipalResolver principals,
         EntityManager entityManager,
         VoucherForms forms,
-        VoucherHolds holds) {
+        VoucherHolds holds,
+        VoucherCampus campus) {
 }

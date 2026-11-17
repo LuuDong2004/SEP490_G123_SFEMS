@@ -75,6 +75,7 @@ public class ReportSnapshotService {
         p.put("typeId", params.typeId());
         p.put("status", params.status());
         p.put("condition", params.condition());
+        p.put("campusId", reports.resolve(params).campusId());
         String trimmed = note == null || note.isBlank() ? null : note.trim();
         if (trimmed != null && trimmed.length() > 500) {
             throw new FieldValidationException("note", "Ghi chú tối đa 500 ký tự");

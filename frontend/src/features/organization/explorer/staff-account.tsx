@@ -3,6 +3,7 @@ import { Check, Copy, KeyRound, Lock, LockOpen, UserCheck, UserMinus, UserPlus, 
 import { useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { CampusScopeSelect } from "@/shared/components/campus/campus";
 import { errorMessage } from "@/shared/lib/api-error";
 import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { Badge } from "@/shared/ui/badge";
@@ -82,6 +83,7 @@ export function StaffAccountCell({ staff }: { staff: any }) {
   const [creating, setCreating] = useState(false);
   const [role, setRole] = useState(defaultRole(staff));
   const [username, setUsername] = useState("");
+  const [campus, setCampus] = useState<number | null>(null);
   const usernameError = textError("USERNAME", "Tên đăng nhập", username);
   const [issued, setIssued] = useState<Issued | null>(null);
   const [busy, setBusy] = useState(false);
@@ -205,11 +207,15 @@ export function StaffAccountCell({ staff }: { staff: any }) {
                 onChange={(e) => setUsername(e.target.value.replace(/[^A-Za-z0-9._-]/g, "").toLowerCase())} />
               {usernameError ? <p className="text-destructive text-sm">{usernameError}</p> : null}
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`campus-${staff.id}`}>Phạm vi</Label>
+              <CampusScopeSelect id={`campus-${staff.id}`} value={campus} onChange={setCampus} schoolId={staff.school?.id} />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreating(false)}>Huỷ</Button>
             <Button type="button" disabled={busy || !role || !!usernameError} onClick={async () => {
-              const res = await call("", { role, username: username || null });
+              const res = await call("", { role, username: username || null, campus: { id: campus } });
               if (res) {
                 setCreating(false);
                 setIssued(res);

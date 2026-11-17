@@ -33,6 +33,8 @@ import { useSchoolNextCode } from "@/features/organization/resources/school-code
 import { SchoolField, schoolColumn } from "@/features/organization/resources/school-field";
 import { inputModeOf, maxLengthOf, mergeRules, textRules, type TextRule } from "@/shared/lib/field-rules";
 import { STAFF_TYPE_LABELS, POSITION_LABELS, LEADERSHIP_POSITIONS, assignablePositions } from "@/domains/staff/types";
+import { CampusCell, CampusTableFilter } from "@/shared/components/campus/campus";
+import { useCampusOptions, usePinnedCampusId } from "@/shared/components/campus/use-campus";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -139,6 +141,26 @@ function TextField({
   );
 }
 
+/**
+ * Cơ sở làm việc (271) — chỉ hiện khi trường có từ hai cơ sở. Trống = trường chính. Tài khoản một cơ sở không chọn:
+ * máy chủ gán cơ sở của họ.
+ */
+function StaffCampusField({ control, record }: { control: Control<any>; record?: any }) {
+  const chosen = useWatch({ control, name: "school.id" });
+  const schoolId = record?.school?.id ?? chosen;
+  const pinned = usePinnedCampusId();
+  const campuses = useCampusOptions(schoolId, pinned == null);
+  if (pinned != null || campuses.length < 2) return null;
+  return (
+    <RefField control={control} name="campus" resource="campuses" label="Cơ sở" placeholder="Trường chính"
+      current={record?.campus}
+      filters={[
+        ...(schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }] : []),
+        { field: "active", operator: "eq" as const, value: true },
+      ]} />
+  );
+}
+
 function StaffFields({ control, record }: { control: Control<any>; record?: any }) {
   useSchoolNextCode("staff", control, record);
   // Phòng ban / bộ phận là của cán bộ; giáo viên thuộc tổ bộ môn (tab Tổ bộ môn), không gõ ở đây.
@@ -184,6 +206,7 @@ function StaffFields({ control, record }: { control: Control<any>; record?: any 
         {isTeacher || !staffType ? null : (
           <TextField control={control} name="department" label="Phòng ban / bộ phận" placeholder="Tổ Văn phòng" rule="SHORT_TEXT" />
         )}
+        <StaffCampusField control={control} record={record} />
         <TextField
           control={control}
           name="phone"
@@ -350,6 +373,7 @@ function StaffFormBody({ control, record, config, inDialog }: { control: any; re
         {isTeacher || !staffType ? null : (
           <TextField control={control} name="department" label="Phòng ban / bộ phận" placeholder="Tổ Văn phòng" rule="SHORT_TEXT" />
         )}
+        <StaffCampusField control={control} record={record} />
       </NavSectionBox>
       {isTeacher ? (
         <NavSectionBox k="teach" title="Giảng dạy">
@@ -513,8 +537,10 @@ export const STAFF_EXTRA = {
     email: "",
     mainSubject: { id: null },
     subjects: [],
+    campus: { id: null },
   },
   Fields: StaffFields,
+  ListFilters: CampusTableFilter,
   columns: [
     {
       id: "staffType",
@@ -538,12 +564,14 @@ export const STAFF_EXTRA = {
       enableSorting: false,
       cell: ({ row }) => row.original.mainSubject?.name ?? <span className="text-muted-foreground">—</span>,
     },
+    { id: "campus", header: "Cơ sở", enableSorting: false, cell: ({ row }) => <CampusCell campus={row.original.campus} /> },
     schoolColumn,
   ] as ColumnDef<any, any>[],
   show: (r: any) => [
     { label: "Loại", value: STAFF_TYPE_LABELS[r?.staffType] ?? "—" },
     { label: "Chức vụ", value: POSITION_LABELS[r?.position] ?? "—" },
     { label: "Phòng ban / bộ phận", value: r?.department ?? "—" },
+    ...(r?.campus ? [{ label: "Cơ sở", value: r.campus.name }] : []),
     { label: "Số điện thoại", value: r?.phone ?? "—" },
     { label: "Email", value: r?.email ?? "—" },
     // Môn dạy chỉ có nghĩa với giáo viên — hồ sơ cán bộ không hiện hai dòng "—" này.

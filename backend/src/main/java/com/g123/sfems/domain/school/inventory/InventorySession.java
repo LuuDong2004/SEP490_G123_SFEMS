@@ -51,6 +51,13 @@ public class InventorySession extends SchoolVoucher {
     @JoinColumn(name = "room_id")
     private Room room;
 
+    /**
+     * Kiểm kê toàn CƠ SỞ (271): phòng trống mà người lập bị giới hạn trong một cơ sở — biên bản chỉ phủ cơ sở đó, không
+     * chặn cơ sở khác. Phòng trống và cột này trống = cả trường.
+     */
+    @Column(name = "campus_id")
+    private Long campusId;
+
     /** Thành phần tổ kiểm kê. */
     @Column(length = 1000)
     private String council;
@@ -105,6 +112,14 @@ public class InventorySession extends SchoolVoucher {
 
     public void setInventoryDate(LocalDate inventoryDate) {
         this.inventoryDate = inventoryDate;
+    }
+
+    public Long getCampusId() {
+        return campusId;
+    }
+
+    public void setCampusId(Long campusId) {
+        this.campusId = campusId;
     }
 
     public Room getRoom() {

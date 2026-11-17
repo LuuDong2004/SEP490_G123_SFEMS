@@ -24,6 +24,7 @@ import { QuickAddClasses } from "../resources/class-extra";
 import { WithUnit } from "@/shared/components/charts/with-unit";
 import { AdjustCell, AdjustDialog, AdjustmentBar, useCanAdjust, useCurrentAdjustment } from "../standard-adjustments/school-adjust";
 import { QueryError } from "@/shared/components/query-error";
+import { CampusFilterButton } from "@/shared/components/campus/campus";
 
 
 const num = new Intl.NumberFormat("vi-VN");
@@ -176,9 +177,14 @@ export function SchoolStandard({ schoolId, onBack }: {
     setView(v);
     setReportView(undefined);
   }, []);
-  const params = schoolId ? { schoolId: String(schoolId) } : undefined;
+  // Cơ sở (trường nhiều cơ sở, tài khoản cả trường / Sở): định mức tính trên lớp, giáo viên, phòng, thiết bị của cơ sở.
+  const [campusId, setCampusId] = useState<number | null>(null);
+  const params = {
+    ...(schoolId ? { schoolId: String(schoolId) } : {}),
+    ...(campusId != null ? { campusId: String(campusId) } : {}),
+  };
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["purchase_proposals", "adequacy", schoolId ?? "own"],
+    queryKey: ["purchase_proposals", "adequacy", schoolId ?? "own", campusId],
     queryFn: ({ signal }) => kyInstance.get("purchase_proposals/adequacy", { signal,  searchParams: params }).json<SchoolAdequacy>(),
   });
   const d = data && "rows" in data ? data : undefined;
@@ -312,6 +318,7 @@ export function SchoolStandard({ schoolId, onBack }: {
         ) : undefined}
         actions={
           <>
+            <CampusFilterButton schoolId={schoolId} value={campusId} onChange={setCampusId} />
             {/* Xem ngay trên màn hình đúng các dòng đang lọc — không phải tải về mới xem được. */}
             <Button type="button" variant="outline" size="sm" disabled={!sheet} onClick={() => setPreviewing(true)}>
               <FileText />

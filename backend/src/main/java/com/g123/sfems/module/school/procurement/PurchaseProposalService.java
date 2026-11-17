@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.procurement;
 
+import com.g123.sfems.module.school.voucher.VoucherCampus;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
@@ -285,6 +286,7 @@ public class PurchaseProposalService
     public List<Overlap> overlaps(Long schoolId, Long excludeId) {
         Specification<PurchaseProposal> spec = rowLevel.<PurchaseProposal>scope(PurchaseProposal.class,
                         com.g123.sfems.shared.security.rowlevel.Action.READ)
+                .and(campusRead())
                 .and((root, q, cb) -> cb.equal(root.get("school").get("id"), schoolId))
                 .and((root, q, cb) -> root.get("status").in(LIVE))
                 .and((root, q, cb) -> cb.isNull(root.get("intakeId")));
@@ -380,5 +382,11 @@ public class PurchaseProposalService
             lineNo++;
         }
         return result;
+    }
+
+    /** Phạm vi cơ sở: Đề xuất chỉ có danh mục — thuộc cơ sở chính. */
+    @Override
+    protected VoucherCampus.Shape campusShape() {
+        return VoucherCampus.Shape.NONE;
     }
 }

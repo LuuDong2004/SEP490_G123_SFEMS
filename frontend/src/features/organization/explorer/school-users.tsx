@@ -3,6 +3,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { CampusScopeBadge, CampusScopeSelect } from "@/shared/components/campus/campus";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { getIdentity } from "@/shared/api/session";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
@@ -40,6 +41,7 @@ const COLUMNS: MiniColumn[] = [
   { header: "Họ tên", cell: (r) => r.fullName },
   { header: "Email", cell: (r) => (r.email?.endsWith("@qltb.local") ? dash : r.email) },
   { header: "Vai trò", cell: (r) => r.roles?.map((x: any) => x.name).join(", ") || dash },
+  { header: "Phạm vi", cell: (r) => <CampusScopeBadge campus={r.campus} /> },
   {
     header: "Trạng thái",
     cell: (r) => {
@@ -71,6 +73,7 @@ function UserDialog({ open, user, onClose, onIssued }: {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("SCHOOL_STAFF");
   const [status, setStatus] = useState("active");
+  const [campus, setCampus] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { open: notify } = useNotification();
@@ -90,6 +93,7 @@ function UserDialog({ open, user, onClose, onIssued }: {
     setEmail(user?.email?.endsWith("@qltb.local") ? "" : user?.email ?? "");
     setRole(user?.roles?.[0]?.code ?? "TEACHER");
     setStatus(user?.status === "inactive" ? "inactive" : "active");
+    setCampus(user?.campus?.id ?? null);
     setConfirmDelete(false);
   }, [open, user]);
 
@@ -108,11 +112,11 @@ function UserDialog({ open, user, onClose, onIssued }: {
   const save = () =>
     run(async () => {
       if (user) {
-        await kyInstance.patch(`school_users/${user.id}`, { json: { fullName, email, role, status } });
+        await kyInstance.patch(`school_users/${user.id}`, { json: { fullName, email, role, status, campus: { id: campus } } });
         notify?.({ type: "success", message: "Đã lưu tài khoản" });
         onClose();
       } else {
-        const res = await kyInstance.post("school_users", { json: { username, fullName, email, role } }).json<IssuedResponse>();
+        const res = await kyInstance.post("school_users", { json: { username, fullName, email, role, campus: { id: campus } } }).json<IssuedResponse>();
         onClose();
         onIssued(toIssued(res), fullName);
       }
@@ -168,6 +172,10 @@ function UserDialog({ open, user, onClose, onIssued }: {
               </Select>
             </div>
           ) : null}
+          <div className="grid gap-2">
+            <Label htmlFor="su-campus">Phạm vi</Label>
+            <CampusScopeSelect id="su-campus" value={campus} onChange={setCampus} current={user?.campus} disabled={!!self} />
+          </div>
         </div>
         <DialogFooter className="sm:justify-between">
           {user ? (

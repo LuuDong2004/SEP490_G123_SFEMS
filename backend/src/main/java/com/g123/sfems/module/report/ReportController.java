@@ -72,9 +72,10 @@ public class ReportController {
             @RequestParam(required = false) String choice,
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String condition) {
+            @RequestParam(required = false) String condition,
+            @RequestParam(required = false) Long campusId) {
         return reports.build(name, new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
-                typeId, status, condition));
+                typeId, status, condition, campusId));
     }
 
     /** Các phiếu của một dòng báo cáo "Thống kê mượn trả": {@code key} = khoá nhóm của dòng. */
@@ -86,9 +87,10 @@ public class ReportController {
             @RequestParam(required = false) Long bodyId,
             @RequestParam(required = false) Long levelId,
             @RequestParam(required = false) Long schoolId,
-            @RequestParam(required = false) String group) {
+            @RequestParam(required = false) String group,
+            @RequestParam(required = false) Long campusId) {
         return reports.loanRows(new ReportService.Params(from, to, null, bodyId, levelId, schoolId, group, null,
-                null, null, null), key);
+                null, null, null, campusId), key);
     }
 
     @GetMapping("/{name}/export")
@@ -104,9 +106,10 @@ public class ReportController {
             @RequestParam(required = false) String choice,
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String condition) {
+            @RequestParam(required = false) String condition,
+            @RequestParam(required = false) Long campusId) {
         ReportService.Params params = new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
-                typeId, status, condition);
+                typeId, status, condition, campusId);
         ReportService.Report report = reports.build(name, params);
         // Biểu số liệu CSVC: đúng bố cục mẫu của Sở (tiêu đề ba hàng, ô gộp), không phải bảng chung.
         byte[] body = CsvcStatisticsReport.NAME.equals(name) ? reports.csvcWorkbook(params)

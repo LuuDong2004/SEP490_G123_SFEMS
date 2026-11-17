@@ -29,7 +29,7 @@ final class FacilityStandardReports {
 
     ReportService.Report build(ReportService.Params p) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (FacilityStandardService.Summary s : standards.summaries(reports.scope("s.id", p))) {
+        for (FacilityStandardService.Summary s : standards.summaries(reports.scope("s.id", p), p.campusId())) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("code", s.school().code());
             row.put("name", s.school().name());

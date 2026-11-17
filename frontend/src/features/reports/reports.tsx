@@ -32,6 +32,7 @@ import { ReportDrillDialog, type ReportDrill } from "@/features/reports/report-d
 import { SaveSnapshotDialog } from "@/features/reports/snapshots";
 import { CSVC_STATISTICS, CsvcStatisticsNotes, CsvcStatisticsTable, csvcCell } from "@/shared/components/facility/csvc-statistics";
 import { QueryError } from "@/shared/components/query-error";
+import { CampusFilterButton } from "@/shared/components/campus/campus";
 
 const number = new Intl.NumberFormat("vi-VN");
 
@@ -80,7 +81,13 @@ export const Reports = () => {
   // Bộ lọc dùng chung cho mọi báo cáo — đang xem một địa bàn thì chuyển báo cáo vẫn trên địa bàn đó.
   const [bodyId, setBodyId] = useState<number | null>(null);
   const [levelId, setLevelId] = useState<number | null>(null);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolId, setSchoolIdRaw] = useState<number | null>(null);
+  // Cơ sở: chỉ có nghĩa khi phạm vi là MỘT trường nhiều cơ sở — đổi trường thì bỏ chọn.
+  const [campusId, setCampusId] = useState<number | null>(null);
+  const setSchoolId = (id: number | null) => {
+    setSchoolIdRaw(id);
+    setCampusId(null);
+  };
   // Lọc theo tài sản: loại thiết bị, trạng thái, tình trạng — giữ khi chuyển báo cáo, chỉ gửi khi báo cáo nhận.
   const [typeId, setTypeId] = useState<number | null>(null);
   const [assetFilter, setAssetFilter] = useState<{ status?: string; condition?: string }>({});
@@ -113,6 +120,7 @@ export const Reports = () => {
   if (bodyId != null) params.bodyId = String(bodyId);
   if (levelId != null) params.levelId = String(levelId);
   if (schoolId != null) params.schoolId = String(schoolId);
+  if (campusId != null) params.campusId = String(campusId);
   if (accepts("type") && typeId != null) params.typeId = String(typeId);
   if (accepts("status") && assetFilter.status) params.status = assetFilter.status;
   if (accepts("condition") && assetFilter.condition) params.condition = assetFilter.condition;
@@ -325,6 +333,7 @@ export const Reports = () => {
                 />
               </>
             ) : null}
+            <CampusFilterButton schoolId={schoolId} value={campusId} onChange={setCampusId} />
             {choices.length > 0 || filters.length > 0 || columnFilters.length > 0 ? (
               <FilterButton align="end" count={filterCount} onClear={() => {
                 setTypeId(null);

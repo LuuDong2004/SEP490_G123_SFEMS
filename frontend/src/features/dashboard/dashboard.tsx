@@ -27,6 +27,7 @@ import { ASSET_STATUS_GROUPS, type Dashboard as DashboardData } from "@/domains/
 import { WithUnit } from "@/shared/components/charts/with-unit";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { LoadingText } from "@/shared/components/spinner";
+import { PinnedCampusBadge } from "@/shared/components/campus/campus";
 
 /** Lọc sẵn "Chờ duyệt" trên danh sách phiếu (cùng dạng tham số `syncWithLocation` của Refine). */
 const PENDING_FILTER = "filters[0][field]=status&filters[0][operator]=eq&filters[0][value]=PENDING";
@@ -122,6 +123,7 @@ export const Dashboard = () => {
         <h1 className="text-2xl font-semibold tracking-tight">
           Tổng hợp
           {d ? <span className="text-muted-foreground ms-3 text-base font-normal">{d.scope}</span> : <LoadingText className="ms-3 align-middle font-normal" />}
+          <PinnedCampusBadge className="ms-3 align-middle" />
         </h1>
         <div className="flex items-center gap-3">
           <p className="text-muted-foreground text-sm first-letter:uppercase">

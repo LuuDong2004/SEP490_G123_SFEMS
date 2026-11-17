@@ -109,7 +109,8 @@ public final class ReportFilters {
         boolean condition = filters.contains(CONDITION) && p.condition() != null
                 && CONDITIONS.containsKey(p.condition());
         return new Params(p.from(), p.to(), p.year(), p.bodyId(), p.levelId(), p.schoolId(), p.group(), p.choice(),
-                type ? p.typeId() : null, status ? p.status() : null, condition ? p.condition() : null);
+                type ? p.typeId() : null, status ? p.status() : null, condition ? p.condition() : null,
+                p.campusId());
     }
 
     /** Điều kiện SQL của các bộ lọc đang chọn, trên bí danh cho trước. Luôn có khoảng trắng hai đầu. */

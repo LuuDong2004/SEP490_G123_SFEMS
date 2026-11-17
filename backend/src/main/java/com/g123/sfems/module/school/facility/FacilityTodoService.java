@@ -38,11 +38,14 @@ public class FacilityTodoService {
     private final JdbcTemplate jdbc;
     private final SchoolService schools;
     private final VisibleSchools visibleSchools;
+    private final CampusScope campusScope;
 
-    public FacilityTodoService(JdbcTemplate jdbc, SchoolService schools, VisibleSchools visibleSchools) {
+    public FacilityTodoService(JdbcTemplate jdbc, SchoolService schools, VisibleSchools visibleSchools,
+            CampusScope campusScope) {
         this.jdbc = jdbc;
         this.schools = schools;
         this.visibleSchools = visibleSchools;
+        this.campusScope = campusScope;
     }
 
     /** Gợi ý cho giao diện: mở mục nào ({@code classes}, {@code rooms}, {@code buildings}, {@code landArea}). */
@@ -68,13 +71,21 @@ public class FacilityTodoService {
         BigDecimal construction = (BigDecimal) s.get("construction_area");
         String level = (String) s.get("level_code");
 
+        // Tài khoản một cơ sở (271): việc cần làm của cơ sở mình — lớp theo phòng học, hạng mục, khối nhà.
+        Long pinned = campusScope.pinnedCampusIn(schoolId);
+        String c = pinned == null ? null : String.valueOf(pinned.longValue());
+        String pinClass = c == null ? " " : FacilityCounting.roomInCampusSql("k.room_id", "k.school_id", c);
+        String pinRoom = c == null ? " " : FacilityCounting.roomInCampusSql("r.id", "r.school_id", c);
+        String pinBuilding = c == null ? " " : FacilityCounting.ownCampusInSql("bb.campus_id", "bb.school_id", c);
+        String classes0 = CURRENT_CLASSES + pinClass;
+
         Map<String, Object> cl = jdbc.queryForMap("SELECT count(*) AS classes, "
-                + "count(*) FILTER (WHERE coalesce(k.student_count, 0) = 0) AS no_size " + CURRENT_CLASSES, schoolId);
+                + "count(*) FILTER (WHERE coalesce(k.student_count, 0) = 0) AS no_size " + classes0, schoolId);
         Long outliers = jdbc.queryForObject("""
                 WITH c AS (SELECT k.grade_id, k.student_count %s AND k.student_count > 0),
                      g AS (SELECT grade_id, avg(student_count) AS mean FROM c GROUP BY grade_id HAVING count(*) >= 3)
                 SELECT count(*) FROM c JOIN g ON g.grade_id = c.grade_id
-                WHERE c.student_count > 1.5 * g.mean OR c.student_count < 0.5 * g.mean""".formatted(CURRENT_CLASSES),
+                WHERE c.student_count > 1.5 * g.mean OR c.student_count < 0.5 * g.mean""".formatted(classes0),
                 Long.class, schoolId);
 
         Map<String, Object> r = jdbc.queryForMap("""
@@ -91,16 +102,16 @@ public class FacilityTodoService {
                        coalesce(sum(r.area) FILTER (WHERE t.kind IS DISTINCT FROM 'AREA' AND r.building_id IS NOT NULL),
                                 0) AS room_area
                 FROM rooms r LEFT JOIN room_types t ON t.id = r.room_type_id
-                WHERE""" + COUNTED, level, schoolId);
+                WHERE""" + COUNTED + pinRoom, level, schoolId);
 
         Long duplicates = jdbc.queryForObject("""
                 SELECT coalesce(sum(n), 0) FROM (
-                    SELECT count(*) AS n FROM rooms WHERE school_id = ? AND active
-                    GROUP BY building_id, lower(trim(name)) HAVING count(*) >= 2) d""", Long.class, schoolId);
+                    SELECT count(*) AS n FROM rooms r WHERE r.school_id = ? AND r.active""" + pinRoom + """
+                    GROUP BY r.building_id, lower(trim(r.name)) HAVING count(*) >= 2) d""", Long.class, schoolId);
         // floor_area của khối nhà là TỔNG diện tích sàn (Building.floorArea) — không nhân số tầng.
         Map<String, Object> b = jdbc.queryForMap("""
                 SELECT count(*) AS total, count(floor_area) AS known, coalesce(sum(floor_area), 0) AS floor_area
-                FROM buildings WHERE school_id = ? AND active""", schoolId);
+                FROM buildings bb WHERE bb.school_id = ? AND bb.active""" + pinBuilding, schoolId);
 
         List<TodoItem> items = new ArrayList<>();
         long classes = n(cl.get("classes"));

@@ -1,5 +1,7 @@
 package com.g123.sfems.module.school.intake;
 
+import com.g123.sfems.module.school.voucher.VoucherCampus;
+import com.g123.sfems.module.school.facility.CampusScope.CampusLabel;
 import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
@@ -107,6 +109,11 @@ public class EquipmentIntakeService implements RecordAccess {
     private final EntityManager entityManager;
     private final VoucherForms forms;
     private final SchoolYearService schoolYears;
+    private final VoucherCampus campus;
+
+    /** Phạm vi cơ sở: theo phòng nhận của các dòng; không dòng nào có phòng → cơ sở chính. */
+    public static final VoucherCampus.Shape CAMPUS = VoucherCampus.Shape.of(List.of(), List.of(),
+            new VoucherCampus.Line("lines", List.of("room"), List.of()));
 
     public EquipmentIntakeService(
             EquipmentIntakeRepository repository,
@@ -121,7 +128,8 @@ public class EquipmentIntakeService implements RecordAccess {
             VoucherWorkflow workflow,
             EntityManager entityManager,
             VoucherForms forms,
-            SchoolYearService schoolYears) {
+            SchoolYearService schoolYears,
+            VoucherCampus campus) {
         this.repository = repository;
         this.rowLevel = rowLevel;
         this.schools = schools;
@@ -135,6 +143,7 @@ public class EquipmentIntakeService implements RecordAccess {
         this.entityManager = entityManager;
         this.forms = forms;
         this.schoolYears = schoolYears;
+        this.campus = campus;
     }
 
     public Page<EquipmentIntake> list(ListParams params) {
@@ -142,6 +151,8 @@ public class EquipmentIntakeService implements RecordAccess {
                 ? workflow.awaitingMe(null) : Specification.unrestricted();
         Page<EquipmentIntake> page = repository.findAll(
                 rowLevel.<EquipmentIntake>scope(EquipmentIntake.class, Action.READ)
+                        .and(campus.pinned(CAMPUS))
+                        .and(campus.filter(CAMPUS, params))
                         .and(awaiting)
                         .and(EquipmentIntakeSpecifications.from(params))
                         .and(CatalogSpecifications.referenceFilter(params, "school"))
@@ -153,12 +164,14 @@ public class EquipmentIntakeService implements RecordAccess {
     }
 
     public EquipmentIntake get(Long id) {
-        return withLines(repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id))
+        return withLines(repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id)
+                        .and(campus.pinned(CAMPUS)))
                 .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id)));
     }
 
     public List<EquipmentIntake> getMany(List<Long> ids) {
-        List<EquipmentIntake> rows = repository.findAll(rowLevel.byIds(EquipmentIntake.class, Action.READ, ids));
+        List<EquipmentIntake> rows = repository.findAll(rowLevel.byIds(EquipmentIntake.class, Action.READ, ids)
+                .and(campus.pinned(CAMPUS)));
         rows.forEach(EquipmentIntakeService::withLines);
         return rows;
     }
@@ -172,6 +185,32 @@ public class EquipmentIntakeService implements RecordAccess {
      * dòng tường minh ở đây rẻ hơn một {@code EAGER} kéo theo cả phiếu vào mọi
      * lần đọc thiết bị; {@code @BatchSize} lo phần N+1 của một trang.
      */
+    /** Nhãn Cơ sở của các phiếu trên một trang danh sách ({@link VoucherCampus#labels}). */
+    public Map<Long, List<CampusLabel>> campusLabels(List<Long> ids) {
+        return campus.<EquipmentIntake>labels(CAMPUS, ids, spec -> repository.findAll(spec));
+    }
+
+    /**
+     * Tài khoản bị giới hạn trong một cơ sở: dòng chưa chọn phòng nhận về KHO CỦA CƠ SỞ mình ngay lúc lưu (không đợi
+     * lúc duyệt — người duyệt là cả trường, sẽ chọn kho chung), để phiếu thuộc cơ sở của người lập.
+     */
+    private void campusStoreroom(EquipmentIntake intake) {
+        if (campus.pinnedCampus() == null) {
+            return;
+        }
+        Room storeroom = null;
+        boolean looked = false;
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            if (line.getRoom() == null) {
+                if (!looked) {
+                    storeroom = rooms.storeroomOf(intake.getSchool().getId());
+                    looked = true;
+                }
+                line.setRoom(storeroom);
+            }
+        }
+    }
+
     private static EquipmentIntake withLines(EquipmentIntake intake) {
         intake.getLines().size();
         intake.getDocuments().size();
@@ -218,6 +257,8 @@ public class EquipmentIntakeService implements RecordAccess {
         fitSources(intake);
         checkDocuments(intake);
         checkSerials(intake);
+        campusStoreroom(intake);
+        campus.requireWritable(CAMPUS, intake, Set.of());
 
         EquipmentIntake saved = repository.persist(intake);
         repository.flush();
@@ -231,6 +272,7 @@ public class EquipmentIntakeService implements RecordAccess {
         // Khoá trước khi kiểm nháp — lần lưu đọc phiếu lúc còn nháp mà commit sau lần Trình sẽ kéo phiếu về nháp.
         lockAndReread(intake);
         requireDraft(intake, "sửa");
+        Set<String> anchored = campus.anchorKeys(CAMPUS, intake);
 
         IdRef school = request.school();
         if (school != null && school.id() != null && !school.id().equals(intake.getSchool().getId())) {
@@ -294,6 +336,8 @@ public class EquipmentIntakeService implements RecordAccess {
         fitSources(intake);
         checkDocuments(intake);
         checkSerials(intake);
+        campusStoreroom(intake);
+        campus.requireWritable(CAMPUS, intake, anchored);
 
         rowLevel.checkWritable(intake);
         return repository.persist(intake);
@@ -429,7 +473,8 @@ public class EquipmentIntakeService implements RecordAccess {
      */
     @Transactional
     public EquipmentIntake delete(Long id) {
-        EquipmentIntake intake = repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.DELETE, id))
+        EquipmentIntake intake = repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.DELETE, id)
+                        .and(campus.pinned(CAMPUS)))
                 .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
         lockAndReread(intake);
         workflow.requireDeletable(intake, RESOURCE);
@@ -556,7 +601,7 @@ public class EquipmentIntakeService implements RecordAccess {
             line.setPhysicalOrDigital(EquipmentEnums.PhysicalDigitalType.PHYSICAL);
             line.setDocumentQuantity(item.quantity());
             line.setReceivedQuantity(item.quantity());
-            line.setRoom(item.roomId() == null ? null : rooms.get(item.roomId()));
+            line.setRoom(item.roomId() == null ? null : rooms.getAcrossCampuses(item.roomId()));
             result.add(line);
         }
         draft.replaceLines(result);
@@ -601,12 +646,12 @@ public class EquipmentIntakeService implements RecordAccess {
     }
 
     private EquipmentIntake readable(Long id) {
-        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id))
+        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.READ, id).and(campus.pinned(CAMPUS)))
                 .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
     }
 
     private EquipmentIntake writable(Long id) {
-        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.WRITE, id))
+        return repository.findOne(rowLevel.byId(EquipmentIntake.class, Action.WRITE, id).and(campus.pinned(CAMPUS)))
                 .orElseThrow(() -> new ResourceNotFoundException("EquipmentIntake", id));
     }
 
@@ -735,7 +780,7 @@ public class EquipmentIntakeService implements RecordAccess {
             line.setReceivedQuantity(input.receivedQuantity());
             line.setVarianceReason(trimToNull(input.varianceReason()));
             line.setUnitPrice(input.unitPrice());
-            line.setRoom(ref(input.room(), rooms::get));
+            line.setRoom(ref(input.room(), rooms::getAcrossCampuses));
             // Phòng riêng của từng cái: chỉ giữ tới số thực nhận; trùng phòng của dòng thì coi như theo dòng.
             List<Long> unitRooms = input.unitRoomIds() == null ? List.of() : input.unitRoomIds();
             Long lineRoom = line.getRoom() == null ? null : line.getRoom().getId();
@@ -751,7 +796,7 @@ public class EquipmentIntakeService implements RecordAccess {
                 if (unitSlots.get(u) == null) {
                     continue;
                 }
-                Room unit = rooms.get(unitSlots.get(u));
+                Room unit = rooms.getAcrossCampuses(unitSlots.get(u));
                 if (!unit.getSchool().getId().equals(intake.getSchool().getId()) || !Boolean.TRUE.equals(unit.getActive())) {
                     throw new FieldValidationException("lines", "Dòng %d: phòng nhận của cái thứ %d không dùng được (khác trường hoặc đã ngừng sử dụng)"
                             .formatted(lineNo, u + 1));

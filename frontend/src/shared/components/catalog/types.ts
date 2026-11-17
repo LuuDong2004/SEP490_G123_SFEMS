@@ -211,6 +211,11 @@ export type CatalogExtra = {
   }) => ReactNode;
   /** Nút "⋯" trên đầu trang chi tiết (thao tác phụ) — xem `ShowViewHeader.more`. */
   ShowMore?: (props: { record: any }) => ReactNode;
+  /**
+   * Nút lọc riêng trên hàng công cụ của bảng, sau ô tìm (phòng, khối nhà: Cơ sở). Ghi qua
+   * `table.reactTable.setColumnFilters` như mọi ô lọc.
+   */
+  ListFilters?: import("react").ComponentType<{ table: any }>;
   /** Nút riêng ở đầu màn danh sách, trước nút Thêm mới (thiết bị: tra cứu, in tem). */
   ListActions?: () => ReactNode;
   /** Lối PHỤ của màn danh sách, là các `DropdownMenuItem` — nằm trong menu bánh răng của bảng. */

@@ -231,11 +231,14 @@ final class CsvcStatisticsReport {
                 WITH sc AS (SELECT s.id, s.land_area, s.construction_area FROM schools s WHERE s.id IN (%s)),
                 cp AS (SELECT c.school_id, COUNT(*) AS campuses,
                               COUNT(*) FILTER (WHERE NOT c.is_primary AND c.branch) AS branches
-                       FROM campuses c WHERE c.active AND c.school_id IN (SELECT id FROM sc) GROUP BY c.school_id)
-                SELECT COUNT(*) AS schools, SUM(sc.land_area) AS land_area, SUM(sc.construction_area) AS construction_area,
+                       FROM campuses c WHERE c.active AND c.school_id IN (SELECT id FROM sc)%s GROUP BY c.school_id)
+                SELECT COUNT(*) AS schools, %s
                        SUM(GREATEST(COALESCE(cp.campuses, 0), 1)) AS sites, SUM(COALESCE(cp.branches, 0)) AS branches
                 FROM sc LEFT JOIN cp ON cp.school_id = sc.id
-                """.formatted(sc));
+                """.formatted(sc, p.campusId() == null ? " " : " AND c.id = " + p.campusId().longValue() + " ",
+                // Diện tích đất / xây dựng chỉ khai cho cả trường — lọc một cơ sở thì để trống, không chia.
+                p.campusId() == null ? "SUM(sc.land_area) AS land_area, SUM(sc.construction_area) AS construction_area,"
+                        : "NULL::numeric AS land_area, NULL::numeric AS construction_area,"));
         // Học sinh, lớp: CHỈ lớp năm học hiện hành, chia theo cơ sở của phòng học của lớp (FacilityCounting).
         // Trường chưa có lớp năm nay không vào số — báo ở ghi chú, không mượn số khác.
         Map<String, Object> k = jdbc.queryForMap("""
@@ -243,7 +246,7 @@ final class CsvcStatisticsReport {
                                   CASE WHEN c.id IS NULL OR c.is_primary THEN 'MAIN'
                                        WHEN c.branch THEN 'BRANCH' ELSE 'SITE' END AS kind
                            FROM (%s) x LEFT JOIN campuses c ON c.id = x.campus_id
-                           WHERE x.school_id IN (%s))
+                           WHERE x.school_id IN (%s)%s)
                 SELECT COUNT(DISTINCT school_id) AS with_classes, SUM(classes) AS classes, SUM(students) AS students,
                        COALESCE(SUM(missing_size), 0) AS missing_size,
                        SUM(students) FILTER (WHERE kind = 'MAIN') AS main_students,
@@ -253,7 +256,8 @@ final class CsvcStatisticsReport {
                        SUM(classes) FILTER (WHERE kind = 'BRANCH') AS branch_classes,
                        SUM(classes) FILTER (WHERE kind = 'SITE') AS site_classes
                 FROM kc
-                """.formatted(FacilityCounting.CLASS_COUNTS_BY_CAMPUS, sc));
+                """.formatted(FacilityCounting.CLASS_COUNTS_BY_CAMPUS, sc,
+                p.campusId() == null ? " " : " AND x.campus_id = " + p.campusId().longValue() + " "));
         String managers = "('" + String.join("', '", MANAGERS) + "')";
         Map<String, Object> staff = jdbc.queryForMap("SELECT"
                 + " COUNT(*) FILTER (WHERE t.position IN " + managers + ") AS managers,"
@@ -261,7 +265,8 @@ final class CsvcStatisticsReport {
                 + "  AND t.position IS DISTINCT FROM 'PHO_HIEU_TRUONG' AND t.staff_type = 'TEACHER') AS teachers,"
                 + " COUNT(*) FILTER (WHERE t.position IS DISTINCT FROM 'HIEU_TRUONG'"
                 + "  AND t.position IS DISTINCT FROM 'PHO_HIEU_TRUONG' AND t.staff_type <> 'TEACHER') AS employees"
-                + " FROM staff t WHERE t.active" + reports.scope("t.school_id", p));
+                + " FROM staff t WHERE t.active" + reports.scope("t.school_id", p)
+                + reports.campusOwn("t.campus_id", "t.school_id", p));
         // Chỗ ngủ nội trú: thông số "beds" của hạng mục; chưa khai thì lấy sức chứa.
         Map<String, Object> seats = jdbc.queryForMap("SELECT"
                 + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.code = 'NHA_AN'), 0) AS dining,"
@@ -270,7 +275,8 @@ final class CsvcStatisticsReport {
                 + "   AS boarding,"
                 + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.code = 'THU_VIEN'), 0) AS library"
                 + " FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id"
-                + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p));
+                + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p)
+                + reports.campusRoom("r.id", "r.school_id", p));
 
         BigDecimal students = decimal(k.get("students"));
         BigDecimal land = decimal(a.get("land_area"));
@@ -319,6 +325,7 @@ final class CsvcStatisticsReport {
                 + " LEFT JOIN buildings b ON b.id = r.building_id"
                 + " LEFT JOIN campuses c ON c.id = COALESCE(r.campus_id, b.campus_id)"
                 + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p)
+                + reports.campusRoom("r.id", "r.school_id", p)
                 + " GROUP BY rt.code, rt.name, g.code, 4, r.structure");
         Map<String, Tally> byItem = new HashMap<>();
         Map<String, Tally> classrooms = new HashMap<>();

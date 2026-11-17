@@ -2,6 +2,7 @@ package com.g123.sfems.module.school.voucher;
 
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import com.g123.sfems.module.school.facility.CampusScope.CampusLabel;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.web.ListParams;
@@ -10,6 +11,7 @@ import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +86,33 @@ public abstract class VoucherController<V extends SchoolVoucher, C extends Vouch
             return ListResponse.of(rows, rows.size());
         }
         Page<V> page = service.list(params);
-        return ListResponse.of(listRows(page.getContent()), page.getTotalElements());
+        return ListResponse.of(withCampuses(page.getContent(), listRows(page.getContent())), page.getTotalElements());
+    }
+
+    /**
+     * Nhãn Cơ sở ({@code campuses: [{id, name, primary, branch}]}) trên từng dòng danh sách — chỉ khi người xem là
+     * tài khoản cả trường của một trường nhiều cơ sở ({@link VoucherService#campusLabels}); không thì để nguyên.
+     */
+    protected List<Object> withCampuses(List<V> vouchers, List<Object> rows) {
+        return attachCampuses(json, vouchers,
+                rows, service.campusLabels(vouchers.stream().map(V::getId).toList()));
+    }
+
+    /** Gắn {@code campuses} vào từng dòng (cùng thứ tự với {@code vouchers}); {@code labels} rỗng thì để nguyên. */
+    public static List<Object> attachCampuses(ObjectMapper json, List<? extends SchoolVoucher> vouchers,
+            List<Object> rows, Map<Long, List<CampusLabel>> labels) {
+        if (labels.isEmpty()) {
+            return rows;
+        }
+        List<Object> out = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            JsonNode tree = json.valueToTree(rows.get(i));
+            if (tree instanceof ObjectNode node && i < vouchers.size()) {
+                node.set("campuses", json.valueToTree(labels.getOrDefault(vouchers.get(i).getId(), List.of())));
+            }
+            out.add(tree);
+        }
+        return out;
     }
 
     /**

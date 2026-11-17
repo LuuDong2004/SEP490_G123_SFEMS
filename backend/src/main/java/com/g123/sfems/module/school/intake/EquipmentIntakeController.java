@@ -38,6 +38,8 @@ import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
 import java.util.HashMap;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * {@code /api/equipment_intakes} — năm endpoint của hợp đồng data provider, cộng
@@ -66,6 +68,13 @@ public class EquipmentIntakeController {
     private final RowLevelSecurity rowLevel;
     private final UserService users;
     private final IntakeLookups lookups;
+    private ObjectMapper json;
+
+    /** Nhãn Cơ sở trên danh sách — dựng lại dòng thành cây JSON. */
+    @Autowired
+    void setJson(ObjectMapper json) {
+        this.json = json;
+    }
 
     public EquipmentIntakeController(EquipmentIntakeService service, RowLevelSecurity rowLevel, UserService users,
             IntakeLookups lookups) {
@@ -116,7 +125,9 @@ public class EquipmentIntakeController {
 
         Page<EquipmentIntake> page = service.list(params);
         Map<Long, RefSummary> creators = creators(page.getContent());
-        return ListResponse.of(page.getContent().stream().map(i -> respond(i, creators)).toList(),
+        List<Object> rows = page.getContent().stream().map(i -> respond(i, creators)).toList();
+        return ListResponse.of(VoucherController.attachCampuses(json, page.getContent(), rows,
+                service.campusLabels(page.getContent().stream().map(EquipmentIntake::getId).toList())),
                 page.getTotalElements());
     }
 

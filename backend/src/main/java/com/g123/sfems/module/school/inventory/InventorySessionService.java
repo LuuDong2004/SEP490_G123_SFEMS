@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.module.school.voucher.VoucherCampus;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
@@ -16,6 +17,8 @@ import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
 import com.g123.sfems.module.school.equipment.EquipmentLifecycle;
 import com.g123.sfems.module.school.equipment.EquipmentService;
 import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService.VoucherRef;
+import com.g123.sfems.module.school.facility.CampusScope;
+import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.school.facility.RoomService;
 import com.g123.sfems.module.school.voucher.EquipmentIncident;
 import com.g123.sfems.module.school.voucher.InventoryFindings;
@@ -34,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -88,16 +92,19 @@ public class InventorySessionService
         voucher.setNote(trimToNull(request.note()));
         InventoryCampaign campaign = request.campaign() == null || request.campaign().id() == null
                 ? null : campaigns.get(request.campaign().id());
-        Room room = request.room() == null || request.room().id() == null ? null : rooms.get(request.room().id());
+        Room room = request.room() == null || request.room().id() == null ? null : rooms.getAcrossCampuses(request.room().id());
         if (room != null && !room.getSchool().getId().equals(voucher.getSchool().getId())) {
             throw new FieldValidationException("room", "Phòng không thuộc trường của phiếu");
         }
         if (campaign != null) {
             requireFitsCampaign(voucher, campaign, room);
         }
-        requireNoOverlappingInventory(voucher, room);
+        // Không chọn phòng: tài khoản một cơ sở kiểm kê toàn cơ sở mình (onRegister cũng chỉ trả thiết bị của cơ sở).
+        Long campus = room == null ? campusScope.pinnedCampusIn(voucher.getSchool().getId()) : null;
+        requireNoOverlappingInventory(voucher, room, campus);
         voucher.setCampaign(campaign);
         voucher.setRoom(room);
+        voucher.setCampusId(campus);
         List<InventoryLine> lines = new ArrayList<>();
         int lineNo = 1;
         for (Equipment item : equipment.onRegister(voucher.getSchool().getId(), room == null ? null : room.getId())) {
@@ -123,25 +130,37 @@ public class InventorySessionService
      * A school may count different rooms in parallel, but never the same room or asset twice.
      * Lock the school row before checking so two concurrent requests cannot both create a draft.
      * A submitted inventory remains active until its approval completes the record.
+     *
+     * <p>Phạm vi cơ sở (271): kiểm kê toàn cơ sở ({@code campus}) chặn kiểm kê cả trường, cùng cơ sở, và phòng thuộc
+     * cơ sở đó — không chặn toàn cơ sở / phòng của cơ sở khác. Kiểm kê cả trường chặn tất cả.
      */
-    private void requireNoOverlappingInventory(InventorySession voucher, Room room) {
+    private void requireNoOverlappingInventory(InventorySession voucher, Room room, Long campus) {
         Long schoolId = voucher.getSchool().getId();
         Long roomId = room == null ? null : room.getId();
         jdbc.queryForObject("SELECT id FROM schools WHERE id = ? FOR UPDATE", Long.class, schoolId);
 
+        String newRoomCampus = FacilityCounting.campusOfRoomSql("CAST(? AS bigint)", "s.school_id");
+        String oldRoomCampus = FacilityCounting.campusOfRoomSql("s.room_id", "s.school_id");
         List<Map<String, Object>> conflicts = jdbc.queryForList("""
-                SELECT s.id, s.code, s.title, r.name AS room_name
+                SELECT s.id, s.code, s.title, r.name AS room_name, c.name AS campus_name
                 FROM inventory_sessions s
                 LEFT JOIN rooms r ON r.id = s.room_id
+                LEFT JOIN campuses c ON c.id = s.campus_id
                 WHERE s.school_id = ? AND s.status IN ('DRAFT', 'PENDING', 'APPROVED')
-                  AND (s.room_id IS NULL OR CAST(? AS bigint) IS NULL OR s.room_id = ?
-                       OR EXISTS (
+                  AND ((s.room_id IS NULL AND s.campus_id IS NULL)
+                       OR (CAST(? AS bigint) IS NULL AND CAST(? AS bigint) IS NULL)
+                       OR (s.room_id IS NULL AND (s.campus_id = CAST(? AS bigint)
+                           OR (CAST(? AS bigint) IS NOT NULL AND %s = s.campus_id)))
+                       OR (s.room_id IS NOT NULL AND (s.room_id = CAST(? AS bigint)
+                           OR (CAST(? AS bigint) IS NULL AND %s = CAST(? AS bigint))))
+                       OR (CAST(? AS bigint) IS NOT NULL AND EXISTS (
                            SELECT 1 FROM inventory_lines l
                            JOIN equipment e ON e.id = l.equipment_id
                            WHERE l.session_id = s.id AND e.school_id = ? AND e.room_id = ?
-                       ))
+                       )))
                 ORDER BY s.id LIMIT 1
-                """, schoolId, roomId, roomId, schoolId, roomId);
+                """.formatted(newRoomCampus, oldRoomCampus),
+                schoolId, roomId, campus, campus, roomId, roomId, roomId, roomId, campus, roomId, schoolId, roomId);
         if (conflicts.isEmpty()) {
             return;
         }
@@ -149,14 +168,23 @@ public class InventorySessionService
         String name = conflict.get("code") == null
                 ? "phiếu nháp \"" + conflict.get("title") + "\" (mã số " + conflict.get("id") + ")"
                 : "phiếu " + conflict.get("code");
-        String scope = conflict.get("room_name") == null ? "cả trường" : "phòng " + conflict.get("room_name");
+        String scope = conflict.get("room_name") != null ? "phòng " + conflict.get("room_name")
+                : conflict.get("campus_name") != null ? "cơ sở " + conflict.get("campus_name") : "cả trường";
         throw new FieldValidationException("room", "Không thể lập phiếu kiểm kê trùng phạm vi: " + name
                 + " đang kiểm kê " + scope + ". Hãy xử lý xong phiếu đó trước khi lập phiếu mới.");
     }
 
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở của kiểm kê toàn cơ sở (271). */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
     /** Active inventory scopes are visible to school users even when a draft is not yet readable. */
     public record ActiveInventory(Long id, String code, String title, VoucherStatus status,
-            String roomName, boolean canOpen) {
+            String roomName, boolean canOpen, String campusName) {
     }
 
     public List<ActiveInventory> activeForMySchool() {
@@ -172,10 +200,14 @@ public class InventorySessionService
         }
         Set<Long> readableIds = sessions.findAll(rowLevel.<InventorySession>scope(InventorySession.class,
                         com.g123.sfems.shared.security.rowlevel.Action.READ)
+                .and(campusRead())
                 .and((root, query, cb) -> root.get("id").in(active.stream().map(InventorySession::getId).toList())))
                 .stream().map(InventorySession::getId).collect(Collectors.toSet());
+        Map<Long, String> campusNames = campusScope.activeCampuses(schoolId).stream()
+                .collect(Collectors.toMap(CampusScope.CampusLabel::id, CampusScope.CampusLabel::name));
         return active.stream().map(s -> new ActiveInventory(s.getId(), s.getCode(), s.getTitle(), s.getStatus(),
-                s.getRoom() == null ? null : s.getRoom().getName(), readableIds.contains(s.getId()))).toList();
+                s.getRoom() == null ? null : s.getRoom().getName(), readableIds.contains(s.getId()),
+                s.getRoom() == null && s.getCampusId() != null ? campusNames.get(s.getCampusId()) : null)).toList();
     }
 
     /**
@@ -232,7 +264,7 @@ public class InventorySessionService
                 catalogs.requireOwnedBy(item.getCatalog(), voucher.getSchool(), lineNo - 1);
                 item.setName(input.name() == null || input.name().isBlank() ? item.getCatalog().getName() : input.name().trim());
                 item.setQuantity(input.quantity() == null ? 1 : input.quantity());
-                item.setRoom(input.room() == null || input.room().id() == null ? null : rooms.get(input.room().id()));
+                item.setRoom(input.room() == null || input.room().id() == null ? null : rooms.getAcrossCampuses(input.room().id()));
                 item.setNote(trimToNull(input.note()));
                 items.add(item);
             }
@@ -253,7 +285,7 @@ public class InventorySessionService
             line.setFound(input.found());
             if (Boolean.TRUE.equals(input.found())) {
                 Room room = input.foundRoom() == null || input.foundRoom().id() == null
-                        ? line.getExpectedRoom() : rooms.get(input.foundRoom().id());
+                        ? line.getExpectedRoom() : rooms.getAcrossCampuses(input.foundRoom().id());
                 if (room != null && !room.getSchool().getId().equals(voucher.getSchool().getId())) {
                     throw new FieldValidationException("lines", "Phòng tìm thấy không thuộc trường của phiếu");
                 }
@@ -574,5 +606,16 @@ public class InventorySessionService
     @Override
     protected Set<String> sortable() {
         return Set.of("id", "code", "status", "inventoryDate", "createdAt", "updatedAt");
+    }
+
+    /** Hình dạng phạm vi cơ sở của biên bản kiểm kê — {@code InventoryCampaignService} dùng lại. */
+    public static final VoucherCampus.Shape CAMPUS = VoucherCampus.Shape.of(List.of("room"), List.of(),
+            new VoucherCampus.Line("lines", List.of("expectedRoom", "foundRoom"), List.of("equipment")),
+            new VoucherCampus.Line("surplus", List.of("room"), List.of()));
+
+    /** Phạm vi cơ sở: Phòng kiểm kê ở đầu phiếu; dòng: thiết bị, phòng theo sổ, phòng thấy; thừa: phòng thấy. */
+    @Override
+    protected VoucherCampus.Shape campusShape() {
+        return CAMPUS;
     }
 }

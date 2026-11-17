@@ -1,6 +1,7 @@
 package com.g123.sfems.module.report;
 
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.shared.cache.SharedCache;
 import com.g123.sfems.shared.security.Hashes;
@@ -99,12 +100,13 @@ public class DashboardService {
      * Mọi phiếu trong phạm vi, gộp một bảng ảo: loại, trạng thái, lúc lập, lúc xong.
      * Phiếu nhập ghi lúc xong ở {@code confirmed_at}; các phiếu khác ở {@code completed_at}.
      */
-    private String allVouchers() {
+    private String allVouchers(Long campus) {
         List<String> parts = new ArrayList<>();
         for (String table : ReportService.voucherTables().keySet()) {
             String done = "equipment_intakes".equals(table) ? "confirmed_at" : "completed_at";
-            parts.add("SELECT '%s' AS kind, status, created_at, %s AS completed_at FROM %s WHERE TRUE%s"
-                    .formatted(table, done, table, visible.sqlFilter("school_id")));
+            parts.add("SELECT '%s' AS kind, x.status, x.created_at, x.%s AS completed_at FROM %s x WHERE TRUE%s"
+                    .formatted(table, done, table, visible.sqlFilter("x.school_id"))
+                    + reports.campusVoucher(table, "x", campus));
         }
         return "(" + String.join(" UNION ALL ", parts) + ") v";
     }
@@ -115,10 +117,12 @@ public class DashboardService {
     private final ReportService reports;
 
     private final SharedCache shared;
+    private final CampusScope campuses;
 
     public DashboardService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy,
-            ReportService reports, SharedCache shared) {
+            ReportService reports, SharedCache shared, CampusScope campuses) {
         this.shared = shared;
+        this.campuses = campuses;
         this.jdbc = jdbc;
         this.visible = visible;
         this.adequacy = adequacy;
@@ -133,8 +137,10 @@ public class DashboardService {
         String kind = PERIODS.containsKey(period) ? period : "month";
         int span = days == 30 ? 30 : 7;
         Set<Long> schools = visible.current();
+        // Tài khoản một cơ sở chỉ thấy số của cơ sở mình — khoá đệm mang cơ sở.
+        Long campus = campuses.pinnedCampusId();
         String key = visible.level() + "|" + (schools == null ? "*" : new TreeSet<>(schools).toString()) + "|"
-                + kind + "|" + span;
+                + kind + "|" + span + (campus == null ? "" : "|c" + campus);
         while (true) {
             CompletableFuture<Cached> current = cache.get(key);
             if (current != null && current.isDone() && !current.isCompletedExceptionally()
@@ -159,7 +165,7 @@ public class DashboardService {
                 String sharedKey = "dashboard:" + Hashes.sha256(key);
                 Dashboard fresh = shared.<Dashboard>get(sharedKey, shared.type(Dashboard.class)).orElse(null);
                 if (fresh == null) {
-                    fresh = compute(kind, span);
+                    fresh = compute(kind, span, campus);
                     shared.put(sharedKey, fresh, Duration.ofMillis(TTL_MS));
                 }
                 mine.complete(new Cached(fresh, System.currentTimeMillis()));
@@ -176,9 +182,9 @@ public class DashboardService {
         }
     }
 
-    private Dashboard compute(String kind, int span) {
+    private Dashboard compute(String kind, int span, Long campus) {
         String since = PERIODS.get(kind);
-        String eq = visible.sqlFilter("e.school_id");
+        String eq = visible.sqlFilter("e.school_id") + ReportCampus.room("e.room_id", "e.school_id", campus);
         Map<String, Object> e = jdbc.queryForMap("""
                 SELECT COUNT(*) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')) AS total,
                        COALESCE(SUM(e.original_value) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')), 0) AS value,
@@ -199,8 +205,9 @@ public class DashboardService {
         // nào có nút Duyệt (E2E-06).
         String atSchool = "SCHOOL".equals(visible.level()) ? " AND approval_step = 'SCHOOL'" : "";
         for (Map.Entry<String, String> t : ReportService.voucherTables().entrySet()) {
-            Long n = jdbc.queryForObject("SELECT COUNT(*) FROM %s WHERE status = 'PENDING'".formatted(t.getKey())
-                    + atSchool + visible.sqlFilter("school_id"), Long.class);
+            Long n = jdbc.queryForObject("SELECT COUNT(*) FROM %s v WHERE status = 'PENDING'".formatted(t.getKey())
+                    + atSchool + visible.sqlFilter("v.school_id") + reports.campusVoucher(t.getKey(), "v", campus),
+                    Long.class);
             long count = n == null ? 0 : n;
             pendingTotal += count;
             pending.add(new Count(t.getKey(), t.getValue(), count));
@@ -223,7 +230,7 @@ public class DashboardService {
                     LEFT JOIN schools s ON s.id = %s
                     LEFT JOIN departments_of_education d ON d.id = s.department_of_education_id
                     WHERE v.status = 'PENDING'""".formatted(table, approver) + visible.sqlFilter("v.school_id")
-                    + " GROUP BY 1", rs -> {
+                    + reports.campusVoucher(table, "v", campus) + " GROUP BY 1", rs -> {
                         waiting.merge(rs.getString(1), rs.getLong(2), Long::sum);
                     });
         }
@@ -237,12 +244,12 @@ public class DashboardService {
                 .toList();
 
         Long overdue = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM equipment_loans WHERE status = 'APPROVED' AND due_date < CURRENT_DATE"""
-                + visible.sqlFilter("school_id"), Long.class);
+                SELECT COUNT(*) FROM equipment_loans v WHERE status = 'APPROVED' AND due_date < CURRENT_DATE"""
+                + visible.sqlFilter("v.school_id") + reports.campusVoucher("equipment_loans", "v", campus), Long.class);
         Long maintenance = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM maintenance_plans WHERE active AND plan_status = 'ACTIVE' AND approval_status = 'APPROVED'
+                SELECT COUNT(*) FROM maintenance_plans mp WHERE active AND plan_status = 'ACTIVE' AND approval_status = 'APPROVED'
                   AND next_due_date <= CURRENT_DATE + 7"""
-                + visible.sqlFilter("school_id"), Long.class);
+                + visible.sqlFilter("mp.school_id") + reports.campusPlan("mp", campus), Long.class);
 
         List<Count> statuses = jdbc.query("""
                 SELECT e.status, COUNT(*) FROM equipment e WHERE TRUE""" + eq + " GROUP BY 1 ORDER BY 2 DESC",
@@ -294,7 +301,7 @@ public class DashboardService {
 
         // Tình trạng xử lý phiếu trong kỳ — lập trong kỳ, đang ở trạng thái nào.
         Map<String, Long> byStatus = new java.util.HashMap<>();
-        jdbc.query("SELECT v.status, COUNT(*) FROM " + allVouchers()
+        jdbc.query("SELECT v.status, COUNT(*) FROM " + allVouchers(campus)
                         + " WHERE v.created_at >= " + since + " GROUP BY 1",
                 rs -> {
                     byStatus.put(rs.getString(1), rs.getLong(2));
@@ -310,7 +317,7 @@ public class DashboardService {
                 SELECT TO_CHAR(d.d, 'YYYY-MM-DD'),
                        (SELECT COUNT(*) FROM v WHERE (v.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = d.d),
                        (SELECT COUNT(*) FROM v WHERE (v.completed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = d.d)
-                FROM d ORDER BY d.d""".formatted(span - 1, allVouchers()),
+                FROM d ORDER BY d.d""".formatted(span - 1, allVouchers(campus)),
                 (rs, i) -> new Day(rs.getString(1), rs.getLong(2), rs.getLong(3)));
 
         // Tình trạng kỹ thuật của tài sản còn trên sổ.
@@ -334,7 +341,7 @@ public class DashboardService {
         int norms = 0;
         int met = 0;
         int entered = 0;
-        for (AdequacyService.SchoolSummary row : adequacy.summary().rows()) {
+        for (AdequacyService.SchoolSummary row : adequacy.summary(campus).rows()) {
             if (row.hasEquipment()) {
                 entered++;
                 norms += row.norms();

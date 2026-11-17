@@ -1,6 +1,7 @@
 package com.g123.sfems.domain.security.user;
 
 import com.g123.sfems.domain.organization.School;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.security.role.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
@@ -28,6 +29,14 @@ public class SchoolUser extends User {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "school_id", nullable = false, updatable = false)
     private School school;
+
+    /**
+     * Phạm vi cơ sở (270): trống = cả trường; có = tài khoản chỉ thấy, chỉ sửa dữ liệu của cơ sở này. Đầu vào của
+     * phân quyền — đổi nó phải phát {@code AuthoritiesChanged.ForUser} như đổi vai.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -64,6 +73,14 @@ public class SchoolUser extends User {
     @Override
     public School schoolOrNull() {
         return school;
+    }
+
+    public Campus getCampus() {
+        return campus;
+    }
+
+    public void setCampus(Campus campus) {
+        this.campus = campus;
     }
 
     public UserPosition getPosition() {

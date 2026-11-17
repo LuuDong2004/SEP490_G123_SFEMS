@@ -1,5 +1,8 @@
 package com.g123.sfems.module.school.equipment;
 
+import com.g123.sfems.module.catalog.base.CampusRule;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.catalog.originsource.OriginRule;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
@@ -138,10 +141,13 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.holds = holds;
     }
 
-    /** Tài sản trong phạm vi GHI của người gọi — cho các phiếu làm đổi tài sản. */
+    /** Tài sản trong phạm vi GHI của người gọi, trong cơ sở của người gọi (422 ngoài cơ sở). */
+    @Override
     public Equipment getWritable(Long id) {
-        return repository.findOne(scopes.byId(Equipment.class, Action.WRITE, id))
+        Equipment item = repository.findOne(scopes.byId(Equipment.class, Action.WRITE, id))
                 .orElseThrow(() -> new ResourceNotFoundException("Equipment", id));
+        requireCampus(item);
+        return item;
     }
 
     /** Kết luận của lần xử lý hiện tại được lưu thành trạng thái, không dò lịch sử phiếu cũ. */
@@ -156,10 +162,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     /**
      * Sổ tài sản của một trường (hoặc một phòng) — những gì còn trên sổ, tức là
-     * trừ đã thanh lý và đã mất. Theo phạm vi đọc của người gọi.
+     * trừ đã thanh lý và đã mất. Theo phạm vi đọc và cơ sở của người gọi
+     * (tài khoản một cơ sở: kiểm kê "cả trường", tính hao mòn chỉ gồm thiết bị của cơ sở mình).
      */
     public List<Equipment> onRegister(Long schoolId, Long roomId) {
         Specification<Equipment> spec = scopes.<Equipment>scope(Equipment.class, Action.READ)
+                .and(campusRead())
                 .and((root, q, cb) -> cb.equal(root.get("school").get("id"), schoolId))
                 .and((root, q, cb) -> cb.not(root.get("status").in(OFF_BOOK)));
         if (roomId != null) {
@@ -1405,5 +1413,18 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     private static <R> R ref(IdRef ref, Function<Long, R> loader) {
         return present(ref) ? loader.apply(ref.id()) : null;
+    }
+
+    private CampusScope campusScope;
+
+    /** Tiêm qua setter — phạm vi cơ sở (270), xem {@link CampusScope}. */
+    @Autowired
+    void setCampusScope(CampusScope campusScope) {
+        this.campusScope = campusScope;
+    }
+
+    @Override
+    protected CampusRule<Equipment> campusRule() {
+        return campusScope.byRoom(Equipment::getRoom, Equipment::getSchool);
     }
 }

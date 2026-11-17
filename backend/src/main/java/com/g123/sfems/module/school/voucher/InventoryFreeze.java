@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.voucher;
 
+import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import java.util.Collections;
 import java.util.List;
@@ -81,11 +82,14 @@ public class InventoryFreeze {
             return;
         }
         String touched = String.join(" UNION ", touches);
-        String sql = "SELECT s.code, s.title, r.name AS room FROM inventory_sessions s"
-                + " LEFT JOIN rooms r ON r.id = s.room_id"
+        // Kiểm kê toàn cơ sở (271) chỉ khoá phòng / tài sản của cơ sở đó (tài sản chưa có phòng → cơ sở chính).
+        String sql = "SELECT s.code, s.title, r.name AS room, c.name AS campus FROM inventory_sessions s"
+                + " LEFT JOIN rooms r ON r.id = s.room_id LEFT JOIN campuses c ON c.id = s.campus_id"
                 + " WHERE s.status IN (" + String.join(",", Collections.nCopies(COUNTING.size(), "?")) + ")"
                 + " AND EXISTS (SELECT 1 FROM (" + touched + ") t(school_id, room_id)"
-                + " WHERE t.school_id = s.school_id AND (s.room_id IS NULL OR s.room_id = t.room_id))"
+                + " WHERE t.school_id = s.school_id AND ((s.room_id IS NULL AND (s.campus_id IS NULL OR "
+                + FacilityCounting.campusOfRoomSql("t.room_id", "t.school_id") + " = s.campus_id))"
+                + " OR s.room_id = t.room_id))"
                 + " ORDER BY s.id LIMIT 1";
         Object[] args = new Object[COUNTING.size() + touches.size()];
         for (int i = 0; i < COUNTING.size(); i++) {
@@ -105,7 +109,8 @@ public class InventoryFreeze {
         Object code = session.get("code");
         String which = code != null ? "phiếu kiểm kê " + code : "phiếu kiểm kê nháp \"" + session.get("title") + "\"";
         Object room = session.get("room");
-        String scope = room == null ? "cả trường" : "phòng " + room;
+        Object campus = session.get("campus");
+        String scope = room != null ? "phòng " + room : campus != null ? "cơ sở " + campus : "cả trường";
         return "Đang kiểm kê %s theo %s — số liệu đang khoá. Hãy hoàn tất hoặc hủy phiếu kiểm kê trước khi trình hay duyệt phiếu này; nếu không mở được phiếu nháp, liên hệ cán bộ thiết bị đang lập phiếu"
                 .formatted(scope, which);
     }
