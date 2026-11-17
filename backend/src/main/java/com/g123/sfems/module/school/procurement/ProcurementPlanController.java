@@ -76,18 +76,20 @@ public class ProcurementPlanController {
 
     /**
      * Một dòng thiết bị của một đề xuất trong kế hoạch: số trường đề nghị, số đưa vào kế hoạch và thành tiền
-     * theo số đưa vào kế hoạch.
+     * theo số đưa vào kế hoạch. {@code unitPrice}: đơn giá kế hoạch (cơ quan đặt, không thì giá trường ghi);
+     * {@code proposedUnitPrice}: giá trường ghi trên đề xuất (có thể trống).
      */
     public record PlanLine(Long lineId, Long proposalId, String proposalCode, RefSummary school, Integer lineNo,
             RefSummary catalog, String name, String specification, String unitName, int requestedQuantity,
-            int plannedQuantity, BigDecimal unitPrice, BigDecimal amount, Integer priority) {
+            int plannedQuantity, BigDecimal unitPrice, BigDecimal proposedUnitPrice, BigDecimal amount,
+            Integer priority) {
 
         static PlanLine of(PurchaseProposal p, PurchaseProposalLine l) {
             var c = l.getCatalog();
             return new PlanLine(l.getId(), p.getId(), p.getCode(), VoucherHeader.school(p.getSchool()), l.getLineNo(),
                     new RefSummary(c.getId(), c.getCode(), c.getName()), l.getName(), l.getSpecification(),
                     l.getUnitName(), l.getQuantity() == null ? 0 : l.getQuantity(), l.effectiveQuantity(),
-                    l.getUnitPrice(), l.plannedAmount(), l.getPriority());
+                    l.effectiveUnitPrice(), l.getUnitPrice(), l.plannedAmount(), l.getPriority());
         }
     }
 

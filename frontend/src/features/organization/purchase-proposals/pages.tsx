@@ -1,8 +1,8 @@
 import { useNotification, useShow } from "@refinedev/core";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PackageCheck, RefreshCw, Trash2 } from "lucide-react";
+import { PackageCheck, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Controller, useFieldArray, useFormContext, useWatch, type Control, type UseFieldArrayReturn } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
@@ -103,7 +103,9 @@ const toPayload = (v: any) => ({
     kind: l.kind,
     name: l.name,
     specification: l.specification,
-    unitName: l.unitName,
+    // Đơn vị tính theo danh mục của thiết bị — máy chủ tự lấy khi trống; gửi giá trị cũ của form thì đổi thiết bị
+    // xong vẫn mang đơn vị của thiết bị trước.
+    unitName: null,
     quantity: num(l.quantity),
     unitPrice: num(l.unitPrice),
     priority: num(l.priority),
@@ -185,6 +187,21 @@ function lineWithCatalog(lines: any[] | undefined, catalogId: string) {
   return i < 0 ? undefined : i + 1;
 }
 
+/**
+ * Đơn vị tính của từng thiết bị theo danh mục (Chiếc, Tờ, Gam, Lít…) — để ô Số lượng nói rõ "50 Gam" chứ không chỉ
+ * "50". Đọc từng thiết bị một lần và giữ lại (danh mục ít đổi).
+ */
+function useCatalogUnits(ids: number[]) {
+  const results = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ["catalog-unit", id],
+      staleTime: 30 * 60_000,
+      queryFn: async () => (await kyInstance.get(`equipment_catalogs/${id}`).json<{ unit?: { name: string } | null }>())?.unit?.name ?? null,
+    })),
+  });
+  return new Map(ids.map((id, i) => [id, results[i]?.data ?? null]));
+}
+
 function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
   control: Control<any>;
   array: UseFieldArrayReturn<any, "lines">;
@@ -198,6 +215,8 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
   const { fields, remove } = array;
   const lines = useWatch({ control, name: "lines" }) as any[] | undefined;
   const total = (lines ?? []).reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
+  const unpriced = fields.length ? (lines ?? []).filter((l) => !(Number(l?.unitPrice) > 0)).length : 0;
+  const units = useCatalogUnits([...new Set((lines ?? []).map((l) => Number(l?.catalogId)).filter((id) => id > 0))]);
   return (
     <div>
       <div className="flex items-center justify-between gap-3 px-4 py-3.5">
@@ -213,27 +232,30 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
               khung hẹp hơn thì CUỘN NGANG (thanh trượt dưới bảng) chứ không ép cột Thiết bị. Ô Thiết bị là CHỮ (mã + tên
               đầy đủ, tự xuống dòng), không phải ô chọn rút gọn — ô chọn chỉ còn "THCS-16-0…" khi cột hẹp, bấm vào lại mở
               cả danh mục mà không cho biết đang chọn gì; đổi thiết bị qua liên kết "Đổi thiết bị" (thiết bị đang chọn
-              ghim đầu danh sách). Tên / quy cách giữ một cột riêng. */}
-          <Table className="min-w-[72rem] table-fixed [&_td]:align-middle">
+              ghim đầu danh sách). Tên cụ thể và thông số kỹ thuật (không bắt buộc) nằm trong "Chi tiết thêm" của dòng —
+              cột riêng hai ô trống "Theo tên nhóm / Thông số kỹ thuật" khó hiểu và chiếm chỗ. */}
+          <Table className="min-w-[60rem] table-fixed [&_td]:align-middle">
+            {/* Thiết bị ~36%, năm cột sau chia đều phần còn lại (cột không khai bề rộng); ô nhập trong cột có bề rộng
+                riêng theo nội dung — cột rộng ra thì ô không kéo dài theo (trưởng nhóm: ô không dài ngoằng). */}
             <colgroup>
               <col className="w-10" />
+              <col className="w-[32%]" />
               <col />
-              <col className="w-36" />
-              <col className="w-52" />
-              <col className="w-22" />
-              <col className="w-34" />
-              <col className="w-28" />
-              <col className="w-18" />
+              <col />
+              <col className="w-20" />
+              <col />
+              <col />
+              <col />
               <col className="w-12" />
             </colgroup>
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
                 <TableHead>Thiết bị</TableHead>
-                <TableHead>Loại</TableHead>
-                <TableHead>Tên / quy cách</TableHead>
-                <TableHead className="text-right">Số lượng</TableHead>
-                <TableHead className="text-right">Đơn giá (đ)</TableHead>
+                <TableHead>Mục đích</TableHead>
+                <TableHead>Số lượng</TableHead>
+                <TableHead>Đơn vị</TableHead>
+                <TableHead>Đơn giá (đ)</TableHead>
                 <TableHead>Ưu tiên</TableHead>
                 <TableHead />
                 <TableHead />
@@ -272,18 +294,21 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                       const first = lineWithCatalog(lines, String(lines[i].catalogId));
                       return (
                         <div className="space-y-1.5">
-                          {/* "Đổi thiết bị" đứng cạnh tên (bên phải), không xuống dòng riêng. */}
-                          <div className="flex items-start gap-3">
-                            <div className="min-w-0 flex-1">
-                              {code ? <div className="text-muted-foreground font-mono text-xs">{code}</div> : null}
-                              <div className="font-medium">{name}</div>
+                          {/* "Đổi thiết bị" nối ngay sau tên (cùng dòng chữ) — đặt ở mép phải cột thì cột rộng là nó
+                              cách tên cả gang tay, khó nhận ra nó đi với thiết bị nào. */}
+                          <div className="min-w-0">
+                            {code ? <div className="text-muted-foreground font-mono text-xs">{code}</div> : null}
+                            <div className="font-medium">
+                              {name}
+                              <span className="ms-2 inline-block align-baseline">
+                                {picker(
+                                  <button type="button" title="Đổi sang thiết bị khác"
+                                    className="text-primary inline-flex items-center gap-1 text-xs font-normal whitespace-nowrap hover:underline">
+                                    <RefreshCw className="size-3" /> Đổi thiết bị
+                                  </button>,
+                                )}
+                              </span>
                             </div>
-                            {picker(
-                              <button type="button" title="Đổi sang thiết bị khác"
-                                className="text-primary mt-4 inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap hover:underline">
-                                <RefreshCw className="size-3" /> Đổi thiết bị
-                              </button>,
-                            )}
                           </div>
                           <OverlapNote newTab list={overlaps.get(Number(lines[i].catalogId))}
                             duplicateOf={first != null && first !== i + 1 ? first : undefined} />
@@ -291,30 +316,46 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                       );
                     })()}
                   </TableCell>
-                  <TableCell><LineSelect control={control} name={`lines.${i}.kind`} options={opts(PURCHASE_LINE_KIND_LABELS)} /></TableCell>
-                  <TableCell className="space-y-1">
-                    <LineInput control={control} name={`lines.${i}.name`} placeholder="Theo tên nhóm" label="Tên" rule="NAME" />
-                    <LineInput control={control} name={`lines.${i}.specification`} placeholder="Thông số kỹ thuật" label="Thông số kỹ thuật" rule="LONG_TEXT" max={1000} />
-                  </TableCell>
-                  <TableCell><LineInput control={control} name={`lines.${i}.quantity`} type="number" label="Số lượng" numberRule="QUANTITY" /></TableCell>
+                  <TableCell><LineSelect control={control} name={`lines.${i}.kind`} options={opts(PURCHASE_LINE_KIND_LABELS)} className="w-28" /></TableCell>
+                  <TableCell><LineInput control={control} name={`lines.${i}.quantity`} type="number" label="Số lượng" numberRule="QUANTITY" className="w-18" /></TableCell>
+                  {/* Đơn vị tính theo danh mục, không sửa: Gam (hoá chất), Chiếc (máy chiếu), Tờ (lược đồ)… */}
+                  <TableCell className="text-muted-foreground">{units.get(Number(lines?.[i]?.catalogId)) ?? lines?.[i]?.unitName ?? ""}</TableCell>
                   <TableCell>
                     <FormField control={control} name={`lines.${i}.unitPrice`} rules={numberRules("MONEY", "Đơn giá")} render={({ field }) => (
                       <>
                         <FormControl>
-                          <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} placeholder="0" />
+                          <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} placeholder="0" className="w-28" />
                         </FormControl>
                         <FormMessage className="text-xs" />
                       </>
                     )} />
                   </TableCell>
                   <TableCell>
-                    <LineSelect control={control} name={`lines.${i}.priority`}
+                    <LineSelect control={control} name={`lines.${i}.priority`} className="w-26"
                       options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))} />
                   </TableCell>
                   <TableCell>
                     <Controller control={control} name={`lines.${i}.details`} render={({ field }) => (
                       <LineDetailsButton config={config} value={field.value} onChange={field.onChange} schoolId={schoolId}
-                        title={`Dòng ${i + 1}`} />
+                        title={`Dòng ${i + 1}`} label="Chi tiết thêm" buttonClassName="text-primary hover:text-primary bg-info-subtle hover:bg-info-subtle border-primary/40 shadow-e1 rounded-full border font-semibold hover:brightness-95"
+                        // Tên cụ thể / thông số kỹ thuật của thiết bị cần mua — không bắt buộc; tên trống thì máy chủ lấy tên
+                        // trong danh mục. Bên mua (Sở / UBND) đọc ở màn kế hoạch và file Excel kế hoạch.
+                        extras={[
+                          { key: "name", label: "Tên cụ thể", placeholder: "Để trống thì dùng tên trong danh mục", max: maxLengthOf("NAME") },
+                          // "Mô tả, yêu cầu chung" — không gọi "Thông số kỹ thuật": bảng thông số (tên · giá trị · đơn vị)
+                          // ngay bên dưới đã mang tên đó.
+                          { key: "specification", label: "Mô tả, yêu cầu chung", placeholder: "Kích thước, chất liệu, cấu hình… mà trường cần", max: 1000, wide: true },
+                        ]}
+                        // Hàng 1: ba ô ngắn (tên rộng nhất); hàng 2: mô tả cả hàng; dưới: bảng thông số và phụ kiện cạnh nhau.
+                        layout={[
+                          { key: "name", span: 6 }, { key: "brandOrigin", span: 4 }, { key: "gradeLevel", span: 2 },
+                          { key: "specification", span: 12 },
+                        ]}
+                        extraValues={{ name: lines?.[i]?.name, specification: lines?.[i]?.specification }}
+                        onExtraChange={(v) => {
+                          setValue(`lines.${i}.name`, v.name, { shouldDirty: true });
+                          setValue(`lines.${i}.specification`, v.specification, { shouldDirty: true });
+                        }} />
                     )} />
                   </TableCell>
                   <TableCell>
@@ -328,6 +369,13 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
           </Table>
         </div>
       )}
+      {/* Đơn giá không bắt buộc: trường đề xuất nhu cầu, giá do cơ quan lập kế hoạch xác định — chỉ nhắc, không chặn trình. */}
+      {unpriced > 0 ? (
+        <p className="text-warning-text flex items-center gap-1.5 border-t px-4 py-2.5 text-xs">
+          <TriangleAlert className="size-3.5 shrink-0" />
+          {unpriced} thiết bị chưa có đơn giá — cơ quan quản lý sẽ xác định khi lập kế hoạch mua sắm.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -517,7 +565,7 @@ export const PurchaseProposalShow = () => {
             <TableRow>
               <TableHead className="w-8">#</TableHead>
               <TableHead>Thiết bị</TableHead>
-              <TableHead>Loại</TableHead>
+              <TableHead>Mục đích</TableHead>
               <TableHead className="text-right">SL</TableHead>
               <TableHead className="text-right">Đơn giá</TableHead>
               <TableHead className="text-right">Thành tiền</TableHead>

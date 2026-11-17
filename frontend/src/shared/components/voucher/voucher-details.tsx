@@ -167,13 +167,13 @@ function FieldControl({ field, value, onChange, config, lookups }: {
   const str = value == null ? "" : String(value);
   switch (field.kind) {
     case "textarea":
-      return <Textarea rows={1} className="field-sizing-content min-h-9" value={str} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} onChange={(e) => onChange(e.target.value)} />;
+      return <Textarea rows={1} className="field-sizing-content min-h-9" placeholder={field.placeholder} value={str} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} onChange={(e) => onChange(e.target.value)} />;
     case "date":
       return <DateInput value={str || undefined} onChange={(v) => onChange(v ?? null)} />;
     case "time":
       return <TimeInput value={str} onChange={(v) => onChange(v || null)} />;
     case "integer":
-      return <Input type="number" step={1} placeholder="Nhập số" value={str} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
+      return <Input type="number" step={1} placeholder={field.placeholder ?? "Nhập số"} value={str} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
     case "money":
     case "percent":
       return (
@@ -222,7 +222,7 @@ function FieldControl({ field, value, onChange, config, lookups }: {
     default:
       // Ô chữ là ô chữ: không gợi ý tên cán bộ / phòng của trường — người ký, người nhận thường là người
       // ngoài trường, và danh sách xổ ra làm ô trông như ô chọn. Cần chọn thì khai kind staff / room.
-      return <Input value={str} placeholder="Nhập" maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} inputMode={inputModeOf(textRuleOf(field))} onChange={(e) => onChange(e.target.value)} />;
+      return <Input value={str} placeholder={field.placeholder ?? "Nhập"} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} inputMode={inputModeOf(textRuleOf(field))} onChange={(e) => onChange(e.target.value)} />;
   }
 }
 
@@ -473,7 +473,7 @@ function SubTable({ columns, rows, onChange, config, lookups }: {
   return (
     <div className="space-y-2">
       {rows.map((row, i) => (
-        <div key={i} className="grid items-end gap-2" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr)) auto` }}>
+        <div key={i} className="grid items-end gap-2" style={{ gridTemplateColumns: `${columns.map((c) => `minmax(0, ${c.grow ?? 1}fr)`).join(" ")} auto` }}>
           {columns.map((c) => (
             <div key={c.key} className="space-y-1">
               {i === 0 ? <Label className="text-xs">{c.label}</Label> : null}
@@ -557,7 +557,15 @@ export function headFillCount(config: VoucherFormConfig | undefined, details: De
  * Nút "Chi tiết" trên một dòng phiếu: hộp thoại nhập các trường chứng từ của dòng
  * (và các bảng con của nó, nếu loại phiếu có).
  */
-export function LineDetailsButton({ config, value, onChange, schoolId, stage, title, compact }: {
+/** Lớp bề rộng của lưới 12 cột — viết sẵn để Tailwind sinh ra (không ghép chuỗi lớp lúc chạy). */
+const SPAN_12: Record<number, string> = {
+  2: "sm:col-span-2", 3: "sm:col-span-3", 4: "sm:col-span-4", 6: "sm:col-span-6", 8: "sm:col-span-8", 12: "sm:col-span-12",
+};
+
+/** Ô chữ của DÒNG phiếu (cột riêng của dòng, không nằm trong `details`) đặt vào hộp chi tiết — vd. tên cụ thể, thông số. */
+export type LineExtraField = { key: string; label: string; placeholder?: string; max?: number; wide?: boolean };
+
+export function LineDetailsButton({ config, value, onChange, schoolId, stage, title, compact, label = "Chi tiết", buttonClassName, extras, extraValues, onExtraChange, layout }: {
   /** Nút chỉ có biểu tượng (kèm số mục đã điền / còn thiếu) — cho bảng nhiều cột, nơi chữ "Chi tiết" tràn ô. */
   compact?: boolean;
   config: VoucherFormConfig | undefined;
@@ -566,14 +574,35 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
   schoolId: number | null | undefined;
   stage?: string;
   title?: ReactNode;
+  /** Chữ trên nút và tiêu đề hộp. */
+  label?: string;
+  /** Thêm lớp cho nút chữ (vd. màu chữ chính để nút dễ thấy trong bảng). */
+  buttonClassName?: string;
+  /** Ô của dòng hiện đầu hộp (không bắt buộc), sửa cùng lượt với `details` — Huỷ là bỏ cả hai. */
+  extras?: LineExtraField[];
+  extraValues?: Record<string, string | null | undefined>;
+  onExtraChange?: (next: Record<string, string>) => void;
+  /**
+   * Bố cục 12 cột do màn gọi đặt: thứ tự và bề rộng (2 / 3 / 4 / 6 / 8 / 12 cột) của từng ô — gồm cả `extras` lẫn ô
+   * `details`; ô không có trong danh sách đứng sau, rộng 4. Không truyền thì xếp như cũ (mọi phiếu khác).
+   */
+  layout?: { key: string; span: number }[];
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Details>({});
+  const [extraDraft, setExtraDraft] = useState<Record<string, string>>({});
   const fields = useMemo(() => (config?.line ?? []).filter((f) => (f.stage ?? null) === (stage ?? null)), [config, stage]);
   const tables = Object.entries(config?.lineTables ?? {});
   const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
-  if (!config || (!fields.length && !tables.length)) return null;
-  const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length;
+  const extraList = extras ?? [];
+  if (!extraList.length && (!config || (!fields.length && !tables.length))) return null;
+  const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length
+    + extraList.filter((e) => String(extraValues?.[e.key] ?? "").trim()).length;
+  const openDialog = () => {
+    setDraft({ ...(value ?? {}) });
+    setExtraDraft(Object.fromEntries(extraList.map((e) => [e.key, String(extraValues?.[e.key] ?? "")])));
+    setOpen(true);
+  };
   // Trường bắt buộc của DÒNG nằm sau cái nút này, nên nút phải tự nói là còn
   // thiếu: máy chủ từ chối lúc trình với câu "Dòng 1 còn thiếu: …", và không có
   // dấu hiệu nào ở đây thì người dùng không biết mở cái gì ra để sửa.
@@ -584,15 +613,15 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
     <>
       {compact ? (
         <Button type="button" variant="ghost" size="icon-sm" className="relative" aria-label="Thông tin thêm của dòng" title="Thông tin thêm của dòng"
-          onClick={() => { setDraft({ ...(value ?? {}) }); setOpen(true); }}>
+          onClick={openDialog}>
           <ListPlus />
           {missing || filled ? (
             <span className={cn("absolute -end-0.5 -top-0.5 size-2 rounded-full", missing ? "bg-warning" : "bg-primary")} aria-hidden />
           ) : null}
         </Button>
       ) : (
-      <Button type="button" variant="ghost" size="sm" onClick={() => { setDraft({ ...(value ?? {}) }); setOpen(true); }}>
-        Chi tiết
+      <Button type="button" variant="ghost" size="sm" className={buttonClassName} onClick={openDialog}>
+        {label}
         {missing ? (
           <Badge variant="warning" className="ms-1">Thiếu {missing}</Badge>
         ) : filled ? (
@@ -603,14 +632,81 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Chi tiết dòng</DialogTitle>
+            <DialogTitle>{label === "Chi tiết" ? "Chi tiết dòng" : label}</DialogTitle>
             <DialogDescription>{title}</DialogDescription>
           </DialogHeader>
+          {layout ? (
+            <>
+              {/* Bố cục riêng của màn gọi (12 cột): ô của dòng và ô `details` xếp chung theo `layout` — ô ngắn chung một
+                  hàng, ô dài cả hàng; bảng con (thông số, phụ kiện) mỗi bảng một khung rộng hết hộp — đứng cạnh nhau thì ô quá hẹp để gõ. */}
+              <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-12">
+                {[...layout, ...fields.filter((f) => !layout.some((l) => l.key === f.key)).map((f) => ({ key: f.key, span: f.wide ? 12 : 4 }))].map(({ key, span }) => {
+                  const extra = extraList.find((e) => e.key === key);
+                  const field = extra ? null : fields.find((f) => f.key === key);
+                  if (!extra && !field) return null;
+                  const wide = span >= 12;
+                  return (
+                    <div key={key} className={cn("min-w-0 space-y-1.5", SPAN_12[span] ?? "sm:col-span-4")}>
+                      <Label className="text-xs">
+                        {extra ? extra.label : field!.label}
+                        {field?.required ? <span className="text-destructive ms-0.5">*</span> : null}
+                      </Label>
+                      {extra ? (
+                        extra.wide ? (
+                          <Textarea rows={3} value={extraDraft[key] ?? ""} maxLength={extra.max} placeholder={extra.placeholder}
+                            onChange={(ev) => setExtraDraft((d) => ({ ...d, [key]: ev.target.value }))} />
+                        ) : (
+                          <Input value={extraDraft[key] ?? ""} maxLength={extra.max} placeholder={extra.placeholder}
+                            onChange={(ev) => setExtraDraft((d) => ({ ...d, [key]: ev.target.value }))} />
+                        )
+                      ) : (
+                        <FieldInput field={wide && field!.kind === "text" ? { ...field!, kind: "textarea", rule: textRuleOf(field!) } as RuledField : field!}
+                          value={draft[key] ?? null} config={config!} lookups={lookups}
+                          onChange={(v) => setDraft((d) => {
+                            const next = { ...d };
+                            if (v == null || v === "") delete next[key];
+                            else next[key] = v;
+                            return next;
+                          })} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {tables.length ? (
+                <div className="grid items-start gap-4">
+                  {tables.map(([key, columns]) => (
+                    <div key={key} className="bg-surface-subtle min-w-0 space-y-2 rounded-lg border p-3">
+                      <h4 className="text-overline text-muted-foreground">{TABLE_TITLES[key] ?? key}</h4>
+                      <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config!} lookups={lookups}
+                        onChange={(rows) => setDraft((d) => ({ ...d, [key]: rows as any }))} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {!layout && extraList.length ? (
+            <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-6">
+              {extraList.map((e) => (
+                <div key={e.key} className={cn("min-w-0 space-y-1.5", e.wide ? "sm:col-span-6" : "sm:col-span-3")}>
+                  <Label className="text-xs">{e.label}</Label>
+                  {e.wide ? (
+                    <Textarea rows={2} value={extraDraft[e.key] ?? ""} maxLength={e.max} placeholder={e.placeholder}
+                      onChange={(ev) => setExtraDraft((d) => ({ ...d, [e.key]: ev.target.value }))} />
+                  ) : (
+                    <Input value={extraDraft[e.key] ?? ""} maxLength={e.max} placeholder={e.placeholder}
+                      onChange={(ev) => setExtraDraft((d) => ({ ...d, [e.key]: ev.target.value }))} />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {/* Ô NGẮN (số, tiền, ô chọn) đứng trước, mỗi hàng ba ô (hai ô khi số ô không chia hết cho ba); ô DÀI
               (nguyên nhân, kết luận…) đứng sau, hai ô một hàng và cao hai dòng. Xếp theo thứ tự cấu hình thì ô
               ngắn và ô dài xen nhau, hàng nào cũng lệch. */}
-          <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-6">
-            {[...shortFields, ...wideFields].map((f, i) => {
+          <div className={cn("grid items-start gap-x-4 gap-y-4 sm:grid-cols-6", layout && "hidden")}>
+            {(layout ? [] : [...shortFields, ...wideFields]).map((f, i) => {
               const wideIndex = i - shortFields.length;
               const span = wideIndex < 0
                 ? shortFields.length % 3 === 0 ? "sm:col-span-2" : "sm:col-span-3"
@@ -621,7 +717,7 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
                   {f.label}
                   {f.required ? <span className="text-destructive ms-0.5">*</span> : null}
                 </Label>
-                <FieldInput field={wideIndex >= 0 && f.kind === "text" ? { ...f, kind: "textarea", rule: textRuleOf(f) } as RuledField : f} value={draft[f.key] ?? null} config={config} lookups={lookups}
+                <FieldInput field={wideIndex >= 0 && f.kind === "text" ? { ...f, kind: "textarea", rule: textRuleOf(f) } as RuledField : f} value={draft[f.key] ?? null} config={config!} lookups={lookups}
                   onChange={(v) => setDraft((d) => {
                     const next = { ...d };
                     if (v == null || v === "") delete next[f.key];
@@ -632,16 +728,20 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
               );
             })}
           </div>
-          {tables.map(([key, columns]) => (
+          {(layout ? [] : tables).map(([key, columns]) => (
             <div key={key} className="space-y-2">
               <h4 className="text-overline text-muted-foreground">{TABLE_TITLES[key] ?? key}</h4>
-              <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config} lookups={lookups}
+              <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config!} lookups={lookups}
                 onChange={(rows) => setDraft((d) => ({ ...d, [key]: rows as any }))} />
             </div>
           ))}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Huỷ</Button>
-            <Button type="button" disabled={!!lineDetailsError(config, draft)} onClick={() => { onChange(draft); setOpen(false); }}>Xong</Button>
+            <Button type="button" disabled={!!(config && lineDetailsError(config, draft))} onClick={() => {
+              onChange(draft);
+              if (extraList.length) onExtraChange?.(extraDraft);
+              setOpen(false);
+            }}>Xong</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

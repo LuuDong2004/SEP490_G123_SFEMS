@@ -77,6 +77,13 @@ public class PurchaseProposalLine {
     @Column(name = "planned_quantity")
     private Integer plannedQuantity;
 
+    /**
+     * Đơn giá do cơ quan lập kế hoạch xác định (270). {@code null}: theo đơn giá trường ghi — trường không bắt buộc
+     * ghi giá lúc đề xuất. Xem {@link #effectiveUnitPrice()}.
+     */
+    @Column(name = "planned_unit_price", precision = 18, scale = 2)
+    private BigDecimal plannedUnitPrice;
+
     @Column(name = "current_quantity")
     private Integer currentQuantity;
 
@@ -99,8 +106,10 @@ public class PurchaseProposalLine {
         this.details = details == null ? "{}" : details;
     }
 
+    /** Thành tiền theo số trường đề nghị; giá là giá kế hoạch khi cơ quan đã đặt (trường không bắt buộc ghi giá). */
     public BigDecimal amount() {
-        return unitPrice == null || quantity == null ? null : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        BigDecimal price = effectiveUnitPrice();
+        return price == null || quantity == null ? null : price.multiply(BigDecimal.valueOf(quantity));
     }
 
     /** Số sẽ mua: số đưa vào kế hoạch nếu đã vào kế hoạch, không thì số đề nghị. */
@@ -108,9 +117,23 @@ public class PurchaseProposalLine {
         return plannedQuantity != null ? plannedQuantity : quantity == null ? 0 : quantity;
     }
 
-    /** Thành tiền theo số sẽ mua. */
+    /** Đơn giá sẽ mua: giá cơ quan đặt trên kế hoạch nếu có, không thì giá trường ghi (có thể {@code null}). */
+    public BigDecimal effectiveUnitPrice() {
+        return plannedUnitPrice != null ? plannedUnitPrice : unitPrice;
+    }
+
+    /** Thành tiền theo số và giá sẽ mua. */
     public BigDecimal plannedAmount() {
-        return unitPrice == null ? BigDecimal.ZERO : unitPrice.multiply(BigDecimal.valueOf(effectiveQuantity()));
+        BigDecimal price = effectiveUnitPrice();
+        return price == null ? BigDecimal.ZERO : price.multiply(BigDecimal.valueOf(effectiveQuantity()));
+    }
+
+    public BigDecimal getPlannedUnitPrice() {
+        return plannedUnitPrice;
+    }
+
+    public void setPlannedUnitPrice(BigDecimal plannedUnitPrice) {
+        this.plannedUnitPrice = plannedUnitPrice;
     }
 
     public Long getId() {

@@ -40,6 +40,10 @@ export type DetailField = {
   resource?: string;
   /** Trường của một giai đoạn sau (vd. "return" — lúc trả), không của form lập phiếu. */
   stage?: string;
+  /** Chữ mờ trong ô — ví dụ giá trị để người nhập hiểu phải ghi gì (vắng: "Nhập" / "Nhập số"). */
+  placeholder?: string;
+  /** Cột của bảng con: bề rộng tương đối (mặc định 1) — cột tên dài cho 2. */
+  grow?: number;
 };
 
 export type DetailSection = {

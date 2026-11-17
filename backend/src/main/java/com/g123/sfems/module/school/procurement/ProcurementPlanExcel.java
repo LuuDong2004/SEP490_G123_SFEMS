@@ -97,7 +97,7 @@ final class ProcurementPlanExcel {
                 row.put("priority", l.getPriority() == null ? null : PRIORITY.get(l.getPriority()));
                 row.put("requested", asked);
                 row.put("planned", kept);
-                row.put("unit_price", l.getUnitPrice());
+                row.put("unit_price", l.effectiveUnitPrice());
                 row.put("amount", l.plannedAmount());
                 rows.add(row);
             }

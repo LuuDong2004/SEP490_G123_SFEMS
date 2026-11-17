@@ -108,7 +108,10 @@ export type PlanLine = {
   unitName: string | null;
   requestedQuantity: number;
   plannedQuantity: number;
+  /** Đơn giá kế hoạch: cơ quan đặt trên kế hoạch, không thì giá trường ghi. */
   unitPrice: number | null;
+  /** Đơn giá trường ghi trên đề xuất — không bắt buộc, có thể trống. */
+  proposedUnitPrice: number | null;
   amount: number;
   priority: number;
 };

@@ -29,13 +29,15 @@
    "key": "gradeLevel",
    "label": "Khối lớp",
    "kind": "text",
-   "max": 100
+   "max": 100,
+   "placeholder": "VD: 6, 7"
   },
   {
    "key": "brandOrigin",
    "label": "Thương hiệu/Xuất xứ",
    "kind": "text",
-   "max": 255
+   "max": 255,
+   "placeholder": "VD: Epson / Nhật Bản"
   }
  ],
  "lineTables": {
@@ -44,19 +46,23 @@
     "key": "attrName",
     "label": "Tên thông số",
     "kind": "text",
-    "max": 150
+    "max": 150,
+    "placeholder": "VD: Cường độ sáng",
+    "grow": 2
    },
    {
     "key": "attrValue",
     "label": "Giá trị",
     "kind": "text",
-    "max": 255
+    "max": 255,
+    "placeholder": "VD: 3600"
    },
    {
     "key": "unit",
     "label": "Đơn vị",
     "kind": "text",
-    "max": 50
+    "max": 50,
+    "placeholder": "VD: lumen"
    }
   ],
   "accessoryLines": [
@@ -65,18 +71,22 @@
     "label": "Tên phụ kiện",
     "kind": "text",
     "max": 255,
-    "wide": true
+    "wide": true,
+    "placeholder": "VD: Màn chiếu treo tường",
+    "grow": 2
    },
    {
     "key": "quantity",
     "label": "Số lượng",
-    "kind": "integer"
+    "kind": "integer",
+    "placeholder": "VD: 1"
    },
    {
     "key": "unit",
     "label": "Đơn vị tính",
     "kind": "text",
-    "max": 50
+    "max": 50,
+    "placeholder": "VD: Cái"
    }
   ]
  },

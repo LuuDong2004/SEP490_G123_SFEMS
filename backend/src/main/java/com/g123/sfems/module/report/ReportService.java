@@ -885,7 +885,7 @@ public class ReportService {
                                 + " LEFT JOIN equipment_types et ON et.id = gc.equipment_type_id ",
                         "et.id, et.name", "Loại thiết bị")
                 : dim(group);
-        String amount = "l.quantity * COALESCE(l.unit_price, 0)";
+        String amount = "l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)";
         String approved = "p.status IN ('APPROVED', 'COMPLETED')";
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT " + d.select()
                 + ", COUNT(DISTINCT p.school_id) AS schools, COUNT(DISTINCT p.id) AS proposals,"

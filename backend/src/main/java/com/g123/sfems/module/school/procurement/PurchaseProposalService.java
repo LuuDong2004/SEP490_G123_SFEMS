@@ -116,6 +116,8 @@ public class PurchaseProposalService
         if (voucher.getReason() == null) {
             throw new FieldValidationException("reason", "Nêu sự cần thiết của đề xuất trước khi trình");
         }
+        // Đơn giá dự kiến KHÔNG bắt buộc: trường đề xuất NHU CẦU (thiếu gì, bao nhiêu), thường chưa biết giá — ép nhập
+        // thì ra con số bịa. Giá do cơ quan lập kế hoạch xác định; kế hoạch mới bắt đủ giá (ProcurementPlanService).
     }
 
     /** Đề xuất đã nằm trong một kế hoạch thì không huỷ ngang được — phải rút khỏi kế hoạch trước. */
@@ -173,7 +175,7 @@ public class PurchaseProposalService
             result.add(new IntakeLine(l.getId(), catalogId, l.getCatalog().getCode(), l.getName(),
                     l.getUnitName() != null ? l.getUnitName()
                             : l.getCatalog().getUnit() != null ? l.getCatalog().getUnit().getName() : null,
-                    planned, got, planned - got, l.getUnitPrice(), got - done));
+                    planned, got, planned - got, l.effectiveUnitPrice(), got - done));
         }
         return result;
     }
@@ -222,8 +224,11 @@ public class PurchaseProposalService
             throw new FieldValidationException("lines", lines.stream().allMatch(l -> l.remaining() == 0)
                     ? "Đề xuất này đã nhập đủ hàng" : "Chọn ít nhất một thiết bị để nhập");
         }
+        // Đơn vị giao mặc định (cấp trên mua tập trung): cơ quan lập kế hoạch.
+        String deliveringUnit = voucher.getPlan() == null || voucher.getPlan().getManagingBody() == null ? null
+                : voucher.getPlan().getManagingBody().getName();
         EquipmentIntake intake = intakes.createFromPurchase(voucher.getSchool().getId(), voucher.getFundingSource(),
-                items, "Nhập hàng mua theo đề xuất " + voucher.getCode(), voucher.getId(), voucher.getCode());
+                items, "Nhập hàng mua theo đề xuất " + voucher.getCode(), voucher.getId(), voucher.getCode(), deliveringUnit);
         if (voucher.getIntakeId() == null) {
             voucher.setIntakeId(intake.getId());
         }

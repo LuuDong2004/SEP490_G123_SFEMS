@@ -102,9 +102,13 @@ public class ProcurementPlanService {
             String note, List<LineQuantity> lines, Map<String, Object> details) {
     }
 
-    /** Một dòng đề xuất trong kế hoạch: số đưa vào kế hoạch, 0 (bỏ dòng) tới số đề nghị. */
+    /**
+     * Một dòng đề xuất trong kế hoạch: số đưa vào kế hoạch, 0 (bỏ dòng) tới số đề nghị; và đơn giá kế hoạch —
+     * {@code null} là theo giá trường ghi.
+     */
     public record LineQuantity(Long lineId,
-            @Num(value = NumberRule.QUANTITY_OR_ZERO, label = "Số lượng đưa vào kế hoạch") Integer plannedQuantity) {
+            @Num(value = NumberRule.QUANTITY_OR_ZERO, label = "Số lượng đưa vào kế hoạch") Integer plannedQuantity,
+            @Num(value = NumberRule.MONEY, label = "Đơn giá") BigDecimal unitPrice) {
     }
 
     /** Cộng theo nhóm thiết bị trên mọi đề xuất trong kế hoạch. */
@@ -232,14 +236,14 @@ public class ProcurementPlanService {
                        COALESCE(SUM(t.amount), 0),
                        COALESCE(SUM(t.amount) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')), 0)
                 """ + base.replace("WHERE", """
-                LEFT JOIN LATERAL (SELECT SUM(l.quantity * COALESCE(l.unit_price, 0)) AS amount
+                LEFT JOIN LATERAL (SELECT SUM(l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)) AS amount
                                    FROM purchase_proposal_lines l WHERE l.proposal_id = p.id) t ON TRUE
                 WHERE""") + " GROUP BY d.id, d.name ORDER BY 8 DESC",
                 (rs, n) -> new BodyTotal((Long) rs.getObject(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
                         rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getBigDecimal(8), rs.getBigDecimal(9)));
         List<CatalogTotal> byCatalog = jdbc.query("""
                 SELECT c.id, c.code, c.name, MAX(l.unit_name), SUM(l.quantity),
-                       COALESCE(SUM(l.quantity * COALESCE(l.unit_price, 0)), 0), COUNT(DISTINCT p.school_id)
+                       COALESCE(SUM(l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)), 0), COUNT(DISTINCT p.school_id)
                 """ + base.replace("WHERE", """
                 JOIN purchase_proposal_lines l ON l.proposal_id = p.id
                 JOIN equipment_catalogs c ON c.id = l.catalog_id
@@ -292,11 +296,13 @@ public class ProcurementPlanService {
      */
     private void applyLines(ProcurementPlan plan, List<LineQuantity> lines) {
         Map<Long, Integer> wanted = new HashMap<>();
+        Map<Long, BigDecimal> prices = new HashMap<>();
         for (LineQuantity l : lines) {
             if (l == null || l.lineId() == null) {
                 throw new FieldValidationException("lines", "Dòng đề xuất thiếu mã dòng");
             }
             wanted.put(l.lineId(), l.plannedQuantity());
+            prices.put(l.lineId(), l.unitPrice());
         }
         List<Long> proposalIds = new ArrayList<>();
         if (!wanted.isEmpty()) {
@@ -325,6 +331,10 @@ public class ProcurementPlanService {
                                     p.getCode(), line.getName(), requested));
                 }
                 line.setPlannedQuantity(value);
+                // Giá cơ quan đặt; trùng giá trường ghi (hoặc để trống) thì không giữ bản riêng — theo giá trường.
+                BigDecimal price = prices.get(line.getId());
+                line.setPlannedUnitPrice(price == null || price.signum() <= 0
+                        || (line.getUnitPrice() != null && price.compareTo(line.getUnitPrice()) == 0) ? null : price);
             }
             proposals.persist(p);
         }
@@ -349,6 +359,10 @@ public class ProcurementPlanService {
     @Transactional
     public ProcurementPlan delete(Long id) {
         ProcurementPlan plan = ownedDraft(id);
+        // Giá / số do kế hoạch này đặt không được theo đề xuất sang kế hoạch sau.
+        jdbc.update("""
+                UPDATE purchase_proposal_lines SET planned_quantity = NULL, planned_unit_price = NULL
+                WHERE proposal_id IN (SELECT id FROM purchase_proposals WHERE plan_id = ?)""", id);
         jdbc.update("UPDATE purchase_proposals SET plan_id = NULL WHERE plan_id = ?", id);
         repository.delete(plan);
         return plan;
@@ -365,7 +379,10 @@ public class ProcurementPlanService {
         for (PurchaseProposal p : current) {
             if (!wanted.contains(p.getId())) {
                 p.setPlan(null);
-                p.getLines().forEach(l -> l.setPlannedQuantity(null));
+                p.getLines().forEach(l -> {
+                    l.setPlannedQuantity(null);
+                    l.setPlannedUnitPrice(null);
+                });
                 proposals.persist(p);
             }
         }
@@ -402,7 +419,10 @@ public class ProcurementPlanService {
                 }
                 p.setPlan(plan);
                 // Vào kế hoạch thì mặc định đưa đủ số đề nghị; cơ quan bớt sau trên màn kế hoạch.
-                p.getLines().forEach(l -> l.setPlannedQuantity(l.getQuantity()));
+                p.getLines().forEach(l -> {
+                    l.setPlannedQuantity(l.getQuantity());
+                    l.setPlannedUnitPrice(null);
+                });
                 proposals.persist(p);
             }
         }
@@ -425,6 +445,7 @@ public class ProcurementPlanService {
             throw new FieldValidationException("lines",
                     "Mọi dòng đều đang để 0 — đưa ít nhất một thiết bị vào kế hoạch rồi trình lại.");
         }
+        requirePriced(id);
         plan.setStatus(Status.PENDING);
         plan.setApprovalNote(null);
         return repository.save(plan);
@@ -434,6 +455,8 @@ public class ProcurementPlanService {
     @Transactional
     public ProcurementPlan approve(Long id, String note) {
         ProcurementPlan plan = pendingForApprover(id);
+        // Kế hoạch trình trước khi có luật này vẫn có thể mang dòng 0 đ — kiểm lại lúc duyệt.
+        requirePriced(id);
         plan.setStatus(Status.APPROVED);
         plan.setApprovedAt(Instant.now());
         plan.setApprovedById(CurrentUser.id().orElse(null));
@@ -449,6 +472,26 @@ public class ProcurementPlanService {
             }
         }
         return repository.save(plan);
+    }
+
+    /**
+     * Mọi thiết bị đưa vào kế hoạch (số đưa vào > 0) phải có đơn giá dự kiến — kế hoạch là quyết định chi tiền, dự toán
+     * 0 đ ("Bằng chữ: Không đồng") thì người duyệt không biết duyệt bao nhiêu. Trường không bắt buộc ghi giá lúc đề
+     * xuất; cơ quan nhập đơn giá ngay trên kế hoạch ({@code planned_unit_price}, trống thì theo giá trường ghi).
+     */
+    private void requirePriced(Long planId) {
+        List<String> unpriced = jdbc.queryForList("""
+                SELECT p.code || ' · ' || c.name FROM purchase_proposal_lines l
+                JOIN purchase_proposals p ON p.id = l.proposal_id
+                JOIN equipment_catalogs c ON c.id = l.catalog_id
+                WHERE p.plan_id = ? AND COALESCE(l.planned_quantity, 0) > 0
+                  AND COALESCE(l.planned_unit_price, l.unit_price, 0) <= 0
+                ORDER BY p.code, l.id""", String.class, planId);
+        if (!unpriced.isEmpty()) {
+            throw new FieldValidationException("lines", "Nhập đơn giá cho %d thiết bị trước khi trình / duyệt kế hoạch (%s%s)"
+                    .formatted(unpriced.size(), String.join("; ", unpriced.subList(0, Math.min(3, unpriced.size()))),
+                            unpriced.size() > 3 ? "…" : ""));
+        }
     }
 
     @Transactional

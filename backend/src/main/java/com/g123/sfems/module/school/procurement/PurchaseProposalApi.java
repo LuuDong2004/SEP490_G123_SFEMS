@@ -96,7 +96,7 @@ public final class PurchaseProposalApi {
                 var c = l.getCatalog();
                 return new Line(l.getId(), l.getLineNo(), l.getKind(),
                         new RefSummary(c.getId(), c.getCode(), c.getName()), c.getTrackingType().name(),
-                        l.getName(), l.getSpecification(), l.getUnitName(), l.getQuantity(), l.getUnitPrice(),
+                        l.getName(), l.getSpecification(), l.getUnitName(), l.getQuantity(), l.effectiveUnitPrice(),
                         l.amount(), l.getPriority(), l.getCurrentQuantity(), l.getRequiredQuantity(), l.getNote(),
                     com.g123.sfems.module.school.voucher.VoucherForms.read(l.getDetails()));
             }
