@@ -6,7 +6,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { kyInstance } from "@/shared/api/data";
-import { SelectField, TextField, TextareaField } from "@/shared/components/form/simple-fields";
+import { DateField, SelectField, TextField, TextareaField } from "@/shared/components/form/simple-fields";
 import { useLeaveOptions } from "@/shared/components/form/unsaved-changes-guard";
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { PendingAttachments, usePendingAttachments } from "@/shared/components/voucher/pending-attachments";
@@ -21,7 +21,7 @@ import { Card } from "@/shared/ui/card";
 import { RequiredFieldsProvider } from "@/shared/ui/form";
 import { FUNDING_LABELS } from "@/domains/equipment/types";
 import { toPayload } from "./fields";
-import { docMetaOf } from "./head-fields";
+import { docMetaOf, isCentralized } from "./head-fields";
 import { SectionHead } from "./section-head";
 import { ReceiverField, ReceiverPositionField } from "./receiver-field";
 import { formatPlainDate, localIsoDate, todayLocal } from "@/shared/lib/format";
@@ -94,6 +94,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const originId = values.originSource?.id;
   const rule = ruleOf(originId);
   const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  // Cấp trên (Sở / UBND) mua tập trung rồi giao về — `details.centralized` (trưởng nhóm 17/11/2026).
+  const centralized = isCentralized(originCode, values.details?.centralized);
   const [busy, setBusy] = useState<"save" | "submit" | null>(null);
   const [reveal, setReveal] = useState<{ index: number; at: number } | null>(null);
   // Ba khối thu gọn được (trưởng nhóm 13/11/2026). Bấm một mục "Trước khi trình" hay lưu hỏng thì mở hết ra rồi
@@ -127,6 +129,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const documents = (values.documents ?? []) as any[];
   const documentIds = documents.map((d) => Number(d?.id)).filter((id) => Number.isFinite(id) && id > 0);
   const files = useIntakeFiles(record?.id, documentIds, pending.files);
+  // Tệp của chính phiếu (quyết định giao / biên bản bàn giao khi mua tập trung) — không tính tệp hoá đơn.
+  const ownFiles = useIntakeFiles(record?.id, [], pending.files);
   const docFileCounts = useDocumentFileCounts(documentIds);
   const queryClient = useQueryClient();
   const noun = documentNoun(originCode);
@@ -155,7 +159,10 @@ export function IntakeFormBody({ record, onFinish, header }: {
       hasFile: (d) => (d?.id ? (docFileCounts.get(Number(d.id)) ?? 0) > 0 : (d?.pendingFiles ?? []).length > 0),
     }),
     // Hàng mua: tệp theo từng hoá đơn (mục ở trên). Nguồn khác: ít nhất một tệp — của chứng từ hoặc ở khối Giao nhận.
-    ...(isPurchaseCode(originCode) ? [] : [{
+    ...(centralized ? [{
+      key: "files", label: "Đính kèm quyết định giao / biên bản bàn giao", group: "handover" as const, field: "attachments",
+      ok: ownFiles.length > 0,
+    }] : isPurchaseCode(originCode) ? [] : [{
       key: "files", label: "Đính kèm biên bản hoặc chứng từ", group: "handover" as const, field: "attachments",
       ok: files.length > 0 || documents.some((d) => (d?.pendingFiles ?? []).length > 0),
     }]),
@@ -290,8 +297,13 @@ export function IntakeFormBody({ record, onFinish, header }: {
   }, onInvalid);
 
   // Dấu * của ô bắt buộc LÚC TRÌNH (lưu nháp không đòi): biên bản giao nhận và, với hàng mua sắm, chứng từ.
+  // Cấp trên mua tập trung (trưởng nhóm 17/11/2026): quyết định giao + biên bản bàn giao của CẢ phiếu — khối riêng ở đầu
+  // "Thông tin giao nhận", bắt buộc lúc trình (cùng `requireAssignment` máy chủ).
+  const decisionFields = (config?.sections ?? []).filter((s) => s.when?.field === "centralized").flatMap((s) => s.fields)
+    .filter((f) => f.key !== "centralized");
   const submitRequired = new Set<string>([
     ...(config?.sections ?? []).flatMap((s) => s.fields).filter((f) => f.required && !f.stage).map((f) => `details.${f.key}`),
+    ...(centralized ? decisionFields.map((f) => `details.${f.key}`) : []),
   ]);
   const handoverFields = (config?.sections ?? []).filter((s) => !s.stage && !s.when).flatMap((s) => s.fields);
 
@@ -332,6 +344,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
       label={f.label} max={f.max} min={f.min} />
   ) : f.key === "receiverPosition" ? (
     <ReceiverPositionField key={f.key} control={control} label={f.label} />
+  ) : f.kind === "date" ? (
+    <DateField key={f.key} control={control} name={`details.${f.key}`} label={f.label} dateRule={f.date === "past" ? "PAST_OR_TODAY" : "ANY"} />
   ) : f.kind === "enum" ? (
     <SelectField key={f.key} control={control} name={`details.${f.key}`} label={f.label}
       placeholder={`Vui lòng chọn ${f.label.toLowerCase()}`}
@@ -340,7 +354,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
     <TextField key={f.key} control={control} name={`details.${f.key}`} label={f.label}
       rule={(f.rule as TextRule | undefined) ?? "SHORT_TEXT"} max={f.max} min={f.min}
       placeholder={f.key === "deliveredBy" ? "Họ tên người giao" : f.key === "delivererPhone" ? "VD: 0912 345 678"
-        : f.key === "handoverMinutesNo" ? "VD: 15/BB-THCS" : undefined} />
+        : f.key === "handoverMinutesNo" ? "VD: 15/BB-THCS" : f.key === "assignmentDecisionNo" ? "VD: 1234/QĐ-SGDĐT" : undefined} />
   );
 
   // Lưu nháp / Trình duyệt đứng ngay dưới "Trước khi trình" (trưởng nhóm 13/11/2026): xem còn thiếu gì rồi bấm.
@@ -386,6 +400,14 @@ export function IntakeFormBody({ record, onFinish, header }: {
 
               <div className={cn("@container grid gap-5 px-5", opened.handover ? "pt-4 pb-6" : "py-4")}>
               <SectionHead title="Thông tin giao nhận" open={opened.handover} onToggle={() => toggle("handover")} summary={handoverSummary} />
+              {centralized && decisionFields.length ? (
+                <section className={cn("bg-surface-subtle grid content-start gap-3 rounded-lg border px-4 pt-3 pb-4", !opened.handover && "hidden")}>
+                  <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">Quyết định giao tài sản và biên bản bàn giao</h4>
+                  <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,22rem)_minmax(0,14rem)_10rem_10rem]">
+                    {decisionFields.map(handoverField)}
+                  </div>
+                </section>
+              ) : null}
               {/* Hai bên ký biên bản đứng cạnh nhau (trưởng nhóm 13/11/2026): bên giao — họ tên, số điện thoại để liên hệ khi
                   hàng có vấn đề; bên nhận — người nhận, chức vụ theo hồ sơ cán bộ. Dưới là phần chung của biên bản. */}
               <div className={cn("grid items-start gap-4 lg:grid-cols-2", !opened.handover && "hidden")}>
@@ -407,10 +429,10 @@ export function IntakeFormBody({ record, onFinish, header }: {
                   kèm" của "Trước khi trình". Dạng trường form, trước và sau khi lưu cùng một dáng; chỉ khác tệp lưu lúc nào. */}
               <div data-field="attachments" className={cn(!opened.handover && "hidden")}>
                 {record?.id ? (
-                  <AttachmentsPanel field compact resource="equipment_intakes" recordId={record.id} canWrite required={!noun} title={noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
+                  <AttachmentsPanel field compact resource="equipment_intakes" recordId={record.id} canWrite required={!noun || centralized} title={centralized ? "Tệp quyết định giao / biên bản bàn giao" : noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
                     hint="Bản đã ký, đóng dấu · lưu ngay khi chọn" />
                 ) : (
-                  <PendingAttachments field compact files={pending.files} onChange={pending.setFiles} required={!noun} title={noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
+                  <PendingAttachments field compact files={pending.files} onChange={pending.setFiles} required={!noun || centralized} title={centralized ? "Tệp quyết định giao / biên bản bàn giao" : noun ? "Tệp khác (biên bản giao nhận…)" : doc.files}
                     hint="Bản đã ký, đóng dấu · tải lên khi lưu phiếu" />
                 )}
               </div>

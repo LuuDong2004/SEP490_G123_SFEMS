@@ -194,6 +194,18 @@ export function intakeReadiness(
   }
   const docs = (values.documents ?? []) as any[];
   const noun = cap(opts?.noun ?? "chứng từ");
+  const centralized = rule?.code === PURCHASE_CODE && values.details?.centralized === true;
+  if (centralized) {
+    // Quyết định giao tài sản + biên bản bàn giao của cả phiếu (cùng `requireAssignment` máy chủ).
+    const need: [string, string][] = [
+      ["deliveringUnit", "đơn vị giao"], ["assignmentDecisionNo", "số"], ["assignmentDecisionDate", "ngày quyết định"], ["handoverDate", "ngày bàn giao"],
+    ];
+    const lack = need.filter(([k]) => !filled(values.details?.[k]));
+    items.push({
+      key: "assignment", label: lack.length ? `Quyết định giao: thiếu ${lack.map(([, l]) => l).join(", ")}` : "Quyết định giao tài sản",
+      ok: lack.length === 0, group: "handover", field: `details.${(lack[0] ?? need[0])[0]}`,
+    });
+  }
   /** "Hoá đơn 1, 3" — một chứng từ thì chỉ "Hoá đơn". */
   const docTitle = (idx: number[]) => (docs.length > 1 ? `${noun} ${idx.map((i) => i + 1).join(", ")}` : noun);
   // Khối bên phải phải NGẮN (trưởng nhóm 14/11/2026, hai lần): chứng từ chưa có thiết bị thì chưa đòi ô nào của nó —
@@ -204,9 +216,12 @@ export function intakeReadiness(
     const checks: { label: string; ok: boolean; field: string; wrong?: boolean }[] = [];
     if (isPurchase(rule)) {
       checks.push({ label: "nhà cung cấp", ok: filled(String(d?.supplier ?? "").trim()), field: `documents.${i}.supplier` });
-      checks.push({ label: "số", ok: filled(String(d?.documentNo ?? "").trim()), field: `documents.${i}.documentNo` });
-      checks.push({ label: "ngày", ok: filled(d?.documentDate), field: `documents.${i}.documentDate` });
-      if (opts?.hasFile) checks.push({ label: "tệp", ok: !!opts?.hasFile?.(d, i), field: `documents.${i}.files` });
+      // Cấp trên mua tập trung: số / ngày / tệp hoá đơn có thì ghi, không đòi (cùng `requirePurchaseDocuments`).
+      if (!centralized) {
+        checks.push({ label: "số", ok: filled(String(d?.documentNo ?? "").trim()), field: `documents.${i}.documentNo` });
+        checks.push({ label: "ngày", ok: filled(d?.documentDate), field: `documents.${i}.documentDate` });
+        if (opts?.hasFile) checks.push({ label: "tệp", ok: !!opts?.hasFile?.(d, i), field: `documents.${i}.files` });
+      }
     }
     if (rule) {
       const issues = own.map((x) => fundingIssue(x.l, d?.fundingSource, rule)).filter(Boolean);

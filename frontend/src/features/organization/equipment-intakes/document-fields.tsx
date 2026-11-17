@@ -1,4 +1,4 @@
-import { useCustom } from "@refinedev/core";
+import { useCustom, useList } from "@refinedev/core";
 import { History, Lock, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -17,10 +17,11 @@ import { maxLengthOf, textError, textRules } from "@/shared/lib/field-rules";
 import { cn } from "@/shared/lib/utils";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/popover";
 import { FUNDING_LABELS, FUNDING_OPTIONS, OTHER_ACQUISITION_CODE } from "@/domains/equipment/types";
 import { AcquisitionChoice } from "./acquisition-choice";
-import { documentDateRules, documentNoRules, headFieldsOf } from "./head-fields";
+import { CENTRALIZED_METHOD_CODE, documentDateRules, documentNoRules, headFieldsOf, isCentralized } from "./head-fields";
 import { isPurchaseCode } from "./readiness";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -148,6 +149,23 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
   const purchase = isPurchaseCode(code);
   const doc = useWatch({ control, name: path }) as any;
   const name = (k: string) => `${path}.${k}`;
+  // Cấp trên mua tập trung: số / ngày hoá đơn có thì ghi; hình thức khoá "Mua sắm tập trung" (tự điền).
+  const centralized = isCentralized(code, useWatch({ control, name: "details.centralized" }));
+  const invoiceRequired = purchase && !centralized;
+  const { result: centralMethods } = useList<any>({
+    resource: "acquisition_methods",
+    filters: [{ field: "code", operator: "eq", value: CENTRALIZED_METHOD_CODE }],
+    pagination: { pageSize: 5 },
+    queryOptions: { enabled: centralized },
+  });
+  const centralMethod = (centralMethods?.data ?? []).find((m: any) => m.code === CENTRALIZED_METHOD_CODE);
+  useEffect(() => {
+    if (centralized && centralMethod && doc?.acquisitionMethod?.id !== centralMethod.id) {
+      setValue(name("acquisitionMethod"), { id: centralMethod.id, code: centralMethod.code, name: centralMethod.name }, { shouldDirty: true });
+      setValue(name("acquisitionNote"), "", { shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centralized, centralMethod?.id, doc?.acquisitionMethod?.id]);
 
   const allowed = rule?.fundingSources ?? FUNDING_OPTIONS;
 
@@ -181,7 +199,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
             rules={textRules("SHORT_TEXT", head.supplier, { max: 200, min: 2 })}
             render={({ field, fieldState }) => (
               <FormItem data-field={name("supplier")} className={cn(CELL, "@5xl:max-w-[28rem] @5xl:flex-[1.6_1_0%]")}>
-                <FormLabel required={purchase || undefined}>{head.supplier}</FormLabel>
+                <FormLabel required={purchase || undefined}>{centralized ? "Nhà cung cấp (nhà thầu)" : head.supplier}</FormLabel>
                 {purchase ? (
                   <SupplierInput value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name} inputRef={field.ref}
                     schoolId={schoolId} onPick={pickSupplier} placeholder="Gõ tên nhà cung cấp" invalid={!!fieldState.error} />
@@ -221,11 +239,11 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
             rules={documentNoRules(head)}
             render={({ field }) => (
               <FormItem data-field={name("documentNo")} className={cn(CELL, "@5xl:max-w-[14rem] @5xl:flex-[0.9_1_0%]")}>
-                <FormLabel required={purchase || undefined}>{head.documentNo!.label}</FormLabel>
+                <FormLabel required={invoiceRequired || undefined}>{head.documentNo!.label}</FormLabel>
                 <FormControl>
                   <Input value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref}
                     maxLength={head.documentNo!.invoice ? maxLengthOf("INVOICE_NO") : 100}
-                    placeholder={head.documentNo!.invoice ? "VD: 0001234" : "Không bắt buộc"} />
+                    placeholder={centralized ? "Nếu có" : head.documentNo!.invoice ? "VD: 0001234" : "Không bắt buộc"} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -239,7 +257,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
             rules={documentDateRules(head.documentDate)}
             render={({ field }) => (
               <FormItem data-field={name("documentDate")} className={cn(CELL, "@5xl:w-[9.5rem] @5xl:flex-none")}>
-                <FormLabel required={purchase || undefined}>{head.documentDate}</FormLabel>
+                <FormLabel required={invoiceRequired || undefined}>{head.documentDate}</FormLabel>
                 <FormControl>
                   <DateInput className="max-w-none" value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
                 </FormControl>
@@ -249,7 +267,15 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
           />
         ) : null}
         <DocumentFunding control={control} index={index} className={cn(CELL, "@5xl:max-w-[20rem] @5xl:flex-[1.3_1_0%]")} />
-        {rule?.acquisitionMethod ? (
+        {rule?.acquisitionMethod && centralized ? (
+          <div data-field={name("acquisitionMethod")} className={cn("grid gap-2", CELL, "@5xl:max-w-[16rem] @5xl:flex-[1_1_0%]")}>
+            <Label>Hình thức mua sắm</Label>
+            <div className="relative">
+              <Input disabled value={centralMethod?.name ?? "Mua sắm tập trung"} aria-label="Hình thức mua sắm" className="pe-8" />
+              <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2" />
+            </div>
+          </div>
+        ) : rule?.acquisitionMethod ? (
           <div data-field={name("acquisitionMethod")} className={cn(CELL, "@5xl:max-w-[20rem] @5xl:flex-[1.3_1_0%]")}>
             <FormField
               control={control}
@@ -400,18 +426,19 @@ export function DocumentFiles({ control, index, onInvoiceXml }: {
   const head = headFieldsOf(code);
   const purchase = isPurchaseCode(code);
   const doc = useWatch({ control, name: path }) as any;
+  const centralized = isCentralized(code, useWatch({ control, name: "details.centralized" }));
   if (!head.documentNo && !head.supplier) return null;
   const files = (doc?.pendingFiles ?? []) as File[];
-  const title = purchase ? "Tệp hoá đơn" : head.documentNo ? `Tệp ${head.documentNo.label.replace(/^Số /, "")}` : "Tệp chứng từ";
+  const title = purchase ? (centralized ? "Tệp hoá đơn (nếu có)" : "Tệp hoá đơn") : head.documentNo ? `Tệp ${head.documentNo.label.replace(/^Số /, "")}` : "Tệp chứng từ";
   const onAdded = onInvoiceXml ? (list: File[]) => { const xml = list.find(isXmlFile); if (xml) onInvoiceXml(xml); } : undefined;
   return (
     <div data-field={`${path}.files`}>
       {doc?.id ? (
-        <AttachmentsPanel field compact resource="equipment_intake_documents" recordId={doc.id} canWrite required={purchase} title={title}
+        <AttachmentsPanel field compact resource="equipment_intake_documents" recordId={doc.id} canWrite required={purchase && !centralized} title={title}
           hint="Bản scan hoặc tệp hoá đơn điện tử · lưu ngay khi chọn" onAdded={onAdded} />
       ) : (
         <PendingAttachments field compact files={files} onChange={(f) => setValue(`${path}.pendingFiles`, f, { shouldDirty: true })}
-          required={purchase} title={title} hint="Tải lên khi lưu phiếu" onAdded={onAdded} />
+          required={purchase && !centralized} title={title} hint="Tải lên khi lưu phiếu" onAdded={onAdded} />
       )}
     </div>
   );

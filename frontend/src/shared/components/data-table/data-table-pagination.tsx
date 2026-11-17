@@ -108,7 +108,10 @@ export function DataTablePagination({
             value={`${pageSize}`}
             onValueChange={(v) => setPageSize(Number(v))}
           >
-            <SelectTrigger size="sm" className={cn("w-[4.375rem] rounded-full")}>
+            {/* Ô tự rộng theo chữ (tối thiểu 4.5rem), không cắt "…": bề rộng cố định 5rem chỉ còn ~1.75rem cho chữ sau
+                viền bo và mũi tên — máy có cỡ chữ / phóng to lớn hơn thì "40" thành "4..". */}
+            <SelectTrigger size="sm" className={cn("w-auto min-w-[4.5rem] shrink-0 rounded-full",
+              "*:data-[slot=select-value]:overflow-visible *:data-[slot=select-value]:text-clip")}>
               <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side="top">

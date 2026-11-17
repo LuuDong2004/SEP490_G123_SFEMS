@@ -1,6 +1,7 @@
 import { useCustom, useList, useNotification } from "@refinedev/core";
 import { Check, ChevronDown, Copy, ChevronLeft, ChevronRight, CircleAlert, Download, FileSpreadsheet, ListPlus, Loader2, PackageSearch, Plus, Trash2 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useFieldArray, useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { Link } from "react-router";
@@ -393,7 +394,9 @@ const COLS = 9;
  * Một dòng của bảng lưới: số lượng, đơn giá, phòng nhận gõ thẳng tại chỗ; ⌄ mở ngay dưới dòng phần chi tiết (model,
  * hãng, bảo hành, hạn dùng / quy cách của vật tư, số serial, nhận khác hoá đơn, hoá đơn riêng).
  */
-function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expanded, onToggle, onRemove, onSplit, separate, priceNo, preview, offset, onPreview, moveTargets, onMove }: {
+function LineRow({ control, path, index, catalog, estimate, rooms, schoolId, issues, expanded, onToggle, onRemove, onSplit, separate, priceNo, preview, offset, onPreview, moveTargets, onMove }: {
+  /** Đơn giá dự toán của kế hoạch mua sắm (phiếu lập từ kế hoạch) — chỉ là chữ mờ trong ô, không phải giá trị. */
+  estimate?: number | null;
   /** Hoá đơn khác của phiếu — chuyển thiết bị sang (khai nhầm hoá đơn). */
   moveTargets: { key: string; label: string }[];
   onMove: (key: string) => void;
@@ -490,9 +493,12 @@ function LineRow({ control, path, index, catalog, rooms, schoolId, issues, expan
             name={`${path}.unitPrice`}
             rules={numberRules("UNIT_PRICE", "Đơn giá")}
             render={({ field, fieldState }) => (
-              <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} placeholder="0"
+              <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
+                // Ô hẹp: "~" là dự toán; rê chuột thấy đủ chữ.
+                placeholder={estimate ? `~${money.format(estimate)}` : "0"}
                 maxValue={numberMax("UNIT_PRICE")}
-                aria-label={`Đơn giá dòng ${index + 1}`} aria-invalid={!!fieldState.error || undefined} title={fieldState.error?.message}
+                aria-label={`Đơn giá dòng ${index + 1}`} aria-invalid={!!fieldState.error || undefined}
+                title={fieldState.error?.message ?? (estimate ? `Dự toán theo kế hoạch: ${money.format(estimate)} đ — nhập giá thật theo chứng từ` : undefined)}
                 className={cn(CELL_INPUT, "text-right")} />
             )}
           />
@@ -1092,6 +1098,19 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
   const rule = ruleOf(originId);
   const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
   const noun = documentNoun(originCode);
+  // Lập từ kế hoạch mua sắm: đơn giá KHÔNG điền sẵn (đó là dự toán, không phải giá thật) — ô đơn giá hiện dự toán làm
+  // chữ mờ để người lập so khi gõ giá theo chứng từ / quyết định giao.
+  const source = useWatch({ control, name: "source" }) as { resource?: string; id?: number } | null;
+  const proposalId = source?.resource === "purchase_proposals" && source.id ? source.id : null;
+  const { data: estimates } = useQuery({
+    queryKey: ["intake-estimates", proposalId],
+    enabled: proposalId != null,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const rows = await kyInstance.get(`purchase_proposals/${proposalId}/intake-lines`).json<{ catalogId: number; unitPrice: number | null }[]>();
+      return new Map(rows.filter((r) => Number(r.unitPrice) > 0).map((r) => [r.catalogId, Number(r.unitPrice)]));
+    },
+  });
   // Chưa chọn nguồn hình thành, hoặc nguồn không có chứng từ: không có ô nào của chứng từ ở đây (nguồn kinh phí của nguồn
   // không chứng từ đứng ở hàng "Thông tin phiếu"; chưa chọn nguồn thì chưa biết hỏi gì).
   const headless = !originCode || !hasDocumentHead(originCode);
@@ -1475,6 +1494,7 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
                               path={`${name}.${index}`}
                               index={index}
                               catalog={catalog}
+                              estimate={estimates?.get(Number(l?.catalog?.id)) ?? null}
                               rooms={rooms}
                               schoolId={schoolId}
                               issues={lineIssues(l, catalog, config, doc.fundingSource, rule)}

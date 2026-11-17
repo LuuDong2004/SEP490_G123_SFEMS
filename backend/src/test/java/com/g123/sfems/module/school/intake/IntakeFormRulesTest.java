@@ -162,4 +162,25 @@ class IntakeFormRulesTest {
         line(donated, 1, 1);
         assertThatCode(() -> EquipmentIntakeService.requirePurchaseDocuments(donated)).doesNotThrowAnyException();
     }
+
+    @Test
+    void centralizedPurchaseNeedsTheAssignmentDecisionNotTheInvoiceNumber() {
+        EquipmentIntake intake = intake(OriginRule.MUA_SAM, LocalDate.of(2026, 11, 10));
+        intake.setDetails("{\"centralized\": true}");
+        EquipmentIntakeLine first = line(intake, 1, 2);
+        first.setUnitPrice(new BigDecimal("1800000"));
+        intake.setSupplier("Công ty CP Thiết bị Giáo dục Miền Nam");
+        assertThat(EquipmentIntakeService.isCentralized(intake)).isTrue();
+        assertThatThrownBy(() -> EquipmentIntakeService.requirePurchaseDocuments(intake))
+                .hasMessageContaining("đơn vị giao");
+        intake.setDetails("""
+                {"centralized": true, "deliveringUnit": "Sở GD&ĐT TP.HCM", "assignmentDecisionNo": "1234/QĐ-SGDĐT",
+                 "assignmentDecisionDate": "2026-11-01", "handoverDate": "2026-11-05"}""");
+        // Không có số, ngày hoá đơn vẫn trình được — căn cứ là quyết định giao.
+        assertThatCode(() -> EquipmentIntakeService.requirePurchaseDocuments(intake)).doesNotThrowAnyException();
+
+        // Trường tự mua: vẫn đòi hoá đơn như cũ.
+        intake.setDetails("{\"centralized\": false}");
+        assertThatThrownBy(() -> EquipmentIntakeService.requirePurchaseDocuments(intake)).hasMessageContaining("số hoá đơn");
+    }
 }

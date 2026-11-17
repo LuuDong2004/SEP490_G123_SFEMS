@@ -29,6 +29,16 @@ export function headFieldsOf(code: string | undefined): HeadFields {
   }
 }
 
+/**
+ * Cấp trên (Sở / UBND) mua tập trung rồi giao về — `details.centralized` của phiếu nguồn "Kế hoạch mua sắm" (trưởng nhóm
+ * 17/11/2026). Hoá đơn vẫn theo từng lô của nhà thầu nhưng số / ngày / tệp không bắt buộc; hình thức là "Mua sắm tập
+ * trung"; căn cứ là quyết định giao tài sản + biên bản bàn giao của cả phiếu (khối giao nhận). Cùng `isCentralized` máy chủ.
+ */
+export const isCentralized = (code: string | undefined, centralized: unknown) => code === PURCHASE_CODE && centralized === true;
+
+/** Mã hình thức "Mua sắm tập trung" (danh mục Hình thức mua sắm). */
+export const CENTRALIZED_METHOD_CODE = "TAP_TRUNG";
+
 /** Luật của ô "Số hoá đơn" / số chứng từ — cùng `checkDocuments` ở máy chủ. */
 export const documentNoRules = (head: HeadFields) =>
   head.documentNo?.invoice ? textRules("INVOICE_NO", "Số hoá đơn") : textRules("SHORT_TEXT", head.documentNo?.label ?? "Số chứng từ", { max: 100 });

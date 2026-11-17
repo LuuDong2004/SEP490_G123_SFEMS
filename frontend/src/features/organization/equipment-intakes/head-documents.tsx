@@ -3,6 +3,9 @@ import { Lock } from "lucide-react";
 import { type CSSProperties, type ReactNode } from "react";
 import { useWatch, type Control } from "react-hook-form";
 
+import { Segmented } from "@/shared/components/segmented";
+import { FormField } from "@/shared/ui/form";
+
 import { formatPlainDate, localIsoDate, todayLocal } from "@/shared/lib/format";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -11,9 +14,35 @@ import { SchoolField } from "@/features/organization/resources/school-field";
 import { useOriginRules } from "@/shared/hooks/use-origin-rules";
 import { DocumentFunding, hasDocumentHead } from "./document-fields";
 import { IntakeOriginFields } from "./origin-field";
+import { PURCHASE_CODE } from "./readiness";
 import { SectionHead } from "./section-head";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * "Cách mua" của hàng theo kế hoạch (trưởng nhóm 17/11/2026): cấp trên (Sở / UBND) mua tập trung rồi giao về — căn cứ là
+ * quyết định giao tài sản + biên bản bàn giao của CẢ phiếu, khai ở "Thông tin giao nhận"; hay trường tự mua bằng kinh phí
+ * được giao — hoá đơn như thường. Lưu ở `details.centralized`.
+ */
+function PurchaseWayField({ control }: { control: Control<any> }) {
+  return (
+    <FormField
+      control={control}
+      name="details.centralized"
+      render={({ field }) => (
+        <div className="grid gap-2" data-field="details.centralized">
+          <Label>Cách mua</Label>
+          <Segmented size="sm" variant="card" label="Cách mua" value={field.value === true ? "central" : "self"}
+            onChange={(v) => field.onChange(v === "central")}
+            options={[
+              { value: "central" as const, label: "Cấp trên mua tập trung", hint: "Sở / UBND mua rồi giao về — theo quyết định giao tài sản" },
+              { value: "self" as const, label: "Trường tự mua", hint: "Trường mua bằng kinh phí được giao — có hoá đơn" },
+            ]} />
+        </div>
+      )}
+    />
+  );
+}
 
 /**
  * Thẻ "Thông tin phiếu" — những gì CHUNG cho cả đợt nhận (254, trưởng nhóm 14/11/2026): nguồn hình thành (kèm kế hoạch
@@ -44,7 +73,7 @@ export function IntakeSourceCard({ control, record, chooseSchool, open, onToggle
   return (
     // Cột có TRẦN theo nội dung (tên nguồn dài nhất, ô ngày, "Năm học 2026-2027"): màn rộng thì phần thừa để trống bên
     // phải, ô không kéo dài ngoằng.
-    <div style={{ "--head-cols": `minmax(0,17rem) 10rem minmax(0,13rem)${fundingHere ? " minmax(0,15rem)" : ""}` } as CSSProperties}>
+    <div style={{ "--head-cols": `minmax(0,17rem) 10rem minmax(0,13rem)${fundingHere ? " minmax(0,15rem)" : ""}${originCode === PURCHASE_CODE ? " auto" : ""}` } as CSSProperties}>
       <div className={cn("px-5", open ? "space-y-4 pt-4 pb-6" : "py-4")}>
         <SectionHead title="Thông tin phiếu" open={open} onToggle={onToggle} summary={summary} />
         {/* Thu gọn chỉ ẨN các ô — gỡ ra thì luật kiểm của ô mất theo và phiếu lưu được khi đang sai. */}
@@ -76,6 +105,7 @@ export function IntakeSourceCard({ control, record, chooseSchool, open, onToggle
             </div>
           </div>
           {fundingHere ? <DocumentFunding control={control} index={0} className="min-w-0" /> : null}
+          {originCode === PURCHASE_CODE ? <PurchaseWayField control={control} /> : null}
         </div>
       </div>
     </div>

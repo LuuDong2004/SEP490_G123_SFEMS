@@ -487,7 +487,7 @@ public class EquipmentIntakeService implements RecordAccess {
      */
     @Transactional
     public EquipmentIntake createFromPurchase(Long schoolId, FundingSource funding,
-            List<PurchasedItem> items, String note, Long proposalId, String proposalCode) {
+            List<PurchasedItem> items, String note, Long proposalId, String proposalCode, String deliveringUnit) {
         EquipmentIntake draft = new EquipmentIntake();
         draft.setSchool(schools.get(schoolId));
         draft.setStatus(VoucherStatus.DRAFT);
@@ -500,6 +500,14 @@ public class EquipmentIntakeService implements RecordAccess {
         draft.setSource("purchase_proposals", proposalId, proposalCode);
         draft.setFundingSource(funding != null && OriginRule.MUA_SAM.allows(funding) ? funding : null);
         draft.setNote(note);
+        // Hàng theo kế hoạch của Sở / UBND: mặc định cấp trên mua tập trung rồi giao về — đơn vị giao là cơ quan lập kế
+        // hoạch; trường tự mua bằng kinh phí được giao thì đổi "Cách mua" trên form (trưởng nhóm 17/11/2026).
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put(CENTRALIZED, true);
+        if (deliveringUnit != null) {
+            details.put("deliveringUnit", deliveringUnit);
+        }
+        draft.setDetails(forms.header(RESOURCE, details, null, schoolId, null));
         List<EquipmentIntakeLine> result = new ArrayList<>();
         int lineNo = 1;
         for (PurchasedItem item : items) {
@@ -511,7 +519,9 @@ public class EquipmentIntakeService implements RecordAccess {
             line.setPhysicalOrDigital(EquipmentEnums.PhysicalDigitalType.PHYSICAL);
             line.setDocumentQuantity(item.quantity());
             line.setReceivedQuantity(item.quantity());
-            line.setUnitPrice(item.unitPrice());
+            // KHÔNG chép đơn giá kế hoạch: đó là DỰ TOÁN — nguyên giá theo quyết định giao / hợp đồng / hoá đơn. Form hiện
+            // dự toán làm chữ mờ để so.
+            line.setUnitPrice(null);
             result.add(line);
         }
         draft.replaceLines(result);
@@ -1065,6 +1075,46 @@ public class EquipmentIntakeService implements RecordAccess {
         return v.contains("@") ? FieldRule.EMAIL.normalize(v) : FieldRule.PHONE.normalize(v);
     }
 
+    /** Khoá trong {@code details}: cấp trên (Sở / UBND) mua tập trung rồi giao về trường. */
+    static final String CENTRALIZED = "centralized";
+    private static final String CENTRALIZED_PURCHASE = "TAP_TRUNG";
+
+    /**
+     * Cấp trên mua tập trung, giao về (chỉ với nguồn "Kế hoạch mua sắm"): căn cứ ghi tăng là QUYẾT ĐỊNH GIAO TÀI SẢN và
+     * biên bản bàn giao — của CẢ phiếu (một kế hoạch, một đơn vị giao); hoá đơn vẫn theo từng lô của nhà thầu nhưng số /
+     * ngày / tệp hoá đơn không bắt buộc (trưởng nhóm 17/11/2026).
+     */
+    static boolean isCentralized(EquipmentIntake intake) {
+        if (OriginRule.of(intake.getOriginSource()).orElse(null) != OriginRule.MUA_SAM) {
+            return false;
+        }
+        return Boolean.TRUE.equals(VoucherForms.read(intake.getDetails()).get(CENTRALIZED));
+    }
+
+    /** Lúc trình phiếu mua tập trung: đơn vị giao, số / ngày quyết định giao, ngày bàn giao; hình thức "Mua sắm tập trung". */
+    static void requireAssignment(EquipmentIntake intake) {
+        Map<String, Object> details = VoucherForms.read(intake.getDetails());
+        String[][] required = {
+                {"deliveringUnit", "đơn vị giao"},
+                {"assignmentDecisionNo", "số quyết định giao"},
+                {"assignmentDecisionDate", "ngày quyết định giao"},
+                {"handoverDate", "ngày bàn giao"},
+        };
+        for (String[] f : required) {
+            Object v = details.get(f[0]);
+            if (v == null || String.valueOf(v).isBlank()) {
+                throw new FieldValidationException("details." + f[0], "Cấp trên mua tập trung: nhập " + f[1]);
+            }
+        }
+        for (EquipmentIntakeDocument document : intake.getDocuments()) {
+            if (document.getAcquisitionMethod() == null
+                    || !CENTRALIZED_PURCHASE.equals(document.getAcquisitionMethod().getCode())) {
+                throw new FieldValidationException("documents",
+                        "Hoá đơn %d: hàng cấp trên mua tập trung — hình thức là \"Mua sắm tập trung\"".formatted(document.getDocNo()));
+            }
+        }
+    }
+
     private static boolean isPurchase(EquipmentIntake intake) {
         return OriginRule.of(intake.getOriginSource()).map(OriginRule::purchase).orElse(false);
     }
@@ -1137,18 +1187,24 @@ public class EquipmentIntakeService implements RecordAccess {
         if (!isPurchase(intake)) {
             return;
         }
+        boolean centralized = isCentralized(intake);
+        if (centralized) {
+            requireAssignment(intake);
+        }
         for (EquipmentIntakeLine line : intake.getLines()) {
             if (line.getReceivedQuantity() == null || line.getReceivedQuantity() <= 0) {
                 continue;
             }
             String where = "Dòng %d (%s)".formatted(line.getLineNo(), line.getName());
             if (line.effectiveSupplier() == null) {
-                throw new FieldValidationException("supplier", "Hàng mua sắm: nhập nhà cung cấp");
+                throw new FieldValidationException("supplier", centralized
+                        ? "Hàng mua tập trung: nhập nhà cung cấp (nhà thầu)" : "Hàng mua sắm: nhập nhà cung cấp");
             }
-            if (line.effectiveDocumentNo() == null) {
+            // Mua tập trung: hoá đơn có thể đứng tên cơ quan mua — số, ngày hoá đơn có thì ghi, không bắt buộc.
+            if (!centralized && line.effectiveDocumentNo() == null) {
                 throw new FieldValidationException("documentNo", "Hàng mua sắm: nhập số hoá đơn");
             }
-            if (line.effectiveDocumentDate() == null) {
+            if (!centralized && line.effectiveDocumentDate() == null) {
                 throw new FieldValidationException("documentDate", "Hàng mua sắm: nhập ngày hoá đơn");
             }
             if (line.getUnitPrice() == null || line.getUnitPrice().signum() <= 0) {
@@ -1176,6 +1232,18 @@ public class EquipmentIntakeService implements RecordAccess {
         if (count == null || count == 0) {
             throw new FieldValidationException("attachments",
                     "Đính kèm ít nhất một tệp — hoá đơn hoặc biên bản giao nhận — rồi trình");
+        }
+        // Mua tập trung: phải có tệp quyết định giao / biên bản bàn giao (tệp của phiếu); tệp hoá đơn có thì gắn.
+        if (isCentralized(intake)) {
+            Long own = entityManager.createQuery(
+                            "select count(a) from Attachment a where a.resource = :resource and a.recordId = :id", Long.class)
+                    .setParameter("resource", RESOURCE)
+                    .setParameter("id", intake.getId())
+                    .getSingleResult();
+            if (own == null || own == 0) {
+                throw new FieldValidationException("attachments", "Đính kèm tệp quyết định giao / biên bản bàn giao rồi trình");
+            }
+            return;
         }
         // Hàng mua: hoá đơn nào cũng phải có tệp hoá đơn của chính nó.
         if (!isPurchase(intake)) {

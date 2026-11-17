@@ -41,6 +41,48 @@
      "min": 1
     }
    ]
+  },
+  {
+   "title": "Quyết định giao tài sản và biên bản bàn giao",
+   "when": {
+    "field": "centralized",
+    "in": [
+     "true"
+    ]
+   },
+   "fields": [
+    {
+     "key": "centralized",
+     "label": "Cấp trên mua tập trung",
+     "kind": "boolean"
+    },
+    {
+     "key": "deliveringUnit",
+     "label": "Đơn vị giao",
+     "kind": "text",
+     "max": 255,
+     "min": 2
+    },
+    {
+     "key": "assignmentDecisionNo",
+     "label": "Số quyết định giao",
+     "kind": "text",
+     "max": 50,
+     "min": 1
+    },
+    {
+     "key": "assignmentDecisionDate",
+     "label": "Ngày quyết định",
+     "kind": "date",
+     "date": "past"
+    },
+    {
+     "key": "handoverDate",
+     "label": "Ngày bàn giao",
+     "kind": "date",
+     "date": "past"
+    }
+   ]
   }
  ],
  "line": [],
