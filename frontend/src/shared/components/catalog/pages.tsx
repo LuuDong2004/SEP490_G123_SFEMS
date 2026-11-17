@@ -752,8 +752,8 @@ function GroupedInfo({ config, record, fields }: { config: CatalogConfig; record
     else groups.push({ title, icon: f.groupIcon, items: [f] });
   }
   const head: CatalogShowField[] = [
-    ...(config.hideCode ? [] : [{ label: "Mã", value: record?.code ?? "—" }]),
-    ...(config.hideName ? [] : [{ label: "Tên", value: record?.name ?? "—", span: 2 as const }]),
+    ...(config.hideCode ? [] : [{ label: config.codeLabel ?? "Mã", value: record?.code ?? "—" }]),
+    ...(config.hideName ? [] : [{ label: config.nameLabel ?? "Tên", value: record?.name ?? "—", span: 2 as const }]),
   ];
   if (groups.length) groups[0].items = [...head, ...groups[0].items];
   return (
