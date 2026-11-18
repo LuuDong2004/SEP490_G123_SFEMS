@@ -29,6 +29,7 @@ import {
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
+import { LoadingText } from "@/shared/components/spinner";
 import { CreateButton } from "@/shared/components/buttons/create";
 import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
@@ -1023,7 +1024,11 @@ export function CatalogFormDialog({
       {(control, record) => (
         <>
           {state.id || config.hideCode ? null : <SuggestCode target={config.resource} />}
-          {extra?.FormBody ? (
+          {/* Sửa mà bản ghi chưa về: chưa vẽ form. Vẽ sớm thì `useSchoolNextCode` (record còn trống) hỏi mã kế tiếp,
+              ghi vào ô Mã và đánh dấu "đã gõ" — bản ghi về sau bị `keepDirtyValues` bỏ qua, CB0001 thành CB0007. */}
+          {extra?.FormBody && state.id && !record ? (
+            <LoadingText className="py-10" />
+          ) : extra?.FormBody ? (
             <extra.FormBody control={control} config={config} record={record} inDialog />
           ) : (
           <CatalogFields
