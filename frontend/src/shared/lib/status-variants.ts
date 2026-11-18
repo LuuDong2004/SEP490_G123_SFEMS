@@ -43,6 +43,13 @@ export const FACILITY_CONDITION_VARIANTS: Record<string, BadgeVariant> = {
   HU_HONG_NANG: "destructive",
 };
 
+/** Duyệt kế hoạch bảo trì: chờ là thông tin, trả lại là cảnh báo, đã duyệt là xanh. */
+export const PLAN_APPROVAL_VARIANTS: Record<string, BadgeVariant> = {
+  PENDING: "info",
+  APPROVED: "success",
+  RETURNED: "warning",
+};
+
 /** Tình trạng sử dụng phòng: đang dùng là xanh; bỏ trống / ngừng là trung tính; đang sửa là cảnh báo. */
 export const ROOM_USAGE_VARIANTS: Record<string, BadgeVariant> = {
   DANG_SU_DUNG: "success",
@@ -68,6 +75,17 @@ export const VOUCHER_STATUS_VARIANTS: Record<
  * thiết bị, hộp chọn tài sản, tra cứu): đang dùng xanh, tạm vắng mặt (cho mượn, điều chuyển) xanh dương, đang
  * xử lý kỹ thuật hoặc chờ quyết định vàng, hỏng / mất đỏ, còn lại trung tính.
  */
+/** Màu chip của 7 nhóm trạng thái thiết bị (`ASSET_STATUS_GROUP_OF`). */
+export const ASSET_STATUS_GROUP_VARIANTS: Record<string, BadgeVariant> = {
+  stock: "neutral",
+  use: "success",
+  moving: "info",
+  repair: "warning",
+  broken: "destructive",
+  leaving: "warning",
+  gone: "neutral",
+};
+
 export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   IN_STOCK: "neutral",
   IN_USE: "success",
@@ -79,16 +97,39 @@ export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   PENDING_LIQUIDATION: "warning",
   PENDING_DESTRUCTION: "warning",
   BROKEN: "destructive",
+  UNREPAIRABLE: "destructive",
   MISSING: "destructive",
   LOST: "destructive",
+  NOT_DELIVERED: "destructive",
   LIQUIDATED: "neutral",
   DESTROYED: "neutral",
   USED_UP: "neutral",
 };
 
-/** Tình hình phiếu mượn (QLTB-483): đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
+/** Tình hình phiếu mượn: đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
 export const LOAN_PHASE_VARIANTS: Record<"BORROWED" | "PARTIAL" | "RETURNED", BadgeVariant> = {
   BORROWED: "info",
   PARTIAL: "warning",
   RETURNED: "success",
+};
+
+/** Kết quả kiểm nhận điều chuyển: nhận xanh, trả lại (hỏng / sai) cảnh báo, không thấy đỏ. */
+export const RECEIPT_RESULT_VARIANTS: Record<"RECEIVED" | "DAMAGED" | "MISSING", BadgeVariant> = {
+  RECEIVED: "success",
+  DAMAGED: "warning",
+  MISSING: "destructive",
+};
+
+/** Kết quả chấm chuẩn CSVC (203): đạt xanh, chưa đạt đỏ nhạt, chưa có quy tắc trung tính. */
+export const STANDARD_STATUS_VARIANTS: Record<"PASS" | "FAIL" | "NONE", BadgeVariant> = {
+  PASS: "success",
+  FAIL: "destructive",
+  NONE: "neutral",
+};
+
+/** Loại cơ sở (nhãn ở `domains/facility/types.ts` — `campusKindLabel`): trường chính nổi, phân hiệu / điểm trường trung tính. */
+export const CAMPUS_KIND_VARIANTS: Record<"main" | "branch" | "site", BadgeVariant> = {
+  main: "info",
+  branch: "neutral",
+  site: "neutral",
 };

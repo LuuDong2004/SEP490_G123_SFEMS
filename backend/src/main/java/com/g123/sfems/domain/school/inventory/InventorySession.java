@@ -1,6 +1,8 @@
 package com.g123.sfems.domain.school.inventory;
 
 import com.g123.sfems.domain.school.facility.Room;
+import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
+import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
 import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.CascadeType;
@@ -18,14 +20,16 @@ import java.util.List;
 import org.hibernate.annotations.BatchSize;
 
 /**
- * Phiếu kiểm kê của một trường (KK-03..KK-07) — cũng là biên bản kiểm kê.
+ * Phiếu kiểm kê của một trường — cũng là biên bản kiểm kê.
  *
- * <p>Lúc lập, phiếu CHỤP sổ tài sản (cả trường, hoặc một phòng): mỗi tài sản một dòng, ghi sổ nói nó ở
- * đâu và tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy thật. Chênh lệch là khoảng cách giữa hai cột.
+ * <p>Lúc lập, phiếu CHỤP sổ tài sản (cả trường, hoặc một phòng): mỗi tài sản một
+ * dòng, ghi sổ nói nó ở đâu và tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy
+ * thật. Chênh lệch là khoảng cách giữa hai cột đó.
  *
- * <p>Biên bản KHÔNG sửa thẳng sổ. Lãnh đạo trường duyệt xong thì mỗi loại chênh lệch được xử lý tiếp —
- * thiếu thì đánh dấu {@code MISSING}, hỏng thì {@code BROKEN}, sai vị trí thì cập nhật phòng, thừa thì
- * lập phiếu nhập nháp — và ghi vào lịch sử thiết bị.
+ * <p>Biên bản KHÔNG sửa thẳng sổ. Lãnh đạo trường duyệt xong thì mỗi loại chênh
+ * lệch sinh một phiếu nháp tương ứng — thiếu thì đề nghị ghi giảm, hỏng thì báo
+ * hỏng, sai vị trí thì điều chuyển nội bộ, thừa thì phiếu nhập — và mỗi phiếu đó
+ * có người duyệt như bình thường.
  */
 @RowLevelResource("inventory_sessions")
 @Entity
@@ -47,6 +51,13 @@ public class InventorySession extends SchoolVoucher {
     @JoinColumn(name = "room_id")
     private Room room;
 
+    /**
+     * Kiểm kê toàn CƠ SỞ (271): phòng trống mà người lập bị giới hạn trong một cơ sở — biên bản chỉ phủ cơ sở đó, không
+     * chặn cơ sở khác. Phòng trống và cột này trống = cả trường.
+     */
+    @Column(name = "campus_id")
+    private Long campusId;
+
     /** Thành phần tổ kiểm kê. */
     @Column(length = 1000)
     private String council;
@@ -65,11 +76,6 @@ public class InventorySession extends SchoolVoucher {
     private List<InventorySurplus> surplus = new ArrayList<>();
 
     @Override
-    public String resource() {
-        return "inventory_sessions";
-    }
-
-    @Override
     public String numberPrefix() {
         return "KK";
     }
@@ -77,6 +83,11 @@ public class InventorySession extends SchoolVoucher {
     @Override
     public LocalDate documentDate() {
         return inventoryDate;
+    }
+
+    @Override
+    public List<ApprovalStep> approvalChain() {
+        return ApprovalFlowType.INVENTORY_SESSIONS.defaultSteps();
     }
 
     public InventoryCampaign getCampaign() {
@@ -101,6 +112,14 @@ public class InventorySession extends SchoolVoucher {
 
     public void setInventoryDate(LocalDate inventoryDate) {
         this.inventoryDate = inventoryDate;
+    }
+
+    public Long getCampusId() {
+        return campusId;
+    }
+
+    public void setCampusId(Long campusId) {
+        this.campusId = campusId;
     }
 
     public Room getRoom() {
@@ -133,11 +152,9 @@ public class InventorySession extends SchoolVoucher {
 
     public void replaceLines(List<InventoryLine> replacement) {
         lines.clear();
-        if (replacement != null) {
-            for (InventoryLine line : replacement) {
-                line.setSession(this);
-                lines.add(line);
-            }
+        for (InventoryLine line : replacement) {
+            line.setSession(this);
+            lines.add(line);
         }
     }
 
@@ -147,11 +164,9 @@ public class InventorySession extends SchoolVoucher {
 
     public void replaceSurplus(List<InventorySurplus> replacement) {
         surplus.clear();
-        if (replacement != null) {
-            for (InventorySurplus item : replacement) {
-                item.setSession(this);
-                surplus.add(item);
-            }
+        for (InventorySurplus item : replacement) {
+            item.setSession(this);
+            surplus.add(item);
         }
     }
 }

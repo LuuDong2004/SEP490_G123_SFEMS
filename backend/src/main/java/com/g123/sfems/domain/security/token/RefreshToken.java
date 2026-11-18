@@ -50,7 +50,7 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    /** Phiên đăng nhập: giữ nguyên qua mỗi lần xoay vòng — token mới của một lần làm mới thuộc cùng phiên (QLTB-242). */
+    /** Phiên đăng nhập: giữ nguyên qua mỗi lần xoay vòng — token mới của một lần làm mới thuộc cùng phiên. */
     @Column(name = "session_id", nullable = false, length = 36)
     private String sessionId;
 

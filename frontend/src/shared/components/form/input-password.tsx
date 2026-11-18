@@ -9,7 +9,7 @@ import { cn } from "@/shared/lib/utils";
 type InputPasswordProps = React.ComponentProps<"input">;
 
 /**
- * Ô mật khẩu có nút hiện / ẩn. Khoảng trắng bị bỏ ngay khi gõ hoặc dán (QLTB-508) — máy chủ cũng bỏ, nên
+ * Ô mật khẩu có nút hiện / ẩn. Khoảng trắng bị bỏ ngay khi gõ hoặc dán — máy chủ cũng bỏ, nên
  * người dùng thấy đúng chuỗi sẽ được dùng.
  */
 export const InputPassword = ({ className, onChange, ...props }: InputPasswordProps) => {

@@ -15,14 +15,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Các danh mục cố định, chỉ đọc (DM-01). Không có mã quyền riêng: đây là nhãn của các giá trị mà mọi
- * màn nghiệp vụ đều hiển thị, chỉ cần đăng nhập như mọi {@code /api}.
+ * Các danh mục cố định, chỉ đọc — {@code EnumCatalogView} của bản Jmix.
+ *
+ * <p>Không cần mã quyền riêng: đây là nhãn của các giá trị mà mọi màn nghiệp vụ
+ * đều hiển thị, không có gì để giấu. Chỉ cần đăng nhập, như mọi {@code /api}.
  */
 @RestController
 @RequestMapping("/api/enum_catalogs")
 public class EnumCatalogController {
 
-    /** Tên trên đường dẫn → enum. Chỉ những enum khai ở đây mới đọc được. */
+    /** Tên trên URL -> enum. Chỉ những enum khai ở đây mới đọc được. */
     private static final Map<String, Class<? extends LabeledEnum>> CATALOGS = Map.of(
             "asset_categories", AssetCategory.class,
             "usage_purposes", UsagePurpose.class,

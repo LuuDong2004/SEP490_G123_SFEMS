@@ -1,5 +1,5 @@
 import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "@refinedev/react-hook-form";
 import { useNavigate } from "react-router";
 
@@ -9,6 +9,7 @@ import {
 } from "@/shared/components/views/edit-view";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { inputModeOf, maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
 import {
   Select,
   SelectContent,
@@ -25,32 +26,27 @@ import {
   FormLabel,
   FormMessage,
 } from "@/shared/ui/form";
-import { PlacementField, placementProblem, type PlacementMode } from "@/features/administration/users/placement-field";
-import { RolePicker, useRolePlacement } from "@/features/administration/users/role-picker";
-import type { ManagingBodyRef } from "@/features/administration/users/managing-body-picker";
-import type { SchoolRef } from "@/features/administration/users/school-picker";
+import { ProfileFields, profilePayload, type ProfileKind } from "@/features/administration/users/profile-fields";
+import { RolePicker } from "@/features/administration/users/role-picker";
+import { ResetMfaCard } from "@/features/administration/users/reset-mfa-card";
 import { ResetPasswordCard } from "@/features/administration/users/reset-password-card";
-import { STATUS_OPTIONS, type User } from "@/domains/user/types";
+import { STATUS_OPTIONS, USER_TYPE_LABELS, type User, type UserProfile } from "@/domains/user/types";
+import { Label } from "@/shared/ui/label";
 import { FormSection } from "@/shared/components/form/form-section";
 import {
   FormActions,
   FormPanel,
 } from "@/shared/components/form/form-panel";
 
-/**
- * Trims a placement down to the `{ id }` ref the API reads, preserving the
- * three states it distinguishes.
- *
- * `null` means the field is absent from the request — leave it as it is, which
- * is the right answer for an account that was unplaced and was not touched.
- * `{ id: null }` is the picker's way of saying "clear it", and has to survive
- * intact. Anything else arrived from the API as a full summary object and goes
- * back as its id alone.
- */
-function toSchoolRef(value: unknown): SchoolRef | null {
-  if (value == null) return null;
-  const id = (value as { id?: number | string | null }).id;
-  return { id: id == null ? null : Number(id) };
+/** Một ô chỉ đọc cùng cỡ ô nhập — đơn vị công tác không sửa được trên form này. */
+function ReadOnlyLine({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      <span className="bg-muted/50 text-foreground flex h-9 items-center truncate rounded-md px-3 text-sm">{value}</span>
+      {hint ? <FormHint>{hint}</FormHint> : null}
+    </div>
+  );
 }
 
 /**
@@ -94,14 +90,10 @@ export const UserEdit = () => {
     reset(user, { keepDirtyValues: true });
   }, [user, reset]);
 
-  const placement = useRolePlacement(form.watch("school"), form.watch("managingBody"));
-  const [placementMode, setPlacementMode] = useState<PlacementMode>("school");
-  const [placementError, setPlacementError] = useState<string | null>(null);
+  const profileKind: ProfileKind | null = !user ? null
+    : user.userType === "SYSTEM" ? "system" : user.userType === "SCHOOL" ? "school" : "agency";
 
   function onSubmit(values: Record<string, unknown>) {
-    const problem = placementProblem(placementMode, values.school as SchoolRef | null, values.managingBody as ManagingBodyRef | null);
-    setPlacementError(problem);
-    if (problem) return;
     // `roles` arrives from the API as full objects and goes back as `{ id }`
     // refs. The API ignores the extra keys, but trimming them keeps the request
     // an honest statement of what is being changed.
@@ -109,11 +101,13 @@ export const UserEdit = () => {
       ? (values.roles as { id: number }[]).map((role) => ({ id: role.id }))
       : values.roles;
 
+    // Đơn vị không gửi lại: máy chủ không cho đổi, bỏ khoá là "để nguyên".
+    const { school: _school, managingBody: _body, userType: _type, ...rest } = values;
+    void _school; void _body; void _type;
     onFinish({
-      ...values,
+      ...rest,
       roles,
-      school: toSchoolRef(values.school),
-      managingBody: toSchoolRef(values.managingBody) as ManagingBodyRef | null,
+      profile: profileKind ? profilePayload(profileKind, values.profile as Partial<UserProfile> | null) : undefined,
     });
   }
 
@@ -138,19 +132,15 @@ export const UserEdit = () => {
               <FormField
                 control={form.control}
                 name="username"
-                rules={{
+                rules={mergeRules(textRules("USERNAME", "Tên đăng nhập", { max: 100 }), {
                   required: "Tên đăng nhập là bắt buộc",
-                  minLength: { value: 3, message: "Tối thiểu 3 ký tự" },
-                  pattern: {
-                    value: /^[a-zA-Z0-9._-]+$/,
-                    message: "Chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối",
-                  },
-                }}
+                  minLength: { value: 3, message: "Tên đăng nhập tối thiểu 3 ký tự" },
+                })}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tên đăng nhập</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
+                      <Input {...field} value={field.value ?? ""} maxLength={maxLengthOf("USERNAME", 100)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -160,18 +150,12 @@ export const UserEdit = () => {
               <FormField
                 control={form.control}
                 name="email"
-                rules={{
-                  required: "Email là bắt buộc",
-                  pattern: {
-                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: "Nhập địa chỉ email hợp lệ",
-                  },
-                }}
+                rules={mergeRules(textRules("EMAIL", "Email"), { required: "Email là bắt buộc" })}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" value={field.value ?? ""} />
+                      <Input {...field} type="email" value={field.value ?? ""} maxLength={maxLengthOf("EMAIL")} inputMode={inputModeOf("EMAIL")} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -181,12 +165,12 @@ export const UserEdit = () => {
               <FormField
                 control={form.control}
                 name="fullName"
-                rules={{ required: "Họ tên là bắt buộc" }}
+                rules={mergeRules(textRules("NAME", "Họ tên"), { required: "Họ tên là bắt buộc" })}
                 render={({ field }) => (
                   <FormItem className="@3xl:col-span-2">
                     <FormLabel>Họ tên</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ""} />
+                      <Input {...field} value={field.value ?? ""} maxLength={maxLengthOf("NAME")} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -228,22 +212,16 @@ export const UserEdit = () => {
               </FormSection>
 
               <FormSection title="Nơi công tác" compact>
-              {/*
-                Trường / cơ quan của chính bản ghi được truyền vào BÊN CẠNH giá trị form:
-                đó là thứ làm ô chọn hiện đúng tên trước khi danh sách kịp về, và giữ nó
-                đọc được với một vai trò được sửa tài khoản nhưng không được đọc danh sách.
-              */}
-              <PlacementField
-                school={form.watch("school")}
-                managingBody={form.watch("managingBody")}
-                onSchoolChange={(value) => form.setValue("school", value, { shouldDirty: true })}
-                onManagingBodyChange={(value) => form.setValue("managingBody", value, { shouldDirty: true })}
-                currentSchool={user?.school}
-                currentManagingBody={user?.managingBody}
-                onModeChange={setPlacementMode}
-                error={placementError}
-                emptyRecord={!!user && !user.school && !user.managingBody}
-              />
+              {/* Đơn vị công tác cố định từ lúc tạo (docs/kien-truc/11): đổi trường / cơ quan = tạo tài khoản mới. */}
+              <div className="@container space-y-5">
+                <div className="grid items-start gap-5 @md:grid-cols-2">
+                  <ReadOnlyLine label="Loại tài khoản" value={user ? USER_TYPE_LABELS[user.userType] : "—"} />
+                  <ReadOnlyLine label={user?.school ? "Trường" : "Cơ quan quản lý"}
+                    value={user?.school?.name ?? user?.managingBody?.name ?? "Không thuộc đơn vị"}
+                    hint="Không đổi được. Chuyển đơn vị thì tạo tài khoản mới." />
+                </div>
+                {profileKind ? <ProfileFields control={form.control} kind={profileKind} /> : null}
+              </div>
               </FormSection>
 
               <FormSection title="Phân quyền" compact className="border-b-0 pb-0">
@@ -259,7 +237,7 @@ export const UserEdit = () => {
                   <FormItem>
                     <FormLabel>Vai trò</FormLabel>
                     <FormControl>
-                      <RolePicker value={field.value} onChange={field.onChange} placement={placement} />
+                      <RolePicker value={field.value} onChange={field.onChange} userType={user?.userType ?? null} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -285,6 +263,7 @@ export const UserEdit = () => {
         </Form>
 
         {userId != null && <ResetPasswordCard userId={userId} />}
+        {userId != null && <ResetMfaCard userId={userId} />}
       </div>
     </EditView>
   );

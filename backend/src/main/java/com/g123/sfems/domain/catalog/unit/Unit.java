@@ -1,27 +1,38 @@
 package com.g123.sfems.domain.catalog.unit;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
+import java.math.BigDecimal;
 
-/** Đơn vị tính (DM-01): cái, bộ, chiếc, hộp, kg, lít… */
+/**
+ * Đơn vị tính — danh mục dùng chung, toàn cục cho mọi trường.
+ *
+ * <p>Hình dạng chung nằm ở {@link CatalogEntity}; riêng đơn vị tính có cờ CHO PHÉP SỐ LẺ —
+ * kg, g, lít, ml, mét chia được, cái / chiếc / bộ / bình thì không (không có 0,5 cái máy tính).
+ * Không mang {@code @RowLevelResource}: không cột nào nói bản ghi thuộc về ai.
+ */
 @Entity
 @Table(name = "units")
 public class Unit extends CatalogEntity {
 
-    /**
-     * Cho phép số lẻ: kg, g, lít, ml, mét chia được (0,25 kg hoá chất), còn cái, bộ, chai thì chỉ đếm
-     * số nguyên (không có 0,5 cái máy tính).
-     */
     @Column(name = "allows_fraction", nullable = false)
-    private Boolean allowsFraction = Boolean.FALSE;
+    private boolean allowsFraction;
 
-    public Boolean getAllowsFraction() {
+    public boolean isAllowsFraction() {
         return allowsFraction;
     }
 
-    public void setAllowsFraction(Boolean allowsFraction) {
-        this.allowsFraction = allowsFraction == null ? Boolean.FALSE : allowsFraction;
+    public void setAllowsFraction(boolean allowsFraction) {
+        this.allowsFraction = allowsFraction;
+    }
+
+    /** Số lượng này có hợp với đơn vị không: số lẻ chỉ được khi đơn vị chia được. */
+    public static boolean accepts(Unit unit, BigDecimal quantity) {
+        if (quantity == null || quantity.stripTrailingZeros().scale() <= 0) {
+            return true;
+        }
+        return unit != null && unit.isAllowsFraction();
     }
 }

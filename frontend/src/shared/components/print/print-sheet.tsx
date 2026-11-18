@@ -1,27 +1,29 @@
-import type { ReactNode } from "react";
+import { useResourceParams } from "@refinedev/core";
+import { Printer } from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
+
+import { logExport } from "@/shared/api/export-log";
+import { Button } from "@/shared/ui/button";
 
 export type PrintTable = { headers: string[]; rows: ReactNode[][]; alignRight?: number[] };
 
 /**
- * Bản in của một chứng từ hoặc báo cáo: quốc hiệu, tên đơn vị, tên chứng từ, các thông tin, bảng, và khối chữ ký.
+ * Bản in của một chứng từ hoặc báo cáo: quốc hiệu, tên đơn vị, tên chứng từ,
+ * các thông tin, bảng, và khối chữ ký.
  *
- * <p>Chỉ hiện khi in (`hidden print:block`); phần màn hình tương ứng mang `print:hidden`. Tách hẳn hai bố cục thay vì
- * in chính màn hình, vì thứ người ta ký và đóng dấu có hình dạng riêng — quốc hiệu, "Người lập phiếu" / "Thủ trưởng
+ * <p>Chỉ hiện khi in (`hidden print:block`); phần màn hình tương ứng mang
+ * `print:hidden`. Tách hẳn hai bố cục thay vì in chính màn hình, vì thứ người ta
+ * ký và đóng dấu có hình dạng riêng — quốc hiệu, "Người lập phiếu" / "Thủ trưởng
  * đơn vị" ở cuối trang — mà màn hình làm việc không có và không nên có.
  *
- * <p>"Lưu thành PDF" của hộp thoại in là đường xuất PDF: trình duyệt nhúng đúng phông tiếng Việt đang hiển thị, thứ
- * một bộ sinh PDF phía máy chủ phải tự lo.
+ * <p>"Lưu thành PDF" của hộp thoại in là đường xuất PDF: trình duyệt nhúng đúng
+ * phông tiếng Việt đang hiển thị, thứ một bộ sinh PDF phía máy chủ phải tự lo.
+ *
+ * <p>Mỗi lần mở hộp thoại in (nút In, menu, hay Ctrl+P) khi bản in đang có trên trang thì ghi một dòng
+ * nhật ký hoạt động "xuất PDF" — tên bản in, phụ đề (phạm vi, bộ lọc), số dòng bảng. Trình duyệt không cho biết
+ * người dùng in thật hay bấm Huỷ, nên dòng nhật ký là "đã mở bản in".
  */
-export function PrintSheet({
-  unit,
-  parentUnit,
-  title,
-  subtitle,
-  facts = [],
-  table,
-  signers = [],
-  children,
-}: {
+export type PrintSheetProps = {
   unit?: string | null;
   parentUnit?: string | null;
   title: string;
@@ -30,10 +32,39 @@ export function PrintSheet({
   table?: PrintTable;
   signers?: string[];
   children?: ReactNode;
-}) {
+  /** Tài nguyên ghi vào nhật ký khi in; mặc định là resource của trang. */
+  logResource?: string;
+};
+
+export function PrintSheet(props: PrintSheetProps) {
+  const { title, subtitle, table, logResource } = props;
+  const { resource, identifier } = useResourceParams();
+  const latest = useRef({ resource: "", detail: "", rows: undefined as number | undefined });
+  latest.current = {
+    resource: logResource ?? identifier ?? resource?.name ?? window.location.pathname.split("/")[1] ?? "",
+    detail: [title, typeof subtitle === "string" ? subtitle : null].filter(Boolean).join(" · "),
+    rows: table?.rows.length,
+  };
+  useEffect(() => {
+    const onPrint = () => logExport({ ...latest.current, format: "PDF" });
+    window.addEventListener("beforeprint", onPrint);
+    return () => window.removeEventListener("beforeprint", onPrint);
+  }, []);
+  return (
+    <div className="hidden print:block">
+      <PrintSheetBody {...props} />
+    </div>
+  );
+}
+
+/**
+ * Thân bản in (quốc hiệu, tên, bảng, chữ ký) — dùng cho {@link PrintSheet} khi in và cho hộp "Xem báo cáo"
+ * ({@link ReportPreviewDialog}) trên màn hình: người xem thấy đúng tờ sẽ in / tải, không phải tải về mới biết.
+ */
+export function PrintSheetBody({ unit, parentUnit, title, subtitle, facts = [], table, signers = [], children }: PrintSheetProps) {
   const today = new Date();
   return (
-    <div className="hidden text-[11pt] leading-snug text-black print:block">
+    <div className="text-[11pt] leading-snug text-black">
       <div className="grid grid-cols-2 gap-4 text-center">
         <div>
           {parentUnit ? <div className="uppercase">{parentUnit}</div> : null}
@@ -99,5 +130,15 @@ export function PrintSheet({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Nút in — mở hộp thoại in của trình duyệt (in giấy hoặc lưu PDF). */
+export function PrintButton({ label = "In / Xuất PDF" }: { label?: string }) {
+  return (
+    <Button type="button" variant="outline" onClick={() => window.print()}>
+      <Printer />
+      {label}
+    </Button>
   );
 }

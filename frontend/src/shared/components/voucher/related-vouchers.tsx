@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpLeft } from "lucide-react";
 import { Link } from "react-router";
 
+import { kyInstance } from "@/shared/api/data";
 import { VOUCHER_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
@@ -9,8 +11,8 @@ import { VOUCHER_ROUTES } from "@/domains/equipment/types";
 import { humanizeResource } from "@/domains/permission/types";
 import { voucherStatusText, type VoucherStatus } from "@/domains/voucher/types";
 
-/** Một phiếu liên quan: phiếu gốc đã sinh ra phiếu này, hoặc phiếu sinh ra từ nó. */
-export type VoucherLink = {
+/** Một phiếu liên quan (`GET /api/voucher_links`, máy chủ `VoucherLinks`). */
+type VoucherLink = {
   direction: "source" | "child";
   resource: string;
   id: number;
@@ -38,7 +40,7 @@ function Row({ link }: { link: VoucherLink }) {
       {link.name ? <span className="text-muted-foreground truncate">{link.name}</span> : null}
       {link.status ? (
         <Badge variant={VOUCHER_STATUS_VARIANTS[link.status] ?? "neutral"} className="ms-auto">
-          {voucherStatusText(link.status, null, false)}
+          {voucherStatusText(link.status, null, false, link.resource)}
         </Badge>
       ) : null}
     </li>
@@ -46,11 +48,17 @@ function Row({ link }: { link: VoucherLink }) {
 }
 
 /**
- * Phiếu liên quan của một phiếu: phiếu GỐC đã sinh ra nó (đề xuất mua sắm → ghi tăng, kiểm kê → ghi tăng) và các
- * phiếu sinh ra TỪ nó. Màn phiếu truyền `links` lấy từ bản ghi (vd. `source` của phiếu ghi tăng). Không có phiếu
- * nào liên quan thì không vẽ gì.
+ * Phiếu liên quan của một phiếu: phiếu GỐC đã sinh ra nó và các phiếu sinh ra TỪ nó (báo hỏng → sửa chữa, sửa chữa
+ * không được → thanh lý, kiểm kê → ghi giảm / cấp phát / ghi tăng, kế hoạch bảo trì → phiếu bảo trì…). Không có phiếu
+ * nào liên quan thì không vẽ gì. Dùng chung cho mọi màn chi tiết phiếu (`VoucherShowShell` tự gắn).
  */
-export function RelatedVouchers({ links }: { links: VoucherLink[] }) {
+export function RelatedVouchers({ resource, id }: { resource: string; id?: number | null }) {
+  const { data } = useQuery({
+    queryKey: ["voucher_links", resource, id],
+    queryFn: ({ signal }) => kyInstance.get("voucher_links", { signal,  searchParams: { resource, id: String(id) } }).json<VoucherLink[]>(),
+    enabled: !!id,
+  });
+  const links = data ?? [];
   if (links.length === 0) {
     return null;
   }

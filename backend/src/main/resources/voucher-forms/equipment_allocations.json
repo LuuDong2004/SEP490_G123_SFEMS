@@ -1,0 +1,54 @@
+{
+ "resource": "equipment_allocations",
+ "sections": [
+  {
+   "title": "Bàn giao",
+   "fields": [
+    {
+     "key": "handoverMinutesNo",
+     "label": "Số biên bản bàn giao",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "accessories",
+     "label": "Phụ kiện",
+     "kind": "text",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "accumulatedDepreciation",
+  "commitmentNote",
+  "conditionAtAllocation",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatus",
+  "fiscalYear",
+  "fundingSource",
+  "handoverBy",
+  "issuingUnit",
+  "issuingWarehouse",
+  "linkedDocuments",
+  "proposer",
+  "receiverName",
+  "recipientDepartment",
+  "recipientManager",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "totalValue",
+  "unit",
+  "usageTermNote"
+ ],
+ "enums": {}
+}

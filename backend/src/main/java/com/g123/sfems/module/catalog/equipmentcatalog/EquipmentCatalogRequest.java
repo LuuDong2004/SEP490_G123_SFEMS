@@ -1,5 +1,7 @@
 package com.g123.sfems.module.catalog.equipmentcatalog;
 
+import java.util.List;
+
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.equipmentcatalog.DepreciationMethod;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
@@ -10,26 +12,57 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
-import java.util.List;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
+/** Payload tạo nhóm thiết bị. */
 public record EquipmentCatalogRequest(
-        @Size(max = 64) @Pattern(regexp = "^[A-Za-z0-9._-]*$") String code,
-        @NotBlank @Size(max = 255) String name,
-        @PositiveOrZero Integer sortOrder, Boolean active, @Size(max = 500) String note,
-        @Pattern(regexp = "^$|^[A-Z]{3}$") String teachingCode,
-        IdRef parent, IdRef equipmentType, IdRef subject, IdRef educationLevel, IdRef grade, IdRef unit,
-        @Size(max = 255) String model, @Size(max = 255) String manufacturer,
-        TrackingType trackingType, AssetCategory assetCategory, PhysicalDigitalType physicalOrDigital,
-        DepreciationMethod depreciationMethod, @Min(0) @Max(100) Integer usefulLifeYears,
-        @Size(max = 64) String statisticalCode, @Size(max = 255) String legalBasis,
-        @Size(max = 20000) String description, Boolean usedByTeacher, Boolean usedByStudent,
+        @NotBlank(message = "Mã DM thiết bị là bắt buộc")
+        @Text(value = FieldRule.CODE, label = "Mã DM thiết bị", max = 64)
+        String code,
+        @NotBlank(message = "Tên là bắt buộc")
+        @Text(value = FieldRule.NAME, label = "Tên")
+        String name,
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
+        Boolean active,
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
+        String note,
+        @Pattern(regexp = "^$|^[A-Z]{3}$", message = "Mã loại chuẩn gồm đúng 3 chữ in hoa")
+        String teachingCode,
+        IdRef parent,
+        IdRef equipmentType,
+        IdRef subject,
+        IdRef educationLevel,
+        IdRef grade,
+        IdRef unit,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Model")
+        String model,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất")
+        String manufacturer,
+        TrackingType trackingType,
+        AssetCategory assetCategory,
+        PhysicalDigitalType physicalOrDigital,
+        DepreciationMethod depreciationMethod,
+        @Min(value = 0, message = "Số năm không được âm")
+        @Max(value = 100, message = "Số năm tối đa 100")
+        Integer usefulLifeYears,
+        @Text(value = FieldRule.CODE, label = "Mã thống kê", max = 64)
+        String statisticalCode,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Căn cứ pháp lý")
+        String legalBasis,
+        @Text(value = FieldRule.LONG_TEXT, label = "Mô tả chi tiết", max = 20000)
+        String description,
+        Boolean usedByTeacher,
+        Boolean usedByStudent,
         Boolean selfMade,
+        Boolean minimumRequired,
         /**
-         * Chọn NHIỀU môn, nhiều khối: mục đầu là cái chính (cột {@code subject_id}, {@code grade_id}), các mục
-         * sau là môn, khối thêm. {@code null} là không đụng tới; danh sách rỗng là bỏ hết.
+         * Chọn NHIỀU: mục đầu là cái CHÍNH (ghi vào cột chính), các mục sau là thêm. Có danh sách thì nó thay
+         * cho trường đơn cùng nghĩa; vắng ({@code null}) thì trường đơn vẫn dùng như trước.
          */
-        @Size(max = 20, message = "Chọn tối đa 20 môn") List<IdRef> subjects,
-        @Size(max = 3, message = "Chọn tối đa 3 khối") List<IdRef> grades) implements CatalogInput {
+        List<IdRef> educationLevels,
+        List<IdRef> subjects,
+        List<IdRef> grades) implements CatalogInput {
 }

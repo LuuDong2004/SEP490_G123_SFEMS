@@ -11,10 +11,11 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * Một bước trong vòng đời của một phiếu: ai, lúc nào, từ trạng thái nào sang trạng thái nào, nói gì.
+ * Một bước trong vòng đời của một phiếu: ai, lúc nào, từ trạng thái nào sang
+ * trạng thái nào, nói gì.
  *
- * <p>Một bảng cho MỌI loại phiếu, khoá bằng cặp {@code (resource, voucherId)}. Chỉ thêm, không bao
- * giờ sửa hay xoá — đây là vết, và một vết sửa được thì không còn là vết.
+ * <p>Chỉ thêm, không bao giờ sửa hay xoá — đây là vết, và một vết sửa được thì
+ * không còn là vết.
  */
 @Entity
 @Table(name = "voucher_events")
@@ -26,7 +27,9 @@ public class VoucherEvent {
         RETURN,
         REJECT,
         CANCEL,
-        COMPLETE
+        COMPLETE,
+        /** Trường nhận báo nhận thiếu / sai tình trạng: trả về trường chuyển bổ sung (luồng 5). */
+        DISPUTE
     }
 
     @Id

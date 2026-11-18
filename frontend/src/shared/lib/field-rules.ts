@@ -30,12 +30,13 @@ const pattern = (rule: TextRule) => {
 export const maxLengthOf = (rule: TextRule, max?: number) => (max && max > 0 ? max : TEXT[rule].max);
 
 /** Lỗi của giá trị theo kiểu, đã gắn nhãn — `undefined` khi hợp lệ. Rỗng luôn hợp lệ (bắt buộc là `required`). */
-export function textError(rule: TextRule, label: string, value: unknown, max?: number): string | undefined {
+export function textError(rule: TextRule, label: string, value: unknown, max?: number, min?: number): string | undefined {
   if (value == null || value === "") return undefined;
   const s = String(value).trim();
   if (s === "") return undefined;
   const limit = maxLengthOf(rule, max);
   if ([...s].length > limit) return `${label} tối đa ${limit} ký tự`;
+  if (min && [...s].length < min) return `${label} tối thiểu ${min} ký tự`;
   const spec = TEXT[rule];
   const checked = spec.strip ? s.replace(new RegExp(spec.strip, "g"), "") : s;
   if (checked === "" || !pattern(rule).test(checked)) return `${label} ${spec.message}`;
@@ -52,7 +53,9 @@ export function numberError(rule: NumberRule, label: string, value: unknown): st
   if (Number.isNaN(n)) return `${label} phải là số`;
   const spec = NUMBER[rule];
   const top = numberMax(rule);
-  if (n < spec.min || n > top) return `${label} phải từ ${vn(spec.min)} đến ${vn(top)}`;
+  // Năm in liền (2027), không ngăn hàng nghìn như số tiền (2.027).
+  const show = (x: number) => (rule === "YEAR" ? String(x) : vn(x));
+  if (n < spec.min || n > top) return `${label} phải từ ${show(spec.min)} đến ${show(top)}`;
   const decimals = (String(value).split(".")[1] ?? "").replace(/0+$/, "").length;
   if (decimals > spec.scale) {
     return spec.scale === 0 ? `${label} phải là số nguyên` : `${label} tối đa ${spec.scale} chữ số thập phân`;
@@ -83,9 +86,9 @@ type Rules = { required?: string; validate?: Record<string, (v: unknown) => true
 const required = (label: string, on?: boolean) => (on ? { required: `${label} là bắt buộc` } : {});
 
 /** Luật react-hook-form cho ô chữ. */
-export const textRules = (rule: TextRule, label: string, opts: { required?: boolean; max?: number } = {}): Rules => ({
+export const textRules = (rule: TextRule, label: string, opts: { required?: boolean; max?: number; min?: number } = {}): Rules => ({
   ...required(label, opts.required),
-  validate: { [rule]: (v) => textError(rule, label, v, opts.max) ?? true },
+  validate: { [rule]: (v) => textError(rule, label, v, opts.max, opts.min) ?? true },
 });
 
 export const numberRules = (rule: NumberRule, label: string, opts: { required?: boolean } = {}): Rules => ({
@@ -112,3 +115,14 @@ export const inputModeOf = (rule?: TextRule): "tel" | "email" | "url" | undefine
   rule === "PHONE" ? "tel" : rule === "EMAIL" ? "email" : rule === "URL" ? "url" : undefined;
 
 export const PASSWORD_LIMITS = RULES.password;
+
+/**
+ * Độ dài tối đa của Ô TÌM (lọc danh sách, hộp chọn, menu lọc). Đặt mặc định ở `Input` / `CommandInput` dùng chung —
+ * ô có chữ gợi ý hoặc `aria-label` bắt đầu bằng "Tìm", hoặc `type="search"` — nên ô tìm mới không phải tự nhớ. Từ khoá
+ * dài hơn không có nghĩa, và một chuỗi liền vài nghìn ký tự từng làm tràn màn trống (13/11/2026).
+ */
+export const SEARCH_MAX = 100;
+
+/** Ô này có phải ô tìm không — theo `type="search"` hoặc chữ gợi ý / `aria-label` bắt đầu bằng "Tìm". */
+export const isSearchField = (props: { type?: string; placeholder?: unknown; "aria-label"?: unknown }) =>
+  props.type === "search" || [props.placeholder, props["aria-label"]].some((v) => typeof v === "string" && /^\s*Tìm/i.test(v));

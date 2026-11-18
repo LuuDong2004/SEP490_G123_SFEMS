@@ -1,5 +1,6 @@
 import type { AuthProvider } from "@refinedev/core";
 
+import { portalBase } from "@/shared/api/portal";
 import { API_URL } from "@/shared/api/constants";
 import { connect, disconnect } from "@/shared/api/live";
 import { queryClient } from "@/shared/api/query-client";
@@ -9,6 +10,7 @@ import {
   getAuthorities,
   getIdentity,
   getRefreshToken,
+  homePath,
   loadAuthorities,
   refreshSession,
   revalidateAuthorities,
@@ -53,6 +55,7 @@ export const authProvider: AuthProvider = {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Màn đăng nhập chung: không gửi `area`, máy chủ nhận mọi loại tài khoản (docs/kien-truc/02).
         body: JSON.stringify({ username, password, code: code || undefined }),
       });
 
@@ -96,8 +99,13 @@ export const authProvider: AuthProvider = {
       // (đăng xuất không tải lại trang). Xoá ở đây chứ không lúc đăng xuất: lúc
       // này chỉ còn màn đăng nhập, không màn nào đang giữ truy vấn để bị gỡ ngang.
       queryClient.clear();
-      // Về trang chủ. Nếu địa chỉ đăng nhập mang `?to=` (bị đẩy ra khi đang ở một trang) thì Refine ưu tiên nó.
-      return { success: true, redirectTo: "/" };
+      // Vào cổng của loại tài khoản (docs/kien-truc/11): tải lại trang để giao diện dựng với gốc `/school`, `/so`…
+      // Cán bộ thiết bị vào thẳng danh sách thiết bị, các vai khác vào Tổng hợp (`homePath`); địa chỉ đăng nhập mang
+      // `?to=` (bị đẩy ra khi đang ở một trang) thì quay lại đúng trang đó.
+      const to = new URLSearchParams(window.location.search).get("to");
+      const target = to && to.startsWith("/") && !to.startsWith("//") ? to : homePath();
+      window.location.replace(`${portalBase()}${target.replace(/^\/(admin|so|ubnd|school)(?=\/|$)/, "") || "/"}`);
+      return { success: true };
     } catch {
       return {
         success: false,
@@ -136,7 +144,10 @@ export const authProvider: AuthProvider = {
     // that has signed out, and hand the next account somebody else's channel.
     disconnect();
     clearSession();
-    return { success: true, redirectTo: "/login" };
+    // Ra khỏi cổng: tải lại ở gốc để người đăng nhập sau vào đúng cổng của họ.
+    // Mọi loại tài khoản về cùng một màn đăng nhập.
+    window.location.replace("/login");
+    return { success: true };
   },
 
   /**

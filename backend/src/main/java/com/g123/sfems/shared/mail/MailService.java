@@ -1,5 +1,6 @@
 package com.g123.sfems.shared.mail;
 
+import com.g123.sfems.shared.security.DeployStack;
 import com.g123.sfems.shared.security.PersonalData;
 
 import org.slf4j.Logger;
@@ -12,12 +13,14 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 /**
- * Gửi thư (mã xác thực hai lớp, link đặt lại mật khẩu — QLTB-509).
+ * Gửi thư (mã xác thực hai lớp, link đặt lại mật khẩu).
  *
  * <p>Máy chủ thư khai bằng {@code spring.mail.*} (host, port, username, password) trong
- * {@code backend/.env} hoặc biến môi trường. CHƯA khai thì Spring không dựng
+ * {@code application-local.properties} hoặc biến môi trường. CHƯA khai thì Spring không dựng
  * {@link JavaMailSender}, và thư được ghi ra log ở mức WARN thay vì gửi — môi trường dev thử được luồng
- * đăng nhập mà không cần SMTP. Gửi hỏng thì báo lỗi lên trên: người dùng phải biết thư không đi.
+ * đăng nhập mà không cần SMTP. Bản chính thức KHÔNG ghi nội dung: thư mang link đặt lại mật khẩu và mã
+ * đăng nhập, ai đọc được log là chiếm được tài khoản. Gửi hỏng thì báo lỗi lên trên: người dùng phải biết
+ * thư không đi.
  */
 @Service
 public class MailService {
@@ -26,15 +29,22 @@ public class MailService {
 
     private final ObjectProvider<JavaMailSender> sender;
     private final String from;
+    private final DeployStack stack;
 
     public MailService(ObjectProvider<JavaMailSender> sender,
-                       @Value("${app.mail.from:no-reply@qltb.local}") String from) {
+                       @Value("${app.mail.from:no-reply@qltb.local}") String from,
+                       DeployStack stack) {
         this.sender = sender;
         this.from = from;
+        this.stack = stack;
     }
 
     public void send(String to, String subject, String body) {
         JavaMailSender mail = sender.getIfAvailable();
+        if (mail == null && stack.production()) {
+            log.error("Chưa cấu hình máy chủ thư (spring.mail.host) — thư \"{}\" tới {} KHÔNG được gửi", subject, to);
+            return;
+        }
         if (mail == null) {
             log.warn("Chưa cấu hình máy chủ thư (spring.mail.host) — thư KHÔNG được gửi.\nTới: {}\nTiêu đề: {}\n{}",
                     to, subject, body);

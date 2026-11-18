@@ -8,6 +8,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/acquisition_methods} — mã quyền {@code acquisition_methods:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/acquisition_methods")
 public class AcquisitionMethodController extends CatalogController<AcquisitionMethod, CatalogRequest, CatalogPatchRequest> {

@@ -5,6 +5,7 @@ import com.g123.sfems.module.security.user.api.dto.SetPasswordRequest;
 import com.g123.sfems.module.security.user.api.dto.UserPatchRequest;
 import com.g123.sfems.module.security.user.api.dto.UserRequest;
 import com.g123.sfems.module.security.user.api.dto.UserResponse;
+import com.g123.sfems.module.security.user.service.PasswordResetService;
 import com.g123.sfems.module.security.user.service.UserService;
 import com.g123.sfems.shared.security.Permissions;
 import com.g123.sfems.shared.web.ListParams;
@@ -43,9 +44,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService service;
+    private final PasswordResetService invites;
 
-    public UserController(UserService service) {
+    public UserController(UserService service, PasswordResetService invites) {
         this.service = service;
+        this.invites = invites;
     }
 
     /**
@@ -82,9 +85,15 @@ public class UserController {
     @PreAuthorize("hasAuthority('" + Permissions.USERS_WRITE + "')")
     public ResponseEntity<UserResponse> create(@Valid @RequestBody UserRequest request) {
         User created = service.create(request);
-        return ResponseEntity
-                .created(URI.create("/api/users/" + created.getId()))
-                .body(UserResponse.from(created));
+        // Không nhập mật khẩu: gửi thư mời tự đặt mật khẩu (sau khi tài khoản đã ghi). Header nói thư đi đâu để màn
+        // hình báo lại cho người tạo.
+        boolean invite = request.password() == null || request.password().isBlank();
+        String sentTo = invite ? invites.invite(created) : null;
+        ResponseEntity.BodyBuilder response = ResponseEntity.created(URI.create("/api/users/" + created.getId()));
+        if (sentTo != null) {
+            response.header("X-Invite-Sent-To", sentTo);
+        }
+        return response.body(UserResponse.from(created));
     }
 
     /**
@@ -112,7 +121,7 @@ public class UserController {
     }
 
     /** Echoes the deleted row — the data provider parses the response body. */
-    /** Phiên đăng nhập đang mở của tài khoản (QLTB-242). */
+    /** Phiên đăng nhập đang mở của tài khoản. */
     @GetMapping("/{id}/sessions")
     @PreAuthorize("hasAuthority('" + Permissions.USERS_READ + "')")
     public List<RefreshTokenService.SessionView> sessions(@PathVariable Long id) {

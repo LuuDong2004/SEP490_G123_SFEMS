@@ -1,0 +1,120 @@
+{
+ "resource": "depreciation_orders",
+ "sections": [
+  {
+   "title": "Thông tin chứng từ",
+   "fields": [
+    {
+     "key": "depreciationPeriod",
+     "label": "Kỳ tính",
+     "kind": "text",
+     "max": 50,
+     "hint": "Tính theo tháng, quý hay năm."
+    },
+    {
+     "key": "sourceDocument",
+     "label": "Chứng từ nguồn",
+     "kind": "text",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  },
+  {
+   "title": "Thông tin quản lý và khai thác",
+   "fields": [
+    {
+     "key": "usageConditionPeriod",
+     "label": "Tình trạng sử dụng",
+     "kind": "text",
+     "max": 255
+    }
+   ]
+  },
+  {
+   "title": "Thông tin căn cứ và phương pháp tính hao mòn",
+   "fields": [
+    {
+     "key": "calculationType",
+     "label": "Loại tính",
+     "kind": "text",
+     "max": 50,
+     "hint": "Hao mòn (thiết bị dùng cho hoạt động sự nghiệp) hay khấu hao (thiết bị dùng cho dịch vụ có thu)."
+    },
+    {
+     "key": "periodStartDate",
+     "label": "Ngày bắt đầu kỳ tính",
+     "kind": "date"
+    },
+    {
+     "key": "periodEndDate",
+     "label": "Ngày kết thúc kỳ tính",
+     "kind": "date"
+    },
+    {
+     "key": "legalBasis",
+     "label": "Căn cứ áp dụng",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "periodDurationNote",
+     "label": "Số tháng, ngày tính",
+     "kind": "text",
+     "max": 100,
+     "wide": true,
+     "hint": "Số tháng, số ngày được tính trong kỳ khi thiết bị không dùng trọn kỳ."
+    },
+    {
+     "key": "accountingEntry",
+     "label": "Bút toán hạch toán",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "checkedBy",
+     "label": "Kế toán kiểm tra",
+     "kind": "text",
+     "max": 255,
+     "suggest": "staff"
+    },
+    {
+     "key": "specialCases",
+     "label": "Trường hợp đặc biệt",
+     "kind": "textarea",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "approvedBy",
+  "assetType",
+  "calculationUnit",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "equipmentFormationSource",
+  "equipmentLocation",
+  "exploitationStatus",
+  "fiscalYear",
+  "fundingSource",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "managerUser",
+  "managingDepartment",
+  "preparedBy",
+  "schoolYear",
+  "signedBy"
+ ],
+ "enums": {}
+}

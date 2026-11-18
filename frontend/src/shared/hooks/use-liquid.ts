@@ -40,8 +40,12 @@ export function useLiquid<B extends HTMLElement = HTMLElement>(key: unknown, { s
     const h = tab.offsetHeight;
     const prev = last.current;
     // Nền đã ở đúng chỗ (đổi cỡ, phông tải xong, StrictMode chạy hiệu ứng lần hai): không đụng vào — đặt lại lúc
-    // này sẽ thay `transition` và cắt ngang hiệu ứng đang chạy.
-    if (!first.current && prev && prev.l === l && prev.t === t && prev.w === w && prev.h === h) return;
+    // này sẽ thay `transition` và cắt ngang hiệu ứng đang chạy. Nhưng vẫn bật hiện: nền có thể vừa bị ẩn tạm lúc tab
+    // chưa đo được (trang dựng lại khi bấm Back) — thiếu dòng này chữ tab đang chọn thành trắng trên nền trắng.
+    if (!first.current && prev && prev.l === l && prev.t === t && prev.w === w && prev.h === h) {
+      ind.style.opacity = "1";
+      return;
+    }
     const dir = !prev ? 0 : Math.sign(l - prev.l) || Math.sign(t - prev.t);
     const reduced = isMotionReduced();
     // Lần đặt ĐẦU TIÊN đo được sau khi dựng lại cũng là một lần đổi tab (có chỗ cũ trong bộ nhớ) → chạy hiệu ứng.

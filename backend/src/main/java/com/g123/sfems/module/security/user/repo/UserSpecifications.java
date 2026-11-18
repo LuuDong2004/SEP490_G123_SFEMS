@@ -1,11 +1,18 @@
 package com.g123.sfems.module.security.user.repo;
 
+import com.g123.sfems.domain.security.user.SchoolUser;
+import com.g123.sfems.domain.security.user.SoUser;
+import com.g123.sfems.domain.security.user.SystemUser;
 import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.domain.security.user.UserStatus;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
 
 /**
@@ -34,7 +41,8 @@ public final class UserSpecifications {
                 // The list view filters by role through the nested id the
                 // response reports, so the field arrives as "roles.id".
                 case "roles.id", "roleId" -> roleSpec(criterion);
-                case "school.id", "schoolId" -> placementSpec("school", criterion);
+                case "school.id", "schoolId" -> placementSpec(criterion);
+                case "userType" -> typeSpec(criterion);
                 default -> null;
             };
             if (spec != null) {
@@ -45,9 +53,9 @@ public final class UserSpecifications {
         // The quick filter is one term matched across the three text columns,
         // because the provider has no way to express an OR across fields.
         params.search().ifPresent(term -> specs.add((root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("username")), ListParams.likePattern(term)),
-                cb.like(cb.lower(root.get("email")), ListParams.likePattern(term)),
-                cb.like(cb.lower(root.get("fullName")), ListParams.likePattern(term)))));
+                ListParams.foldedLike(cb, root.get("username"), term),
+                ListParams.foldedLike(cb, root.get("email"), term),
+                ListParams.foldedLike(cb, root.get("fullName"), term))));
 
         List<Long> ids = params.ids();
         if (!ids.isEmpty()) {
@@ -76,7 +84,7 @@ public final class UserSpecifications {
         String value = criterion.value();
         return switch (criterion.operator()) {
             case LIKE -> (root, query, cb) ->
-                    cb.like(cb.lower(root.get(field)), ListParams.likePattern(value));
+                    ListParams.foldedLike(cb, root.get(field), value);
             case NE -> (root, query, cb) -> cb.notEqual(cb.lower(root.get(field)), value.toLowerCase());
             default -> (root, query, cb) -> cb.equal(cb.lower(root.get(field)), value.toLowerCase());
         };
@@ -103,9 +111,9 @@ public final class UserSpecifications {
     /**
      * Filters by an assigned role.
      *
-     * <p>The join is inner and the query distinct: a user holding the role once
-     * must appear once, and the many-to-many would otherwise multiply rows and
-     * corrupt the page total.
+     * <p>An {@code EXISTS} over the roles rather than a join + {@code distinct}: the join would multiply rows,
+     * and {@code distinct} breaks sorting by {@code school.name} (PostgreSQL wants every ORDER BY expression of a
+     * DISTINCT query in its select list).
      */
     private static Specification<User> roleSpec(ListParams.Criterion criterion) {
         Long roleId = parseId(criterion.value());
@@ -113,42 +121,50 @@ public final class UserSpecifications {
             return (root, query, cb) -> cb.disjunction();
         }
         return (root, query, cb) -> {
-            if (query != null) {
-                query.distinct(true);
-            }
-            return cb.equal(root.join("roles", JoinType.INNER).get("id"), roleId);
+            Subquery<Long> holders = query.subquery(Long.class);
+            Root<User> holder = holders.from(User.class);
+            holders.select(holder.get("id")).where(
+                    cb.equal(holder.get("id"), root.get("id")),
+                    cb.equal(holder.join("roles", JoinType.INNER).get("id"), roleId));
+            return cb.exists(holders);
         };
     }
 
     /**
-     * Lọc theo {@code school.id}.
-     *
-     * <p>No {@code distinct}, unlike {@link #roleSpec}: both are to-one
-     * associations, so the join cannot duplicate a row the way the roles
-     * collection can.
-     *
-     * <p>{@code _ne} CỐ Ý khớp cả những dòng có giá trị rỗng — "không thuộc
-     * trường này" hiển nhiên bao gồm "không thuộc trường nào", trong khi một
-     * phép bất đẳng thức trần trong SQL lại loại chúng ra, vì {@code NULL <> 3}
-     * là unknown chứ không phải true.
-     *
-     * <p>Join BẮT BUỘC phải là {@code LEFT} tường minh thì điều trên mới đúng.
-     * Viết {@code root.get("school").get("id")} sẽ để JPA thêm một
-     * <em>inner</em> join, which removes the unplaced rows before the
-     * {@code IS NULL} branch above ever gets to see them — a filter that looks
-     * right, reads right, and quietly returns a subset.
+     * Lọc theo trường ({@code school.id}). Trường nằm ở bảng con {@code user_schools} (docs/kien-truc/11), nên đi qua
+     * truy vấn con trên {@link SchoolUser}. {@code _ne} CỐ Ý khớp cả tài khoản không thuộc trường nào (Sở, UBND,
+     * quản trị) — "không thuộc trường này" hiển nhiên gồm "không thuộc trường nào".
      */
-    private static Specification<User> placementSpec(String attribute, ListParams.Criterion criterion) {
+    private static Specification<User> placementSpec(ListParams.Criterion criterion) {
         Long id = parseId(criterion.value());
         if (id == null) {
             return (root, query, cb) -> cb.disjunction();
         }
         return (root, query, cb) -> {
-            var placement = root.join(attribute, JoinType.LEFT);
-            return criterion.operator() == ListParams.Operator.NE
-                    ? cb.or(cb.isNull(placement.get("id")), cb.notEqual(placement.get("id"), id))
-                    : cb.equal(placement.get("id"), id);
+            Subquery<Long> members = query.subquery(Long.class);
+            Root<SchoolUser> su = members.from(SchoolUser.class);
+            members.select(su.get("id")).where(cb.equal(su.get("school").get("id"), id));
+            var in = root.get("id").in(members);
+            return criterion.operator() == ListParams.Operator.NE ? cb.not(in) : in;
         };
+    }
+
+    /** Lọc theo loại tài khoản (SYSTEM / SO / SCHOOL) — theo lớp con. */
+    private static Specification<User> typeSpec(ListParams.Criterion criterion) {
+        UserType type;
+        try {
+            type = UserType.valueOf(criterion.value().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return (root, query, cb) -> cb.disjunction();
+        }
+        Class<? extends User> subtype = switch (type) {
+            case SYSTEM -> SystemUser.class;
+            case SO -> SoUser.class;
+            case SCHOOL -> SchoolUser.class;
+        };
+        return (root, query, cb) -> criterion.operator() == ListParams.Operator.NE
+                ? cb.notEqual(root.type(), subtype)
+                : cb.equal(root.type(), subtype);
     }
 
     private static Long parseId(String value) {

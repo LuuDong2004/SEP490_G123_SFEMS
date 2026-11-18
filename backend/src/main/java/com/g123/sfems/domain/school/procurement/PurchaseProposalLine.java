@@ -17,8 +17,9 @@ import java.math.BigDecimal;
 /**
  * Một dòng đề xuất: nhóm thiết bị, số lượng, đơn giá dự kiến.
  *
- * <p>{@link #currentQuantity} và {@link #requiredQuantity} là ẢNH CHỤP lúc lưu — số đang dùng được và
- * số định mức yêu cầu (NC-01 so với DM-03) — để người duyệt thấy vì sao trường xin mà không phải tra sổ.
+ * <p>{@link #currentQuantity} và {@link #requiredQuantity} là ẢNH CHỤP lúc lưu
+ * đề xuất — số đang dùng được và số định mức yêu cầu — để người duyệt thấy vì
+ * sao trường xin mà không phải đi tra sổ của trường.
  */
 @Entity
 @Table(name = "purchase_proposal_lines")
@@ -70,11 +71,18 @@ public class PurchaseProposalLine {
     private Integer priority = 2;
 
     /**
-     * Số ĐƯA VÀO KẾ HOẠCH, từ 0 (bỏ dòng) tới {@link #quantity} — Sở bớt khi ngân sách không đủ (NC-06).
-     * {@code null}: chưa vào kế hoạch nào. Phiếu nhập lập từ đề xuất đọc số này.
+     * Số ĐƯA VÀO KẾ HOẠCH mua sắm, từ 0 (bỏ dòng) tới {@link #quantity} — cơ quan bớt khi ngân sách không đủ
+     * (126). {@code null}: đề xuất chưa vào kế hoạch nào. Phiếu ghi tăng lập từ đề xuất đọc số này.
      */
     @Column(name = "planned_quantity")
     private Integer plannedQuantity;
+
+    /**
+     * Đơn giá do cơ quan lập kế hoạch xác định (270). {@code null}: theo đơn giá trường ghi — trường không bắt buộc
+     * ghi giá lúc đề xuất. Xem {@link #effectiveUnitPrice()}.
+     */
+    @Column(name = "planned_unit_price", precision = 18, scale = 2)
+    private BigDecimal plannedUnitPrice;
 
     @Column(name = "current_quantity")
     private Integer currentQuantity;
@@ -85,13 +93,47 @@ public class PurchaseProposalLine {
     @Column(length = 255)
     private String note;
 
+    /** Trường chứng từ theo app Jmix cũ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String details = "{}";
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details == null ? "{}" : details;
+    }
+
+    /** Thành tiền theo số trường đề nghị; giá là giá kế hoạch khi cơ quan đã đặt (trường không bắt buộc ghi giá). */
     public BigDecimal amount() {
-        return unitPrice == null || quantity == null ? null : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        BigDecimal price = effectiveUnitPrice();
+        return price == null || quantity == null ? null : price.multiply(BigDecimal.valueOf(quantity));
     }
 
     /** Số sẽ mua: số đưa vào kế hoạch nếu đã vào kế hoạch, không thì số đề nghị. */
     public int effectiveQuantity() {
         return plannedQuantity != null ? plannedQuantity : quantity == null ? 0 : quantity;
+    }
+
+    /** Đơn giá sẽ mua: giá cơ quan đặt trên kế hoạch nếu có, không thì giá trường ghi (có thể {@code null}). */
+    public BigDecimal effectiveUnitPrice() {
+        return plannedUnitPrice != null ? plannedUnitPrice : unitPrice;
+    }
+
+    /** Thành tiền theo số và giá sẽ mua. */
+    public BigDecimal plannedAmount() {
+        BigDecimal price = effectiveUnitPrice();
+        return price == null ? BigDecimal.ZERO : price.multiply(BigDecimal.valueOf(effectiveQuantity()));
+    }
+
+    public BigDecimal getPlannedUnitPrice() {
+        return plannedUnitPrice;
+    }
+
+    public void setPlannedUnitPrice(BigDecimal plannedUnitPrice) {
+        this.plannedUnitPrice = plannedUnitPrice;
     }
 
     public Long getId() {
@@ -174,16 +216,16 @@ public class PurchaseProposalLine {
         return priority;
     }
 
-    public void setPriority(Integer priority) {
-        this.priority = priority == null ? 2 : priority;
-    }
-
     public Integer getPlannedQuantity() {
         return plannedQuantity;
     }
 
     public void setPlannedQuantity(Integer plannedQuantity) {
         this.plannedQuantity = plannedQuantity;
+    }
+
+    public void setPriority(Integer priority) {
+        this.priority = priority == null ? 2 : priority;
     }
 
     public Integer getCurrentQuantity() {

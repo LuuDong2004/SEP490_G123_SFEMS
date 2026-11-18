@@ -7,78 +7,68 @@ import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.base.SchoolOwnedInput;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
 
-/**
- * Payload sửa hồ sơ thiết bị, ngữ nghĩa patch: {@code null} là để nguyên.
- *
- * <p>{@code status} và {@code condition} đi qua {@link EquipmentLifecycle}, nên mỗi lần đổi đều có dòng
- * lịch sử. Trường không được đổi qua đây: {@code school} (cố định sau khi tạo), {@code intakeLine} (do
- * phiếu nhập gắn).
- */
+/** Payload sửa thiết bị. {@code null} là để nguyên; {@code specs} gửi lên là thay cả bộ. */
 public record EquipmentPatchRequest(
-        @Size(max = 64, message = "Mã tối đa 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]*$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Size(min = 1, message = "Mã thiết bị không được để trống")
+        @Text(value = FieldRule.CODE, label = "Mã thiết bị")
         String code,
-
-        @Size(max = 255, message = "Tên tối đa 255 ký tự") String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Size(min = 1, message = "Tên thiết bị không được để trống")
+        @Text(value = FieldRule.NAME, label = "Tên thiết bị", max = 200, min = 2)
+        String name,
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,
-
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
+        String note,
         IdRef school,
-
         IdRef catalog,
-
         PhysicalDigitalType physicalOrDigital,
-
         AssetCategory assetCategory,
-
-        @Size(max = 100) String serialNumber,
-
-        @Size(max = 255) String model,
-
-        @Size(max = 255) String manufacturer,
-
+        @Text(value = FieldRule.SERIAL, label = "Số serial", min = 3)
+        String serialNumber,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Model", max = 50)
+        String model,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất", max = 100)
+        String manufacturer,
+        @Text(value = FieldRule.NOTE, label = "Thông tin khác")
+        String otherInfo,
         IdRef unit,
-
+        @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Số lượng")
         BigDecimal quantity,
-
         IdRef originSource,
-
         IdRef acquisitionMethod,
-
         FundingSource fundingSource,
-
-        @Size(max = 255) String originNote,
-
-        @Size(max = 255) String fundingNote,
-
-        @Size(max = 255) String acquisitionNote,
-
+        @Num(value = NumberRule.YEAR, label = "Năm sản xuất")
         Integer productionYear,
-
+        @Num(value = NumberRule.YEAR, label = "Năm đưa vào sử dụng")
         Integer usageStartYear,
-
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày tiếp nhận")
         LocalDate receivedDate,
-
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày mua")
         LocalDate purchaseDate,
-
-        @PositiveOrZero(message = "Nguyên giá không được âm") BigDecimal originalValue,
-
+        @Num(value = NumberRule.MONEY, label = "Nguyên giá")
+        BigDecimal originalValue,
+        @Num(value = NumberRule.MONEY, label = "Giá trị còn lại")
+        BigDecimal remainingValue,
+        @DateValue(value = DateRule.ANY, label = "Hạn bảo hành")
         LocalDate warrantyExpiry,
-
-        AssetStatus status,
-
+        // Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất.
+        @DateValue(value = DateRule.ANY, label = "Hạn sử dụng")
+        LocalDate expiryDate,
+        IdRef room,
+        IdRef manager,
         EquipmentCondition condition,
-
+        AssetStatus status,
+        IdRef config,
         Map<String, String> specs) implements SchoolOwnedInput {
 }

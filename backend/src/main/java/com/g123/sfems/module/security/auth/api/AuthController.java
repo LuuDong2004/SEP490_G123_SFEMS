@@ -7,13 +7,13 @@ import com.g123.sfems.module.security.auth.api.dto.LoginRequest;
 import com.g123.sfems.module.security.auth.api.dto.RefreshRequest;
 import com.g123.sfems.module.security.auth.api.dto.TokenResponse;
 import com.g123.sfems.module.security.auth.service.AuthService;
-import com.g123.sfems.module.security.auth.service.SignInSchoolLookup;
 import com.g123.sfems.module.security.token.service.RefreshTokenService.Client;
 import com.g123.sfems.module.security.user.service.PasswordResetService;
 import com.g123.sfems.shared.security.PasswordPolicy;
 import com.g123.sfems.shared.security.ActivityActor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -46,33 +45,37 @@ public class AuthController {
 
     private final AuthService service;
     private final PasswordResetService passwordReset;
-    private final SignInSchoolLookup schoolLookup;
 
-    public AuthController(AuthService service, PasswordResetService passwordReset, SignInSchoolLookup schools) {
+    public AuthController(AuthService service, PasswordResetService passwordReset) {
         this.service = service;
         this.passwordReset = passwordReset;
-        this.schoolLookup = schools;
     }
 
-    /** Ô "Trường" của màn đăng nhập (HT-01) — MỞ, vì lúc này chưa có phiên. */
-    @GetMapping("/schools")
-    public List<SignInSchoolLookup.Option> schools(@RequestParam(required = false) String q,
-            @RequestParam(name = "_start", defaultValue = "0") int start) {
-        return schoolLookup.find(q, start);
+    public record ForgotPasswordRequest(
+            @Size(max = 254, message = "Tên đăng nhập hoặc email tối đa 254 ký tự")
+            String login) {
     }
 
-    public record ForgotPasswordRequest(String login) {
+    public record ResetPasswordRequest(
+            @Size(max = 512, message = "Mã đặt lại mật khẩu không hợp lệ")
+            String token,
+
+            @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
+            String newPassword) {
     }
 
-    public record ResetPasswordRequest(String token, String newPassword) {
+    /** Đăng xuất: không đòi token — đăng xuất phải chạy được cả khi token đã chết hoặc không còn. */
+    public record LogoutRequest(
+            @Size(max = 512, message = "Mã làm mới phiên đăng nhập không hợp lệ")
+            String refreshToken) {
     }
 
     /**
-     * Quên mật khẩu (QLTB-509) — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
+     * Quên mật khẩu — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
      * không: form này không được thành chỗ dò tài khoản.
      */
     @PostMapping("/forgot-password")
-    public Map<String, Object> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+    public Map<String, Object> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         passwordReset.request(request.login());
         return Map.of("success", true,
                 "message", "Nếu tài khoản có email, link đặt lại mật khẩu đã được gửi tới đó. Kiểm tra hộp thư trong vài phút.");
@@ -80,7 +83,7 @@ public class AuthController {
 
     /** Đặt mật khẩu mới bằng link trong thư — MỞ; token là thứ chứng minh quyền. */
     @PostMapping("/reset-password")
-    public Map<String, Object> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public Map<String, Object> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         passwordReset.reset(request.token(), PasswordPolicy.strip(request.newPassword()));
         return Map.of("success", true);
     }
@@ -105,7 +108,7 @@ public class AuthController {
         return service.refresh(request.refreshToken(), client(http));
     }
 
-    /** Phiên đăng nhập đang mở của chính mình (QLTB-242). */
+    /** Phiên đăng nhập đang mở của chính mình. */
     @GetMapping("/sessions")
     public List<AuthService.MySession> sessions() {
         return service.mySessions();
@@ -139,7 +142,7 @@ public class AuthController {
      * every call it makes, and an empty one reads as a failure.
      */
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout(@RequestBody(required = false) RefreshRequest request,
+    public ResponseEntity<Map<String, Object>> logout(@Valid @RequestBody(required = false) LogoutRequest request,
             HttpServletRequest http) {
         ActivityActor.id(http, service.logout(request == null ? null : request.refreshToken()));
         return ResponseEntity.ok(Map.of("success", true));

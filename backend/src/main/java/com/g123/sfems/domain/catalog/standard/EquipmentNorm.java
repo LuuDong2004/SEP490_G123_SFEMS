@@ -15,14 +15,22 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
- * Một dòng định mức (DM-03): nhóm thiết bị nào, cần tối thiểu bao nhiêu, tính trên cái gì. Báo cáo
- * "mức đáp ứng" (BC-03) so số thiết bị dùng được của trường với {@code minQuantity × cơ sở tính}.
+ * Một dòng của Danh mục thiết bị dạy học tối thiểu — đúng một dòng phụ lục của thông tư: thiết bị
+ * nào, cho môn nào, chủ đề nào, dùng cho GV hay HS, bao nhiêu (theo lớp / trường / nhóm học sinh /
+ * giáo viên / phòng bộ môn), lớp nào.
  *
- * <p>{@code code} / {@code name} của lớp nền là số thứ tự và tên dòng trong phụ lục thông tư. Trỏ vào
- * {@link #catalog} khi dòng đã ghép được với danh mục thiết bị; chưa ghép thì vẫn giữ được mô tả.
+ * <p>Gắn với MỘT thiết bị trong Danh mục thiết bị ({@link #catalog}) — đó là thứ phần đủ / thiếu
+ * đếm. Loại thiết bị chỉ còn là nhãn phân loại (095). Số lượng giữ cả nguyên văn
+ * ({@link #quantityText}) lẫn phần đã hiểu ({@link #minQuantity}, {@link #normBasis},
+ * {@link #basisSize}); {@code minQuantity} trống là phụ lục không ghi số — không tính tự động.
+ *
+ * <p>Môn học, loại phòng để trống nghĩa là không ràng buộc theo chiều đó; {@link #gradeLevels}
+ * trống là mọi lớp của cấp học.
  */
 @Entity
 @Table(name = "equipment_norms")
@@ -31,14 +39,6 @@ public class EquipmentNorm extends CatalogEntity {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "standard_id", nullable = false)
     private EquipmentStandard standard;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "source_document_id")
-    private EquipmentStandardDocument sourceDocument;
-
-    public EquipmentStandardDocument getSourceDocument() { return sourceDocument; }
-
-    public void setSourceDocument(EquipmentStandardDocument sourceDocument) { this.sourceDocument = sourceDocument; }
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "catalog_id")
@@ -56,45 +56,38 @@ public class EquipmentNorm extends CatalogEntity {
     @JoinColumn(name = "grade_id")
     private Grade grade;
 
-    /** Phòng bộ môn mà dòng này tính cho (khi {@code normBasis = PER_ROOM}). */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "room_type_id")
     private RoomType roomType;
 
-    /** Số lượng tối thiểu trên một đơn vị cơ sở ({@link #basisSize} đơn vị). */
     @Column(name = "min_quantity", precision = 14, scale = 3)
     private BigDecimal minQuantity;
 
-    /** Cơ sở tính: "1 bộ / 2 lớp" là {@code minQuantity = 1, basisSize = 2}. Trống là 1. */
+    /** Mẫu số của căn cứ: 6 trong "01/6HS", 5 trong "01 bộ/5 lớp". Trống là 1. */
     @Column(name = "basis_size")
     private Integer basisSize;
 
-    /** Số lượng và đơn vị NHƯ TRONG VĂN BẢN, giữ nguyên chữ để đối chiếu khi số không quy được. */
+    /** Cột "Số lượng" nguyên văn của phụ lục. */
     @Column(name = "quantity_text", length = 100)
     private String quantityText;
 
+    /** Cột "Đơn vị" nguyên văn, khi không khớp danh mục đơn vị tính. */
     @Column(name = "unit_text", length = 50)
     private String unitText;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "unit_id")
-    private Unit unit;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "norm_basis", nullable = false, length = 20)
-    private NormBasis normBasis = NormBasis.PER_SCHOOL;
-
-    /** Số thứ tự trong phụ lục ("I.1.3"). */
-    @Column(name = "item_no", length = 20)
-    private String itemNo;
-
+    /** "6,7" — các lớp áp dụng; trống là mọi lớp của cấp học. */
     @Column(name = "grade_levels", length = 40)
     private String gradeLevels;
 
+    /** Số thứ tự trong phụ lục ("1.2"). */
+    @Column(name = "item_no", length = 20)
+    private String itemNo;
+
+    /** Nhóm trong phụ lục: "Thiết bị dùng chung › Tranh ảnh". */
     @Column(name = "section_name", length = 500)
     private String sectionName;
 
-    /** Chủ đề / mục của phụ lục chứa dòng này. */
+    /** Chủ đề / mạch nội dung dạy học. */
     @Column(length = 500)
     private String topic;
 
@@ -110,9 +103,47 @@ public class EquipmentNorm extends CatalogEntity {
     @Column(name = "for_student", nullable = false)
     private boolean forStudent;
 
-    /** Thiết bị "nên có" chứ không bắt buộc — không tính vào mức đáp ứng. */
+    /**
+     * Dòng của nhóm tự chọn (ngoại ngữ lựa chọn 2, 3; Công nghệ THPT theo định hướng; dụng cụ môn thể
+     * thao tự chọn) — trường chọn phương án nào thì trang bị phương án đó, nên không vào đủ / thiếu.
+     */
     @Column(nullable = false)
     private boolean optional;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "unit_id")
+    private Unit unit;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "norm_basis", nullable = false, length = 20)
+    private NormBasis normBasis = NormBasis.PER_SCHOOL;
+
+    /** Văn bản (trong bộ tiêu chuẩn) quy định dòng này. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "source_document_id")
+    private EquipmentStandardDocument sourceDocument;
+
+    /** Ngày dòng bắt đầu áp dụng (changelog 267). */
+    @Column(name = "effective_from", nullable = false)
+    private LocalDate effectiveFrom;
+
+    /** Ngày dòng thôi áp dụng — không tính ngày này; {@code null} = còn áp dụng. */
+    @Column(name = "effective_to")
+    private LocalDate effectiveTo;
+
+    /** Dòng mà dòng này thay (sửa = đóng dòng cũ, mở dòng mới cùng mã). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "replaces_norm_id")
+    private EquipmentNorm replaces;
+
+    /** Văn bản căn cứ của lần bỏ / thay dòng này. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "end_document_id")
+    private EquipmentStandardDocument endDocument;
+
+    /** Dòng thay dòng này (nếu có) — điền khi đọc danh sách, không lưu. */
+    @Transient
+    private Long replacedById;
 
     public EquipmentStandard getStandard() {
         return standard;
@@ -194,20 +225,12 @@ public class EquipmentNorm extends CatalogEntity {
         this.unitText = unitText;
     }
 
-    public Unit getUnit() {
-        return unit;
+    public String getGradeLevels() {
+        return gradeLevels;
     }
 
-    public void setUnit(Unit unit) {
-        this.unit = unit;
-    }
-
-    public NormBasis getNormBasis() {
-        return normBasis;
-    }
-
-    public void setNormBasis(NormBasis normBasis) {
-        this.normBasis = normBasis == null ? NormBasis.PER_SCHOOL : normBasis;
+    public void setGradeLevels(String gradeLevels) {
+        this.gradeLevels = gradeLevels;
     }
 
     public String getItemNo() {
@@ -218,13 +241,13 @@ public class EquipmentNorm extends CatalogEntity {
         this.itemNo = itemNo;
     }
 
-    public String getGradeLevels() { return gradeLevels; }
+    public String getSectionName() {
+        return sectionName;
+    }
 
-    public void setGradeLevels(String gradeLevels) { this.gradeLevels = gradeLevels; }
-
-    public String getSectionName() { return sectionName; }
-
-    public void setSectionName(String sectionName) { this.sectionName = sectionName; }
+    public void setSectionName(String sectionName) {
+        this.sectionName = sectionName;
+    }
 
     public String getTopic() {
         return topic;
@@ -272,5 +295,83 @@ public class EquipmentNorm extends CatalogEntity {
 
     public void setOptional(boolean optional) {
         this.optional = optional;
+    }
+
+    public Unit getUnit() {
+        return unit;
+    }
+
+    public void setUnit(Unit unit) {
+        this.unit = unit;
+    }
+
+    public NormBasis getNormBasis() {
+        return normBasis;
+    }
+
+    public void setNormBasis(NormBasis normBasis) {
+        this.normBasis = normBasis == null ? NormBasis.PER_SCHOOL : normBasis;
+    }
+
+    public EquipmentStandardDocument getSourceDocument() {
+        return sourceDocument;
+    }
+
+    public void setSourceDocument(EquipmentStandardDocument sourceDocument) {
+        this.sourceDocument = sourceDocument;
+    }
+
+    public LocalDate getEffectiveFrom() {
+        return effectiveFrom;
+    }
+
+    public void setEffectiveFrom(LocalDate effectiveFrom) {
+        this.effectiveFrom = effectiveFrom;
+    }
+
+    public LocalDate getEffectiveTo() {
+        return effectiveTo;
+    }
+
+    public void setEffectiveTo(LocalDate effectiveTo) {
+        this.effectiveTo = effectiveTo;
+    }
+
+    public EquipmentNorm getReplaces() {
+        return replaces;
+    }
+
+    public void setReplaces(EquipmentNorm replaces) {
+        this.replaces = replaces;
+    }
+
+    public EquipmentStandardDocument getEndDocument() {
+        return endDocument;
+    }
+
+    public void setEndDocument(EquipmentStandardDocument endDocument) {
+        this.endDocument = endDocument;
+    }
+
+    public Long getReplacedById() {
+        return replacedById;
+    }
+
+    public void setReplacedById(Long replacedById) {
+        this.replacedById = replacedById;
+    }
+
+    /** Áp dụng vào ngày {@code day}. */
+    public boolean effectiveOn(LocalDate day) {
+        return effectiveFrom != null && !effectiveFrom.isAfter(day) && (effectiveTo == null || effectiveTo.isAfter(day));
+    }
+
+    /**
+     * Vế SQL "dòng {@code alias} áp dụng HÔM NAY" — mọi truy vấn tính đủ / thiếu, báo cáo đọc định mức phải ghép nó
+     * (dòng sắp áp dụng / đã thôi áp dụng vẫn nằm cùng bộ).
+     */
+    public static String effectiveTodaySql(String alias) {
+        // Ngày áp dụng (theo văn bản căn cứ) chỉ để biết — danh mục là danh sách phẳng, dòng có trong bộ là đang tính.
+        return " (" + alias + ".effective_to IS NULL OR " + alias + ".effective_to > CURRENT_DATE) ";
     }
 }

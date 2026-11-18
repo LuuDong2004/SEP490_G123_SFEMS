@@ -1,5 +1,7 @@
 package com.g123.sfems.module.security.rowlevel.api.dto;
 
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -26,9 +28,9 @@ public record RowLevelPolicyRequest(
         RoleRef role,
         @NotBlank(message = "Chọn chức năng áp dụng") @Size(max = 64) String resource,
         @NotBlank(message = "Chọn thao tác") @Size(max = 16) String action,
-        @NotBlank(message = "Nhập tên") @Size(max = 160) String name,
+        @NotBlank(message = "Nhập tên") @Text(value = FieldRule.NAME, label = "Tên", max = 160) String name,
         @Size(max = 64) String policyGroup,
-        @Size(max = 500) String description,
+        @Text(value = FieldRule.NOTE, label = "Mô tả") String description,
         @NotNull(message = "Chưa khai điều kiện") JsonNode scope,
         /**
          * The {@code WITH CHECK} clause, for a {@code write} policy: what the row

@@ -3,47 +3,40 @@ package com.g123.sfems.module.catalog.equipmentconfig;
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
 /** Payload sửa bộ thông số. {@code null} là để nguyên; danh sách gửi lên là thay cả danh sách. */
 public record EquipmentConfigPatchRequest(
-        @Size(min = 1, max = 64, message = "Mã phải từ 1 đến 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Size(min = 1, message = "Mã không được để trống")
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
-
-        @Size(min = 1, max = 255, message = "Tên phải từ 1 đến 255 ký tự")
+        @Size(min = 1, message = "Tên không được để trống")
+        @Text(value = FieldRule.NAME, label = "Tên")
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-
-        @Size(max = 500, message = "Mô tả tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Mô tả")
         String description,
-
         Boolean defaultConfig,
-
         List<IdRef> scopeTypes,
-
-        @Size(max = 100, message = "Số hiệu tối đa 100 ký tự")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Số hiệu", max = 100)
         String documentNo,
-
-        @Size(max = 255, message = "Trích yếu tối đa 255 ký tự")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Trích yếu")
         String documentName,
-
+        @DateValue(value = DateRule.ANY, label = "Ngày ban hành")
         LocalDate issueDate,
-
         IdRef startSchoolYear,
-
         IdRef endSchoolYear,
-
         @Valid
         List<ConfigAttributeInput> attributes) implements CatalogInput {
 }

@@ -7,13 +7,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Số phiếu: {@code <tiền tố>-<năm>-<5 chữ số>}, đếm lại mỗi năm, riêng cho từng trường và từng loại
- * phiếu — {@code NK-2026-00042}, {@code MS-2026-00003}.
+ * Số phiếu: {@code <tiền tố>-<năm>-<5 chữ số>}, đếm lại mỗi năm, riêng cho từng
+ * trường và từng loại phiếu — {@code NK-2026-00042}, {@code DC-2026-00003}.
  *
- * <p>Một lệnh {@code INSERT ... ON CONFLICT DO UPDATE ... RETURNING}: database khoá dòng đếm, hai
- * người trình cùng lúc nhận hai số khác nhau, không cần thử lại. Số được cấp TRONG giao dịch trình
- * phiếu — giao dịch đó cuộn lại thì số mất theo, nên dãy số có thể khuyết. Điều đó đúng hơn là dùng
- * lại: hai phiếu từng mang cùng một số là thứ không ai gỡ được về sau.
+ * <p>Tiền tố theo bộ số của ứng dụng cũ (NK nhập, CP cấp phát, DC điều chuyển,
+ * MT mượn, BX báo hỏng, SC sửa chữa, KK kiểm kê, TL thanh lý, MS mua sắm), để
+ * người đã quen số phiếu cũ đọc được số phiếu mới.
+ *
+ * <p>Một lệnh {@code INSERT ... ON CONFLICT DO UPDATE ... RETURNING}: database
+ * khoá dòng đếm, hai người trình cùng lúc nhận hai số khác nhau, không cần thử
+ * lại. Số được cấp TRONG giao dịch trình phiếu — giao dịch đó cuộn lại thì số
+ * mất theo, nên dãy số có thể khuyết. Điều đó đúng hơn là dùng lại: hai phiếu
+ * từng mang cùng một số là thứ không ai gỡ được về sau.
  */
 @Service
 public class DocumentNumberService {

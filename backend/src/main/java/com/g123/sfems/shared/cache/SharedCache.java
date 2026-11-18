@@ -34,7 +34,7 @@ public class SharedCache {
 
     private static final Logger log = LoggerFactory.getLogger(SharedCache.class);
 
-    public static final String PREFIX = "sfems:";
+    public static final String PREFIX = "qltb:";
     static final long BACKOFF_SECONDS = 30;
 
     private final StringRedisTemplate redis;

@@ -1,7 +1,10 @@
 package com.g123.sfems.shared.exception;
 
+import com.g123.sfems.shared.security.AdminAccessDeniedException;
+import com.g123.sfems.shared.security.MfaRequiredException;
 import com.g123.sfems.shared.security.rowlevel.PolicyValidationException;
 import com.g123.sfems.shared.security.rowlevel.RowLevelViolationException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -65,8 +68,9 @@ public class ApiExceptionHandler {
      * exists. It is separated from the handler below only so that the message
      * can be about credentials rather than about a token.
      */
-    @ExceptionHandler(com.g123.sfems.shared.security.MfaRequiredException.class)
-    public ResponseEntity<Map<String, Object>> handleMfaRequired(com.g123.sfems.shared.security.MfaRequiredException e) {
+    @ExceptionHandler(MfaRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleMfaRequired(MfaRequiredException e, HttpServletRequest request) {
+        request.setAttribute(MfaRequiredException.PROMPTED, Boolean.TRUE);
         ResponseEntity<Map<String, Object>> response = body(HttpStatus.UNAUTHORIZED, e.getMessage(), Map.of());
         response.getBody().put("mfaRequired", true);
         response.getBody().put("mfaMethod", e.getMethod());
@@ -99,6 +103,17 @@ public class ApiExceptionHandler {
      * Distinct from a 401 on purpose: the admin UI must not try to refresh a
      * token that is working exactly as intended.
      */
+    /**
+     * Khu quản trị từ chối (docs/kien-truc/11): IP không được phép, hoặc tài khoản quản trị chưa bật xác thực hai
+     * lớp. Câu nói đúng lý do; {@code adminBlock} ({@code ip} / {@code mfa}) cho màn hình đưa người dùng tới chỗ bật.
+     */
+    @ExceptionHandler(AdminAccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAdminBlocked(AdminAccessDeniedException e) {
+        ResponseEntity<Map<String, Object>> response = body(HttpStatus.FORBIDDEN, e.getMessage(), Map.of());
+        response.getBody().put("adminBlock", e.getReason().name().toLowerCase());
+        return response;
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException e) {
         return body(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này", Map.of());
@@ -279,8 +294,28 @@ public class ApiExceptionHandler {
     /** Thân yêu cầu không đọc được: JSON hỏng, số / ngày / lựa chọn sai dạng. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadable(HttpMessageNotReadableException e) {
+        // Biết ô nào sai (lựa chọn ngoài danh sách, chữ vào ô số…): trả kèm tên ô để form tô đỏ đúng ô đó.
+        String field = jsonField(e.getMostSpecificCause());
+        if (field != null) {
+            return body(HttpStatus.BAD_REQUEST, "Có ô mang giá trị không hợp lệ — xem ô tô đỏ",
+                    Map.of(field, "Giá trị không hợp lệ — chọn lại trong danh sách"));
+        }
         return body(HttpStatus.BAD_REQUEST,
                 "Dữ liệu gửi lên không đúng định dạng — kiểm tra lại các ô số, ngày và ô chọn", Map.of());
+    }
+
+    /** Đường dẫn ô trong thân JSON ({@code structure}, {@code building.id}); bỏ chỉ số mảng. Không biết thì {@code null}. */
+    private static String jsonField(Throwable cause) {
+        if (!(cause instanceof tools.jackson.core.JacksonException je) || je.getPath().isEmpty()) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder();
+        for (tools.jackson.core.JacksonException.Reference r : je.getPath()) {
+            if (r.getPropertyName() != null) {
+                out.append(out.isEmpty() ? "" : ".").append(r.getPropertyName());
+            }
+        }
+        return out.isEmpty() ? null : out.toString();
     }
 
     /** Tham số trên đường dẫn / query sai kiểu — {@code /api/rooms/abc}. */

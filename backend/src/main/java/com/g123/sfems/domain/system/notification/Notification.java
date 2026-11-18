@@ -17,11 +17,15 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Thông báo (HT-06): một điều ứng dụng muốn MỘT người biết — phiếu bị trả lại, đợt kiểm kê sắp hết hạn.
+ * Something the application wants one person to know about.
  *
- * <p>Gửi cho đúng một tài khoản. Thông báo cho một nhóm là chừng ấy dòng, cố ý: trạng thái đã đọc là
- * của từng người. Dòng là bản ghi; WebSocket chỉ là cách giao. Ai đang offline thì thấy nó ở lần đăng
- * nhập sau.
+ * <p>Addressed to exactly one account. A notification meant for a group is that
+ * many rows, deliberately: read state is per person, so a shared row would have
+ * to grow a join table to record who had seen it, and the first feature that
+ * wanted to delete one person's copy would be stuck.
+ *
+ * <p>The row is the record; the WebSocket is only the delivery. Whoever was
+ * offline when this was raised finds it here on their next sign-in.
  */
 @Entity
 @Table(name = "notifications")
@@ -31,6 +35,10 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Lazy, unlike the associations in the security model: nothing that reads a
+    // notification wants the recipient's row. Every query is already filtered
+    // to one account, so loading that account again per row would be N queries
+    // to re-read something the caller supplied.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "recipient_id", nullable = false)
     private User recipient;
@@ -45,11 +53,11 @@ public class Notification {
     @Column(length = 2000)
     private String body;
 
-    /** Đường dẫn frontend để mở, hoặc {@code null} khi không có gì để mở. */
+    /** A frontend route to open, or null when there is nothing to open. */
     @Column(length = 500)
     private String link;
 
-    /** {@code null} tới khi đọc — một cột trả lời cả "đã đọc chưa" và "lúc nào". */
+    /** Null until read — the timestamp answers both "is it read" and "when". */
     @Column(name = "read_at")
     private Instant readAt;
 
@@ -57,7 +65,7 @@ public class Notification {
     private Instant createdAt;
 
     protected Notification() {
-        // JPA
+        // for JPA
     }
 
     public Notification(User recipient, NotificationLevel level, String title, String body, String link) {
@@ -79,7 +87,13 @@ public class Notification {
         return readAt != null;
     }
 
-    /** Đánh dấu đã đọc, một lần: đọc lại không dời mốc thời gian. */
+    /**
+     * Marks this read, once.
+     *
+     * <p>Re-reading something does not move the timestamp: the question it
+     * answers is when it was first seen, and the bell will happily send the
+     * same id again as the list re-renders.
+     */
     public void markRead(Instant when) {
         if (readAt == null) {
             readAt = when;

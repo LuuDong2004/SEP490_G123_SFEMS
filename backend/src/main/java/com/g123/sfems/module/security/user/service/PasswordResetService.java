@@ -17,10 +17,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Quên mật khẩu (QLTB-509): người dùng nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của
+ * Quên mật khẩu: người dùng nhập tên đăng nhập hoặc email, máy chủ gửi link đặt lại tới email của
  * tài khoản; mở link, đặt mật khẩu mới (qua {@code PasswordPolicy}) là xong, mọi phiên cũ bị đăng xuất.
  *
  * <p>Câu trả lời cho yêu cầu luôn GIỐNG NHAU dù tài khoản có tồn tại, có email hay không — form quên mật khẩu
@@ -31,9 +33,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Transactional(readOnly = true)
 public class PasswordResetService {
 
+    /** Email giả khi cán bộ chưa có email ({@code StaffAccountService}): không gửi thư tới đó. */
+    public static final String PLACEHOLDER_DOMAIN = "@qltb.local";
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final Duration TTL = Duration.ofMinutes(30);
     private static final Duration THROTTLE = Duration.ofMinutes(2);
+    /** Thư mời tài khoản mới: người nhận có thể vài hôm sau mới mở thư. */
+    private static final Duration INVITE_TTL = Duration.ofDays(3);
 
     private final UserService users;
     private final LoginGuard guard;
@@ -104,6 +110,50 @@ public class PasswordResetService {
                         + "Mở link sau để đặt mật khẩu mới (hiệu lực " + TTL.toMinutes() + " phút, dùng một lần):\n"
                         + frontendUrl + "/reset-password?token=" + token + "\n\n"
                         + "Nếu không phải bạn yêu cầu, bỏ qua thư này — mật khẩu hiện tại vẫn giữ nguyên.");
+    }
+
+    /**
+     * Thư mời cho tài khoản vừa cấp: tên đăng nhập + link tự đặt mật khẩu (cùng cơ chế link đặt lại, hạn
+     * {@code INVITE_TTL}). KHÔNG gửi mật khẩu qua thư. Đang trong giao dịch thì thư đi SAU khi commit — tài khoản
+     * chưa ghi thì không mời. Gửi hỏng chỉ ghi log, không làm hỏng việc cấp tài khoản: người cấp còn mật khẩu tạm
+     * hoặc gửi lại bằng "Quên mật khẩu".
+     *
+     * @return email đã che (để màn hình báo "đã gửi tới …"), hoặc {@code null} khi tài khoản không có email thật
+     */
+    @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
+    public String invite(User user) {
+        String email = user.getEmail();
+        if (email == null || email.isBlank() || email.endsWith(PLACEHOLDER_DOMAIN)) {
+            return null;
+        }
+        String token = Hashes.urlToken(32);
+        Instant now = Instant.now();
+        jdbc.update("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                user.getId(), Hashes.sha256(token), Timestamp.from(now.plus(INVITE_TTL)), Timestamp.from(now));
+        Runnable send = () -> {
+            try {
+                mail.send(email, "Tài khoản hệ thống quản lý CSVC & thiết bị",
+                        "Chào " + user.getFullName() + ",\n\n"
+                                + "Bạn đã được cấp tài khoản trên hệ thống quản lý cơ sở vật chất và thiết bị.\n"
+                                + "Tên đăng nhập: " + user.getUsername() + "\n\n"
+                                + "Mở link sau để tự đặt mật khẩu (hiệu lực " + INVITE_TTL.toDays() + " ngày, dùng một lần):\n"
+                                + frontendUrl + "/reset-password?token=" + token + "&invite=1\n\n"
+                                + "Link hết hạn thì dùng \"Quên mật khẩu\" ở màn đăng nhập để nhận link mới.");
+            } catch (RuntimeException e) {
+                log.error("Không gửi được thư mời tới tài khoản {}: {}", user.getUsername(), e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
+        return MailService.mask(email);
     }
 
     @Transactional

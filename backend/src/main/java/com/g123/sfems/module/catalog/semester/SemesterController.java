@@ -8,6 +8,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/semesters} — mã quyền {@code semesters:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/semesters")
 public class SemesterController extends CatalogController<Semester, CatalogRequest, CatalogPatchRequest> {

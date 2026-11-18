@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/origin_sources} — mã quyền {@code origin_sources:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/origin_sources")
 public class OriginSourceController extends CatalogController<OriginSource, CatalogRequest, CatalogPatchRequest> {
@@ -27,18 +28,22 @@ public class OriginSourceController extends CatalogController<OriginSource, Cata
         return "origin_sources";
     }
 
-    /** Luật của một nguồn hình thành; {@code code} khớp mã dòng danh mục. */
+    /** Luật của một nguồn hình thành, cho màn hình: {@code code} khớp {@code code} của dòng danh mục. */
     public record Rule(String code, String name, List<FundingSource> fundingSources,
-            OriginRule.FundingRequired fundingRequired, boolean noteRequired, boolean acquisitionMethod) {
+            OriginRule.FundingRequired fundingRequired, boolean noteRequired, boolean acquisitionMethod,
+            java.util.Set<String> excludedAcquisitionMethods) {
     }
 
-    /** Nguồn hình thành nào đi với nguồn kinh phí nào; màn hình đọc ở đây thay vì tự chép bảng luật. */
+    /**
+     * Nguồn hình thành nào đi với nguồn kinh phí nào — màn hình đọc ở đây thay vì chép lại bảng luật,
+     * để ô chọn và câu từ chối của máy chủ không bao giờ lệch nhau.
+     */
     @GetMapping("/rules")
     @PreAuthorize("hasAuthority('origin_sources:read')")
     public List<Rule> rules() {
         return Arrays.stream(OriginRule.values())
-                .map(rule -> new Rule(rule.name(), rule.label(), rule.fundingSources(), rule.fundingRequired(),
-                        rule.noteRequired(), rule.acquisitionMethod()))
+                .map(r -> new Rule(r.name(), r.label(), r.fundingSources(), r.fundingRequired(), r.noteRequired(),
+                        r.acquisitionMethod(), r.excludedAcquisitionMethods()))
                 .toList();
     }
 }

@@ -15,12 +15,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * Kế hoạch mua sắm của Sở cho một năm ngân sách (NC-05..NC-07): gom các đề xuất đã duyệt của các
- * trường. Kế hoạch không có dòng riêng — nội dung của nó là các đề xuất được đưa vào
- * ({@link PurchaseProposal#getPlan()}), cộng theo nhóm thiết bị. Chuyên viên Sở lập và trình, lãnh đạo
- * Sở duyệt; duyệt xong thì mọi đề xuất trong kế hoạch hoàn tất.
+ * Kế hoạch mua sắm của một cơ quan quản lý cho một năm ngân sách: UBND gom đề
+ * xuất đã duyệt của các trường trên địa bàn, Sở gom đề xuất của các trường THPT.
  *
- * <p>Không phải {@code SchoolVoucher}: nó thuộc Sở, không thuộc trường, và chỉ có một bước duyệt.
+ * <p>Kế hoạch không có dòng của riêng nó — nội dung của nó là các đề xuất được
+ * đưa vào, cộng theo nhóm thiết bị. Chuyên viên lập và trình, lãnh đạo cơ quan
+ * duyệt; duyệt xong thì mọi đề xuất trong kế hoạch hoàn tất.
  */
 @Entity
 @Table(name = "procurement_plans")
@@ -36,10 +36,11 @@ public class ProcurementPlan extends BaseEntity {
     @JoinColumn(name = "managing_body_id", nullable = false)
     private DepartmentOfEducation managingBody;
 
-    /** Mã kế hoạch {@code KHMS-<năm ngân sách>-<số>}, máy cấp lúc lập. */
+    /** Mã kế hoạch {@code KHMS-<năm ngân sách>-<số>}, máy cấp lúc lập (126). */
     @Column(nullable = false, length = 30, unique = true)
     private String code;
 
+    /** Ngày lập kế hoạch. */
     @Column(name = "plan_date", nullable = false)
     private LocalDate planDate;
 
@@ -49,6 +50,7 @@ public class ProcurementPlan extends BaseEntity {
     @Column(name = "budget_year", nullable = false)
     private Integer budgetYear;
 
+    /** Năm học của kế hoạch ("2026-2027"); năm ngân sách tính từ nó — năm kết thúc của năm học (126). */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "school_year_id")
     private SchoolYear schoolYear;
@@ -70,12 +72,33 @@ public class ProcurementPlan extends BaseEntity {
     @Column(name = "approval_note", length = 500)
     private String approvalNote;
 
+    /** Trường chứng từ theo app Jmix cũ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String details = "{}";
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details == null ? "{}" : details;
+    }
+
     public DepartmentOfEducation getManagingBody() {
         return managingBody;
     }
 
     public void setManagingBody(DepartmentOfEducation managingBody) {
         this.managingBody = managingBody;
+    }
+
+    public SchoolYear getSchoolYear() {
+        return schoolYear;
+    }
+
+    public void setSchoolYear(SchoolYear schoolYear) {
+        this.schoolYear = schoolYear;
     }
 
     public String getCode() {
@@ -110,20 +133,12 @@ public class ProcurementPlan extends BaseEntity {
         this.budgetYear = budgetYear;
     }
 
-    public SchoolYear getSchoolYear() {
-        return schoolYear;
-    }
-
-    public void setSchoolYear(SchoolYear schoolYear) {
-        this.schoolYear = schoolYear;
-    }
-
     public Status getStatus() {
         return status;
     }
 
     public void setStatus(Status status) {
-        this.status = status == null ? Status.DRAFT : status;
+        this.status = status;
     }
 
     public String getNote() {

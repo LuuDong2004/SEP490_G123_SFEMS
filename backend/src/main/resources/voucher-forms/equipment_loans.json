@@ -1,0 +1,123 @@
+{
+ "resource": "equipment_loans",
+ "sections": [
+  {
+   "title": "Thông tin mượn",
+   "fields": [
+    {
+     "key": "accessories",
+     "label": "Phụ kiện kèm theo",
+     "kind": "textarea",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  },
+  {
+   "title": "Biên bản trả",
+   "stage": "return",
+   "fields": [
+    {
+     "key": "receivedBy",
+     "label": "Người nhận lại",
+     "kind": "staff"
+    },
+    {
+     "key": "returnMinutesNo",
+     "label": "Số biên bản trả",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "accessoriesReturned",
+     "label": "Phụ kiện hoàn trả",
+     "kind": "text",
+     "max": 500,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [
+  {
+   "key": "conditionOnBorrow",
+   "label": "Tình trạng khi mượn",
+   "kind": "enum",
+   "enum": "EquipmentCondition",
+   "required": true
+  }
+ ],
+ "lineTables": {},
+ "retired": [
+  "approvedBy",
+  "borrowerContact",
+  "borrowerType",
+  "borrowingDepartment",
+  "commitmentNote",
+  "compensationForm",
+  "compensationReceiptNo",
+  "compensationValue",
+  "conclusion",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatusAfterReturn",
+  "fiscalYear",
+  "handoverBy",
+  "issueDate",
+  "issuingUnit",
+  "lendingWarehouse",
+  "lesson",
+  "linkedDocuments",
+  "penalty",
+  "periodFrom",
+  "periodTo",
+  "postReturnHandling",
+  "receivingWarehouse",
+  "requestedBy",
+  "returnCompleteness",
+  "returnShortageQty",
+  "returnedQuantity",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "storageLocationAfter",
+  "storageLocationBefore",
+  "totalValue",
+  "trackingBookNo",
+  "unit",
+  "usageContext",
+  "usageLocation"
+ ],
+ "enums": {
+  "EquipmentCondition": [
+   {
+    "value": "TOT",
+    "label": "Tốt"
+   },
+   {
+    "value": "KHA",
+    "label": "Khá"
+   },
+   {
+    "value": "TRUNG_BINH",
+    "label": "Trung bình"
+   },
+   {
+    "value": "KEM",
+    "label": "Kém"
+   },
+   {
+    "value": "HONG",
+    "label": "Hỏng"
+   },
+   {
+    "value": "KHONG_SU_DUNG",
+    "label": "Không sử dụng"
+   }
+  ]
+ }
+}

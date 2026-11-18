@@ -1,0 +1,190 @@
+{
+ "resource": "maintenance_orders",
+ "sections": [
+  {
+   "title": "Nội dung bảo dưỡng",
+   "fields": [
+    {
+     "key": "maintenanceType",
+     "label": "Loại bảo dưỡng",
+     "kind": "enum",
+     "enum": "MaintenanceType",
+     "required": true
+    },
+    {
+     "key": "content",
+     "label": "Nội dung công việc",
+     "kind": "textarea",
+     "max": 4000,
+     "wide": true,
+     "required": true
+    },
+    {
+     "key": "performedByName",
+     "label": "Người thực hiện",
+     "kind": "text",
+     "max": 255,
+     "suggest": "staff"
+    },
+    {
+     "key": "conditionBefore",
+     "label": "Tình trạng trước khi làm",
+     "kind": "enum",
+     "enum": "EquipmentCondition"
+    },
+    {
+     "key": "costPayer",
+     "label": "Nguồn kinh phí chi trả",
+     "kind": "enum",
+     "enum": "CostPayer"
+    },
+    {
+     "key": "vatAmount",
+     "label": "Thuế VAT",
+     "kind": "money"
+    }
+   ]
+  },
+  {
+   "title": "Biên bản nghiệm thu, bàn giao",
+   "stage": "result",
+   "fields": [
+    {
+     "key": "partsUsed",
+     "label": "Nội dung đã thực hiện",
+     "kind": "textarea",
+     "max": 4000,
+     "wide": true
+    },
+    {
+     "key": "acceptanceMinutesNo",
+     "label": "Số biên bản nghiệm thu",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "handoverBy",
+     "label": "Người bàn giao",
+     "kind": "text",
+     "max": 255,
+     "suggest": "staff"
+    },
+    {
+     "key": "receivedAfterBy",
+     "label": "Người nhận lại",
+     "kind": "text",
+     "max": 255,
+     "suggest": "staff"
+    }
+   ]
+  }
+ ],
+ "line": [
+  {
+   "key": "cost",
+   "label": "Chi phí từng thiết bị",
+   "kind": "money"
+  }
+ ],
+ "lineTables": {},
+ "retired": [
+  "accumulatedDepreciation",
+  "cycleMonths",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatusAfter",
+  "fiscalYear",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "maintenanceUnit",
+  "managerUser",
+  "managingDepartment",
+  "nextMaintenanceDate",
+  "outsideWarrantyCost",
+  "replacementSerialNo",
+  "requestedBy",
+  "result",
+  "roomLocation",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "startDate",
+  "underWarranty",
+  "unit",
+  "valueIncreaseAfterRepair",
+  "vendorContact",
+  "warrantyActualReturnDate",
+  "warrantyAfterNote",
+  "warrantyExpectedReturnDate",
+  "warrantyExtensionNote",
+  "warrantyReason",
+  "warrantyRejectionReason",
+  "warrantyResult",
+  "warrantyScope"
+ ],
+ "enums": {
+  "CostPayer": [
+   {
+    "value": "VENDOR",
+    "label": "Do nhà cung cấp chi trả"
+   },
+   {
+    "value": "SCHOOL",
+    "label": "Do đơn vị sử dụng chi trả"
+   },
+   {
+    "value": "SHARED",
+    "label": "Chia sẻ chi phí"
+   }
+  ],
+  "EquipmentCondition": [
+   {
+    "value": "TOT",
+    "label": "Tốt"
+   },
+   {
+    "value": "KHA",
+    "label": "Khá"
+   },
+   {
+    "value": "TRUNG_BINH",
+    "label": "Trung bình"
+   },
+   {
+    "value": "KEM",
+    "label": "Kém"
+   },
+   {
+    "value": "HONG",
+    "label": "Hỏng"
+   },
+   {
+    "value": "KHONG_SU_DUNG",
+    "label": "Không sử dụng"
+   }
+  ],
+  "MaintenanceType": [
+   {
+    "value": "PERIODIC",
+    "label": "Định kỳ"
+   },
+   {
+    "value": "CORRECTIVE",
+    "label": "Đột xuất"
+   },
+   {
+    "value": "REPAIR",
+    "label": "Sửa chữa"
+   },
+   {
+    "value": "WARRANTY",
+    "label": "Bảo hành"
+   }
+  ]
+ }
+}

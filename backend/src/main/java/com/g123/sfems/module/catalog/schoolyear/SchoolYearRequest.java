@@ -3,34 +3,33 @@ package com.g123.sfems.module.catalog.schoolyear;
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import com.g123.sfems.shared.validation.DateRange;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
-/** Payload tạo năm học: năm trường chung cộng ngày bắt đầu, ngày kết thúc. */
+/** Payload tạo năm học: năm trường chung + khoảng ngày + cờ hiện hành. */
+@DateRange(from = "startDate", to = "endDate", message = "Ngày kết thúc không được trước ngày bắt đầu")
 public record SchoolYearRequest(
-        @Size(max = 64, message = "Mã tối đa 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]*$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
-
         @NotBlank(message = "Tên là bắt buộc")
-        @Size(max = 255, message = "Tên tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên")
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-
         @NotNull(message = "Ngày bắt đầu là bắt buộc")
+        @DateValue(value = DateRule.ANY, label = "Ngày bắt đầu")
         LocalDate startDate,
-
         @NotNull(message = "Ngày kết thúc là bắt buộc")
+        @DateValue(value = DateRule.ANY, label = "Ngày kết thúc")
         LocalDate endDate,
-
-        /** Đặt năm học này là hiện hành; năm học hiện hành cũ tự bỏ cờ. */
         Boolean current) implements CatalogInput {
 }

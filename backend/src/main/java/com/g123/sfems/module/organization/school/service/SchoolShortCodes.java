@@ -12,7 +12,7 @@ import java.util.Set;
  * MỘT lần và không tự đổi.
  *
  * <p>Thứ tự cấp: 01…99, A0…Z9, AA…ZZ (thứ tự cũ, 1.035 mã — mã đã cấp giữ nguyên), rồi 0A…9Z và 00. Đủ
- * 36 × 36 = 1.296 tổ hợp chữ / số, vì 1.035 không đủ cho 1.099 trường công lập của Sở (QLTB-612). Định dạng
+ * 36 × 36 = 1.296 tổ hợp chữ / số, vì 1.035 không đủ cho 1.099 trường công lập của Sở. Định dạng
  * vẫn đúng hai ký tự {@code [A-Z0-9]{2}} như {@code Equipment.STANDARD_CODE}, nên chuẩn mã tài sản không đổi.
  * Changelog {@code 214} cấp bù theo đúng thứ tự này — đổi thứ tự thì đổi cả hai.
  */

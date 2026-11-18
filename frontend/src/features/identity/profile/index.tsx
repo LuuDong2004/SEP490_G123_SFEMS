@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
+import { TwoFactorCard } from "./mfa-card";
 import { SessionsCard } from "@/shared/components/security/sessions-card";
 import {
   useCustomMutation,
@@ -9,11 +10,11 @@ import {
   useOne,
   useTranslate,
 } from "@refinedev/core";
+import { useQuery } from "@tanstack/react-query";
 import { AtSign, BadgeCheck, Check, KeyRound, Mail, MonitorSmartphone, School, Search, ShieldCheck, X } from "lucide-react";
 
-import { TwoFactorCard } from "./two-factor-card";
-
 import { API_URL } from "@/shared/api/constants";
+import { kyInstance } from "@/shared/api/data";
 import {
   getAuthorities,
   saveSession,
@@ -30,7 +31,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { PasswordRules } from "@/shared/components/form/password-rules";
-import { passwordOk } from "@/shared/lib/password-policy";
+import { isPrivileged, passwordOk } from "@/shared/lib/password-policy";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { cn } from "@/shared/lib/utils";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 /** Các hành động một mã quyền có thể mang, theo thứ tự cột của bảng quyền. */
 const ACTIONS = [
@@ -54,17 +58,23 @@ const ACTIONS = [
  * lời đúng câu người ta hỏi — "tôi làm được gì với phiếu nhập".
  */
 export const Profile = () => {
-  // `?tab=security|sessions|permissions` mở đúng tab — dải nhắc bảo mật dẫn thẳng tới việc cần làm.
-  // `?tab=password` (đường dẫn cũ của dải nhắc) vẫn mở tab Bảo mật, nơi có đổi mật khẩu.
+  // `?tab=security|sessions|permissions` mở đúng tab — dải nhắc bảo mật dẫn thẳng tới việc cần làm. Đổi mật khẩu và xác
+  // thực hai lớp gộp một tab "Bảo mật" (theo trưởng nhóm); liên kết cũ `?tab=password|mfa` vẫn mở tab đó.
   const [search] = useSearchParams();
-  const asked = search.get("tab") === "password" ? "security" : search.get("tab") ?? "";
-  const initialTab = ["security", "sessions", "permissions"].includes(asked) ? asked : "security";
+  const asked = search.get("tab") ?? "";
+  const initialTab = asked === "password" || asked === "mfa" ? "security"
+    : ["security", "sessions", "permissions"].includes(asked) ? asked : "security";
   const { data: identity } = useGetIdentity<Identity>();
   // Roles and permissions are not part of the identity: they come from
   // `/auth/permissions`, which `authProvider.check` has already fetched and
   // cached by the time any route inside the shell renders.
   const authorities = getAuthorities();
   const t = useTranslate();
+  const { data: mfaData } = useQuery({
+    queryKey: ["auth", "mfa"],
+    queryFn: ({ signal }) => kyInstance.get("auth/mfa", { signal }).json<{ enabled: boolean }>(),
+  });
+  const mfaOn = mfaData && "enabled" in mfaData ? mfaData.enabled : undefined;
   // Tài khoản của một trường thì nói luôn trường nào.
   const { result: school } = useOne<{ id: number; name: string }>({
     resource: "schools",
@@ -99,8 +109,14 @@ export const Profile = () => {
     { icon: <AtSign />, text: identity?.username ?? "—" },
     ...(identity?.email ? [{ icon: <Mail />, text: identity.email }] : []),
     { icon: <KeyRound />, text: <>Được dùng <b className="font-semibold">{rows.length}</b> chức năng</> },
+    {
+      icon: <ShieldCheck />,
+      text: mfaOn === undefined ? "Xác thực hai yếu tố…" : mfaOn ? "Đã bật xác thực hai yếu tố" : (
+        <span className="text-warning-text">Chưa bật xác thực hai yếu tố</span>
+      ),
+    },
   ];
-  const tab = "text-muted-foreground hover:text-foreground data-[state=active]:text-primary data-[state=active]:border-primary h-auto flex-none gap-1.5 rounded-none border-0 border-b-[3px] border-transparent bg-transparent px-4 py-3 text-sm font-semibold shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none";
+  const tab = "gap-1.5";
 
   return (
     <Tabs defaultValue={initialTab} className="screen-enter min-w-0 gap-4">
@@ -116,9 +132,28 @@ export const Profile = () => {
               {[roleNames.join(", "), school?.name].filter(Boolean).join(" · ") || `@${identity?.username ?? ""}`}
             </p>
           </div>
+          {/* Thông tin nhanh bên phải đầu trang: tên đăng nhập, số chức năng, xác thực hai lớp (nhắc màu cam khi chưa bật). */}
+          <div className="hidden flex-wrap justify-end gap-2 md:flex">
+            <span className="bg-muted/60 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs">
+              <AtSign className="text-muted-foreground size-3.5" />
+              {identity?.username ?? "—"}
+            </span>
+            <span className="bg-muted/60 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs">
+              <KeyRound className="text-muted-foreground size-3.5" />
+              <b className="font-semibold tabular-nums">{rows.length}</b> chức năng
+            </span>
+            {mfaOn === undefined ? null : (
+              <span className={mfaOn
+                ? "bg-success-subtle text-success-text flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                : "bg-warning-subtle text-warning-text flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"}>
+                <ShieldCheck className="size-3.5" />
+                {mfaOn ? "Đã bật xác thực hai lớp" : "Chưa bật xác thực hai lớp"}
+              </span>
+            )}
+          </div>
         </div>
-        <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-t bg-transparent px-4 py-0">
-          {/* Mỗi việc bảo mật một tab — xếp dọc một trang thì phiên đăng nhập đẩy mọi thứ xuống rất xa. */}
+        <TabsList className="mx-4 mb-4">
+          {/* Mật khẩu và xác thực hai lớp chung một tab "Bảo mật"; phiên đăng nhập, quyền mỗi thứ một tab riêng. */}
           <TabsTrigger value="security" className={tab}>
             <ShieldCheck className="size-4" />
             Bảo mật
@@ -152,8 +187,8 @@ export const Profile = () => {
         </Card>
 
         <div className="min-w-0">
-          {/* Đổi mật khẩu và xác thực hai bước chung một tab: cùng là "cách đăng nhập vào tài khoản này". */}
-          <TabsContent value="security" className="mt-0 flex flex-col gap-4">
+          {/* Hai cột trên màn rộng: mật khẩu bên trái, hai lớp (ứng dụng, email) bên phải — xếp dọc thì nửa phải trống. */}
+          <TabsContent value="security" className="mt-0 grid items-start gap-4 xl:grid-cols-2">
             <ChangePasswordCard />
             <TwoFactorCard />
           </TabsContent>
@@ -183,14 +218,10 @@ export const Profile = () => {
                 </TableHeader>
                 <TableBody>
                   {shownRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={ACTIONS.length + 1} className="text-muted-foreground py-8 text-center">
-                        Không có chức năng nào khớp.
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={ACTIONS.length + 1} compact title={<>Không có chức năng nào khớp.</>} />
                   ) : (
                     shownRows.map((r) => (
-                      <TableRow key={r.resource}>
+                      <TableRow key={r.resource} className={cn("group/row", LIFT_ROW)}>
                         <TableCell className="py-2">
                           <span className="font-medium">{r.label}</span>
                         </TableCell>
@@ -225,8 +256,9 @@ function ChangePasswordCard() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const privileged = isPrivileged(getAuthorities()?.roles);
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
-  const canSubmit = currentPassword.length > 0 && passwordOk(newPassword) && newPassword === confirmPassword;
+  const canSubmit = currentPassword.length > 0 && passwordOk(newPassword, privileged) && newPassword === confirmPassword;
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -274,7 +306,9 @@ function ChangePasswordCard() {
         <CardDescription>Đổi xong, các thiết bị khác sẽ bị đăng xuất. Máy này vẫn dùng tiếp.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="flex max-w-xl flex-col gap-4">
+        {/* Ba ô một cột; luật mật khẩu là hàng viên nhỏ ngay dưới ô Mật khẩu mới. */}
+        <div className="grid max-w-xl items-start gap-5">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="current-password">Mật khẩu hiện tại</Label>
             <InputPassword
@@ -286,7 +320,7 @@ function ChangePasswordCard() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="new-password">Mật khẩu mới</Label>
               <InputPassword
@@ -298,7 +332,7 @@ function ChangePasswordCard() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
-              <PasswordRules value={newPassword} />
+              <PasswordRules value={newPassword} privileged={privileged} />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -320,6 +354,7 @@ function ChangePasswordCard() {
             </Button>
           </div>
         </form>
+        </div>
       </CardContent>
     </Card>
   );

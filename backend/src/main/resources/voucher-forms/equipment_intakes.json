@@ -1,0 +1,123 @@
+{
+ "resource": "equipment_intakes",
+ "sections": [
+  {
+   "title": "Biên bản giao nhận",
+   "fields": [
+    {
+     "key": "deliveredBy",
+     "label": "Người giao",
+     "kind": "text",
+     "max": 100,
+     "rule": "PERSON_NAME",
+     "min": 2
+    },
+    {
+     "key": "delivererPhone",
+     "label": "Số điện thoại người giao",
+     "kind": "text",
+     "rule": "PHONE"
+    },
+    {
+     "key": "receiverName",
+     "label": "Người nhận",
+     "kind": "text",
+     "max": 100,
+     "suggest": "staff",
+     "rule": "PERSON_NAME",
+     "min": 2
+    },
+    {
+     "key": "receiverPosition",
+     "label": "Chức vụ người nhận",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "handoverMinutesNo",
+     "label": "Số biên bản",
+     "kind": "text",
+     "max": 30,
+     "min": 1
+    }
+   ]
+  },
+  {
+   "title": "Quyết định giao tài sản và biên bản bàn giao",
+   "when": {
+    "field": "centralized",
+    "in": [
+     "true"
+    ]
+   },
+   "fields": [
+    {
+     "key": "centralized",
+     "label": "Cấp trên mua tập trung",
+     "kind": "boolean"
+    },
+    {
+     "key": "deliveringUnit",
+     "label": "Đơn vị giao",
+     "kind": "text",
+     "max": 255,
+     "min": 2
+    },
+    {
+     "key": "assignmentDecisionNo",
+     "label": "Số quyết định giao",
+     "kind": "text",
+     "max": 50,
+     "min": 1
+    },
+    {
+     "key": "assignmentDecisionDate",
+     "label": "Ngày quyết định",
+     "kind": "date",
+     "date": "past"
+    },
+    {
+     "key": "handoverDate",
+     "label": "Ngày bàn giao",
+     "kind": "date",
+     "date": "past"
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "budgetYear",
+  "deliveryRepresentative",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatus",
+  "fiscalYear",
+  "formationMethod",
+  "inspectionResult",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "managingUnitAfter",
+  "movementReason",
+  "qrLabelApplied",
+  "qrLabelDate",
+  "reason",
+  "receiverUnit",
+  "requestedBy",
+  "schoolYear",
+  "signedBy",
+  "sourceDocument",
+  "storageLocation",
+  "totalValue",
+  "usageRoomAfter",
+  "vatAmount",
+  "warehouseKeeper",
+  "warehouseName"
+ ],
+ "enums": {}
+}

@@ -1,0 +1,141 @@
+{
+ "resource": "inventory_sessions",
+ "sections": [
+  {
+   "title": "Hội đồng kiểm kê",
+   "fields": [
+    {
+     "key": "inventoryType",
+     "label": "Loại kiểm kê",
+     "kind": "enum",
+     "enum": "InventoryType"
+    },
+    {
+     "key": "councilDecisionNo",
+     "label": "Số QĐ lập hội đồng",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "councilChair",
+     "label": "Chủ tịch hội đồng",
+     "kind": "staff",
+     "wide": true
+    },
+    {
+     "key": "councilSecretary",
+     "label": "Thư ký hội đồng",
+     "kind": "text",
+     "max": 255,
+     "suggest": "staff"
+    },
+    {
+     "key": "inventoryMinutesNo",
+     "label": "Số biên bản kiểm kê",
+     "kind": "text",
+     "max": 100,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [
+  {
+   "key": "systemQty",
+   "label": "Số lượng theo sổ sách",
+   "kind": "integer"
+  },
+  {
+   "key": "differenceReason",
+   "label": "Nguyên nhân chênh lệch",
+   "kind": "text",
+   "max": 255,
+   "wide": true
+  },
+  {
+   "key": "handlingStatus",
+   "label": "Kết luận kiểm kê",
+   "kind": "text",
+   "max": 255,
+   "wide": true
+  },
+  {
+   "key": "proposedAction",
+   "label": "Kiến nghị xử lý",
+   "kind": "enum",
+   "enum": "InventoryAction"
+  },
+  {
+   "key": "differenceValue",
+   "label": "Giá trị chênh lệch",
+   "kind": "money",
+   "hint": "Giá trị phần thừa hoặc thiếu so với sổ sau khi kiểm kê."
+  }
+ ],
+ "lineTables": {},
+ "retired": [
+  "accumulatedDepreciation",
+  "description",
+  "documentCategory",
+  "documentName",
+  "documentNo",
+  "documentPreparedBy",
+  "documentTitle",
+  "exploitationStatusAfter",
+  "fiscalYear",
+  "handlingProposal",
+  "inventoryUnit",
+  "issueDate",
+  "issuingUnit",
+  "linkedDocuments",
+  "periodYear",
+  "requestedBy",
+  "schoolYear",
+  "scope",
+  "signedBy",
+  "sourceDocument",
+  "totalCheckedValue"
+ ],
+ "enums": {
+  "InventoryAction": [
+   {
+    "value": "KEEP",
+    "label": "Giữ"
+   },
+   {
+    "value": "RECORD_INCREASE",
+    "label": "Ghi tăng"
+   },
+   {
+    "value": "REPORT_LOST",
+    "label": "Báo mất"
+   },
+   {
+    "value": "REPAIR",
+    "label": "Sửa chữa"
+   },
+   {
+    "value": "DISPOSE",
+    "label": "Thanh lý"
+   },
+   {
+    "value": "TRANSFER",
+    "label": "Điều chuyển"
+   }
+  ],
+  "InventoryType": [
+   {
+    "value": "PERIODIC",
+    "label": "Định kỳ cuối năm"
+   },
+   {
+    "value": "AD_HOC",
+    "label": "Đột xuất"
+   },
+   {
+    "value": "HANDOVER",
+    "label": "Bàn giao/thay đổi thủ kho, hiệu trưởng"
+   }
+  ]
+ }
+}

@@ -1,0 +1,43 @@
+# Gắn tài khoản vào một trường.
+#
+# Đây là cột mà TOÀN BỘ phân quyền dòng dựa vào: nó đi lên
+# `AuthorityCache.Entry`, thành `RowLevelPrincipal`, rồi thành khoá ngữ cảnh
+# `user.schoolId` mà mọi chính sách "chỉ thấy dữ liệu trường mình" đọc.
+#
+# Cho phép rỗng, vì một tài khoản là cách đăng nhập trước khi là một người
+# trong sơ đồ tổ chức — tài khoản quản trị seed sẵn không thuộc trường nào.
+# Rỗng nghĩa là KHÔNG thuộc trường nào, và dưới `defaultScope = NONE` thì điều
+# đó có nghĩa là không thấy gì: fail closed, ngược hẳn bẫy `tenantId = NULL`
+# của bản Jmix nơi rỗng nghĩa là thấy tất cả.
+#
+# RESTRICT chứ không SET NULL: xoá một trường còn tài khoản gắn vào phải bị từ
+# chối. SET NULL sẽ lặng lẽ biến những tài khoản đó thành "không thuộc trường
+# nào" — tức là mất quyền truy cập mà không ai biết vì sao.
+databaseChangeLog:
+  - changeSet:
+      id: 016-add-user-school
+      author: dth
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: school_id
+                  type: bigint
+
+        - addForeignKeyConstraint:
+            baseTableName: users
+            baseColumnNames: school_id
+            referencedTableName: schools
+            referencedColumnNames: id
+            constraintName: fk_users_school
+            onDelete: RESTRICT
+
+        # "Những tài khoản của trường này" là câu hỏi mà màn quản lý tài khoản
+        # hỏi mỗi lần mở, và là bộ lọc mà phân quyền dòng sẽ dùng nhiều nhất.
+        - createIndex:
+            tableName: users
+            indexName: idx_users_school
+            columns:
+              - column:
+                  name: school_id

@@ -2,85 +2,77 @@ package com.g123.sfems.module.school.equipment;
 
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
+import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.base.SchoolOwnedInput;
+import com.g123.sfems.shared.validation.DateRule;
+import com.g123.sfems.shared.validation.DateValue;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
 
-/**
- * Payload tạo hồ sơ thiết bị thủ công (TS-01). Dòng phiếu nhập không đi qua đây — sinh tài sản từ
- * {@link EquipmentService#generateFromIntakeLine}.
- *
- * <p>Mã để trống là để máy cấp (TS-06); đến khi TS-06 xong thì phải khai mã tay.
- */
+/** Payload tạo thiết bị. Mã giữ nguyên mã gợi ý thì chốt số của bộ đếm. */
 public record EquipmentRequest(
-        @Size(max = 64, message = "Mã tối đa 64 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9._-]*$", message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @NotBlank(message = "Mã thiết bị là bắt buộc")
+        @Text(value = FieldRule.CODE, label = "Mã thiết bị")
         String code,
-
         @NotBlank(message = "Tên là bắt buộc")
-        @Size(max = 255, message = "Tên tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên thiết bị", max = 200, min = 2)
         String name,
-
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
-
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-
         IdRef school,
-
-        @NotNull(message = "Chọn danh mục thiết bị")
+        @NotNull(message = "Chọn nhóm thiết bị")
         IdRef catalog,
-
         PhysicalDigitalType physicalOrDigital,
-
         AssetCategory assetCategory,
-
-        @Size(max = 64) String legacyCode,
-
-        @Size(max = 100, message = "Số serial tối đa 100 ký tự") String serialNumber,
-
-        @Size(max = 255) String model,
-
-        @Size(max = 255) String manufacturer,
-
+        @Text(value = FieldRule.SERIAL, label = "Số serial", min = 3)
+        String serialNumber,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Model", max = 50)
+        String model,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất", max = 100)
+        String manufacturer,
+        @Text(value = FieldRule.NOTE, label = "Thông tin khác")
+        String otherInfo,
         IdRef unit,
-
-        @Positive(message = "Số lượng phải lớn hơn 0") BigDecimal quantity,
-
+        @Positive(message = "Số lượng phải lớn hơn 0")
+        @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Số lượng")
+        BigDecimal quantity,
         IdRef originSource,
-
         IdRef acquisitionMethod,
-
         FundingSource fundingSource,
-
-        @Size(max = 255) String originNote,
-
-        @Size(max = 255) String fundingNote,
-
-        @Size(max = 255) String acquisitionNote,
-
+        @Num(value = NumberRule.YEAR, label = "Năm sản xuất")
         Integer productionYear,
-
+        @Num(value = NumberRule.YEAR, label = "Năm đưa vào sử dụng")
         Integer usageStartYear,
-
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày tiếp nhận")
         LocalDate receivedDate,
-
+        @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày mua")
         LocalDate purchaseDate,
-
-        @PositiveOrZero(message = "Nguyên giá không được âm") BigDecimal originalValue,
-
+        @Num(value = NumberRule.MONEY, label = "Nguyên giá")
+        BigDecimal originalValue,
+        @Num(value = NumberRule.MONEY, label = "Giá trị còn lại")
+        BigDecimal remainingValue,
+        @DateValue(value = DateRule.ANY, label = "Hạn bảo hành")
         LocalDate warrantyExpiry,
-
+        // Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất.
+        @DateValue(value = DateRule.ANY, label = "Hạn sử dụng")
+        LocalDate expiryDate,
+        IdRef room,
+        IdRef manager,
+        EquipmentCondition condition,
+        AssetStatus status,
+        IdRef config,
         Map<String, String> specs) implements SchoolOwnedInput {
 }

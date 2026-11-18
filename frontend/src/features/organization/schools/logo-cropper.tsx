@@ -99,7 +99,7 @@ export function LogoCropper({
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent size="auto" className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Cắt logo</DialogTitle>
         </DialogHeader>

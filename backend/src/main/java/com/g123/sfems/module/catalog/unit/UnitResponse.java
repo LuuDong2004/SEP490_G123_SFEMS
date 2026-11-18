@@ -1,14 +1,29 @@
 package com.g123.sfems.module.catalog.unit;
 
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.g123.sfems.domain.catalog.unit.Unit;
-import com.g123.sfems.module.catalog.base.dto.CatalogResponse;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.Instant;
+import java.util.Map;
 
-/** Đơn vị tính trên đường truyền: các trường chung được trải phẳng, cộng cờ "cho phép số lẻ". */
-public record UnitResponse(@JsonUnwrapped CatalogResponse base, Boolean allowsFraction) {
+/** Hình dạng trên đường truyền của một đơn vị tính. */
+public record UnitResponse(
+        Long id,
+        String code,
+        String name,
+        Integer sortOrder,
+        Boolean active,
+        String note,
+        boolean allowsFraction,
+        Instant createdAt,
+        Instant updatedAt,
+        @JsonProperty("_can") Map<String, Boolean> can) {
 
     public static UnitResponse from(Unit item, RowLevelSecurity rowLevel) {
-        return new UnitResponse(CatalogResponse.from(item, rowLevel), item.getAllowsFraction());
+        return new UnitResponse(
+                item.getId(), item.getCode(), item.getName(), item.getSortOrder(),
+                item.getActive(), item.getNote(), item.isAllowsFraction(),
+                item.getCreatedAt(), item.getUpdatedAt(),
+                rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }
 }

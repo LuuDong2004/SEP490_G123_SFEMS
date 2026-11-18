@@ -4,12 +4,12 @@ import { useState } from "react";
 import { kyInstance } from "@/shared/api/data";
 import { Segmented } from "@/shared/components/segmented";
 import { StepTitle } from "@/shared/components/voucher/voucher-layout";
-import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { COUNT_HEADS, sumCounts, type DiscrepancyCounts, type InventorySession, type SessionBreakdown } from "@/domains/inventory/types";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
 
 type By = "rooms" | "subjects";
 
@@ -26,7 +26,7 @@ function Num({ value, tone }: { value: number; tone?: "success" | "destructive" 
   );
 }
 
-/** Hàng số của một nhóm. */
+/** Hàng số của một nhóm — dùng chung với bảng chênh lệch theo trường của đợt kiểm kê. */
 export function CountCells({ row }: { row: DiscrepancyCounts }) {
   return (
     <>
@@ -48,7 +48,7 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
   const { data } = useQuery({
     // Ghi kết quả kiểm đếm không chắc đổi updatedAt của phiếu — khoá theo cả bản tóm tắt.
     queryKey: ["inventory_breakdown", record.id, record.updatedAt, JSON.stringify(record.summary)],
-    queryFn: () => kyInstance.get(`inventory_sessions/${record.id}/breakdown`).json<SessionBreakdown>(),
+    queryFn: ({ signal }) => kyInstance.get(`inventory_sessions/${record.id}/breakdown`, { signal }).json<SessionBreakdown>(),
   });
   const multiRoom = (data?.rooms.length ?? 0) > 1;
   const [choice, setChoice] = useState<By | null>(null);
@@ -72,9 +72,9 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
         <Table>
           <TableHeader sticky>
             <TableRow className={EDGE}>
-              <TableHead>{by === "rooms" ? "Phòng, kho (theo sổ)" : "Môn học"}</TableHead>
+              <TableHead>{by === "rooms" ? "Phòng, kho (theo hệ thống)" : "Môn học"}</TableHead>
               {COUNT_HEADS.map((h) => (
-                <TableHead key={h} className="w-24 text-right">{h}</TableHead>
+                <TableHead key={h} align="right" className="w-24">{h}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -91,7 +91,7 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
               </TableRow>
             ))}
             {rows.length > 1 ? (
-              <TableRow className={cn("bg-surface-subtle hover:bg-surface-subtle font-medium", EDGE)}>
+              <TableRow className={cn("bg-surface-subtle font-medium hover:bg-surface-subtle", EDGE)}>
                 <TableCell>Cộng</TableCell>
                 <CountCells row={totals} />
               </TableRow>

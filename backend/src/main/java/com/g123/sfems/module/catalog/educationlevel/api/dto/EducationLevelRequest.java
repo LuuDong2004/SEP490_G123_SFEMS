@@ -1,10 +1,10 @@
 package com.g123.sfems.module.catalog.educationlevel.api.dto;
 
-import jakarta.validation.constraints.PositiveOrZero;
-
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
+import com.g123.sfems.shared.validation.Text;
 
 /**
  * Payload của {@code POST /education_levels}.
@@ -14,25 +14,22 @@ import jakarta.validation.constraints.Size;
  */
 public record EducationLevelRequest(
         @NotBlank(message = "Mã là bắt buộc")
-        @Size(max = 64, message = "Mã tối đa 64 ký tự")
         // Cùng hình dạng với mã vai trò và mã tổ chức: thứ gõ được vào ô lọc
         // hay dán vào bảng tính mà không phải nghĩ đến quy tắc trích dẫn.
-        @Pattern(
-                regexp = "^[A-Za-z0-9._-]+$",
-                message = "Mã chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Text(value = FieldRule.CODE, label = "Mã", max = 64)
         String code,
 
         @NotBlank(message = "Tên là bắt buộc")
-        @Size(max = 255, message = "Tên tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên")
         String name,
 
-        @Size(max = 64, message = "Tên rút gọn tối đa 64 ký tự")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Tên rút gọn", max = 64)
         String shortName,
 
-        @PositiveOrZero(message = "Thứ tự không được âm") Integer sortOrder,
+        @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
 
         Boolean active,
 
-        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note) {
 }

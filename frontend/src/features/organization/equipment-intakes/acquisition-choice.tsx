@@ -1,4 +1,5 @@
 import { useList } from "@refinedev/core";
+import { useEffect } from "react";
 
 import { ChoiceWithNote } from "@/shared/components/form/choice-with-note";
 import { FormHint } from "@/shared/components/form/help-hint";
@@ -13,7 +14,9 @@ type Value = { id?: number | null; code?: string | null; name?: string | null } 
  * rõ ngay trong ô (`ChoiceWithNote`), không có ô "Ghi rõ hình thức mua sắm" riêng. Dùng ở đầu phiếu ghi tăng và ở
  * chi tiết từng dòng.
  */
-export function AcquisitionChoice({ label, hint, value, onChange, note, onNoteChange, clearable }: {
+export function AcquisitionChoice({ label, hint, value, onChange, note, onNoteChange, clearable, exclude }: {
+  /** Mã hình thức không chọn được với nguồn hình thành đang chọn (`OriginRule.excludedAcquisitionMethods`). */
+  exclude?: string[];
   label: string;
   hint?: string;
   value: Value;
@@ -23,7 +26,12 @@ export function AcquisitionChoice({ label, hint, value, onChange, note, onNoteCh
   clearable?: boolean;
 }) {
   const { result } = useList<Method>({ resource: "acquisition_methods", pagination: { currentPage: 1, pageSize: 50 } });
-  const methods = result?.data ?? [];
+  const methods = (result?.data ?? []).filter((m) => !exclude?.includes(m.code));
+  // Đổi nguồn hình thành làm hình thức đang chọn không còn hợp (tự mua → "Mua sắm tập trung"): bỏ chọn, không để máy chủ từ chối.
+  const stale = !!value?.code && !!exclude?.includes(value.code);
+  useEffect(() => {
+    if (stale) onChange(null);
+  }, [stale, onChange]);
   // Giá trị đang có mà danh mục chưa tải xong vẫn phải có mục của nó — Radix không vẽ được giá trị thiếu mục.
   const options = [
     ...(value?.id && !methods.some((m) => m.id === value.id) ? [{ value: String(value.id), label: value.name ?? "…" }] : []),

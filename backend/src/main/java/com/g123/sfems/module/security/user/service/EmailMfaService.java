@@ -5,12 +5,14 @@ import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.mail.MailService;
+import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.Hashes;
 import com.g123.sfems.shared.security.MfaRequiredException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Xác thực hai lớp QUA EMAIL (QLTB-509): mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
+ * Xác thực hai lớp QUA EMAIL: mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
  * người dùng nhập mã đó mới vào được. Tài khoản tự bật / tắt ở trang Hồ sơ (phải nhập lại mật khẩu).
  *
  * <p>Mã chỉ lưu băm SHA-256 (gắn với id tài khoản), hết hạn sau {@code CODE_TTL}, dùng một lần. Nhập sai đếm
@@ -40,10 +42,12 @@ public class EmailMfaService {
     private final MailService mail;
     private final PasswordEncoder passwordEncoder;
     private final TransactionTemplate tx;
+    private final ApplicationEventPublisher events;
 
     public EmailMfaService(UserRepository repository, MailService mail, PasswordEncoder passwordEncoder,
-                           PlatformTransactionManager transactionManager) {
+                           PlatformTransactionManager transactionManager, ApplicationEventPublisher events) {
         this.tx = new TransactionTemplate(transactionManager);
+        this.events = events;
         this.repository = repository;
         this.mail = mail;
         this.passwordEncoder = passwordEncoder;
@@ -63,6 +67,8 @@ public class EmailMfaService {
         user.setEmailCodeHash(null);
         user.setEmailCodeExpiresAt(null);
         repository.save(user);
+        // Bộ nhớ đệm quyền giữ cờ "đã có lớp thứ hai" — cổng Admin đọc nó ở mỗi yêu cầu.
+        events.publishEvent(new AuthoritiesChanged.ForUser(userId));
         return enabled;
     }
 

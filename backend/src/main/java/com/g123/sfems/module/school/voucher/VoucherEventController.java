@@ -12,11 +12,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code GET /api/voucher_events?resource=&voucherId=} — dòng thời gian duyệt của một phiếu.
+ * {@code GET /api/voucher_events?resource=&voucherId=} — dòng thời gian duyệt của
+ * một phiếu.
  *
- * <p>Không có mã quyền riêng: ai đọc được phiếu thì đọc được nhật ký duyệt của nó. Cả mã quyền đọc
- * lẫn phạm vi dữ liệu của phiếu được hỏi qua {@link RecordAccessRegistry} — mỗi
- * {@link VoucherService} đã là một {@code RecordAccess}.
+ * <p>Không có mã quyền riêng: ai đọc được phiếu thì đọc được nhật ký duyệt của
+ * nó. Cả mã quyền đọc lẫn phạm vi dữ liệu của phiếu được hỏi qua
+ * {@link RecordAccessRegistry}.
  */
 @RestController
 @RequestMapping("/api/voucher_events")
