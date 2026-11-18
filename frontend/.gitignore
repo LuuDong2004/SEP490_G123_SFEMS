@@ -32,3 +32,4 @@ _.sln
 # Kết quả chạy E2E (npm run e2e)
 e2e-report/
 e2e-results/
+e2e-onboarding/

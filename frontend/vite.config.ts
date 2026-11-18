@@ -37,6 +37,9 @@ export default defineConfig({
     // Chrome trên Windows lại thử `127.0.0.1` đầu tiên, và trượt: trang báo lỗi
     // kết nối trong khi `curl localhost` vẫn 200, nên trông như lỗi trình duyệt.
     host: "127.0.0.1",
+    // Kết quả Playwright (ảnh, trace, tệp tạm) nằm trong thư mục frontend: Vite thấy tệp mới là tải lại toàn trang
+    // ngay giữa lúc test đang chạy — hộp thoại biến mất, ảnh chụp treo.
+    watch: { ignored: ["**/e2e-results/**", "**/e2e-report/**", "**/e2e-onboarding/**"] },
   },
   resolve: {
     alias: {
