@@ -25,7 +25,9 @@ export function choiceEditor(options: string[]): ProvideEditorComponent<TextCell
         style={{ width: Math.max(target.width, 240) }}
         // Mở ra đứng ở giá trị đang có, không ở mục đầu.
         defaultValue={term ? undefined : options.includes(current) ? current : undefined}
-        filter={(item, search) => (item === EMPTY || fold(item).includes(fold(search.trim())) ? 1 : 0)}
+        // "Để trống" chỉ hiện khi chưa gõ gì: đang tìm mà nó vẫn khớp thì nó đứng đầu, Enter xoá trắng ô thay vì chọn
+        // mục vừa tìm.
+        filter={(item, search) => (item === EMPTY ? (search.trim() ? 0 : 1) : fold(item).includes(fold(search.trim())) ? 1 : 0)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.preventDefault();

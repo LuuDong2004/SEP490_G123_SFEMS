@@ -711,6 +711,12 @@ public class OnboardingValidator {
                 legacy = cell;
             }
         }
+        // Nhập lại cùng tệp: mã cũ đã thành `legacy_code` của thiết bị trường → dòng đã có, không tạo lại. Thiếu bước
+        // này thì thiết bị không có serial (máy tính, bàn ghế…) bị tạo trùng mỗi lần ghi.
+        if (legacy != null && ctx.existing(OnboardingSheet.EQUIPMENT).containsKey(upper(legacy))) {
+            r.exists = true;
+            r.warn("legacy", "Đã có trên hệ thống (mã cũ " + legacy + ") — dòng này không tạo lại");
+        }
 
         BigDecimal quantity = r.number("quantity", "Số lượng");
         if (quantity == null) {
@@ -806,7 +812,8 @@ public class OnboardingValidator {
             String holder = ctx.serials().get(serialKey(serial));
             if (same.size() > 1) {
                 r.error("serial", "Số serial \"" + serial + "\" lặp lại ở các dòng " + join(same));
-            } else if (holder != null) {
+            } else if (holder != null && !r.exists) {
+                // Dòng đã có (khớp mã cũ): serial là của chính thiết bị đó, không phải trùng.
                 r.error("serial", "Số serial \"" + serial + "\" đã có ở thiết bị " + holder);
             }
         }
@@ -1325,6 +1332,13 @@ public class OnboardingValidator {
                     case ROOM -> "rooms";
                     case CLASS, EQUIPMENT -> null;
                 };
+                if (s == OnboardingSheet.EQUIPMENT) {
+                    // Thiết bị không có mã do trường đặt: nhận ra bằng mã cũ (tem, phần mềm cũ) đã lưu khi nhập.
+                    jdbc.query("SELECT id, legacy_code FROM equipment WHERE school_id = ? AND legacy_code IS NOT NULL",
+                            rs -> {
+                                result.putIfAbsent(upper(rs.getString("legacy_code")), rs.getLong("id"));
+                            }, schoolId);
+                }
                 if (table != null) {
                     jdbc.query("SELECT id, code FROM " + table + " WHERE school_id = ?",
                             rs -> {

@@ -172,7 +172,7 @@ export const DataImportBatch = () => {
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(reloadTimer.current), []);
 
-  async function act(request: () => Promise<ImportBatch>, success?: string, reload: "now" | "later" = "now") {
+  async function act(request: () => Promise<ImportBatch>, success?: string | ((b: ImportBatch) => string), reload: "now" | "later" = "now") {
     setBusy(true);
     try {
       const updated = await request();
@@ -189,7 +189,7 @@ export const DataImportBatch = () => {
           queue.current = queue.current.then(reloadRows);
         }, 1200);
       }
-      if (success) notify?.({ type: "success", message: success });
+      if (success) notify?.({ type: "success", message: typeof success === "function" ? success(updated) : success });
     } catch (error) {
       notifyError(await errorMessage(error));
       // Lần sửa không lên được: bỏ giá trị đã ghi sẵn vào bộ đệm, đọc lại bản thật.
@@ -471,7 +471,12 @@ export const DataImportBatch = () => {
             </div>}
             cancelLabel="Chưa, để sau" confirmLabel="Cập nhật" busy={busy} keepOpen
             onConfirm={() => void act(() => kyInstance.post(`data_imports/${id}/commit`, { timeout: 900_000 }).json<ImportBatch>(),
-              "Đã cập nhật dữ liệu vào hệ thống").then(() => setConfirm(null))} />
+              // Nói luôn đã tạo gì — trước đây chỉ thấy khi rê chuột vào dòng "Đã ghi …" ở đầu trang.
+              (b) => {
+                const made = Object.entries(b.created ?? {}).filter(([, n]) => n > 0)
+                  .map(([k, n]) => `${n.toLocaleString("vi-VN")} ${CREATED_LABELS[k] ?? k}`).join(", ");
+                return made ? `Đã cập nhật dữ liệu vào hệ thống: ${made}` : "Đã cập nhật dữ liệu vào hệ thống";
+              }).then(() => setConfirm(null))} />
         ) : confirm === "rollback" ? (
           <ConfirmContent tone="warning" title="Hoàn tác lô nhập này?"
             description="Dữ liệu lô này đã ghi sẽ bị gỡ khỏi hệ thống và lô quay về để sửa. Không hoàn tác được nếu dữ liệu đã được dùng, ví dụ đã lập phiếu hoặc đã cấp tài khoản."

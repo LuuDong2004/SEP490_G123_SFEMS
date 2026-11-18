@@ -200,7 +200,8 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
       <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void ask()}
         title={aiOn ? "Sửa nhanh theo luật, rồi hỏi AI cho các dòng còn lại" : "Sửa nhanh theo luật: mã trùng, mã sai dạng, phòng còn thiếu…"}>
         {aiOn ? <Sparkles className="text-primary" /> : <Wand2 className="text-primary" />}
-        AI sửa lỗi
+        {/* Chưa bật AI thì chỉ có sửa theo luật — gọi đúng tên, khỏi tưởng là AI. */}
+        {aiOn ? "AI sửa lỗi" : "Sửa nhanh"}
       </Button>
       {/* Đang xem: màn chờ giữa màn hình (như lúc tải trang), không nhét chữ tiến độ vào nút trên thanh công cụ. */}
       {busy ? createPortal(<AiBusy busy={busy} seen={seen} total={progress?.total ?? 0} onStop={() => abortRef.current?.abort()} />, document.body) : null}
@@ -209,7 +210,7 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
           <DialogHeader className="border-b px-6 pt-5 pb-4 text-left">
             <DialogTitle className="flex items-center gap-2">
               <Wand2 className="text-primary size-5" />
-              AI sửa lỗi · {sheet.title}
+              {aiOn ? "AI sửa lỗi" : "Sửa nhanh"} · {sheet.title}
               <HelpHint>Sửa nhanh theo luật chạy ngay trên dữ liệu hiện tại, không gọi AI; AI xem các dòng lỗi luật chưa sửa được và thiết bị chưa ghép được danh mục. Xem lại trước khi áp dụng.</HelpHint>
             </DialogTitle>
             {/* Chỉ còn một dòng số đếm theo nguồn — lời giải thích nằm trong dấu "?". */}
