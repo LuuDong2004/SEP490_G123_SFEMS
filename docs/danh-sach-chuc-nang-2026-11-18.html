@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danh sách chức năng SFEMS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root { --bg:#f3f5f8; --panel:#fff; --fg:#18202b; --muted:#5d6878; --line:#d9dfe7; --accent:#0d7f72;
+  --ok:#0d7f72; --ok-bg:#e4f4f1; --has:#4b5563; --has-bg:#eef1f5; --part:#5b4fd1; --part-bg:#eeecfd; --off:#b26a00; --off-bg:#fff4e2;
+  --font:"Be Vietnam Pro","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; --mono:"JetBrains Mono",Consolas,ui-monospace,monospace; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f141a; --panel:#161d26; --fg:#e5eaf1; --muted:#9aa6b6; --line:#2a3442; --accent:#4fd1bf;
+  --ok:#4fd1bf; --ok-bg:#12302c; --has:#b7c0cc; --has-bg:#1d2530; --part:#a79cff; --part-bg:#24214a; --off:#f2b25b; --off-bg:#33270f; color-scheme:dark } }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); font-size:15px; line-height:1.6; padding:36px 16px 72px }
+main { max-width:1180px; margin:0 auto }
+h1 { font-size:30px; line-height:1.2; margin:0 0 12px; letter-spacing:-.01em }
+h2 { font-size:21px; margin:44px 0 12px; padding-top:8px; border-top:1px solid var(--line) }
+h3 { font-size:17px; margin:28px 0 8px }
+p, li { max-width:85ch } a { color:var(--accent) }
+code { font-family:var(--mono); font-size:.86em; background:var(--has-bg); padding:1px 5px; border-radius:4px }
+.tbl { overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; margin:12px 0 }
+table { border-collapse:collapse; width:100%; font-size:13.5px }
+th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; background:var(--bg); white-space:nowrap }
+tr:last-child td { border-bottom:0 } tbody tr:hover { background:var(--bg) }
+td:first-child { color:var(--muted); font-family:var(--mono); font-size:12px; white-space:nowrap }
+.uc { font-family:var(--mono); font-size:12px; color:var(--accent); white-space:nowrap }
+.tag { display:inline-block; font-size:12px; font-weight:600; padding:1px 9px; border-radius:99px; white-space:nowrap }
+.tag.ok { color:var(--ok); background:var(--ok-bg) } .tag.has { color:var(--has); background:var(--has-bg) }
+.tag.part { color:var(--part); background:var(--part-bg) } .tag.off { color:var(--off); background:var(--off-bg) }
+@media print { body { background:#fff; padding:0 } .tbl { border:0; overflow:visible } h2 { break-before:auto } tr { break-inside:avoid } }
+</style>
+</head>
+<body>
+<main>
+<h1 id="danh-sach-va-anh-gia-chuc-nang-sfems-18112026">Danh sách và đánh giá chức năng SFEMS — 18/11/2026</h1>
+<p>Nguồn để viết lại tài liệu từ đầu. Quét theo <strong>code đang có</strong> (nhánh <code>refactor</code>, commit <code>3fd273c</code>), không theo tài liệu cũ:
+menu và route ở <code>frontend/src/app/resources</code>, <code>features/catalogs/registry.ts</code>; 72 controller ở <code>backend/.../module</code>;
+bảng cổng <code>PortalRoutes.java</code>; test ở <code>backend/src/test</code>, <code>frontend/e2e</code>. Đối chiếu 42 UC
+(<code>SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx</code>), ma trận <code>ma-tran-truy-vet-uc.md</code> và mục "Ngoài phạm vi" của <code>AGENTS.md</code>.</p>
+<h2 id="cach-oc">Cách đọc</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Ký hiệu</th>
+<th>Nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="tag ok">Đạt</span></td>
+<td>Có màn hình + API, đã chạy thử trên giao diện ngày 18/11 hoặc có test đúng chức năng</td>
+</tr>
+<tr>
+<td><span class="tag has">Có</span></td>
+<td>Có màn hình + API, chưa có bằng chứng chạy đúng (chưa test, chưa chạy thử)</td>
+</tr>
+<tr>
+<td><span class="tag part">Một phần</span></td>
+<td>Thiếu màn hình, hoặc chỉ là phần phụ của chức năng khác</td>
+</tr>
+<tr>
+<td><span class="tag off">Lệch</span></td>
+<td>Code có nhưng tài liệu ghi ngoài phạm vi, hoặc chưa có UC nào nhận</td>
+</tr>
+</tbody>
+</table></div>
+<p>Cột <strong>UC</strong>: mã trong 42 UC; <code>—</code> = chưa UC nào nhận.</p>
+<hr />
+<h2 id="1-tai-khoan-ang-nhap-phan-quyen">1. Tài khoản, đăng nhập, phân quyền</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>API</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.1</td>
+<td>Đăng nhập (một màn cho mọi loại tài khoản, tự vào đúng cổng)</td>
+<td><code>/login</code></td>
+<td><code>/api/auth/login</code>, <code>/refresh</code></td>
+<td><span class="uc">HT-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Chạy thử 18/11; test <code>AdminPortalTest</code></td>
+</tr>
+<tr>
+<td>1.2</td>
+<td>Chọn trường ở màn đăng nhập (gõ không dấu)</td>
+<td><code>/login</code></td>
+<td><code>GET /api/auth/schools</code></td>
+<td><span class="uc">HT-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Nhận trường theo tiền tố tên đăng nhập</td>
+</tr>
+<tr>
+<td>1.3</td>
+<td>Quên mật khẩu, đặt lại qua link email</td>
+<td><code>/forgot-password</code>, <code>/reset-password</code></td>
+<td><code>/api/auth/forgot-password</code>, <code>/reset-password</code></td>
+<td><span class="uc">HT-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Link một lần, hạn 30 phút</td>
+</tr>
+<tr>
+<td>1.4</td>
+<td>Đăng xuất, đăng xuất phiên khác</td>
+<td>menu tài khoản</td>
+<td><code>/api/auth/logout</code>, <code>/sessions/{id}</code></td>
+<td><span class="uc">HT-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>1.5</td>
+<td>Đổi mật khẩu cá nhân, hồ sơ cá nhân</td>
+<td><code>/profile</code></td>
+<td><code>/api/auth/change-password</code></td>
+<td><span class="uc">HT-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>1.6</td>
+<td>Quản lý người dùng (thêm, sửa, khoá, đặt lại mật khẩu, xem phiên)</td>
+<td><code>/users</code></td>
+<td><code>/api/users</code></td>
+<td><span class="uc">HT-04</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Chạy thử 18/11; test <code>UserSubtypeTest</code></td>
+</tr>
+<tr>
+<td>1.7</td>
+<td><strong>Thư mời tự đặt mật khẩu</strong> khi tạo tài khoản (để trống mật khẩu)</td>
+<td><code>/users/create</code>, <code>/reset-password?invite=1</code></td>
+<td><code>POST /api/users</code></td>
+<td><span class="uc">HT-04</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Mới 18/11. Cần khai <code>spring.mail.*</code> để gửi thật</td>
+</tr>
+<tr>
+<td>1.8</td>
+<td>Quản lý vai trò, gán quyền chức năng</td>
+<td><code>/roles</code>, <code>/permissions</code></td>
+<td><code>/api/roles</code>, <code>/api/permissions</code></td>
+<td><span class="uc">HT-05</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Test <code>RoleTypeTest</code></td>
+</tr>
+<tr>
+<td>1.9</td>
+<td>Phạm vi dữ liệu theo vai trò (row-level)</td>
+<td>(ẩn)</td>
+<td><code>/api/row_level_policies</code></td>
+<td><span class="uc">HT-05</span></td>
+<td><span class="tag off">Lệch</span></td>
+<td>AGENTS: "phạm vi dữ liệu của vai trò" ngoài phạm vi; nhưng là nền của phân quyền theo trường</td>
+</tr>
+<tr>
+<td>1.10</td>
+<td>Xác thực hai lớp (ứng dụng / email)</td>
+<td>màn bật 2 lớp hiện thay mọi màn khi quản trị viên chưa bật; mục 2 lớp ở <code>/profile</code></td>
+<td><code>/api/auth/mfa/*</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>AGENTS: ngoài phạm vi. Code còn, cổng Admin dùng khi bật</td>
+</tr>
+<tr>
+<td>1.11</td>
+<td>Tài khoản của trường (lãnh đạo trường cấp tài khoản cấp dưới)</td>
+<td><code>/school-users</code></td>
+<td><code>/api/school_users</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>AGENTS: ngoài phạm vi. Đang dùng thật (cấp tài khoản cán bộ)</td>
+</tr>
+<tr>
+<td>1.12</td>
+<td>Cấp tài khoản cho cán bộ từ danh sách nhân sự</td>
+<td>Tổng quan trường › Nhân sự</td>
+<td><code>/api/staff/{id}/account</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Chạy thử 18/11 (có thư mời). Chưa UC nào nhận</td>
+</tr>
+<tr>
+<td>1.13</td>
+<td>Phạm vi theo cơ sở (tài khoản chỉ thấy một cơ sở)</td>
+<td>ô Phạm vi khi cấp tài khoản</td>
+<td><code>user_schools.campus_id</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Chạy thử 18/11 đúng. AGENTS: "cơ sở – điểm trường" ngoài phạm vi</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="2-danh-muc-dung-chung">2. Danh mục dùng chung</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.1</td>
+<td>Danh mục tổ chức và CSVC: Phường/Xã, Khối CSVC, Loại CSVC</td>
+<td><code>/wards</code>, <code>/facility-groups</code>, <code>/room-types</code></td>
+<td><span class="uc">DM-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp <code>FieldRuleTest</code></td>
+</tr>
+<tr>
+<td>2.2</td>
+<td>Năm học và môn học: Năm học, Học kỳ, Khối lớp, Tổ chuyên môn, Môn học, Cấp học</td>
+<td><code>/school-years</code>, <code>/semesters</code>, <code>/grades</code>, <code>/subject-groups</code>, <code>/subjects</code>, <code>/education-levels</code></td>
+<td><span class="uc">DM-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>2.3</td>
+<td>Tài chính: Nguồn hình thành, Hình thức mua sắm, Lý do biến động</td>
+<td><code>/origin-sources</code>, <code>/acquisition-methods</code>, <code>/movement-reasons</code></td>
+<td><span class="uc">DM-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>2.4</td>
+<td>Danh mục cố định (chỉ đọc): Loại tài sản, Mục đích sử dụng, Nguồn kinh phí, Chức vụ cán bộ…</td>
+<td><code>/asset-categories</code>, <code>/usage-purposes</code>, <code>/funding-sources</code>, <code>/staff-positions</code>…</td>
+<td><span class="uc">DM-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Phần lớn chỉ là lựa chọn trong ô chọn</td>
+</tr>
+<tr>
+<td>2.5</td>
+<td>Danh mục thiết bị, Loại thiết bị, Đơn vị tính, Bộ thông số kỹ thuật</td>
+<td><code>/equipment-catalogs</code>, <code>/equipment-types</code>, <code>/units</code>, <code>/equipment-configs</code></td>
+<td><span class="uc">DM-02</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Test <code>CatalogNamesTest</code>; ~1.700 mục, 3 cấp học</td>
+</tr>
+<tr>
+<td>2.6</td>
+<td>Danh mục thiết bị dạy học tối thiểu (theo ngày hiệu lực)</td>
+<td><code>/equipment-standards</code>, <code>/equipment-norms</code></td>
+<td><span class="uc">DM-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp <code>AppendixParserTest</code> (đọc phụ lục thông tư)</td>
+</tr>
+<tr>
+<td>2.7</td>
+<td>Văn bản căn cứ (thông tư, quyết định)</td>
+<td><code>/legal-documents</code></td>
+<td><span class="uc">DM-03</span></td>
+<td><span class="tag part">Một phần</span></td>
+<td>Mới trên <code>refactor</code>; phụ trợ cho <span class="uc">DM-03</span></td>
+</tr>
+<tr>
+<td>2.8</td>
+<td>Chuẩn CSVC (quy tắc đánh giá phòng, diện tích)</td>
+<td><code>/facility-standard-rules</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Chưa UC nào nhận</td>
+</tr>
+<tr>
+<td>2.9</td>
+<td>Quy tắc sinh mã: danh mục chung, của trường (phòng, khối nhà, cơ sở, cán bộ)</td>
+<td><code>/code-rules</code>, <code>/school-code-rules</code></td>
+<td><span class="uc">DM-04</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test. Đã sửa lỗi form sửa ghi đè mã (18/11)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="3-truong-hoc-va-co-so-vat-chat">3. Trường học và cơ sở vật chất</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>API</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3.1</td>
+<td>Danh sách trường, cơ quan quản lý (Sở)</td>
+<td><code>/schools</code>, <code>/departments-of-education</code></td>
+<td><code>/api/schools</code>, <code>/api/departments_of_education</code></td>
+<td><span class="uc">TC-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Test <code>SchoolShortCodesTest</code></td>
+</tr>
+<tr>
+<td>3.2</td>
+<td>Tổng quan trường › Hồ sơ trường (thông tin, ảnh, ban giám hiệu, cơ sở, số liệu chung CSVC)</td>
+<td><code>/school-explorer</code></td>
+<td><code>/api/school_overview</code>, <code>/api/school_profile</code>, <code>/api/facility_info</code></td>
+<td><span class="uc">TC-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Chạy thử 18/11. Đã sửa lỗi 500 khi trường chưa có lớp. AGENTS ghi "tổng quan một trường" ngoài phạm vi — <strong>mâu thuẫn</strong>, cần chốt</td>
+</tr>
+<tr>
+<td>3.3</td>
+<td>Phòng, khối nhà, cơ sở – điểm trường</td>
+<td>Tổng quan trường › Cơ sở vật chất</td>
+<td><code>/api/rooms</code>, <code>/api/buildings</code>, <code>/api/campuses</code></td>
+<td><span class="uc">TC-02</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Chạy thử 18/11; chưa có test tự động. AGENTS: khối nhà, cơ sở là "dữ liệu nền, không có màn quản lý" — nhưng đã có màn</td>
+</tr>
+<tr>
+<td>3.4</td>
+<td>Lớp học (sĩ số, GVCN, phòng học)</td>
+<td>trong Tổng quan trường</td>
+<td><code>/api/school_classes</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Dữ liệu nền cho số liệu CSVC</td>
+</tr>
+<tr>
+<td>3.5</td>
+<td>Nhân sự: cán bộ, giáo viên, tổ bộ môn, chức vụ</td>
+<td>Tổng quan trường › Nhân sự</td>
+<td><code>/api/staff</code>, <code>/api/subject_teams</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Chạy thử 18/11. AGENTS: "quản lý cán bộ" ngoài phạm vi</td>
+</tr>
+<tr>
+<td>3.6</td>
+<td>Đánh giá CSVC theo chuẩn</td>
+<td>Tổng quan trường › Đánh giá CSVC</td>
+<td><code>/api/facility-standard</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Ma trận đề xuất thành UC mới (<span class="uc">TC-03</span>)</td>
+</tr>
+<tr>
+<td>3.7</td>
+<td>Việc cần làm của trường (thiếu thông tin)</td>
+<td>Tổng quan trường</td>
+<td><code>/api/facility_todo</code></td>
+<td>—</td>
+<td><span class="tag part">Một phần</span></td>
+<td>Phụ trợ</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="4-thiet-bi">4. Thiết bị</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>API</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4.1</td>
+<td>Hồ sơ thiết bị (danh sách, xem, sửa, tổng hợp, xuất Excel)</td>
+<td>Thiết bị › Danh sách thiết bị</td>
+<td><code>/api/equipment</code>, <code>/api/equipment_items</code></td>
+<td><span class="uc">TS-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>4.2</td>
+<td>Tra cứu thiết bị theo mã tài sản, mã cũ</td>
+<td><code>/equipment-lookup</code> (ẩn menu, mở từ nút)</td>
+<td><code>GET /api/equipment</code></td>
+<td><span class="uc">TS-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Màn này cũng là đích của tem QR — AGENTS: "QR / in tem" ngoài phạm vi</td>
+</tr>
+<tr>
+<td>4.3</td>
+<td>Đính kèm tệp, ảnh (ảnh bìa, cắt ảnh)</td>
+<td>Hồ sơ thiết bị › Tệp, ảnh</td>
+<td><code>/api/attachments</code></td>
+<td><span class="uc">TS-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Cần MinIO; máy dev chưa chạy MinIO</td>
+</tr>
+<tr>
+<td>4.4</td>
+<td>Lịch sử thay đổi thiết bị</td>
+<td>Hồ sơ thiết bị › Lịch sử</td>
+<td><code>/api/equipment/{id}/history</code></td>
+<td><span class="uc">TS-04</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>4.5</td>
+<td>Cấp mã chuẩn cho thiết bị mang mã cũ</td>
+<td>nút Cấp mã chuẩn</td>
+<td><code>/api/equipment/{id}/standard-code</code></td>
+<td><span class="uc">TS-05</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>4.6</td>
+<td>Sinh mã tài sản</td>
+<td>(gọi khi ghi tăng, cấp mã chuẩn)</td>
+<td><code>/api/equipment/next-code</code></td>
+<td><span class="uc">TS-06</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Mã dạng <code>79.7S.00.TB.001.22</code> — chạy đúng khi nhập 18/11</td>
+</tr>
+<tr>
+<td>4.7</td>
+<td><strong>Nhập dữ liệu đầu vào từ tệp</strong> (6 trang: cơ sở, cán bộ, khối nhà, phòng, lớp, thiết bị; vùng chờ, sửa trên lưới, Sửa nhanh, AI gợi ý, ghi, hoàn tác)</td>
+<td><code>/data-imports</code></td>
+<td><code>/api/data_imports</code></td>
+<td><span class="uc">TS-07</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>E2E trọn luồng 9/9 (18/11); 5 test backend. Đã sửa: nhập lại tạo trùng thiết bị, ô chọn xoá trắng</td>
+</tr>
+<tr>
+<td>4.8</td>
+<td>Nhập danh mục (trường, phường xã) từ tệp</td>
+<td><code>/data-imports</code> (tab danh mục)</td>
+<td><code>/api/data_imports?kind=</code></td>
+<td><span class="uc">TS-07</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Việc của Sở / quản trị</td>
+</tr>
+<tr>
+<td>4.9</td>
+<td>Chuẩn tối thiểu của từng trường (đối chiếu thiết bị đang có)</td>
+<td>Thiết bị › Chuẩn tối thiểu, <code>/equipment-minimum</code></td>
+<td><code>/api/purchase_proposals/adequacy-catalog</code></td>
+<td><span class="uc">NC-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="5-mua-sam">5. Mua sắm</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>API</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5.1</td>
+<td>Định mức và nhu cầu (mức đáp ứng, loại còn thiếu, xuất Excel)</td>
+<td>Mua sắm › Định mức &amp; nhu cầu</td>
+<td><code>/api/purchase_proposals/adequacy*</code></td>
+<td><span class="uc">NC-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>5.2</td>
+<td>Lập, trình đề xuất mua sắm (chi tiết thêm của dòng, kiểm trùng)</td>
+<td>Mua sắm › Đề xuất mua sắm</td>
+<td><code>/api/purchase_proposals</code>, <code>/overlaps</code></td>
+<td><span class="uc">NC-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp <code>ReachedStepTest</code></td>
+</tr>
+<tr>
+<td>5.3</td>
+<td>Duyệt đề xuất cấp trường</td>
+<td>xem đề xuất</td>
+<td><code>/{id}/approve</code>, <code>/reject</code>, <code>/return</code></td>
+<td><span class="uc">NC-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Luồng duyệt chung</td>
+</tr>
+<tr>
+<td>5.4</td>
+<td>Duyệt đề xuất cấp Sở</td>
+<td>như trên, tài khoản Sở</td>
+<td>như trên (bước 2)</td>
+<td><span class="uc">NC-04</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>5.5</td>
+<td>Lập kế hoạch mua sắm (gom đề xuất, đơn giá dự toán)</td>
+<td>Mua sắm › Kế hoạch mua sắm</td>
+<td><code>/api/procurement_plans</code>, <code>/candidates</code></td>
+<td><span class="uc">NC-05</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>5.6</td>
+<td>Duyệt kế hoạch mua sắm</td>
+<td>xem kế hoạch</td>
+<td><code>/{id}/approve</code>, <code>/return</code></td>
+<td><span class="uc">NC-06</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>5.7</td>
+<td>Lập phiếu nhập từ đề xuất đã hoàn tất</td>
+<td>đề xuất › Lập phiếu nhập</td>
+<td><code>/{id}/intake-lines</code>, <code>/{id}/intake</code></td>
+<td><span class="uc">NC-07</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="6-ghi-tang-phieu-nhap">6. Ghi tăng (phiếu nhập)</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6.1</td>
+<td>Lập phiếu nhập (dòng thiết bị, nhập dòng từ Excel, đính kèm, nhân bản, cách mua cho cả phiếu)</td>
+<td>Thiết bị › Ghi tăng</td>
+<td><span class="uc">PN-01</span></td>
+<td><span class="tag ok">Đạt</span></td>
+<td>Test <code>IntakeFormRulesTest</code>, <code>IntakeLinesExcelTest</code></td>
+</tr>
+<tr>
+<td>6.2</td>
+<td>Trình phiếu nhập</td>
+<td>xem phiếu</td>
+<td><span class="uc">PN-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp</td>
+</tr>
+<tr>
+<td>6.3</td>
+<td>Duyệt phiếu, ghi tăng tài sản (sinh hồ sơ, mã)</td>
+<td>xem phiếu</td>
+<td><span class="uc">PN-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa có test sinh tài sản khi duyệt</td>
+</tr>
+<tr>
+<td>6.4</td>
+<td>In phiếu theo mẫu</td>
+<td>xem phiếu › In</td>
+<td><span class="uc">PN-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td><code>/api/voucher_forms</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="7-kiem-ke">7. Kiểm kê</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7.1</td>
+<td>Phát động đợt kiểm kê (Sở)</td>
+<td>Thiết bị › Đợt kiểm kê</td>
+<td><span class="uc">KK-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>7.2</td>
+<td>Theo dõi tiến độ, chênh lệch</td>
+<td>xem đợt</td>
+<td><span class="uc">KK-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>7.3</td>
+<td>Lập phiếu kiểm kê (theo trường / theo cơ sở)</td>
+<td>Thiết bị › Kiểm kê</td>
+<td><span class="uc">KK-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test <code>InventoryFreezeTest</code> (khoá số liệu khi đang kiểm)</td>
+</tr>
+<tr>
+<td>7.4</td>
+<td>Ghi kết quả kiểm đếm (thiết bị, CSVC)</td>
+<td>sửa phiếu</td>
+<td><span class="uc">KK-04</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>7.5</td>
+<td>Trình biên bản</td>
+<td>xem phiếu</td>
+<td><span class="uc">KK-05</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>7.6</td>
+<td>Duyệt biên bản, việc cần làm sau kiểm kê</td>
+<td>xem phiếu</td>
+<td><span class="uc">KK-06</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>7.7</td>
+<td>Xuất biên bản</td>
+<td>In / xuất</td>
+<td><span class="uc">KK-07</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp <code>VoucherFormsOtherTest</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-bao-cao">8. Báo cáo</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8.1</td>
+<td>Bảng điều khiển theo cấp người xem</td>
+<td><code>/dashboard</code></td>
+<td><span class="uc">BC-01</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>8.2</td>
+<td>Báo cáo tài sản: theo trường, danh mục, trạng thái, tình trạng; danh sách; sổ tài sản</td>
+<td><code>/reports/equipment-*</code></td>
+<td><span class="uc">BC-02</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Test gián tiếp <code>ReportFiltersTest</code></td>
+</tr>
+<tr>
+<td>8.3</td>
+<td>Báo cáo mức đáp ứng danh mục tối thiểu</td>
+<td><code>/reports/adequacy</code></td>
+<td><span class="uc">BC-03</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>8.4</td>
+<td>Báo cáo nhu cầu và kế hoạch mua sắm</td>
+<td><code>/reports/purchase</code></td>
+<td><span class="uc">BC-04</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>8.5</td>
+<td>Báo cáo kết quả kiểm kê</td>
+<td><code>/reports/inventory</code></td>
+<td><span class="uc">BC-05</span></td>
+<td><span class="tag has">Có</span></td>
+<td></td>
+</tr>
+<tr>
+<td>8.6</td>
+<td>Xuất dữ liệu danh sách và báo cáo, ảnh chụp báo cáo</td>
+<td>nút Xuất, <code>/report-snapshots</code></td>
+<td><span class="uc">BC-06</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>8.7</td>
+<td>Báo cáo chuẩn CSVC</td>
+<td><code>/reports/facility-standard</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Đi cùng 3.6</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="9-he-thong-va-ha-tang-dung-chung">9. Hệ thống và hạ tầng dùng chung</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Chức năng</th>
+<th>Màn hình</th>
+<th>UC</th>
+<th>Đánh giá</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>9.1</td>
+<td>Thông báo (chuông, danh sách, đánh dấu đã đọc)</td>
+<td><code>/notifications</code></td>
+<td><span class="uc">HT-06</span></td>
+<td><span class="tag has">Có</span></td>
+<td>Chưa test</td>
+</tr>
+<tr>
+<td>9.2</td>
+<td>Cấu hình luồng phê duyệt theo loại phiếu</td>
+<td><code>/approval-flows</code></td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Ma trận đề xuất ghi vào <span class="uc">HT-05</span></td>
+</tr>
+<tr>
+<td>9.3</td>
+<td>Khung phiếu dùng chung: trình, duyệt, trả lại, giữ chỗ, liên kết phiếu, lịch sử phiếu</td>
+<td>(trong từng phiếu)</td>
+<td>NC, PN, KK</td>
+<td><span class="tag part">Một phần</span></td>
+<td>Nền cho mọi luồng duyệt</td>
+</tr>
+<tr>
+<td>9.4</td>
+<td>Xuất toàn bộ dữ liệu</td>
+<td>(Quản trị)</td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td><code>/api/data_transfer</code></td>
+</tr>
+<tr>
+<td>9.5</td>
+<td>Nhật ký hoạt động, nhật ký xuất</td>
+<td>(ẩn menu)</td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>AGENTS: ngoài phạm vi; controller còn</td>
+</tr>
+<tr>
+<td>9.6</td>
+<td>Trạng thái hệ thống, cài đặt AI, thay đổi dữ liệu</td>
+<td>(ẩn menu)</td>
+<td>—</td>
+<td><span class="tag off">Lệch</span></td>
+<td>Ma trận đề xuất bỏ hẳn hoặc ghi phụ trợ</td>
+</tr>
+<tr>
+<td>9.7</td>
+<td>Trang "Quy trình" của phân hệ Thiết bị, Mua sắm (sơ đồ ai làm, ai duyệt)</td>
+<td>tab Quy trình</td>
+<td>—</td>
+<td><span class="tag part">Một phần</span></td>
+<td>Hướng dẫn trên màn hình</td>
+</tr>
+<tr>
+<td>9.8</td>
+<td>Tài khoản dùng thử ở màn đăng nhập (bản dev)</td>
+<td><code>/login</code></td>
+<td>—</td>
+<td><span class="tag part">Một phần</span></td>
+<td>Chỉ bản dev; bản chính thức tự khoá tài khoản demo</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="tong-hop">Tổng hợp</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Nhóm</th>
+<th>Số chức năng</th>
+<th>Đạt</th>
+<th>Có</th>
+<th>Một phần</th>
+<th>Lệch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Tài khoản, phân quyền</td>
+<td>13</td>
+<td>6</td>
+<td>2</td>
+<td>0</td>
+<td>5</td>
+</tr>
+<tr>
+<td>2. Danh mục</td>
+<td>9</td>
+<td>1</td>
+<td>6</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>3. Trường, CSVC</td>
+<td>7</td>
+<td>3</td>
+<td>0</td>
+<td>1</td>
+<td>3</td>
+</tr>
+<tr>
+<td>4. Thiết bị</td>
+<td>9</td>
+<td>1</td>
+<td>8</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>5. Mua sắm</td>
+<td>7</td>
+<td>0</td>
+<td>7</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>6. Ghi tăng</td>
+<td>4</td>
+<td>1</td>
+<td>3</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>7. Kiểm kê</td>
+<td>7</td>
+<td>0</td>
+<td>7</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>8. Báo cáo</td>
+<td>7</td>
+<td>0</td>
+<td>6</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>9. Hệ thống</td>
+<td>8</td>
+<td>0</td>
+<td>1</td>
+<td>3</td>
+<td>4</td>
+</tr>
+<tr>
+<td><strong>Cộng</strong></td>
+<td><strong>71</strong></td>
+<td><strong>12</strong></td>
+<td><strong>40</strong></td>
+<td><strong>5</strong></td>
+<td><strong>14</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Đối chiếu 42 UC:</strong> cả 42 UC đều có màn hình và API. Có bằng chứng chạy đúng (Đạt) mới ở 8 UC: <span class="uc">HT-01</span>, <span class="uc">HT-04</span>,
+<span class="uc">HT-05</span>, <span class="uc">DM-02</span>, <span class="uc">TC-01</span>, <span class="uc">TC-02</span>, <span class="uc">TS-07</span>, <span class="uc">PN-01</span>. Còn 34 UC ở mức "Có".</p>
+<p><strong>Code vượt tài liệu:</strong> 14 chức năng "Lệch" — phần lớn rơi vào danh sách <em>ngoài phạm vi</em> của <code>AGENTS.md</code> nhưng code
+vẫn chạy và có cái đang được dùng thật (tài khoản của trường, cấp tài khoản cán bộ, phạm vi theo cơ sở, nhân sự,
+đánh giá CSVC).</p>
+<h2 id="71-chuc-nang-khong-phai-71-uc">71 chức năng không phải 71 UC</h2>
+<p>71 là số <strong>chức năng nhỏ</strong>; một UC có thể ứng với vài dòng (<span class="uc">HT-01</span> = 3 dòng, <span class="uc">DM-01</span> = 4 dòng). Trong 71 dòng:</p>
+<ul>
+<li><strong>55 dòng</strong> thuộc 42 UC cũ — chỉ là tách nhỏ, không thêm UC.</li>
+<li><strong>16 dòng</strong> chưa UC nào nhận (cột UC ghi <code>—</code>). Gom lại chỉ thành khoảng <strong>4–5 UC mới</strong>, tổng khoảng 46–47 UC:</li>
+</ul>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>UC có thể thêm</th>
+<th>Gồm các dòng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quản lý nhân sự trường (cán bộ, tổ bộ môn, chức vụ)</td>
+<td>3.5</td>
+</tr>
+<tr>
+<td>Tài khoản của trường (cấp tài khoản cán bộ, phạm vi theo cơ sở)</td>
+<td>1.11, 1.12, 1.13</td>
+</tr>
+<tr>
+<td>Đánh giá CSVC theo chuẩn (danh mục chuẩn, đánh giá, báo cáo)</td>
+<td>2.8, 3.6, 8.7</td>
+</tr>
+<tr>
+<td>Cấu hình luồng phê duyệt</td>
+<td>9.2</td>
+</tr>
+<tr>
+<td>Gộp vào <span class="uc">TC-02</span>, không thành UC riêng: lớp học, việc cần làm của trường</td>
+<td>3.4, 3.7</td>
+</tr>
+<tr>
+<td>Ghi là phụ trợ hoặc bỏ: hai lớp, nhật ký, trạng thái hệ thống, AI, xuất toàn bộ dữ liệu, trang Quy trình, tài khoản dùng thử</td>
+<td>1.10, 9.4–9.8</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="viec-can-chot-khi-viet-lai-tai-lieu">Việc cần chốt khi viết lại tài liệu</h2>
+<ol>
+<li><strong>Nhóm "Lệch": đưa vào hay bỏ.</strong> Gợi ý theo mức đang dùng:</li>
+<li>Nên đưa vào UC: tổng quan trường (3.2), cơ sở – khối nhà – lớp như phần của <span class="uc">TC-02</span> (3.3, 3.4), nhân sự (3.5),
+     tài khoản của trường và cấp tài khoản cán bộ (1.11, 1.12), phạm vi theo cơ sở (1.13), luồng phê duyệt (9.2).</li>
+<li>Có thể thêm UC mới: đánh giá CSVC theo chuẩn + báo cáo (2.8, 3.6, 8.7).</li>
+<li>Nên ghi là phụ trợ hoặc ẩn: hai lớp (1.10), nhật ký, trạng thái hệ thống, AI, thay đổi dữ liệu (9.5, 9.6),
+     xuất toàn bộ dữ liệu (9.4).</li>
+<li><strong>Mâu thuẫn trong tài liệu hiện tại:</strong> <code>AGENTS.md</code> ghi "tổng quan một trường", "cơ sở – điểm trường", "khối nhà"
+   ngoài phạm vi và "không có màn quản lý", trong khi ma trận đặt <span class="uc">TC-01</span>, <span class="uc">TC-02</span> trên chính màn Tổng quan trường.</li>
+<li><strong>Quyền quản trị viên:</strong> cổng Admin mở mọi chức năng; tài liệu cũ chỉ giao <span class="uc">HT-04</span>, <span class="uc">HT-05</span>, <span class="uc">DM-01..04</span>, <span class="uc">TC-01</span>.</li>
+<li><strong>Kiểm chứng:</strong> 23 UC chưa có test; <code>e2e/flows.spec.ts</code>, <code>lists.spec.ts</code> còn kiểm chức năng đã bỏ.</li>
+</ol>
+</main>
+</body>
+</html>
