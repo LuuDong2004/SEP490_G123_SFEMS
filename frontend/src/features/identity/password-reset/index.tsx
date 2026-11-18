@@ -97,6 +97,9 @@ export function ResetPassword() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const token = params.get("token") ?? "";
+  // Link trong thư mời tài khoản mới (`&invite=1`): cùng cơ chế, nhưng người nhận chưa từng có mật khẩu — nói
+  // "đặt mật khẩu", không nói "đặt lại" hay "đăng xuất phiên cũ".
+  const invite = params.get("invite") === "1";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,13 +123,17 @@ export function ResetPassword() {
   }
 
   return (
-    <Shell title="Đặt lại mật khẩu" description="Đặt mật khẩu mới cho tài khoản. Đặt xong, mọi phiên đăng nhập cũ đều bị đăng xuất.">
+    <Shell
+      title={invite ? "Đặt mật khẩu cho tài khoản mới" : "Đặt lại mật khẩu"}
+      description={invite
+        ? "Chào mừng bạn. Đặt mật khẩu để bắt đầu dùng hệ thống, rồi đăng nhập bằng tên đăng nhập trong thư."
+        : "Đặt mật khẩu mới cho tài khoản. Đặt xong, mọi phiên đăng nhập cũ đều bị đăng xuất."}>
       {!token ? (
         <p className="text-destructive text-sm">Link không hợp lệ. <Link to="/forgot-password" className="underline">Yêu cầu link mới</Link>.</p>
       ) : done ? (
         <div className="bg-success-subtle text-success-text flex gap-3 rounded-lg p-4 text-sm">
           <KeyRound className="mt-0.5 size-5 shrink-0" />
-          <p>Đã đặt mật khẩu mới. Đang chuyển về màn đăng nhập…</p>
+          <p>{invite ? "Đã đặt mật khẩu." : "Đã đặt mật khẩu mới."} Đang chuyển về màn đăng nhập…</p>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4">
@@ -144,7 +151,7 @@ export function ResetPassword() {
           </div>
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <Button type="submit" size="lg" className="h-10 w-full" disabled={busy || !passwordOk(password) || password !== confirm}>
-            {busy ? "Đang lưu…" : "Đặt mật khẩu mới"}
+            {busy ? "Đang lưu…" : invite ? "Đặt mật khẩu" : "Đặt mật khẩu mới"}
           </Button>
         </form>
       )}

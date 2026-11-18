@@ -52,10 +52,10 @@ const COLUMNS: MiniColumn[] = [
   { header: "Đăng nhập gần nhất", cell: (r) => (r.lastLoginAt ? formatDateTime(r.lastLoginAt) : <span className="text-muted-foreground">Chưa đăng nhập</span>) },
 ];
 
-type IssuedResponse = { user: any; temporaryPassword: string };
+type IssuedResponse = { user: any; temporaryPassword: string; invitedEmail?: string | null };
 
 function toIssued(res: IssuedResponse): Issued {
-  return { userId: res.user.id, username: res.user.username, role: null, temporaryPassword: res.temporaryPassword };
+  return { userId: res.user.id, username: res.user.username, role: null, temporaryPassword: res.temporaryPassword, invitedEmail: res.invitedEmail };
 }
 
 /**

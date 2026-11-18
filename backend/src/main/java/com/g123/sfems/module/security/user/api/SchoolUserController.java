@@ -73,9 +73,9 @@ public class SchoolUserController {
     }
 
     /** Tài khoản kèm mật khẩu tạm — chỉ ở lần tạo / đặt lại. */
-    public record IssuedResponse(UserResponse user, String temporaryPassword) {
+    public record IssuedResponse(UserResponse user, String temporaryPassword, String invitedEmail) {
         static IssuedResponse of(Issued issued) {
-            return new IssuedResponse(UserResponse.from(issued.user()), issued.temporaryPassword());
+            return new IssuedResponse(UserResponse.from(issued.user()), issued.temporaryPassword(), issued.invitedEmail());
         }
     }
 

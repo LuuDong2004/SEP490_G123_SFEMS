@@ -86,8 +86,8 @@ const FORM_ID = "user-create-form";
  * Creating an account.
  *
  * This is the only way a user comes into existence — there is no
- * self-registration — so the password is set here by whoever creates the
- * account and handed over out of band.
+ * self-registration. Mật khẩu để trống thì máy chủ gửi thư mời tới email, chủ
+ * tài khoản tự đặt mật khẩu qua link; nhập thì người tạo tự giao mật khẩu.
  *
  * <p>Hộp thoại mở trên danh sách (route `create` lồng dưới route danh sách,
  * danh sách vẽ `<Outlet />`): các phần xếp theo thứ tự điền (tài khoản · nơi
@@ -100,7 +100,15 @@ export const UserCreate = () => {
     refineCore: { onFinish },
     ...form
   } = useForm({
-    refineCoreProps: {},
+    refineCoreProps: {
+      // Mật khẩu trống = mời qua email: nói rõ để người tạo không phải tự giao mật khẩu.
+      successNotification: (_data, values) => ({
+        type: "success",
+        message: (values as UserFormValues | undefined)?.password
+          ? "Đã thêm người dùng"
+          : "Đã thêm người dùng và gửi thư mời đặt mật khẩu tới email",
+      }),
+    },
     defaultValues: DEFAULT_VALUES,
   });
 
@@ -184,8 +192,7 @@ export const UserCreate = () => {
             control={form.control}
             name="password"
             rules={{
-              required: "Mật khẩu là bắt buộc",
-              validate: (v: string) => passwordOk(v ?? "") || "Mật khẩu chưa đủ các yêu cầu bên dưới",
+              validate: (v: string) => !v || passwordOk(v) || "Mật khẩu chưa đủ các yêu cầu bên dưới",
             }}
             render={({ field }) => (
               <FormItem>
@@ -195,15 +202,15 @@ export const UserCreate = () => {
                     {...field}
                     value={field.value ?? ""}
                     autoComplete="new-password"
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Để trống: gửi thư mời qua email"
                   />
                 </FormControl>
                 <FormHint>
-                  Lưu xong sẽ không xem lại được. Hãy gửi cho chủ tài khoản
-                  và nhắc họ đổi mật khẩu.
+                  Để trống thì hệ thống gửi tới email trên một link để chủ tài khoản tự đặt mật khẩu. Nhập mật khẩu
+                  thì bạn tự giao cho họ — lưu xong không xem lại được.
                 </FormHint>
                 <FormMessage />
-                <PasswordRules value={field.value ?? ""} className="pt-1" />
+                {field.value ? <PasswordRules value={field.value} className="pt-1" /> : null}
               </FormItem>
             )}
           />

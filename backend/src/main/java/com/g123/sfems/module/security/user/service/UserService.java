@@ -183,7 +183,13 @@ public class UserService {
         requireUsernameAvailable(username, null);
         requireEmailAvailable(email, null);
         Set<Role> roles = resolveRoles(request.roles());
-        PasswordPolicy.check("password", request.password(), username, privileged(roles));
+        // Không nhập mật khẩu = mời qua email (UserController): đặt một mật khẩu ngẫu nhiên không ai biết, người dùng
+        // tự đặt mật khẩu thật qua link trong thư.
+        boolean invited = request.password() == null || request.password().isBlank();
+        String password = invited ? PasswordPolicy.temporary() : request.password();
+        if (!invited) {
+            PasswordPolicy.check("password", password, username, privileged(roles));
+        }
 
         School school = resolveSchool(request.school(), null);
         DepartmentOfEducation managingBody = resolveManagingBody(request.managingBody(), null);
@@ -200,7 +206,7 @@ public class UserService {
                 type,
                 username,
                 email,
-                passwordEncoder.encode(request.password()),
+                passwordEncoder.encode(password),
                 request.fullName().trim(),
                 request.status() == null ? UserStatus.ACTIVE : request.status(),
                 school,

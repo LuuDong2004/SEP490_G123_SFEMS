@@ -50,13 +50,15 @@ public class SchoolUserService {
 
 
     private final UserService users;
+    private final PasswordResetService invites;
     private final RoleService roles;
     private final RowLevelPrincipalResolver principals;
     private final CampusService campuses;
     private final ApplicationEventPublisher events;
 
     public SchoolUserService(UserService users, RoleService roles, RowLevelPrincipalResolver principals,
-            CampusService campuses, ApplicationEventPublisher events) {
+            CampusService campuses, ApplicationEventPublisher events, PasswordResetService invites) {
+        this.invites = invites;
         this.users = users;
         this.roles = roles;
         this.principals = principals;
@@ -65,7 +67,8 @@ public class SchoolUserService {
     }
 
     /** Tài khoản vừa tạo / vừa đặt lại mật khẩu, kèm mật khẩu tạm (trả MỘT lần). */
-    public record Issued(User user, String temporaryPassword) {
+    /** {@code invitedEmail}: email (đã che) nhận thư mời tự đặt mật khẩu; {@code null} = không gửi thư. */
+    public record Issued(User user, String temporaryPassword, String invitedEmail) {
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +92,7 @@ public class SchoolUserService {
         String password = temporaryPassword();
         User user = users.create(new UserRequest(
                 cleanUsername,
-                email == null || email.isBlank() ? cleanUsername + "@qltb.local" : email.trim(),
+                email == null || email.isBlank() ? cleanUsername + PasswordResetService.PLACEHOLDER_DOMAIN : email.trim(),
                 fullName == null ? "" : fullName.trim(),
                 password,
                 UserStatus.ACTIVE,
@@ -100,7 +103,9 @@ public class SchoolUserService {
         if (campus != null) {
             assignCampus(user, campus.id());
         }
-        return new Issued(user, password);
+        // Có email thật: gửi thư mời tự đặt mật khẩu (đi sau commit). Mật khẩu tạm vẫn trả về cho người cấp — lối
+        // dự phòng khi máy chủ thư chưa cấu hình hoặc thư không tới.
+        return new Issued(user, password, invites.invite(user));
     }
 
     @Transactional
@@ -132,7 +137,7 @@ public class SchoolUserService {
     public Issued resetPassword(Long id) {
         get(id);
         String password = temporaryPassword();
-        return new Issued(users.setPassword(id, password), password);
+        return new Issued(users.setPassword(id, password), password, null);
     }
 
     @Transactional

@@ -29,7 +29,8 @@ function defaultRole(staff: any) {
   return staff.position === "CAN_BO_THIET_BI" ? "SCHOOL_STAFF" : "";
 }
 
-export type Issued = { userId: number; username: string; role: string | null; temporaryPassword: string };
+/** `invitedEmail`: email (đã che) đã nhận thư mời tự đặt mật khẩu — máy chủ gửi khi cán bộ có email. */
+export type Issued = { userId: number; username: string; role: string | null; temporaryPassword: string; invitedEmail?: string | null };
 
 /** Hiện tên đăng nhập + mật khẩu tạm MỘT lần, có nút chép. */
 export function CredentialsDialog({ issued, name, onClose }: { issued: Issued | null; name: string; onClose: () => void }) {
@@ -41,7 +42,9 @@ export function CredentialsDialog({ issued, name, onClose }: { issued: Issued | 
         <DialogHeader>
           <DialogTitle>Tài khoản của {name}</DialogTitle>
           <DialogDescription>
-            Đưa thông tin này cho cán bộ. Mật khẩu chỉ hiện một lần, đăng nhập xong nên đổi mật khẩu.
+            {issued?.invitedEmail
+              ? `Đã gửi thư mời tới ${issued.invitedEmail} — cán bộ mở link trong thư để tự đặt mật khẩu. Mật khẩu tạm dưới đây chỉ dùng khi thư không tới.`
+              : "Đưa thông tin này cho cán bộ. Mật khẩu chỉ hiện một lần, đăng nhập xong nên đổi mật khẩu."}
           </DialogDescription>
         </DialogHeader>
         <dl className="bg-surface-subtle divide-y rounded-lg border text-sm">

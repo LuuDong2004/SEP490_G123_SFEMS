@@ -13,10 +13,10 @@ import java.util.List;
 /**
  * {@code POST /users} payload.
  *
- * <p>The password is set by whoever creates the account, because there is no
- * self-registration and no mail server to send an invitation through. It is
- * accepted here in the clear over the transport and hashed before it reaches
- * the database — it is never stored, echoed or logged.
+ * <p>Mật khẩu tuỳ chọn. Có thì người tạo đặt (đi qua HTTPS, băm trước khi
+ * lưu — không lưu, không trả lại, không ghi log). Để trống thì hệ thống gửi thư
+ * mời tới email, người dùng tự đặt mật khẩu qua link
+ * ({@code PasswordResetService#invite}).
  */
 public record UserRequest(
         @NotBlank(message = "Nhập tên đăng nhập")
@@ -32,7 +32,6 @@ public record UserRequest(
         @Text(value = FieldRule.NAME, label = "Họ tên")
         String fullName,
 
-        @NotBlank(message = "Nhập mật khẩu")
         // Length is the only rule worth enforcing here. Composition rules push
         // people towards predictable substitutions without adding real entropy,
         // and a longer minimum buys more than a required symbol does.

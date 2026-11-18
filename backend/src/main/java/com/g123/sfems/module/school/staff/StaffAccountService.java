@@ -11,6 +11,7 @@ import com.g123.sfems.module.security.user.api.dto.RoleRef;
 import com.g123.sfems.module.security.user.api.dto.SchoolRef;
 import com.g123.sfems.module.security.user.api.dto.UserPatchRequest;
 import com.g123.sfems.module.security.user.api.dto.UserRequest;
+import com.g123.sfems.module.security.user.service.PasswordResetService;
 import com.g123.sfems.module.security.user.service.SchoolUserService;
 import com.g123.sfems.module.security.user.service.UserService;
 import com.g123.sfems.shared.exception.ConflictException;
@@ -38,9 +39,11 @@ public class StaffAccountService {
     private final UserService users;
     private final RoleService roles;
     private final SchoolUserService schoolUsers;
+    private final PasswordResetService invites;
 
     public StaffAccountService(StaffService staff, UserService users, RoleService roles,
-            SchoolUserService schoolUsers) {
+            SchoolUserService schoolUsers, PasswordResetService invites) {
+        this.invites = invites;
         this.staff = staff;
         this.users = users;
         this.roles = roles;
@@ -48,7 +51,8 @@ public class StaffAccountService {
     }
 
     /** Kết quả cấp / đặt lại: tài khoản kèm mật khẩu tạm (chỉ trả một lần, không lưu ở đâu). */
-    public record Issued(Long userId, String username, String role, String temporaryPassword) {
+    /** {@code invitedEmail}: email (đã che) nhận thư mời tự đặt mật khẩu; {@code null} = không gửi thư. */
+    public record Issued(Long userId, String username, String role, String temporaryPassword, String invitedEmail) {
     }
 
     @Transactional
@@ -67,7 +71,7 @@ public class StaffAccountService {
                 : requestedUsername.trim().toLowerCase(Locale.ROOT);
         String email = person.getEmail() != null && !person.getEmail().isBlank()
                 ? person.getEmail().trim().toLowerCase(Locale.ROOT)
-                : username + "@qltb.local";
+                : username + PasswordResetService.PLACEHOLDER_DOMAIN;
         String password = temporaryPassword();
 
         User user = users.create(new UserRequest(
@@ -77,7 +81,8 @@ public class StaffAccountService {
         // Phạm vi cơ sở (270): trống = cả trường; kiểm cùng trường, còn dùng ở SchoolUserService.
         schoolUsers.assignCampus(user, campusId);
         staff.linkAccount(staffId, user);
-        return new Issued(user.getId(), user.getUsername(), role, password);
+        // Cán bộ có email: gửi thư mời tự đặt mật khẩu (đi sau commit); mật khẩu tạm vẫn hiện cho người cấp.
+        return new Issued(user.getId(), user.getUsername(), role, password, invites.invite(user));
     }
 
     @Transactional
@@ -85,7 +90,7 @@ public class StaffAccountService {
         User account = accountOf(staffId);
         String password = temporaryPassword();
         users.setPassword(account.getId(), password);
-        return new Issued(account.getId(), account.getUsername(), null, password);
+        return new Issued(account.getId(), account.getUsername(), null, password, null);
     }
 
     /** Khoá (không cho đăng nhập) hoặc mở lại tài khoản của cán bộ. */
