@@ -44,6 +44,7 @@ public class DemoAccountGuard {
             Map.entry("ubnd.lanhdao", DEMO),
             Map.entry("ubnd.chuyenvien", DEMO),
             Map.entry("thcs.canbo", DEMO),
+            Map.entry("thcs.canbo2", DEMO),
             Map.entry("thcs.hieutruong", DEMO),
             Map.entry("thcs2.canbo", DEMO),
             Map.entry("thcs2.hieutruong", DEMO),

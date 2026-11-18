@@ -122,7 +122,9 @@ const DEMO_TIERS: {
           {
             where: "THCS Bình An",
             accounts: [
-              { username: "thcs.canbo", password: "Demo@123", role: "Cán bộ" },
+              // Hai cán bộ, mỗi người một cơ sở — để thử phạm vi theo cơ sở.
+              { username: "thcs.canbo", password: "Demo@123", role: "CB CS chính" },
+              { username: "thcs.canbo2", password: "Demo@123", role: "CB CS phụ" },
               {
                 username: "thcs.hieutruong",
                 password: "Demo@123",
