@@ -200,9 +200,12 @@ public class FacilityInfoController {
                 WHERE c.school_id = ? AND c.active%s ORDER BY c.is_primary DESC, c.branch DESC, c.sort_order NULLS LAST, c.name
                 """.formatted(FacilityCounting.CLASS_COUNTS_BY_CAMPUS, pinCampus),
                 (rs, i) -> {
-                    Integer classes = rs.getObject("classes") == null ? (hasClasses ? 0 : null) : rs.getInt("classes");
-                    Integer students = rs.getObject("students") == null ? (hasClasses && classes == 0 ? 0 : null)
-                            : rs.getInt("students");
+                    // Integer.valueOf: để `int` trần thì cả biểu thức `? :` thành int, nhánh null bị unbox → NPE.
+                    Integer classes = rs.getObject("classes") == null ? (hasClasses ? 0 : null)
+                            : Integer.valueOf(rs.getInt("classes"));
+                    Integer students = rs.getObject("students") == null
+                            ? (hasClasses && classes == 0 ? 0 : null)
+                            : Integer.valueOf(rs.getInt("students"));
                     return new CampusInfo(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
                             rs.getBoolean("is_primary") ? "MAIN" : rs.getBoolean("branch") ? "BRANCH" : "POINT",
                             students, classes);

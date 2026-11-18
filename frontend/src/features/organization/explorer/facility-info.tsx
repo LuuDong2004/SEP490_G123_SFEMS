@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Fact as ProfileFact, InlineEdit, PROFILE_GRID, ProfileSection, SourceLink } from "@/features/organization/schools/school-info";
 import { DetailTable, type DetailColumn } from "@/shared/components/data-table/detail-table";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { QueryError } from "@/shared/components/query-error";
 import { LoadingText } from "@/shared/components/spinner";
 import { numberError } from "@/shared/lib/field-rules";
 
@@ -213,11 +214,14 @@ export function FacilityInfoPanel({ schoolId, general, onGo }: {
   /** Mở tab / mục nguồn của một số tự tính ("classes", "rooms"…). */
   onGo?: (tab: string) => void;
 }) {
-  const { data, isLoading } = useFacilityInfo(schoolId);
+  const query = useFacilityInfo(schoolId);
+  const { data, isLoading } = query;
   const mayEdit = useCan({ resource: "rooms", action: "edit" }).data?.can ?? false;
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<FacilityDetailKind | null>(null);
   const queryClient = useQueryClient();
+  // Lỗi thì nói lỗi, không để "Đang tải..." quay mãi.
+  if (query.isError) return <QueryError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />;
   if (isLoading || !data) return <LoadingText className="py-6" />;
   if (general) {
     const go = (tab: string) => (onGo ? () => onGo(tab) : undefined);
