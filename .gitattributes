@@ -3,3 +3,5 @@
 gradlew   text eol=lf
 *.bat     text eol=crlf
 *.ps1     text eol=crlf
+# Tệp mẫu của bộ kiểm thử: giữ nguyên byte, không đổi xuống dòng.
+*.pdf     binary
