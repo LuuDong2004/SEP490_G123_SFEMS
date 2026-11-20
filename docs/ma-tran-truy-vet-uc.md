@@ -61,7 +61,7 @@ Quy ước:
 | NC-03 | Duyệt đề xuất cấp trường | HoangPND | `/purchase-proposals/show/:id` | `POST /api/purchase_proposals/{id}/approve`, `/reject`, `/return` | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A2, `flow-exceptions` E1 (trả lại) |
 | NC-04 | Duyệt đề xuất cấp Sở | HoangPND | như NC-03, tài khoản Sở | như NC-03 (bước 2 của luồng duyệt) | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A3, `flow-exceptions` E2 (từ chối) |
 | NC-05 | Lập kế hoạch mua sắm | HoangPND | `/procurement-plans` (+ `create`, `edit/:id`) | `/api/procurement_plans` (CRUD, `/candidates`, `/{id}/submit`) | `procurement_plans:write` | ✅ e2e `flow-procurement` A4, `flow-exceptions` E3 (đề xuất bị từ chối không vào kế hoạch) |
-| NC-06 | Duyệt kế hoạch mua sắm | HoangPND | `/procurement-plans/show/:id` | `POST /api/procurement_plans/{id}/approve`, `/reject` | `procurement_plans:approve` | ✅ e2e `flow-procurement` A5, `flow-exceptions` E3 (trả lại kế hoạch) |
+| NC-06 | Duyệt kế hoạch mua sắm | HoangPND | `/procurement-plans/show/:id` | `POST /api/procurement_plans/{id}/approve`, `/return` (kế hoạch không có từ chối, chỉ trả lại) | `procurement_plans:approve` | ✅ e2e `flow-procurement` A5, `flow-exceptions` E3 (trả lại kế hoạch) |
 | NC-07 | Lập phiếu nhập từ đề xuất đã hoàn tất | HoangPND | đề xuất đã duyệt › Lập phiếu nhập | `GET /api/purchase_proposals/{id}/intake-lines` → `POST /api/equipment_intakes` | `equipment_intakes:write` | ✅ e2e `flow-procurement` A6 |
 
 ## Nhập thiết bị – ghi tăng tài sản (PN)
