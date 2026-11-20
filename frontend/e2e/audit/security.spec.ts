@@ -105,8 +105,8 @@ test("S5 phân quyền theo vai (dọc)", async ({ request }) => {
     ["soLanhDao", "procurement_plans:approve", true, "Lãnh đạo Sở duyệt kế hoạch (NC-06)"],
     ["soChuyenVien", "inventory_campaigns:write", true, "Chuyên viên Sở phát động đợt kiểm kê (KK-01)"],
     ["admin", "users:write", true, "Quản trị viên quản lý tài khoản (HT-04)"],
-    ["admin", "equipment_intakes:write", false, "Quản trị viên KHÔNG lập phiếu ghi tăng (theo tài liệu G123)"],
-    ["admin", "purchase_proposals:approve", false, "Quản trị viên KHÔNG duyệt đề xuất (theo tài liệu G123)"],
+    ["admin", "equipment_intakes:write", true, "Quản trị viên lập được phiếu ghi tăng (đi được toàn bộ luồng, 281)"],
+    ["admin", "purchase_proposals:approve", true, "Quản trị viên duyệt được đề xuất (đi được toàn bộ luồng, 281)"],
   ];
   for (const [role, code, want, title] of rules) {
     const got = has(role, code);
@@ -115,7 +115,7 @@ test("S5 phân quyền theo vai (dọc)", async ({ request }) => {
   rec.add({ id: "S5:counts", area: "Phân quyền theo vai", title: "Số mã quyền của từng vai", ok: true, severity: "info", expected: "-", actual: Object.entries(perms).map(([k, v]) => `${k}=${v.length}`).join(", ") });
   // Admin gọi được nghiệp vụ qua cổng Admin?
   const a = await call(request, S.admin, "GET", "purchase_proposals?_start=0&_end=1");
-  rec.check("S5:admin-business", "Phân quyền theo vai", "Quản trị viên đọc đề xuất mua sắm qua cổng Admin", a.status !== 200, "medium", "không (theo tài liệu G123)", String(a.status));
+  rec.check("S5:admin-business", "Phân quyền theo vai", "Quản trị viên đọc đề xuất mua sắm qua cổng Admin", a.status === 200, "medium", "200 (đi được toàn bộ luồng, 281)", String(a.status));
 });
 
 test("S6 token giả mạo, hết hạn, đăng xuất", async ({ request }) => {

@@ -110,20 +110,18 @@ const UI_ONLY: Record<string, Portal[]> = {
   legal_documents: [],
   approval_flows: [],
   school_users: [],
-  school_explorer: ["so", "school"],
+  school_explorer: ["admin", "so", "school"],
 };
 
 /**
- * Mục menu `name` (mã quyền `required`, null nếu không có) có hiện ở cổng `portal` không.
- * - Cổng Admin chỉ hiện thứ Admin QUẢN LÝ (cổng ghi có admin) — danh bạ trường, cơ quan Admin chỉ đọc để gán tài
- *   khoản, không lên menu; màn nghiệp vụ không lên menu.
- * - Cổng nghiệp vụ hiện thứ cổng đó ĐỌC được.
+ * Mục menu `name` (mã quyền `required`, null nếu không có) có hiện ở cổng `portal` không: cổng nào cũng hiện thứ cổng
+ * đó ĐỌC được. Quản trị viên đi được toàn bộ luồng (trưởng nhóm 20/11/2026, changelog 281) nên thấy mọi phân hệ.
  */
 export function menuAllows(portal: Portal | null, name: string, required: string | null): boolean {
   if (!portal) return true;
   if (UI_ONLY[name]) return UI_ONLY[name].includes(portal);
-  if (!required) return portal !== "admin";
+  if (!required) return true;
   const rule = PORTAL_ROUTES[required.split(":")[0]];
-  if (!rule) return portal !== "admin";
-  return portal === "admin" ? rule.write.includes("admin") : rule.read.includes(portal);
+  if (!rule) return true;
+  return rule.read.includes(portal);
 }

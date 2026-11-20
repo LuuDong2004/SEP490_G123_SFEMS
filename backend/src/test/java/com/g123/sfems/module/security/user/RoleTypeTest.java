@@ -89,13 +89,17 @@ class RoleTypeTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM roles WHERE code IN ('TEACHER', 'SUBJECT_HEAD')",
                 Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username = 'viewer'", Long.class)).isZero();
-        // Quản trị viên: phần hệ thống và danh mục, không lập / duyệt phiếu nghiệp vụ (272, theo tài liệu G123).
+        // Quản trị viên đi được toàn bộ luồng (281): có mọi mã quyền, kể cả lập / duyệt phiếu nghiệp vụ.
         assertThat(adminHas("users:write")).isTrue();
         assertThat(adminHas("roles:write")).isTrue();
         assertThat(adminHas("equipment:read")).isTrue();
-        assertThat(adminHas("equipment_intakes:approve")).isFalse();
-        assertThat(adminHas("purchase_proposals:write")).isFalse();
-        assertThat(adminHas("inventory_sessions:write")).isFalse();
+        assertThat(adminHas("equipment_intakes:approve")).isTrue();
+        assertThat(adminHas("purchase_proposals:write")).isTrue();
+        assertThat(adminHas("inventory_sessions:write")).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM permissions p WHERE NOT EXISTS (SELECT 1 FROM role_permissions rp
+                JOIN roles r ON r.id = rp.role_id WHERE r.code = 'ADMIN' AND rp.permission_id = p.id)""", Long.class))
+                .as("mã quyền ADMIN chưa có").isZero();
     }
 
     private boolean adminHas(String code) {
