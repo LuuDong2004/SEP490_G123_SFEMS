@@ -1,12 +1,11 @@
-import { useList } from "@refinedev/core";
-import { CalendarRange, GraduationCap, ListPlus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { GraduationCap, ListPlus } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { MiniTable, type MiniColumn, type MiniView } from "@/features/organization/explorer/mini-table";
-import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { QuickAddClasses, useGradeFilters } from "@/features/organization/resources/class-extra";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -58,20 +57,10 @@ export function ClassBoard({
   onOpen: (id: number) => void;
   onEdit: (id: number) => void;
 }) {
-  const [yearId, setYearId] = useState("");
   const [quickOpen, setQuickOpen] = useState(false);
-
-  const { result: yearsResult, query: yearsQuery } = useList<any>({
-    resource: "school_years",
-    pagination: { pageSize: 50 },
-    sorters: [{ field: "sortOrder", order: "asc" }],
-  });
-  const years = useMemo(() => yearsResult?.data ?? [], [yearsResult]);
-  const defaultYear = years.find((y: any) => y.current) ?? years[0];
-  const defaultYearId = defaultYear ? String(defaultYear.id) : "";
-  useEffect(() => {
-    if (!yearId && defaultYearId) setYearId(defaultYearId);
-  }, [defaultYearId, yearId]);
+  // Lớp của năm học đang làm việc (ô năm học trên header).
+  const { id: workingYear, years, loading: yearsLoading } = useSchoolYear();
+  const yearId = workingYear != null ? String(workingYear) : "";
 
   const gradeFilters = useGradeFilters(schoolId);
   const filters = useMemo(
@@ -83,7 +72,7 @@ export function ClassBoard({
   );
 
   // Chưa biết năm học thì chưa đọc lớp: đọc sớm là hiện lẫn lớp của mọi năm rồi mới co lại.
-  if (!yearId && !(yearsQuery.isSuccess && years.length === 0)) return <Skeleton className="h-64 w-full" />;
+  if (!yearId && (yearsLoading || years.length > 0)) return <Skeleton className="h-64 w-full" />;
 
   return (
     <>
@@ -102,12 +91,6 @@ export function ClassBoard({
         onEdit={(c) => onEdit(c.id)}
         createMenu={[{ label: "Thêm nhanh nhiều lớp", icon: <ListPlus />, onSelect: () => setQuickOpen(true) }]}
         facet={{ field: "grade.id", resource: "grades", allLabel: "Tất cả khối", icon: <GraduationCap />, label: "khối", filters: gradeFilters }}
-        // Năm hiện hành là mặc định, không tính là đang lọc: chấm ở góc nút chỉ hiện khi đang xem năm khác.
-        lead={
-          <IconFilter icon={<CalendarRange />} label="năm học" value={yearId || null} baseline={defaultYearId}
-            onChange={(v) => v && setYearId(v)}
-            groups={[{ items: years.map((y: any) => ({ key: String(y.id), label: y.code ?? y.name })) }]} />
-        }
       />
     </>
   );

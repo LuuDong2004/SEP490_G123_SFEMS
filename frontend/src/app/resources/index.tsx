@@ -367,18 +367,6 @@ export const resources: ResourceProps[] = withHelp(withModules([
     list: "/school-year-profile",
     meta: { icon: <CalendarCheck className="h-4 w-4" />, label: "Hồ sơ năm học" },
   },
-  // Tiến độ hồ sơ năm học các trường — Sở; mượn quyền `school_year_profiles:read`.
-  {
-    name: "school_year_progress",
-    list: "/school-year-progress",
-    meta: {
-      icon: <CalendarCheck className="h-4 w-4" />,
-      label: "Hồ sơ năm học",
-      audience: "management",
-      mgmtParent: "mgmt_schools",
-      mgmtLabel: "Hồ sơ năm học",
-    },
-  },
   // Định mức và nhu cầu mua sắm: màn tổng hợp, mượn quyền `purchase_proposals:read`.
   {
     name: "equipment_adequacy",

@@ -60,8 +60,29 @@ function yearPeriods(year: number, today: string) {
   return { months, quarters, whole, school };
 }
 
+/** Năm học đang làm việc (header): kỳ báo cáo là các khoảng BÊN TRONG năm đó. */
+export type YearBounds = { from: string; to: string; label: string };
+
+/** Các kỳ của một năm học: cả năm học và từng tháng (T9 → T8). */
+function schoolYearPeriods(b: YearBounds, today: string) {
+  const whole = period(b.label, "Cả năm học", b.from, b.to, today);
+  const months: Period[] = [];
+  const end = toDate(b.to);
+  for (let d = startOfMonth(toDate(b.from) ?? new Date()); end && d <= end; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+    const label = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+    const from = toIso(d) < b.from ? b.from : toIso(d);
+    const last = toIso(endOfMonth(d));
+    months.push(period(label, `T${d.getMonth() + 1}`, from, last > b.to ? b.to : last, today));
+  }
+  return { whole, months };
+}
+
 /** Tên kỳ nếu khoảng đang chọn đúng là một kỳ — để nút ghi "Quý 3/2026" thay vì chỉ có hai ngày. */
-function nameOf(value: IsoRange, today: string) {
+function nameOf(value: IsoRange, today: string, bounds?: YearBounds) {
+  if (bounds) {
+    const { whole, months } = schoolYearPeriods(bounds, today);
+    return [whole, ...months].find((p) => p.from === value.from && p.to === value.to)?.label;
+  }
   const y = Number(value.from.slice(0, 4));
   if (!y) return undefined;
   const { months, quarters, whole, school } = yearPeriods(y, today);
@@ -78,10 +99,13 @@ export function DateRangePicker({
   value,
   onChange,
   className,
+  bounds,
 }: {
   value: IsoRange;
   onChange: (range: IsoRange) => void;
   className?: string;
+  /** Có thì chỉ chọn được trong năm học này (năm chọn trên header): kỳ là cả năm học / từng tháng, lịch khoá ngoài năm. */
+  bounds?: YearBounds;
 }) {
   const now = new Date();
   const today = toIso(now);
@@ -93,7 +117,7 @@ export function DateRangePicker({
   const [month, setMonth] = useState<Date | undefined>();
   const [fromText, setFromText] = useState("");
   const [toText, setToText] = useState("");
-  const name = nameOf(value, today);
+  const name = nameOf(value, today, bounds);
 
   const openChange = (next: boolean) => {
     setOpen(next);
@@ -126,6 +150,7 @@ export function DateRangePicker({
   const typed = (which: "from" | "to", text: string) => {
     const d = parseDmy(text);
     if (!d) return;
+    if (bounds && (toIso(d) < bounds.from || toIso(d) > bounds.to)) return;
     let from = which === "from" ? d : draft?.from;
     let to = which === "to" ? d : draft?.to;
     if (from && to && from > to) [from, to] = [to, from];
@@ -142,6 +167,8 @@ export function DateRangePicker({
   const calendarYear = tab === "custom" ? shownMonth.getFullYear() : year;
 
   const { months, quarters, whole, school } = yearPeriods(year, today);
+  const inYear = bounds ? schoolYearPeriods(bounds, today) : null;
+  const lastDay = bounds && bounds.to < today ? toDate(bounds.to)! : now;
   const choice = (p: Period, extra?: string) => {
     const on = p.from === value.from && p.to === value.to;
     const future = p.from > today;
@@ -179,6 +206,7 @@ export function DateRangePicker({
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5">
           <Segmented label="Cách chọn kỳ" size="sm" value={tab} onChange={setTab}
             options={[{ value: "period", label: "Theo kỳ" }, { value: "custom", label: "Tự chọn ngày" }]} />
+          {bounds ? <span className="text-muted-foreground truncate text-xs font-medium">{bounds.label}</span> : (
           <div className="flex items-center gap-0.5" role="group" aria-label="Năm">
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Năm trước" disabled={calendarYear <= MIN_YEAR} onClick={() => stepYear(-1)}>
               <ChevronLeft />
@@ -188,9 +216,21 @@ export function DateRangePicker({
               <ChevronRight />
             </Button>
           </div>
+          )}
         </div>
 
-        {tab === "period" ? (
+        {tab === "period" && inYear ? (
+          <div className="grid gap-3 p-3">
+            <div className="grid gap-1.5">
+              <span className={rowLabel}>Năm học</span>
+              {choice(inYear.whole)}
+            </div>
+            <div className="grid gap-1.5">
+              <span className={rowLabel}>Tháng</span>
+              <div className="grid grid-cols-6 gap-1.5">{inYear.months.map((p) => choice(p, "px-0"))}</div>
+            </div>
+          </div>
+        ) : tab === "period" ? (
           <div className="grid gap-3 p-3">
             {/* Năm và năm học chung một hàng, ba nút bằng nhau — nút "Cả năm" kéo hết bề ngang thì quá to. */}
             <div className="grid grid-cols-3 gap-x-1.5 gap-y-1.5">
@@ -236,8 +276,9 @@ export function DateRangePicker({
                 setMonth(m);
                 setYear(m.getFullYear());
               }}
-              fromYear={MIN_YEAR}
-              toDate={now}
+              fromYear={bounds ? undefined : MIN_YEAR}
+              fromDate={bounds ? toDate(bounds.from) : undefined}
+              toDate={lastDay}
               className="flex justify-center"
               classNames={{
                 head_cell: "text-muted-foreground w-10 font-normal text-xs",

@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRightLeft, BookOpen, ShoppingCart, CircleAlert, CircleCheck, CircleDot, Download, Ellipsis, Gauge, History, ListChecks, Lock, MapPin,
   Search, SlidersHorizontal, Trash2, TriangleAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
@@ -31,7 +31,7 @@ import { SCHOOL_ADJUST_LABELS, type YearRow, type YearStandard } from "@/domains
 
 import { AdjustDialog, AdjustHistoryDialog } from "./adjust-dialog";
 import { SurplusDialog } from "./gap-dialogs";
-import { YearFilter, useYearParam } from "./year-filter";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 
 const num = new Intl.NumberFormat("vi-VN");
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
@@ -70,13 +70,15 @@ function Gap({ value }: { value: number | null }) {
 export function YearStandardView({ schoolId, onBack }: { schoolId?: number | null; onBack?: () => void }) {
   const { open: notify } = useNotification();
   const qc = useQueryClient();
-  const { id: yearId, setId, years, current } = useYearParam();
+  const { id: yearId } = useSchoolYear();
   const [campusId, setCampusId] = useState<number | null>(null);
   const { data: d, isLoading, isError, error, refetch, isFetching } = useYearStandard(schoolId, yearId, campusId);
   const [q, setQ] = useState("");
   const [view, setView] = useState<View>("all");
   const [subject, setSubject] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  // Đổi năm trên header thì về trang 1 của bảng.
+  useEffect(() => setPage(1), [yearId]);
   const [pageSize, setPageSize] = useState(50);
   const [adjusting, setAdjusting] = useState<YearRow | null>(null);
   const [history, setHistory] = useState<YearRow | null>(null);
@@ -177,7 +179,6 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
           </Button>
         ) : null}
         {onBack && d ? <span className="me-1 font-semibold">{d.schoolName}</span> : null}
-        <YearFilter value={yearId} onChange={(id) => { setId(id); setPage(1); }} years={years} current={current} />
         {multi && d ? (
           <IconFilter labeled icon={<MapPin />} label="điểm trường" prefix="Điểm trường" allLabel="Cả trường"
             value={campusId == null ? null : String(campusId)} onChange={(v) => { setCampusId(v == null ? null : Number(v)); setPage(1); }}

@@ -54,9 +54,11 @@ test("Y2 hiệu trưởng: thấy nút xác nhận điểm trường, không m�
   expect(reopen.status).toBeGreaterThanOrEqual(400);
 });
 
-test("Y3 Sở: tiến độ hồ sơ năm học, chuẩn theo năm học các trường, điều chỉnh trên dòng danh mục", async ({ page, request }) => {
+test("Y3 Sở: năm học trên header, chuẩn theo năm học các trường, điều chỉnh trên dòng danh mục", async ({ page, request }) => {
   await uiLogin(page, "soChuyenVien");
-  await open(page, "soChuyenVien", "/school-year-progress", "Y3:progress", "Sở mở Tiến độ hồ sơ năm học");
+  await open(page, "soChuyenVien", "/school-explorer", "Y3:explorer", "Sở mở Trường học (khởi tạo năm học)");
+  // Năm học đang làm việc chọn trên header — không còn màn Tiến độ hồ sơ năm học riêng.
+  await expect(page.locator("[data-slot=app-header]").getByText(/\d{4}–\d{4}/).first()).toBeVisible();
   await open(page, "soChuyenVien", "/equipment-minimum", "Y3:standard", "Sở mở chuẩn tối thiểu theo năm học");
   await open(page, "soChuyenVien", "/equipment-standards", "Y3:catalog", "Sở mở Danh mục thiết bị tối thiểu");
 

@@ -25,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { AssignmentCandidate, CopyResult, Ref, StaffAssignment } from "@/domains/school-year/types";
 
 import { useYearLock } from "./year-lock";
-import { YearFilter, yearLabel, useYearParam } from "./year-filter";
+import { yearLabel, useSchoolYear } from "@/shared/hooks/use-school-year";
 
 const RESOURCE = "staff_assignments";
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
@@ -38,7 +38,7 @@ const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/�
 export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }) {
   const { open: notify } = useNotification();
   const qc = useQueryClient();
-  const { id: yearId, setId: setYearId, years, current, year } = useYearParam();
+  const { id: yearId, years, year } = useSchoolYear();
   const canWrite = useCan({ resource: RESOURCE, action: "create" }).data?.can ?? false;
   const canDelete = useCan({ resource: RESOURCE, action: "delete" }).data?.can ?? false;
   const lock = useYearLock(schoolId ?? null, yearId);
@@ -107,7 +107,6 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <YearFilter value={yearId} onChange={setYearId} years={years} current={current} />
         <div className="relative w-full min-w-0 sm:w-72">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm cán bộ…" className="ps-9" />

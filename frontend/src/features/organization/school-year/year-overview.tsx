@@ -13,7 +13,7 @@ import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { PROFILE_STATUS_LABELS, type YearOverviewRow } from "@/domains/school-year/types";
 
-import { YearFilter, useYearParam } from "./year-filter";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 
 const num = new Intl.NumberFormat("vi-VN");
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
@@ -28,7 +28,7 @@ type Pick = "adjusted" | "outside" | "gap" | "noData";
  * của trường đó.
  */
 export function YearOverview({ onOpenSchool }: { onOpenSchool: (id: number) => void }) {
-  const { id: yearId, setId, years, current } = useYearParam();
+  const { id: yearId } = useSchoolYear();
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<Pick | null>(null);
   const [level, setLevel] = useState<string | null>(null);
@@ -51,7 +51,6 @@ export function YearOverview({ onOpenSchool }: { onOpenSchool: (id: number) => v
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <YearFilter value={yearId} onChange={setId} years={years} current={current} />
         <div className="relative w-full min-w-0 sm:w-72">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm trường…" className="ps-9" />

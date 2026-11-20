@@ -56,6 +56,7 @@ import { Form } from "@/shared/ui/form";
 import { formatDateTime } from "@/shared/lib/format";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { cn } from "@/shared/lib/utils";
 import { CatalogFields, DEFAULT_VALUES, type CatalogFormValues } from "@/shared/components/catalog/fields";
 import { SuggestCode, useSuggestedCode } from "@/shared/components/catalog/use-suggested-code";
@@ -232,6 +233,11 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
   const fillBox = useFillHeight();
   const fill = !!extra?.ListAside;
 
+  // Danh mục gắn với năm học (lớp): chỉ bản ghi của năm đang làm việc (ô năm học trên header).
+  const { id: workingYear } = useSchoolYear();
+  const yearFilters: CrudFilter[] = extra?.yearField && workingYear != null
+    ? [{ field: extra.yearField, operator: "eq", value: workingYear }] : [];
+
   const table = useTable({
     columns,
     enableColumnResizing: true,
@@ -243,7 +249,7 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
       pagination: { pageSize: DEFAULT_PAGE_SIZE },
       // Không khai thì không gửi `_sort`, máy chủ xếp theo thứ tự hiển thị rồi tên.
       ...(config.defaultSort ? { sorters: { initial: [config.defaultSort] } } : {}),
-      filters: { permanent: [...asideFilters, ...(drill?.filters ?? [])] },
+      filters: { permanent: [...yearFilters, ...asideFilters, ...(drill?.filters ?? [])] },
       // Đang ở chế độ tổng hợp — hoặc feature thay bảng này bằng bảng riêng — thì không tải nó.
       queryOptions: { enabled: !view && !extra?.ItemsView },
     },
@@ -268,7 +274,7 @@ function CatalogTable({ config }: { config: CatalogConfig }) {
 
   const itemsTable = extra?.ItemsView ? (
     <extra.ItemsView
-      filters={[...asideFilters, ...(drill?.filters ?? [])]}
+      filters={[...yearFilters, ...asideFilters, ...(drill?.filters ?? [])]}
       fill={fill}
       externallyFiltered={asideFilters.length > 0 || !!drill}
     />

@@ -218,6 +218,8 @@ export type CatalogExtra = {
   ListFilters?: import("react").ComponentType<{ table: any }>;
   /** Nút riêng ở đầu màn danh sách, trước nút Thêm mới (thiết bị: tra cứu, in tem). */
   ListActions?: () => ReactNode;
+  /** Bản ghi gắn với năm học (lớp): trường năm học — danh sách chỉ hiện bản ghi của năm đang làm việc trên header. */
+  yearField?: string;
   /** Lối PHỤ của màn danh sách, là các `DropdownMenuItem` — nằm trong menu bánh răng của bảng. */
   ListMenu?: () => ReactNode;
   /**

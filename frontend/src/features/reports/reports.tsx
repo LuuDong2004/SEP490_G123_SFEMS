@@ -8,7 +8,8 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useSettled } from "@/shared/hooks/use-settled";
 import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
-import { DateRangePicker, type IsoRange } from "@/shared/components/form/date-range-picker";
+import { DateRangePicker, type IsoRange, type YearBounds } from "@/shared/components/form/date-range-picker";
+import { useSchoolYear, yearLabel } from "@/shared/hooks/use-school-year";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { PrintSheet } from "@/shared/components/print/print-sheet";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
@@ -61,8 +62,21 @@ export const Reports = () => {
   const mayExport = useCan({ resource: "reports", action: "export" }).data?.can ?? false;
   const year = new Date().getFullYear();
   const { name } = useParams<{ name: string }>();
-  // Mặc định "Năm nay": từ đầu năm đến hôm nay.
-  const [range, setRange] = useState<IsoRange>({ from: `${year}-01-01`, to: iso(new Date()) });
+  // Kỳ của báo cáo nằm TRONG năm học đang làm việc (ô năm học trên header). Mặc định cả năm học (tới hôm nay nếu năm
+  // đang chạy); chưa có năm học trong danh mục thì như cũ — từ đầu năm dương lịch tới hôm nay.
+  const { year: workingYear } = useSchoolYear();
+  const today = iso(new Date());
+  const bounds: YearBounds | undefined = workingYear
+    ? { from: workingYear.startDate, to: workingYear.endDate, label: `Năm học ${yearLabel(workingYear)}` }
+    : undefined;
+  const yearRange = (): IsoRange => bounds
+    ? { from: bounds.from, to: bounds.to > today ? (today < bounds.from ? bounds.from : today) : bounds.to }
+    : { from: `${year}-01-01`, to: today };
+  // Nhớ theo từng năm học: đổi năm trên header là về cả năm học đó, quay lại năm cũ thì đúng kỳ vừa chọn.
+  const [rangeBy, setRangeBy] = useState<Record<string, IsoRange>>({});
+  const yearKey = String(workingYear?.id ?? "none");
+  const range = rangeBy[yearKey] ?? yearRange();
+  const setRange = (next: IsoRange) => setRangeBy((m) => ({ ...m, [yearKey]: next }));
   const { from, to } = range;
   const [budgetYear, setBudgetYear] = useState(String(year + 1));
   const [busy, setBusy] = useState(false);
@@ -272,7 +286,7 @@ export const Reports = () => {
               danh sách: bấm là chọn, không qua hộp nào. Các điều kiện còn lại của từng báo cáo vào nút "Bộ lọc". */}
           <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap [&_[data-slot=select-trigger]]:rounded-full">
             {current?.period ? (
-              <DateRangePicker value={range} onChange={setRange} className="w-auto" />
+              <DateRangePicker value={range} onChange={setRange} bounds={bounds} className="w-auto" />
             ) : current?.year ? (
               <div className="flex items-center" title="Năm ngân sách" role="group" aria-label="Năm ngân sách">
                 <Button type="button" variant="outline" size="icon" className="size-9 rounded-e-none" aria-label="Năm trước"

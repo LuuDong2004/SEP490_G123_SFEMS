@@ -12,6 +12,7 @@ import { LogOutIcon, UserRoundIcon } from "lucide-react";
 import { Link } from "react-router";
 
 import { Breadcrumb } from "@/shared/components/layout/breadcrumb";
+import { HeaderSchoolYear } from "@/shared/components/layout/header-school-year";
 import { HeaderSearch } from "@/shared/components/layout/header-search";
 import { NotificationBell } from "@/shared/components/layout/notification-bell";
 import { HelpButton } from "@/shared/components/layout/help-button";
@@ -94,6 +95,8 @@ export function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* Năm học đang làm việc của cả hệ thống — mọi màn theo năm và kỳ báo cáo đọc từ đây. */}
+          <HeaderSchoolYear />
           <HeaderSearch />
           {/* Các nút biểu tượng gom vào một khung bo tròn — một cụm gọn thay vì năm nút rời rạc. */}
           <div className="bg-muted/50 flex h-9 items-center gap-0.5 rounded-full border px-0.5 [&_button]:size-8 [&_button]:rounded-full [&_button]:transition-[background-color,scale] [&_button]:active:scale-95 [&_button:hover]:bg-card [&_button:hover]:shadow-e1">

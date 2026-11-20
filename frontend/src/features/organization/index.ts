@@ -10,7 +10,6 @@ export const EquipmentAdequacy = lazyNamed(() => import("./purchase-proposals/ad
 export const EquipmentMinimum = lazyNamed(() => import("./minimum-standard/page"), "EquipmentMinimum");
 export const StaffAssignmentsPage = lazyNamed(() => import("./school-year/page"), "StaffAssignmentsPage");
 export const SchoolYearProfilePage = lazyNamed(() => import("./school-year/page"), "SchoolYearProfilePage");
-export const SchoolYearProgressPage = lazyNamed(() => import("./school-year/page"), "SchoolYearProgressPage");
 export const SchoolExplorer = lazyNamed(() => import("./explorer"), "SchoolExplorer");
 export const SchoolCodeRulesPage = lazyNamed(() => import("./explorer/code-rules"), "SchoolCodeRulesPage");
 export const SchoolUsersPage = lazyNamed(() => import("./explorer/school-users"), "SchoolUsersPage");

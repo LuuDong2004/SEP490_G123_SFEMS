@@ -12,6 +12,11 @@ năm học và luồng chuẩn tối thiểu bước 0–9.
 | **B. Liên tục, có lịch sử** | Thiết bị; phòng, khối nhà, cơ sở; hồ sơ cán bộ | Không khai lại mỗi năm. Thiết bị dựng lại trạng thái tại một ngày từ `equipment_history` |
 | **C. Ảnh chụp khi chốt** | Số đầu vào và kết quả chuẩn tối thiểu của năm học | Bản chốt, không sửa được |
 
+**Năm học đang làm việc** chọn MỘT chỗ — ô năm học trên header (`shared/hooks/use-school-year.ts`), mặc định năm hiện
+tại, nhớ trong tab. Mọi màn có dữ liệu loại A (lớp, phân công, chuẩn theo năm, hồ sơ năm học, năm của kế hoạch mới) đọc năm
+từ đó, không màn nào có ô chọn năm riêng. Báo cáo theo kỳ chỉ chọn khoảng **bên trong** năm đó (cả năm học / từng tháng /
+tự chọn ngày trong năm). Năm đã qua thì ô tô vàng. Liên kết mang `?year=` đặt năm đó làm năm đang làm việc.
+
 ## 2. Hồ sơ năm học theo điểm trường
 
 Mỗi trường × năm học × điểm trường (cơ sở): **Đang khai → Đã xác nhận → Đã chốt**.
@@ -26,7 +31,7 @@ Mỗi trường × năm học × điểm trường (cơ sở): **Đang khai → 
 Việc còn thiếu để xác nhận một điểm: chưa có lớp hoặc lớp chưa nhập sĩ số, giáo viên chưa phân công môn chính, chưa khai
 phòng, thiết bị chưa xếp phòng, điều chỉnh chép từ năm trước chưa xác nhận lại.
 
-**Khởi tạo năm học mới** (lãnh đạo trường; Sở chạy cho nhiều trường ở màn Tiến độ): lớp lên lớp tự động (khối cuối cấp ra
+**Khởi tạo năm học mới** (lãnh đạo trường; Sở / quản trị chạy cho mọi trường bằng nút "Khởi tạo năm học …" ở mục Trường học, hoặc cho một trường ở trang trường đó — màn Tiến độ riêng đã bỏ 20/11/2026): lớp lên lớp tự động (khối cuối cấp ra
 trường) / chép nguyên / để trống; chép phân công năm trước (bỏ người đã nghỉ); điều chỉnh chép sang ở trạng thái "chờ xác
 nhận lại" (vẫn được tính, phải xác nhận hết mới chốt được); dòng danh mục đã đổi / ngừng thì không chép.
 
@@ -62,7 +67,7 @@ lần đổi trạng thái đầu tiên sau ngày cắt; trường tại ngày c
 |---|---|---|---|
 | Điều chỉnh cho phép trên dòng danh mục | 276 | cột `equipment_norms.adjust_*`, `equipment_norm_adjust_shared`; `/api/equipment_norms` | Danh mục thiết bị tối thiểu › form dòng |
 | Phân công GV theo năm | 277 | `staff_assignments`, `staff_assignment_subjects`; `/api/staff_assignments` (`/candidates`, `/copy`), quyền `staff_assignments:*` (chép từ `staff:*`) | Tổng quan trường › Nhân sự › Phân công năm học; `/staff-assignments` |
-| Hồ sơ năm học, bản chốt | 278 | `school_year_profiles`, `school_year_closings`, `school_year_closing_lines`, `school_year_closing_inputs`; `/api/school_year_profiles` (`/lock`, `/progress`, `/confirm`, `/unconfirm`, `/close`, `/reopen`, `/init`), quyền `school_year_profiles:read/write/confirm/reopen` | `/school-year-profile` (phân hệ Thiết bị), `/school-year-progress` (Sở) |
+| Hồ sơ năm học, bản chốt | 278 | `school_year_profiles`, `school_year_closings`, `school_year_closing_lines`, `school_year_closing_inputs`; `/api/school_year_profiles` (`/lock`, `/progress`, `/confirm`, `/unconfirm`, `/close`, `/reopen`, `/init`), quyền `school_year_profiles:read/write/confirm/reopen` | `/school-year-profile` (phân hệ Thiết bị); Sở / quản trị xem trạng thái năm của từng trường ở trang trường (mục Trường học) |
 | Điều chỉnh của trường | 279 | `school_norm_adjustments`, `school_norm_adjustment_events`; `/api/school_norm_adjustments` (`/history`, `/{id}/reconfirm`), quyền `school_norm_adjustments:*` (đọc theo `purchase_proposals:read`, ghi theo `purchase_proposals:write` của vai trường) | Hộp điều chỉnh / lịch sử trên màn chuẩn theo năm học |
 | So sánh theo năm học | — | `GET /api/year_standards`, `/overview` | `/equipment-minimum` |
 | Dòng thiếu, truy ngược | 280 | `proposal_standard_traces`; `GET /api/year_standards/suggestions`, `POST /proposal`, `GET /traces?proposalId` hoặc `?planId` | Menu dòng, nút "Đưa N dòng vào đề xuất"; khối "Căn cứ chuẩn tối thiểu" ở đề xuất và kế hoạch |

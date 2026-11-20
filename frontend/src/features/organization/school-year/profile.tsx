@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PROFILE_STATUS_LABELS, type CampusProfile, type ProfileTodo, type YearProfile } from "@/domains/school-year/types";
 
 import { InitYearDialog } from "./init-year";
-import { YearFilter, yearLabel, useYearParam } from "./year-filter";
+import { yearLabel, useSchoolYear } from "@/shared/hooks/use-school-year";
 
 const num = new Intl.NumberFormat("vi-VN");
 const RESOURCE = "school_year_profiles";
@@ -60,7 +60,7 @@ export function SchoolYearProfilePage() {
       <FillBox>
         {currentPortal() === "school" ? <ProfileBody /> : (
           <EmptyState icon={<CalendarCheck />} title="Hồ sơ năm học là của từng trường"
-            description={<>Xem tiến độ các trường ở <Link className="text-primary underline" to="/school-year-progress">Tiến độ hồ sơ năm học</Link>.</>} />
+            description={<>Trạng thái năm học của một trường xem ở trang trường đó trong mục <Link className="text-primary underline" to="/school-explorer">Trường học</Link>.</>} />
         )}
       </FillBox>
     </ListView>
@@ -70,7 +70,7 @@ export function SchoolYearProfilePage() {
 function ProfileBody() {
   const { open: notify } = useNotification();
   const qc = useQueryClient();
-  const { id: yearId, setId, years, current, year } = useYearParam();
+  const { id: yearId, setId, year } = useSchoolYear();
   const { data: p, isLoading, isError, error, refetch, isFetching } = useYearProfile(null, yearId);
   const [todos, setTodos] = useState<CampusProfile | null>(null);
   const [closing, setClosing] = useState(false);
@@ -100,7 +100,6 @@ function ProfileBody() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <YearFilter value={yearId} onChange={setId} years={years} current={current} />
         {p ? <Badge variant={PROFILE_STATUS_VARIANTS[p.status]}>{PROFILE_STATUS_LABELS[p.status]}</Badge> : null}
         <span className="flex-1" />
         {p?.canWrite && p.nextYear ? (
@@ -114,7 +113,7 @@ function ProfileBody() {
         <div className="bg-success-subtle text-success-text flex flex-wrap items-center gap-2 rounded-lg px-4 py-2 text-sm">
           <Lock className="size-4" />
           <span>Đã chốt {p.closing.closedAt}{p.closing.closedBy ? ` · ${p.closing.closedBy}` : ""}</span>
-          <Link to={`/equipment-minimum?year=${p.schoolYearId}`} className="ms-auto font-medium hover:underline">Xem bản chốt →</Link>
+          <Link to="/equipment-minimum" className="ms-auto font-medium hover:underline">Xem bản chốt →</Link>
         </div>
       ) : reopened ? (
         <div className="bg-warning-subtle text-warning-text flex min-w-0 items-center gap-2 rounded-lg px-4 py-2 text-sm">

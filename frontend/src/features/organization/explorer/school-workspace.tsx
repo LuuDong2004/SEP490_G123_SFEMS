@@ -3,6 +3,8 @@ import { Gauge, MapPinned, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { currentPortal } from "@/shared/api/portal";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { errorMessage } from "@/shared/lib/api-error";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { Button } from "@/shared/ui/button";
@@ -11,6 +13,7 @@ import { EquipmentPhoto } from "@/features/organization/resources/equipment-phot
 import { SchoolInfoSections, type OwnProfileField, type SchoolPerson } from "@/features/organization/schools/school-info";
 import { SchoolFacilityTabs, UncertainDepartment, type SchoolStats } from "@/features/organization/explorer/panels";
 import { FacilityInfoPanel, useFacilityInfo } from "@/features/organization/explorer/facility-info";
+import { SchoolYearStatus } from "@/features/organization/school-year/year-status";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -30,8 +33,8 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
   const tab = tabProp ?? savedTab;
   const setTab = onTab ?? setSavedTab;
   const { result: school } = useOne<any>({ resource: "schools", id });
-  const { result: years } = useList<any>({ resource: "school_years", pagination: { pageSize: 50 } });
-  const currentYear = (years?.data ?? []).find((y: any) => y.current);
+  // Năm học đang làm việc (header) — hồ sơ trường ghi "Năm học …" theo năm đó.
+  const { year: workingYear } = useSchoolYear();
   const mayEdit = useCan({ resource: "schools", action: "edit", params: { id } }).data?.can ?? false;
   // Trường tự sửa phần hồ sơ của mình (ảnh, địa chỉ, mã Bộ — 239). Người sửa được cả hồ sơ (UBND / Sở) dùng nút
   // "Sửa hồ sơ" như cũ, không cần lối hẹp này.
@@ -65,6 +68,10 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
 
       <SchoolDialog open={editOpen} id={id} onOpenChange={setEditOpen} />
 
+      {/* Cơ quan quản lý xem một trường: hồ sơ năm học của trường trong năm đang làm việc (mở lại, khởi tạo năm kế).
+          Tài khoản trường có màn Hồ sơ năm học riêng. */}
+      {currentPortal() !== "school" ? <SchoolYearStatus schoolId={id} schoolName={stats.name} /> : null}
+
       {/* Dải tab đứng đầu, thẻ trường nằm dưới nó, nội dung của tab trên một tấm (trong SchoolFacilityTabs). */}
       <SchoolFacilityTabs
         schoolId={id}
@@ -78,7 +85,7 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
           // Thông tin trường, Địa bàn, Số liệu chung CSVC, Cơ sở, Ban giám hiệu. Không thẻ lồng thẻ.
           <SchoolInfoSections
             record={school}
-            year={currentYear?.name}
+            year={workingYear?.name}
             photo={<EquipmentPhoto resource="schools" noun="trường" recordId={id} canWrite={mayEdit || mayEditOwn} editable={mayEdit || mayEditOwn} rail />}
             own={mayEditOwn ? { save: saveOwn } : undefined}
             onGo={setTab}

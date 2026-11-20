@@ -38,6 +38,7 @@ import {
   type TreeNode,
 } from "@/features/organization/explorer/tree";
 import { SchoolDialog } from "@/features/organization/schools/school-dialog";
+import { InitYearForSchoolsButton } from "@/features/organization/school-year/year-status";
 import { SchoolWorkspace } from "@/features/organization/explorer/school-workspace";
 
 type Overview = {
@@ -301,6 +302,7 @@ export function SchoolExplorer() {
               ) : null}
             </div>
             {/* Danh mục cơ quan quản lý là tab "Cơ quan quản lý" ngay bên cạnh — không lặp lại bằng một nút. */}
+            <InitYearForSchoolsButton />
             {mayCreateSchool ? (
               <Button size="sm" onClick={() => setDialog(true)}>
                 Thêm trường

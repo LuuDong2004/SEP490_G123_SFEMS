@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { errorMessage } from "@/shared/lib/api-error";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -83,8 +84,8 @@ const DETAILS = {
  */
 function FacilityDetailDialog({ schoolId, kind, onClose }: { schoolId: number; kind: FacilityDetailKind; onClose: () => void }) {
   const rooms = kind.kind === "rooms";
-  const { result: years } = useList<any>({ resource: "school_years", pagination: { pageSize: 50 }, queryOptions: { enabled: !rooms } });
-  const yearId = (years?.data ?? []).find((y: any) => y.current)?.id;
+  // Lớp của năm học đang làm việc (header).
+  const { id: yearId } = useSchoolYear();
   const { result, query } = useList<any>({
     resource: rooms ? "rooms" : "school_classes",
     filters: [

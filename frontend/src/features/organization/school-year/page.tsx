@@ -16,4 +16,3 @@ export function StaffAssignmentsPage() {
 }
 
 export { SchoolYearProfilePage } from "./profile";
-export { SchoolYearProgressPage } from "./progress";

@@ -98,8 +98,6 @@ const PERMISSION_ALIASES: Record<string, string> = {
   equipment_items: "equipment",
   equipment_adequacy: "purchase_proposals",
   equipment_minimum: "purchase_proposals",
-  // Tiến độ hồ sơ năm học các trường (Sở) — cùng dữ liệu hồ sơ năm học.
-  school_year_progress: "school_year_profiles",
   // Số lượng tối thiểu: cách xem / sửa khác của các dòng `equipment_norms`.
 };
 

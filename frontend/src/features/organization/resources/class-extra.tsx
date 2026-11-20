@@ -1,4 +1,5 @@
 import { useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import type { ColumnDef } from "@tanstack/react-table";
 import { GraduationCap, ListPlus, Minus, PenLine, Plus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -29,16 +30,10 @@ import { SIDE_GROUPS, SideGroup } from "@/features/organization/resources/form-g
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Năm học hiện hành — mặc định cho lớp mới, vì gần như mọi lớp được lập là lớp của năm nay. */
-function useCurrentSchoolYear(enabled = true) {
-  const { result } = useList<any>({
-    resource: "school_years",
-    pagination: { pageSize: 50 },
-    sorters: [{ field: "sortOrder", order: "asc" }],
-    queryOptions: { enabled },
-  });
-  const years = result?.data ?? [];
-  return { years, current: years.find((y: any) => y.current) ?? null };
+/** Năm học đang làm việc (ô năm học trên header) — mặc định cho lớp mới: lớp lập ra là lớp của năm đang khai. */
+function useCurrentSchoolYear() {
+  const { years, year } = useSchoolYear();
+  return { years, current: year };
 }
 
 /**
@@ -74,7 +69,7 @@ const suffixOf = (n: number, style: NameStyle) => (style === "letter" ? String.f
 /** Việc tự động của form lớp: năm học mặc định, tên hiển thị "Lớp " + tên lớp, lọc khối theo cấp học. */
 function useClassForm(control: Control<any>, record?: any) {
   const { setValue, getValues } = useFormContext();
-  const { current } = useCurrentSchoolYear(!record);
+  const { current } = useCurrentSchoolYear();
   // Lớp mới mặc định năm học hiện hành. Theo dõi chính ô năm học chứ không chỉ chạy một lần: hộp
   // thoại nạp lại form (giá trị đặt sẵn) SAU khi ô này đã mount, và lần nạp ấy xoá mất mặc định.
   const yearId = useWatch({ control, name: "schoolYear.id" });
@@ -273,7 +268,7 @@ export function QuickAddClasses({ schoolId: fixedSchool, label = "Thêm nhanh", 
   const { open: notify } = useNotification();
   const invalidate = useInvalidate();
 
-  const { years, current } = useCurrentSchoolYear(open);
+  const { years, current } = useCurrentSchoolYear();
   const gradeFilters = useGradeFilters(schoolId || null);
   const { result: grades } = useList<any>({
     resource: "grades",
@@ -531,8 +526,9 @@ export const SCHOOL_CLASS_EXTRA = {
   dialogHeader: true,
   filters: [
     { field: "grade.id", label: "Khối lớp", type: "reference" as const, referenceResource: "grades" },
-    { field: "schoolYear.id", label: "Năm học", type: "reference" as const, referenceResource: "school_years" },
   ],
+  // Danh sách lớp là lớp của năm học đang làm việc (header) — không có ô lọc năm riêng.
+  yearField: "schoolYear.id",
   ListActions: () => <QuickAddClasses />,
   columns: [
     refCell("grade", "Khối"),

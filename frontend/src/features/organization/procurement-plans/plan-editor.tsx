@@ -1,4 +1,4 @@
-import { useCan, useGetIdentity, useInvalidate, useList, useNavigation, useNotification } from "@refinedev/core";
+import { useCan, useGetIdentity, useInvalidate, useNavigation, useNotification } from "@refinedev/core";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useWatch, type Control } from "react-hook-form";
 import { Link } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { MoneyInput } from "@/shared/components/form/money-input";
@@ -93,14 +94,13 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
   const control = form.control as unknown as Control<any>;
   const lines = (useWatch({ control, name: "lines" }) ?? []) as PlanLine[];
 
-  // Kế hoạch mới: năm học hiện hành điền sẵn, vẫn đổi được.
+  // Kế hoạch mới: năm học đang làm việc (header) điền sẵn, vẫn đổi được.
   const yearId = useWatch({ control, name: "schoolYear.id" });
-  const { result: years } = useList<any>({ resource: "school_years", pagination: { pageSize: 50 }, queryOptions: { enabled: creating } });
+  const { id: workingYear } = useSchoolYear();
   useEffect(() => {
-    if (!creating || yearId) return;
-    const current = (years?.data ?? []).find((y: any) => y.current);
-    if (current) form.setValue("schoolYear", { id: current.id });
-  }, [creating, yearId, years, form]);
+    if (!creating || yearId || workingYear == null) return;
+    form.setValue("schoolYear", { id: workingYear });
+  }, [creating, yearId, workingYear, form]);
   const setLines = (next: PlanLine[]) => form.setValue("lines", next, { shouldDirty: true });
 
   // Đề xuất vừa rút khỏi kế hoạch trên màn (chưa lưu) vẫn chọn lại được — máy chủ còn coi nó thuộc kế hoạch.

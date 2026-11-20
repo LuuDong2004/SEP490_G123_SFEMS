@@ -25,7 +25,6 @@ import {
   EquipmentMinimum,
   StaffAssignmentsPage,
   SchoolYearProfilePage,
-  SchoolYearProgressPage,
   SchoolExplorer,
   SchoolCodeRulesPage,
   SchoolUsersPage,
@@ -413,14 +412,8 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
             </CanAccess>
           }
         />
-        <Route
-          path="/school-year-progress"
-          element={
-            <CanAccess resource="school_year_progress" action="list" fallback={<Forbidden resource="school_year_profiles" />}>
-              <SchoolYearProgressPage />
-            </CanAccess>
-          }
-        />
+        {/* Màn Tiến độ hồ sơ năm học đã bỏ (năm học chọn trên header, trạng thái năm của một trường ở trang trường đó). */}
+        <Route path="/school-year-progress" element={<Navigate to="/school-explorer" replace />} />
         <Route
           path="/equipment-minimum"
           element={
