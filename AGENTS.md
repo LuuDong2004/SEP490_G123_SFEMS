@@ -142,7 +142,11 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4. Tóm tắt phần hay sai:
   | 380–399 | QuangTD |
 
 - **Tài khoản thử:** `admin` / `Admin@123`; Sở `so.lanhdao`, `so.chuyenvien`; trường `thcs.hieutruong`,
-  `thcs.canbo`, `thcs2.*`, `thpt.*` — mật khẩu `Demo@123`.
+  `thcs.canbo`, `thcs.canbo2` (chỉ cơ sở phụ), `thcs2.*`, `thpt.*` — mật khẩu `Demo@123`. Quản trị viên chỉ làm
+  phần hệ thống và danh mục (HT-04, HT-05, DM, TC-01), không lập / duyệt phiếu nghiệp vụ (changelog 272).
+- **Kho tệp (MinIO) phải chạy** trước khi bật backend: `docker compose -f backend/compose.yaml up -d minio`. Thiếu
+  MinIO thì mọi lần đính kèm trả 503, mà phiếu ghi tăng bắt buộc tệp quyết định giao — cả luồng ghi tăng bị chặn.
+- **Tài liệu API** (`/swagger-ui.html`) mặc định TẮT; muốn xem trên máy mình thì chạy với `APP_API_DOCS=true`.
 - **Cấu hình máy mình** (mật khẩu DB, cổng, MinIO) để ở `backend/application-local.properties` — chép từ
   `application-local.properties.example`, đã ignore, nạp qua `spring.config.import`; ví dụ
   `spring.datasource.password=...`, `server.port=...`. KHÔNG sửa `application.properties` để đổi cấu hình máy
