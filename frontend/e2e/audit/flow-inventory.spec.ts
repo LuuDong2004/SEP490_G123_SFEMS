@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- phản hồi API trong kiểm thử là JSON tuỳ ý */
 import { test } from "@playwright/test";
 
 import { API, Recorder, apiLogin, call, shot, toastText, uiLogin, watch } from "./lib";

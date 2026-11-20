@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- phản hồi API trong kiểm thử là JSON tuỳ ý */
 import fs from "fs";
 
 import { test, type APIRequestContext, type Page } from "@playwright/test";

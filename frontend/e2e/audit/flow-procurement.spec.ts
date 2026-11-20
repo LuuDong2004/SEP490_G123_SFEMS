@@ -159,7 +159,7 @@ test("A6 cán bộ lập phiếu ghi tăng từ đề xuất đã hoàn tất v�
   w.stop();
 });
 
-test("A7 hiệu trưởng duyệt phiếu ghi tăng → sinh hồ sơ và mã tài sản (PN-03, TS-06)", async ({ page, request }) => {
+test("A7 hiệu trưởng duyệt phiếu ghi tăng → sinh hồ sơ và mã tài sản (PN-03, TS-06)", async ({ page }) => {
   test.skip(!ctx.intakeId, "chưa có phiếu ghi tăng");
   const w = watch(page);
   await uiLogin(page, "hieutruong");
