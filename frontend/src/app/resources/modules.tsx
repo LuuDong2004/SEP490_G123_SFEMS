@@ -41,6 +41,7 @@ export const MODULES: ModuleDef[] = [
     tabs: [
       ["process_equipment", "Quy trình"],
       ["equipment", "Danh sách thiết bị"],
+      ["school_year_profiles", "Hồ sơ năm học"],
       ["equipment_minimum", "Chuẩn tối thiểu"],
       ["equipment_intakes", "Ghi tăng"],
       ["inventory_campaigns", "Đợt kiểm kê"],

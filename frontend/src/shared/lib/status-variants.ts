@@ -133,3 +133,33 @@ export const CAMPUS_KIND_VARIANTS: Record<"main" | "branch" | "site", BadgeVaria
   branch: "neutral",
   site: "neutral",
 };
+
+/** Điều chỉnh của dòng danh mục tối thiểu: được phép là xanh, không được phép trung tính. */
+export const NORM_ADJUSTABLE_VARIANTS: Record<"allowed" | "denied", BadgeVariant> = {
+  allowed: "success",
+  denied: "neutral",
+};
+
+/** Hiệu lực của dòng danh mục tối thiểu: đang hiệu lực xanh; ngừng / hết hiệu lực đỏ. */
+export const NORM_VALIDITY_VARIANTS: Record<"active" | "stopped" | "expired", BadgeVariant> = {
+  active: "success",
+  stopped: "destructive",
+  expired: "destructive",
+};
+
+/** Hồ sơ năm học (docs/du-lieu-theo-nam-hoc.md §3): Đang khai · Đã xác nhận · Đã chốt · Mở lại. */
+export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CONFIRMED" | "CLOSED" | "REOPENED", BadgeVariant> = {
+  DRAFT: "neutral",
+  CONFIRMED: "info",
+  CLOSED: "success",
+  REOPENED: "warning",
+};
+
+/** Kiểu điều chỉnh trường áp dụng (279) — cùng họ màu với mockup danh mục điều chỉnh. */
+export const ADJUST_KIND_VARIANTS: Record<"REDUCE" | "SUBSTITUTE" | "SHARED" | "CHOOSE_IN_GROUP" | "OUTSIDE", BadgeVariant> = {
+  REDUCE: "warning",
+  SUBSTITUTE: "info",
+  SHARED: "success",
+  CHOOSE_IN_GROUP: "secondary",
+  OUTSIDE: "neutral",
+};

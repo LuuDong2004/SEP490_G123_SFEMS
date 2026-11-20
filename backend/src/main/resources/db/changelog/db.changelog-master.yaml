@@ -508,3 +508,13 @@ databaseChangeLog:
       file: db/changelog/changes/274-email-demo-sfems.sql
   - include:
       file: db/changelog/changes/275-chot-so-du-dau-ky.sql
+  - include:
+      file: db/changelog/changes/276-norm-adjustments.sql
+  - include:
+      file: db/changelog/changes/277-staff-assignments.sql
+  - include:
+      file: db/changelog/changes/278-school-year-closings.sql
+  - include:
+      file: db/changelog/changes/279-school-norm-adjustments.sql
+  - include:
+      file: db/changelog/changes/280-proposal-standard-traces.sql

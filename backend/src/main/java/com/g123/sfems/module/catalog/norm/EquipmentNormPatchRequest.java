@@ -3,6 +3,7 @@ package com.g123.sfems.module.catalog.norm;
 import com.g123.sfems.domain.catalog.standard.NormBasis;
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -63,5 +64,7 @@ public record EquipmentNormPatchRequest(
         Boolean optional,
         IdRef sourceDocument,
         /** Văn bản căn cứ của lần sửa — bắt buộc với bộ đang áp dụng. */
-        IdRef legalDocument) implements CatalogInput {
+        IdRef legalDocument,
+        /** Điều chỉnh của dòng (changelog 276) — vắng là để nguyên (sửa) / không được phép (thêm). */
+        @Valid NormAdjustmentRequest adjustment) implements CatalogInput {
 }

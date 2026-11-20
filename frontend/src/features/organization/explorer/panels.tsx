@@ -34,6 +34,7 @@ import { QuickAddBuildings } from "@/features/organization/explorer/quick-add";
 import { StaffAccountCell } from "@/features/organization/explorer/staff-account";
 import type { FormDialogState } from "@/shared/components/catalog/form-dialog";
 import { useMemo, useState } from "react";
+import { StaffAssignmentsPanel } from "@/features/organization/school-year/staff-assignments";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -387,6 +388,7 @@ const FACILITY_PARTS = [
 const PEOPLE_PARTS = [
   { value: "staff", label: "Cán bộ, giáo viên", count: "staff", icon: IdCard },
   { value: "teams", label: "Tổ bộ môn", count: "teams", icon: UsersRound },
+  { value: "assignments", label: "Phân công năm học", count: null, icon: UsersRound },
 ] as const;
 
 /** Giá trị tab cũ (`rooms`, `staff`… — đã lưu trong trình duyệt, hoặc trên liên kết) thuộc tab gộp nào. */
@@ -425,6 +427,7 @@ export function SchoolFacilityTabs({
   // Thêm nhân sự: người dùng chọn Loại (Giáo viên / Cán bộ) trong form; mặc định Giáo viên theo `STAFF_EXTRA.defaults`.
   const staffDialog = useQuickDialog("staff", { school: { id: schoolId } });
   const mayManageAccounts = useCan({ resource: "staff_accounts", action: "edit" }).data?.can ?? false;
+  const mayAssign = useCan({ resource: "staff_assignments", action: "list" }).data?.can ?? false;
   // Lớp học ít trường: thêm / xem / sửa trong hộp thoại, không rời màn trường. Bấm một lớp là
   // xem chi tiết; nút Sửa trong đó mở form sửa (cùng khuôn với thêm mới).
   const classDialog = useQuickDialog("school_classes", { school: { id: schoolId } });
@@ -477,11 +480,12 @@ export function SchoolFacilityTabs({
   const pickPeople = (v: typeof people) => { setPeoplePart(v); onTab("people"); };
   // Một ô thả xuống cho cả phần (cán bộ / tổ) lẫn loại cán bộ — thay hai dải chọn đứng liền nhau (góp ý 12/11/2026).
   const [staffType, setStaffType] = usePersistentState<"all" | "staff" | "teacher">("explorer.staffType", "all");
-  const peopleValue = people === "teams" ? "teams" : staffType;
+  const peopleValue = people === "teams" || people === "assignments" ? people : staffType;
   const peopleTop = (
     <IconFilter labeled icon={<IdCard />} label="danh sách" value={peopleValue} baseline="all"
       onChange={(v) => {
         if (v === "teams") return pickPeople("teams");
+        if (v === "assignments") return pickPeople("assignments");
         setStaffType(v === "staff" || v === "teacher" ? v : "all");
         pickPeople("staff");
       }}
@@ -490,6 +494,7 @@ export function SchoolFacilityTabs({
         { key: "staff", label: "Cán bộ" },
         { key: "teacher", label: "Giáo viên" },
         { key: "teams", label: "Tổ bộ môn", count: counts?.teams },
+        ...(mayAssign ? [{ key: "assignments", label: "Phân công năm học" }] : []),
       ] }]} />
   );
   return (
@@ -582,6 +587,11 @@ export function SchoolFacilityTabs({
                 quickButtons />
             
             </>
+          ) : people === "assignments" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              {peopleTop}
+              <StaffAssignmentsPanel schoolId={schoolId} />
+            </div>
           ) : (
             <>
               <MiniTable top={peopleTop} resource="subject_teams" path="/subject-teams" filters={bySchool(schoolId)} columns={teamColumns} createQuery={q}

@@ -45,7 +45,8 @@ public final class PortalRoutes {
     private static final Set<String> BUSINESS_DATA = Set.of("buildings", "campuses", "rooms", "facility_info",
             "facility_todo", "equipment", "equipment_items", "inventory_sessions", "school_classes", "staff",
             "subject_teams", "data_transfer", "equipment_intakes", "purchase_proposals", "inventory_campaigns",
-            "procurement_plans", "data_imports");
+            "procurement_plans", "data_imports", "staff_assignments", "year_standards", "school_year_profiles",
+            "school_norm_adjustments");
 
     /**
      * Khai cổng cho các tài nguyên. Cổng Admin luôn được đọc, và được ghi những gì một cổng nghiệp vụ ghi được TRỪ dữ
@@ -100,7 +101,13 @@ public final class PortalRoutes {
         // Dữ liệu của trường: trường ghi, Sở xem toàn ngành.
         put(BUSINESS, EnumSet.of(SCHOOL), "buildings", "campuses", "rooms", "facility_info", "facility_todo",
                 "equipment", "equipment_items", "inventory_sessions", "school_classes", "staff", "subject_teams",
-                "data_transfer");
+                "data_transfer", "staff_assignments");
+        // Chuẩn tối thiểu theo năm học: mọi cổng nghiệp vụ xem; trường đưa số thiếu vào đề xuất.
+        put(BUSINESS, EnumSet.of(SCHOOL), "year_standards");
+        // Hồ sơ năm học: trường xác nhận, chốt, khởi tạo; Sở xem tiến độ, mở lại, khởi tạo cho nhiều trường.
+        put(BUSINESS, BUSINESS, "school_year_profiles");
+        // Điều chỉnh chuẩn của trường (279): trường áp dụng, Sở xem và lọc.
+        put(BUSINESS, EnumSet.of(SCHOOL), "school_norm_adjustments");
         // Hai bên cùng ghi (lập ở trường, duyệt ở trường / Sở).
         put(BUSINESS, BUSINESS, "equipment_intakes", "purchase_proposals", "attachments", "report_snapshots",
                 "reports");

@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -151,6 +152,49 @@ public class EquipmentNormController extends CatalogController<
 
     /** Văn bản căn cứ của lần xoá. */
     public record RemoveRequest(IdRef legalDocument) {
+    }
+
+    /**
+     * {@code POST /api/equipment_norms/{id}/stop} {@code {"legalDocument": {"id"}, "schoolYear": {"id"}}} — ngừng áp dụng
+     * dòng từ một năm học theo văn bản căn cứ (dòng đã được trường dùng thì không xoá, chỉ ngừng).
+     */
+    @PostMapping("/{id}/stop")
+    @PreAuthorize("hasAuthority(#root.this.authority('write'))")
+    public Object stop(@PathVariable Long id, @Valid @RequestBody StopRequest body) {
+        return EquipmentNormResponse.from(norms.stop(id, body.legalDocument(), body.schoolYear()), null);
+    }
+
+    /** Văn bản căn cứ và năm học bắt đầu ngừng. */
+    public record StopRequest(@NotNull(message = "Chọn văn bản căn cứ") IdRef legalDocument,
+            @NotNull(message = "Chọn năm học") IdRef schoolYear) {
+    }
+
+    /**
+     * {@code GET /api/equipment_norms/{id}/usage} — {@code {"inUse": true}} khi thiết bị của dòng đã được trường dùng
+     * (tài sản, phiếu, đề xuất, điều chỉnh…): khi đó không có nút Xoá, chỉ Ngừng áp dụng.
+     */
+    @GetMapping("/{id}/usage")
+    @PreAuthorize("hasAuthority(#root.this.authority('read'))")
+    public Map<String, Boolean> usage(@PathVariable Long id) {
+        return Map.of("inUse", norms.inUse(id));
+    }
+
+    /**
+     * {@code GET /api/equipment_norms/adjustment-suggestion?note=…} — gợi ý điều chỉnh đọc từ ghi chú của phụ lục
+     * ({@code kind} trống là không nhận ra câu nào). Chỉ là gợi ý: form có nút "Dùng gợi ý", không tự áp.
+     */
+    @GetMapping("/adjustment-suggestion")
+    @PreAuthorize("hasAuthority(#root.this.authority('read'))")
+    public NormAdjustments.Suggestion suggestion(@RequestParam(value = "note", required = false) String note) {
+        return NormAdjustments.suggest(note);
+    }
+
+    /** {@code GET /api/equipment_norms/adjust-groups?standard.id=…&subject.id=…} — nhóm "chọn trong nhóm" của một môn. */
+    @GetMapping("/adjust-groups")
+    @PreAuthorize("hasAuthority(#root.this.authority('read'))")
+    public List<EquipmentNormService.AdjustGroup> adjustGroups(@RequestParam("standard.id") Long standardId,
+            @RequestParam(value = "subject.id", required = false) Long subjectId) {
+        return norms.adjustGroups(standardId, subjectId);
     }
 
     /** {@code GET /api/equipment_norms/{id}/changes} — nhật ký của một dòng (thêm / sửa từng trường / xoá), mới trước. */

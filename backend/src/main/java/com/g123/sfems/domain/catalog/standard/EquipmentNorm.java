@@ -13,11 +13,16 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * Một dòng của Danh mục thiết bị dạy học tối thiểu — đúng một dòng phụ lục của thông tư: thiết bị
@@ -140,6 +145,61 @@ public class EquipmentNorm extends CatalogEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "end_document_id")
     private EquipmentStandardDocument endDocument;
+
+    /** Điều chỉnh của dòng (changelog 276) — Sở khai tay; {@link AdjustKind#NONE} là không được phép. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "adjust_kind", nullable = false, length = 20)
+    private AdjustKind adjustKind = AdjustKind.NONE;
+
+    /** Giảm: số còn lại (tử số). */
+    @Column(name = "adjust_quantity", precision = 14, scale = 3)
+    private BigDecimal adjustQuantity;
+
+    /** Giảm: đối tượng tính sau giảm. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "adjust_basis", length = 20)
+    private NormBasis adjustBasis;
+
+    /** Giảm: mỗi bao nhiêu đối tượng (mẫu số). */
+    @Column(name = "adjust_basis_size")
+    private Integer adjustBasisSize;
+
+    /** Giảm: khi nào ("Nơi chưa có điều kiện"). */
+    @Column(name = "adjust_condition", length = 500)
+    private String adjustCondition;
+
+    /** Thay thế: thiết bị của danh mục thay được. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "adjust_substitute_catalog_id")
+    private EquipmentCatalog adjustSubstituteCatalog;
+
+    /** Thay thế: hình thức khác ("Phần mềm mô phỏng"). */
+    @Column(name = "adjust_substitute_text", length = 500)
+    private String adjustSubstituteText;
+
+    /** Thay thế: trường đã có thứ thay thế thì không tính thiết bị này. */
+    @Column(name = "adjust_substitute_required", nullable = false)
+    private boolean adjustSubstituteRequired;
+
+    /** Chọn trong nhóm: tên nhóm, trong cùng bộ + môn. */
+    @Column(name = "adjust_group", length = 255)
+    private String adjustGroup;
+
+    /** Chọn trong nhóm: số thiết bị được chọn. */
+    @Column(name = "adjust_group_pick")
+    private Integer adjustGroupPick;
+
+    /** Câu căn cứ trong thông tư — bắt buộc với mọi kiểu trừ NONE. */
+    @Column(name = "adjust_basis_text", length = 1000)
+    private String adjustBasisText;
+
+    /** Dùng chung: các thiết bị dùng chung được. LAZY — chạm ở {@code loadForResponse}. */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "equipment_norm_adjust_shared",
+            joinColumns = @JoinColumn(name = "norm_id"),
+            inverseJoinColumns = @JoinColumn(name = "catalog_id"))
+    @BatchSize(size = 50)
+    private Set<EquipmentCatalog> adjustShared = new LinkedHashSet<>();
 
     /** Dòng thay dòng này (nếu có) — điền khi đọc danh sách, không lưu. */
     @Transient
@@ -351,6 +411,98 @@ public class EquipmentNorm extends CatalogEntity {
 
     public void setEndDocument(EquipmentStandardDocument endDocument) {
         this.endDocument = endDocument;
+    }
+
+    public AdjustKind getAdjustKind() {
+        return adjustKind;
+    }
+
+    public void setAdjustKind(AdjustKind adjustKind) {
+        this.adjustKind = adjustKind == null ? AdjustKind.NONE : adjustKind;
+    }
+
+    public BigDecimal getAdjustQuantity() {
+        return adjustQuantity;
+    }
+
+    public void setAdjustQuantity(BigDecimal adjustQuantity) {
+        this.adjustQuantity = adjustQuantity;
+    }
+
+    public NormBasis getAdjustBasis() {
+        return adjustBasis;
+    }
+
+    public void setAdjustBasis(NormBasis adjustBasis) {
+        this.adjustBasis = adjustBasis;
+    }
+
+    public Integer getAdjustBasisSize() {
+        return adjustBasisSize;
+    }
+
+    public void setAdjustBasisSize(Integer adjustBasisSize) {
+        this.adjustBasisSize = adjustBasisSize;
+    }
+
+    public String getAdjustCondition() {
+        return adjustCondition;
+    }
+
+    public void setAdjustCondition(String adjustCondition) {
+        this.adjustCondition = adjustCondition;
+    }
+
+    public EquipmentCatalog getAdjustSubstituteCatalog() {
+        return adjustSubstituteCatalog;
+    }
+
+    public void setAdjustSubstituteCatalog(EquipmentCatalog adjustSubstituteCatalog) {
+        this.adjustSubstituteCatalog = adjustSubstituteCatalog;
+    }
+
+    public String getAdjustSubstituteText() {
+        return adjustSubstituteText;
+    }
+
+    public void setAdjustSubstituteText(String adjustSubstituteText) {
+        this.adjustSubstituteText = adjustSubstituteText;
+    }
+
+    public boolean isAdjustSubstituteRequired() {
+        return adjustSubstituteRequired;
+    }
+
+    public void setAdjustSubstituteRequired(boolean adjustSubstituteRequired) {
+        this.adjustSubstituteRequired = adjustSubstituteRequired;
+    }
+
+    public String getAdjustGroup() {
+        return adjustGroup;
+    }
+
+    public void setAdjustGroup(String adjustGroup) {
+        this.adjustGroup = adjustGroup;
+    }
+
+    public Integer getAdjustGroupPick() {
+        return adjustGroupPick;
+    }
+
+    public void setAdjustGroupPick(Integer adjustGroupPick) {
+        this.adjustGroupPick = adjustGroupPick;
+    }
+
+    public String getAdjustBasisText() {
+        return adjustBasisText;
+    }
+
+    public void setAdjustBasisText(String adjustBasisText) {
+        this.adjustBasisText = adjustBasisText;
+    }
+
+    public Set<EquipmentCatalog> getAdjustShared() {
+        return adjustShared;
     }
 
     public Long getReplacedById() {

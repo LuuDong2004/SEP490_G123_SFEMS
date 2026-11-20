@@ -1,9 +1,9 @@
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
-import { BookOpen, Check, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, FileText, Pencil, Plus, Printer, Search, Trash2, FunnelX, History, Undo2 } from "lucide-react";
+import { ArrowLeftRight, BookOpen, Check, CheckCheck, CopyPlus, FileUp, ListChecks, Trash2, CircleStop, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, FileText, Pencil, Plus, Printer, Search, Timer, FunnelX, History, Undo2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
-import { useFormState, useWatch, type Control } from "react-hook-form";
+import { useFormContext, useFormState, useWatch, type Control } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { API_URL } from "@/shared/api/constants";
@@ -21,10 +21,14 @@ import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { PrintSheet } from "@/shared/components/print/print-sheet";
 import { SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { Badge } from "@/shared/ui/badge";
+import { AlertDialog } from "@/shared/ui/alert-dialog";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
+import { NORM_VALIDITY_VARIANTS } from "@/shared/lib/status-variants";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
 import { Button } from "@/shared/ui/button";
@@ -37,21 +41,40 @@ import { Sheet, SheetClose, SheetContent, SheetFooter, SheetHeader, SheetTitle }
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import {
+  ADJUST_KIND_LABELS,
   LEVEL_GRADES,
   NORM_BASIS_LABELS,
+  NORM_VALIDITY_LABELS,
   gradesLabel,
   quantityLabel,
+  ratioLabel,
   type EquipmentNorm,
   type NormSubjectGroup,
+  type NormValidity,
 } from "@/domains/equipment-standard/types";
 import { TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 
 import { EquipmentCatalogDetail } from "./equipment-catalog-profile";
 import { OUTSIDE, useLevelParam } from "./level-picker";
 import { LegalDocDialog, type LegalDocDialogState } from "./legal-doc-dialog";
-import { useLegalEffectiveFrom } from "./legal-doc-picker";
-import { DeleteNormDialog, LegalBasisField, NormChangeLog } from "./norm-audit";
+import { useLegalDocs, useLegalEffectiveFrom } from "./legal-doc-picker";
+import { LegalBasisField, NormChangeLog } from "./norm-audit";
+import {
+  AdjustableBadge,
+  AdjustmentFields,
+  AdjustmentView,
+  DeleteUnusedNormDialog,
+  EMPTY_ADJUSTMENT,
+  KV,
+  StopNormDialog,
+  effectiveNow,
+  stopYearText,
+  useNormUsage,
+  useSchoolYears,
+} from "./norm-adjustment";
 import { countsText, useStandardChanges, type StandardChange } from "./standard-changes";
+import { NormDocumentImport, type NormDocumentImportHandle } from "./norm-document-import";
+import { ReviseDialog, type ReviseTarget } from "./revise-dialog";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
@@ -120,7 +143,9 @@ export function MinimumCatalog() {
     levelStandards[0];
   const status: StandardStatus = standard?.status ?? "ACTIVE";
   // Danh sách phẳng (trưởng nhóm 17/11/2026): bộ đang áp dụng thêm / sửa / xoá trực tiếp, nhật ký ghi lại mọi lần.
-  const editable = status === "ACTIVE";
+  // Bản nháp (Lập bộ mới theo thông tư sửa đổi / đính chính) sửa được tới khi Áp dụng.
+  const editable = status === "ACTIVE" || status === "DRAFT";
+  const draftOfLevel = levelStandards.find((s) => s.status === "DRAFT");
   const level: string | undefined = standard?.educationLevel?.code;
 
   const [q, setQ] = useState("");
@@ -140,19 +165,26 @@ export function MinimumCatalog() {
   // Lọc theo căn cứ: thông tư của dòng (gốc / sửa đổi) — trưởng nhóm 17/11/2026.
   const [basisDoc, setBasisDoc] = useState<string | null>(null);
   useEffect(() => setBasisDoc(null), [standard?.id]);
+  // Điều chỉnh (được phép / không) và hiệu lực (mặc định: đang hiệu lực) — changelog 276.
+  const [adjust, setAdjust] = useState<string | null>(null);
+  const [validity, setValidity] = useState<NormValidity>("active");
   const filters: CrudFilter[] = useMemo(
     () => [
       { field: "standard.id", operator: "eq", value: standard?.id },
       ...(applied ? [{ field: "q", operator: "contains" as const, value: applied }] : []),
       ...(grade !== ALL ? [{ field: "gradeLevel", operator: "eq" as const, value: grade }] : []),
       ...(basisDoc ? [{ field: "sourceDocument.id", operator: "eq" as const, value: basisDoc }] : []),
+      ...(adjust ? [{ field: "adjustable", operator: "eq" as const, value: adjust }] : []),
+      ...(validity !== "all" ? [{ field: "validity", operator: "eq" as const, value: validity }] : []),
     ],
-    [standard?.id, applied, grade, basisDoc],
+    [standard?.id, applied, grade, basisDoc, adjust, validity],
   );
   const query: Record<string, string> = { "standard.id": String(standard?.id ?? "") };
   if (applied) query.q = applied;
   if (grade !== ALL) query.gradeLevel = grade;
   if (basisDoc) query["sourceDocument.id"] = basisDoc;
+  if (adjust) query.adjustable = adjust;
+  if (validity !== "all") query.validity = validity;
   const { result: groupsResult, query: groupsQuery } = useCustom<NormSubjectGroup[]>({
     url: `${API_URL}/${NORMS}/groups`,
     method: "get",
@@ -165,13 +197,13 @@ export function MinimumCatalog() {
     [groupsData],
   );
   const devices = groups.reduce((n, g) => n + (g.catalogs ?? g.count), 0);
-  const filtering = !!applied || grade !== ALL;
+  const filtering = !!applied || grade !== ALL || !!basisDoc || !!adjust || validity !== "active";
 
   const [subjectKey, setSubjectKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = usePersistentState<number>("tbdh.pageSize", PAGE, "local");
   const [rowTotal, setRowTotal] = useState(0);
-  useEffect(() => setPage(1), [standard?.id, subjectKey, applied, grade]);
+  useEffect(() => setPage(1), [standard?.id, subjectKey, applied, grade, basisDoc, adjust, validity]);
   const allSubjects = subjectKey === null || subjectKey === ALL;
   const subject = allSubjects ? undefined : groups.find((g) => String(g.subjectId) === subjectKey);
   useEffect(() => {
@@ -184,7 +216,7 @@ export function MinimumCatalog() {
   const subjectFilters: CrudFilter[] = subject ? [...filters, { field: "subject.id", operator: "eq", value: subject.subjectId ?? "none" }] : filters;
 
   // Thay đổi của bản nháp so với bộ nó thay — nhãn Mới / Đổi / Bỏ trên từng dòng.
-  const tracksChanges = false;
+  const tracksChanges = status === "DRAFT" && !!standard?.previousStandard;
   const changes = useStandardChanges(standard?.id, tracksChanges);
   const changeById = useMemo(() => {
     const map = new Map<number, StandardChange>();
@@ -221,6 +253,52 @@ export function MinimumCatalog() {
   const [transfer, setTransfer] = useState<"xlsx" | "pdf" | "import" | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const levelName: string = standard?.educationLevel?.name ?? "";
+  const docImport = useRef<NormDocumentImportHandle>(null);
+  const [revising, setRevising] = useState(false);
+  const [confirming, setConfirming] = useState<"apply" | "discard" | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  // Thông tư Sở chọn điều chỉnh: bộ đang áp dụng của từng cấp; cấp đang có bản nháp thì không chọn lại được.
+  const reviseTargets: ReviseTarget[] = useMemo(
+    () => standards.filter((s) => s.status === "ACTIVE").map((s) => {
+      const main = ((s.documents ?? []) as StandardDoc[]).find((d) => /^main$/i.test(d.documentRole));
+      return {
+        id: s.id,
+        circular: /^(.+?)\/TT-/i.exec(main?.documentNo ?? "")?.[1] ?? main?.documentNo ?? s.code,
+        level: s.educationLevel?.name ?? "",
+        version: s.standardVersion ?? null,
+        busy: standards.some((d) => d.status === "DRAFT" && d.previousStandard?.id === s.id),
+      };
+    }),
+    [standards],
+  );
+  const refreshAll = () => {
+    invalidate({ resource: "equipment_standards", invalidates: ["list"] });
+    invalidate({ resource: NORMS, invalidates: ["list"] });
+    invalidate({ resource: "equipment_catalogs", invalidates: ["list"] });
+    void groupsQuery.refetch();
+    if (tracksChanges) void changes.refetch();
+  };
+  /** Áp dụng bản nháp (bộ cũ cùng cấp hết hiệu lực) hoặc xoá bản nháp — cả hai hỏi lại trước. */
+  const runConfirm = async () => {
+    if (!standard || !confirming) return;
+    setConfirmBusy(true);
+    try {
+      if (confirming === "apply") {
+        await kyInstance.post(`equipment_standards/${standard.id}/apply`);
+        notify?.({ type: "success", message: `Đã áp dụng bộ mới cấp ${levelName.toLowerCase()}.` });
+      } else {
+        await kyInstance.delete(`equipment_standards/${standard.id}`);
+        notify?.({ type: "success", message: "Đã xoá bản nháp." });
+      }
+      setStandardId(null);
+      setConfirming(null);
+      refreshAll();
+    } catch (error) {
+      notify?.({ type: "error", message: await errorMessage(error), description: confirming === "apply" ? "Chưa áp dụng được" : "Không xoá được" });
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
 
   const exportXlsx = async () => {
     setTransfer("xlsx");
@@ -276,8 +354,7 @@ export function MinimumCatalog() {
       body.append("standardId", String(standard.id));
       const res = await kyInstance.post("equipment_norms/import", { body }).json<{ created: number }>();
       notify?.({ type: "success", message: `Đã nhập ${res.created} dòng vào bản nháp.` });
-      invalidate({ resource: NORMS, invalidates: ["list"] });
-      invalidate({ resource: "equipment_catalogs", invalidates: ["list"] });
+      refreshAll();
     } catch (error) {
       notify?.({ type: "error", message: await errorMessage(error), description: "Không nhập được, chưa có dòng nào được ghi" });
     } finally {
@@ -288,10 +365,13 @@ export function MinimumCatalog() {
 
 
   const [deleting, setDeleting] = useState<EquipmentNorm | null>(null);
+  const [stopping, setStopping] = useState<EquipmentNorm | null>(null);
+  const { data: schoolYears } = useSchoolYears();
   const ctx: RowContext = {
     level, docIndex, chainOf: (id) => (id != null ? chainIndex.get(id) ?? [] : []), status,
     revisionDocId: standard?.revisionDocumentId ?? null, changeById, onDoc: openDoc,
-    onDelete: setDeleting,
+    onDelete: setDeleting, onStop: setStopping,
+    stopText: (to) => stopYearText(to, schoolYears),
   };
   const cols = editable && mayCreate ? EDITABLE_COLS : EDITABLE_COLS - 1;
   const subjectItems = groups.map((g) => ({ key: String(g.subjectId), label: g.subjectName ?? "Chưa gắn môn", count: g.catalogs ?? g.count }));
@@ -300,6 +380,8 @@ export function MinimumCatalog() {
     setBasisDoc(null);
     setGrade(ALL);
     setSubjectKey(null);
+    setAdjust(null);
+    setValidity("active");
   };
 
   return (
@@ -348,19 +430,44 @@ export function MinimumCatalog() {
                 {standard ? (
                   <div className="me-auto flex min-w-0 items-center gap-1 text-[0.9375rem]">
                     <LevelSwitch levels={levels} current={currentLevel?.code} />
-                    <span className="text-success-text truncate font-semibold">{" · "}Đang áp dụng</span>
+                    <span className={cn("truncate font-semibold", STATUS_TONE[status])}>{" · "}{STATUS_TEXT[status]}</span>
                     <span className="text-muted-foreground truncate text-[0.8125rem]">{" · "}{basisLine(standard)}</span>
                   </div>
                 ) : (
                   <Skeleton className="me-auto h-6 w-72" />
                 )}
+                {status === "ACTIVE" && draftOfLevel ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => { setStandardId(draftOfLevel.id); setSubjectKey(null); }}>
+                    <FileText />
+                    Bản nháp
+                  </Button>
+                ) : null}
+                {status === "DRAFT" && activeOfLevel ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setStandardId(activeOfLevel.id); setSubjectKey(null); }}>
+                    <Undo2 />
+                    Bộ đang áp dụng
+                  </Button>
+                ) : null}
+                {tracksChanges ? (
+                  <Button type="button" variant={view === "changes" ? "secondary" : "outline"} size="sm" aria-pressed={view === "changes"}
+                    onClick={() => setView(view === "changes" ? "all" : "changes")}>
+                    <ListChecks />
+                    {changes.loading ? "Thay đổi" : `Thay đổi: ${countsText(changes.counts) || "chưa có"}`}
+                  </Button>
+                ) : null}
                 {standard && editable && mayCreate ? (
-                  <Button size="sm" onClick={() => setForm({ open: true })}>
+                  <Button size="sm" variant={status === "DRAFT" ? "outline" : "default"} onClick={() => setForm({ open: true })}>
                     <Plus />
                     Thêm thiết bị
                   </Button>
                 ) : null}
-                {editable && mayCreate ? (
+                {status === "DRAFT" && mayEditStandard ? (
+                  <Button type="button" size="sm" onClick={() => setConfirming("apply")}>
+                    <CheckCheck />
+                    Áp dụng
+                  </Button>
+                ) : null}
+                {status === "DRAFT" && mayCreate ? (
                   <input ref={importInput} type="file" accept=".xlsx" className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
@@ -382,6 +489,33 @@ export function MinimumCatalog() {
                       <Printer />
                       In / lưu PDF
                     </DropdownMenuItem>
+                    {mayEditStandard && status !== "RETIRED" ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        {status === "ACTIVE" && !draftOfLevel ? (
+                          <DropdownMenuItem onSelect={() => setRevising(true)}>
+                            <CopyPlus />
+                            Lập bộ mới
+                          </DropdownMenuItem>
+                        ) : null}
+                        {status === "DRAFT" && mayCreate ? (
+                          <DropdownMenuItem disabled={transfer !== null} onSelect={() => importInput.current?.click()}>
+                            <FileSpreadsheet />
+                            Nhập Excel vào bản nháp
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem disabled={transfer !== null} onSelect={() => docImport.current?.pick()}>
+                          <FileUp />
+                          {status === "DRAFT" ? "Đọc phụ lục Word vào bản nháp" : "Đọc phụ lục Word, so với bộ"}
+                        </DropdownMenuItem>
+                        {status === "DRAFT" ? (
+                          <DropdownMenuItem variant="destructive" onSelect={() => setConfirming("discard")}>
+                            <Trash2 />
+                            Xoá bản nháp
+                          </DropdownMenuItem>
+                        ) : null}
+                      </>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -399,7 +533,13 @@ export function MinimumCatalog() {
                 <IconFilter labeled icon={<FileText />} label="căn cứ" allLabel="Mọi căn cứ"
                   value={basisDoc} onChange={setBasisDoc}
                   groups={[{ items: basisDocs(standard).map((d) => ({ key: String(d.id), label: docShort(d.documentNo) })) }]} />
-                {[q.trim() !== "", grade !== ALL, !allSubjects, basisDoc != null].filter(Boolean).length >= 2 ? (
+                <IconFilter labeled icon={<ArrowLeftRight />} label="điều chỉnh" prefix="Điều chỉnh" allLabel="Tất cả"
+                  value={adjust} onChange={setAdjust}
+                  groups={[{ items: [{ key: "true", label: "Được phép" }, { key: "false", label: "Không được phép" }] }]} />
+                <IconFilter labeled icon={<Timer />} label="hiệu lực" baseline="active"
+                  value={validity} onChange={(v) => setValidity((v ?? "active") as NormValidity)}
+                  groups={[{ items: (Object.keys(NORM_VALIDITY_LABELS) as NormValidity[]).map((k) => ({ key: k, label: NORM_VALIDITY_LABELS[k] })) }]} />
+                {[q.trim() !== "", grade !== ALL, !allSubjects, basisDoc != null, adjust != null, validity !== "active"].filter(Boolean).length >= 2 ? (
                   <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá lọc" title="Xoá lọc"
                     className="text-muted-foreground hover:text-foreground" onClick={clearFilters}>
                     <FunnelX />
@@ -421,7 +561,7 @@ export function MinimumCatalog() {
                       <TableHead className="w-28 text-center">Số đối tượng</TableHead>
                       <TableHead className="w-28">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
-                      <TableHead className="w-28">Áp dụng từ</TableHead>
+                      <TableHead className="w-36">Điều chỉnh</TableHead>
                       <TableHead className="w-28">Căn cứ</TableHead>
                       {editable && mayCreate ? <TableHead className="w-12" /> : null}
                     </TableRow>
@@ -463,11 +603,36 @@ export function MinimumCatalog() {
       )}
 
       <LegalDocDialog state={legalView} onClose={() => setLegalView(null)} />
-      <DeleteNormDialog row={deleting} onClose={() => setDeleting(null)} />
+      {standard && mayEditStandard && status !== "RETIRED" ? (
+        <NormDocumentImport standardId={standard.id} editable={status === "DRAFT"} handle={docImport}
+          onBusy={(b) => setTransfer(b ? "import" : null)} onImported={refreshAll} />
+      ) : null}
+      <ReviseDialog targets={reviseTargets} initialId={standard?.id ?? null} open={revising} onOpenChange={setRevising}
+        onCreated={(drafts) => {
+          setRevising(false);
+          notify?.({ type: "success", message: drafts.length > 1 ? `Đã lập ${drafts.length} bộ nháp.` : "Đã lập bộ nháp." });
+          invalidate({ resource: "equipment_standards", invalidates: ["list"] });
+          const mine = drafts.find((d) => d.educationLevel?.name === levelName) ?? drafts[0];
+          if (mine) { setStandardId(mine.id); setSubjectKey(null); }
+        }} />
+      <AlertDialog open={confirming !== null} onOpenChange={(o) => !o && !confirmBusy && setConfirming(null)}>
+        {confirming === "discard" ? (
+          <ConfirmContent tone="danger" title={`Xoá bản nháp cấp ${levelName.toLowerCase()}?`}
+            description="Các dòng đã sửa trong bản nháp bị xoá. Bộ đang áp dụng giữ nguyên."
+            cancelLabel="Không xoá" confirmLabel="Xoá bản nháp" busy={confirmBusy} keepOpen onConfirm={() => void runConfirm()} />
+        ) : (
+          <ConfirmContent tone="warning" icon={<CheckCheck />}
+            title={`Áp dụng bộ mới cấp ${levelName.toLowerCase()}?`}
+            description={`Bộ đang áp dụng chuyển hết hiệu lực. Từ năm học này đủ / thiếu và báo cáo tính theo bộ mới${tracksChanges && changes.rows.length ? ` (${countsText(changes.counts)})` : ""}.`}
+            cancelLabel="Chưa áp dụng" confirmLabel="Áp dụng" busy={confirmBusy} keepOpen onConfirm={() => void runConfirm()} />
+        )}
+      </AlertDialog>
+      <DeleteUnusedNormDialog row={deleting} onClose={() => setDeleting(null)} onDeleted={() => setOpened(null)} />
+      <StopNormDialog row={stopping} onClose={() => setStopping(null)} />
 
 
 
-      <NormDrawer id={opened} ctx={ctx} editable={editable && mayEditStandard}
+      <NormDrawer id={opened} ctx={ctx} editable={editable && mayEditStandard} standardId={standard?.id}
         onClose={() => setOpened(null)}
         onEdit={(id) => {
           setOpened(null);
@@ -493,6 +658,9 @@ export function MinimumCatalog() {
   );
 }
 
+
+const STATUS_TEXT: Record<StandardStatus, string> = { ACTIVE: "Đang áp dụng", DRAFT: "Bản nháp", RETIRED: "Hết hiệu lực" };
+const STATUS_TONE: Record<StandardStatus, string> = { ACTIVE: "text-success-text", DRAFT: "text-warning-text", RETIRED: "text-destructive-text" };
 
 /** Số dòng mỗi trang mặc định. */
 const PAGE = 20;
@@ -570,9 +738,24 @@ type RowContext = {
   changeById: Map<number, StandardChange>;
   /** Bấm số hiệu ở cột Căn cứ: mở hộp xem văn bản (thông tin + tệp PDF). */
   onDoc?: (doc: StandardDoc) => void;
-  /** Xoá khỏi danh mục (hỏi lại; nhật ký giữ lần xoá). */
+  /** Xoá khỏi danh mục — chỉ dòng chưa được dùng (hỏi lại; nhật ký giữ lần xoá). */
   onDelete?: (row: EquipmentNorm) => void;
+  /** Ngừng áp dụng từ một năm học (hỏi lại, kèm văn bản căn cứ). */
+  onStop?: (row: EquipmentNorm) => void;
+  /** "2026–2027" — năm học bắt đầu ngừng của một ngày thôi áp dụng. */
+  stopText: (effectiveTo: string) => string;
 };
+
+/** Nhãn đỏ cạnh tên của dòng ngừng / hết hiệu lực: "Ngừng từ 2026–2027", "Hết hiệu lực". */
+function EndTag({ row, ctx }: { row: EquipmentNorm; ctx: RowContext }) {
+  if (!row.effectiveTo) return null;
+  const text = row.endDocument ? `Ngừng từ ${ctx.stopText(row.effectiveTo)}` : "Hết hiệu lực";
+  return (
+    <span className="bg-destructive-subtle text-destructive-text ms-1.5 inline-block rounded-full px-2 align-[1px] text-[0.71875rem] leading-[1.2rem] font-semibold whitespace-nowrap no-underline">
+      {text}
+    </span>
+  );
+}
 
 /** Số cột của bảng khi có cột nút Sửa. */
 const EDITABLE_COLS = 11;
@@ -589,11 +772,6 @@ const PER_LABEL: Record<string, string> = {
 /** Số đối tượng mà định mức tính cho — ít nhất 1. */
 function basisCount(row: EquipmentNorm): number {
   return row.basisSize && row.basisSize > 1 ? row.basisSize : 1;
-}
-
-function applyTo(row: EquipmentNorm): string | null {
-  if (row.minQuantity == null) return null;
-  return `${row.basisSize && row.basisSize > 1 ? row.basisSize : 1} ${PER_LABEL[row.normBasis] ?? ""}`.trim();
 }
 
 /** Lớp ngắn cho cột: "1–3", "1, 2", "Mọi lớp". */
@@ -630,18 +808,19 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
   onEdit: (id: number) => void;
 }) {
   const doc = row.sourceDocument ? ctx.docIndex.get(row.sourceDocument.id) : undefined;
-  const removed = kind === "REMOVED";
+  // Dòng bị bỏ (bản nháp) hay đã thôi áp dụng (Sở ngừng / hết hiệu lực): mờ, gạch tên.
+  const removed = kind === "REMOVED" || !effectiveNow(row);
   const muted = <span className="text-muted-foreground">—</span>;
   return (
     <TableRow onClick={() => onOpen(row.id)}
-      className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground")}>
+      className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground [&>td]:text-muted-foreground")}>
       <TableCell className={cn("text-muted-foreground text-center tabular-nums", kind && KIND_BAR[kind])}>{index}</TableCell>
       <TableCell className="truncate font-mono text-xs">{row.catalog?.code ?? muted}</TableCell>
       <TableCell className="whitespace-normal">
-        <div className={cn("font-medium", removed && "line-through")}>
-          {row.name}
+        <div className="font-medium">
+          <span className={cn(removed && "line-through")}>{row.name}</span>
           <ChangeTag kind={kind} />
-          {row.optional ? <Badge variant="neutral" className="ms-1.5 align-middle">Tự chọn</Badge> : null}
+          <EndTag row={row} ctx={ctx} />
         </div>
       </TableCell>
       <TableCell className="text-center">
@@ -653,7 +832,7 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
-      <TableCell className="tabular-nums">{row.effectiveFrom ? formatPlainDate(row.effectiveFrom) : muted}</TableCell>
+      <TableCell><AdjustableBadge row={row} /></TableCell>
       <TableCell className="truncate" onClick={(e) => e.stopPropagation()}>
         {doc ? (
           // Chỉ thông tư của CHÍNH dòng (gốc, hay thông tư sửa đổi mục này) — chuỗi đầy đủ ở hộp chi tiết của dòng.
@@ -681,10 +860,12 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
                 <History />
                 Lịch sử thay đổi
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={() => ctx.onDelete?.(row)}>
-                <Trash2 />
-                Xoá khỏi danh mục
-              </DropdownMenuItem>
+              {!row.endDocument ? (
+                <DropdownMenuItem variant="destructive" onSelect={() => ctx.onStop?.(row)}>
+                  <CircleStop />
+                  Ngừng áp dụng
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </TableCell>
@@ -791,138 +972,150 @@ function ChangedRows({ standard, filters, changes, loading, empty, ...p }: RowsP
   return <>{renderRows(rows, 0, p)}</>;
 }
 
-/** Một hàng "nhãn — giá trị" trong ngăn. */
-function DrawerRow({ label, children }: { label: string; children: ReactNode }) {
+/** Tiêu đề một khối của ngăn chi tiết. */
+function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-3">
-      <span className="text-muted-foreground text-[0.8125rem]">{label}</span>
-      <div className="min-w-0 font-medium">{children}</div>
-    </div>
+    <section>
+      <p className="text-muted-foreground mt-4 mb-1.5 text-xs font-semibold tracking-wide uppercase">{title}</p>
+      <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 border-b pt-1 pb-3.5 text-sm">{children}</dl>
+    </section>
   );
 }
 
 /**
- * Ngăn bên phải của một dòng: cần bao nhiêu, cho ai, lớp nào; đơn vị, thiết bị trong danh mục; mục đích và mô tả (gập);
- * căn cứ — có từ văn bản nào, bản nháp thêm / đổi / bỏ gì. Bản nháp sửa (mở form) hoặc bỏ dòng ngay từ đây.
+ * Ngăn bên phải của một dòng — bốn khối cùng khuôn nhãn – giá trị: Định mức (cần có, lớp, môn, nhóm phụ lục, mã thiết
+ * bị), Căn cứ (văn bản, hiệu lực, ghi chú), Điều chỉnh, Lịch sử. Chân: Xoá (dòng chưa được dùng) hoặc Ngừng áp dụng (dòng đã dùng)
+ * bên trái; Đóng · Sửa bên phải.
  */
-function NormDrawer({ id, ctx, editable, onClose, onEdit, onOpenCatalog }: {
+function NormDrawer({ id, ctx, editable, standardId, onClose, onEdit, onOpenCatalog }: {
   id: number | null;
   ctx: RowContext;
   editable: boolean;
+  standardId?: number;
   onClose: () => void;
   onEdit: (id: number) => void;
   onOpenCatalog: (catalogId: number, normId: number) => void;
   onChanged: () => void;
 }) {
   const { result: r, query } = useOne<EquipmentNorm>({ resource: NORMS, id: id ?? "", queryOptions: { enabled: id != null } });
+  const { data: usage } = useNormUsage(editable ? id : null);
   const change = id != null ? ctx.changeById.get(id) : undefined;
   const doc = r?.sourceDocument ? ctx.docIndex.get(r.sourceDocument.id) : undefined;
-  const revision = ctx.revisionDocId != null ? ctx.docIndex.get(ctx.revisionDocId) : undefined;
   const removed = change?.kind === "REMOVED";
   const canChange = editable && !removed;
   const day = (v?: string | null) => (v ? formatPlainDate(v) : "—");
-  const log: { tone: string; text: ReactNode; sub?: ReactNode }[] = [];
-  if (r) {
-    const fromRevision = doc != null && doc.id === ctx.revisionDocId && ctx.status === "DRAFT";
-    if (doc && !fromRevision) {
-      const [first, ...amends] = ctx.chainOf(doc.id);
-      const root = first ?? doc;
-      log.push({ tone: "bg-muted-foreground/40", text: <>Có từ {docShort(root.documentNo)}</>, sub: <>ban hành {day(root.issueDate)} · áp dụng từ {day(root.effectiveDate ?? root.issueDate)}</> });
-      for (const a of amends) {
-        log.push({ tone: "bg-muted-foreground/40", text: <>Sửa đổi, bổ sung theo {docShort(a.documentNo)}</>, sub: <>ban hành {day(a.issueDate)} · áp dụng từ {day(a.effectiveDate ?? a.issueDate)}</> });
-      }
+  const origin: { text: ReactNode; sub?: ReactNode }[] = [];
+  if (r && doc) {
+    const [first, ...amends] = ctx.chainOf(doc.id);
+    const root = first ?? doc;
+    origin.push({ text: <>Có từ {docShort(root.documentNo)}</>, sub: <>ban hành {day(root.issueDate)} · áp dụng từ {day(root.effectiveDate ?? root.issueDate)}</> });
+    for (const a of amends) {
+      origin.push({ text: <>Sửa đổi, bổ sung theo {docShort(a.documentNo)}</>, sub: <>ban hành {day(a.issueDate)} · áp dụng từ {day(a.effectiveDate ?? a.issueDate)}</> });
     }
-    const by = revision ? ` theo ${docShort(revision.documentNo)}` : "";
-    if (change?.kind === "ADDED") log.push({ tone: "bg-success", text: <>Thêm{by}</>, sub: "chưa áp dụng" });
-    if (change?.kind === "CHANGED") {
-      log.push({
-        tone: "bg-warning",
-        text: <>Đổi{by}{change.fields ? `: ${change.fields}` : ""}</>,
-        sub: change.before ? <>trước: {change.before} → nay: {change.after}</> : "chưa áp dụng",
-      });
-    }
-    if (change?.kind === "REMOVED") log.push({ tone: "bg-destructive", text: <>Bỏ{by}</>, sub: "chưa áp dụng" });
   }
+  const unit = r ? (r.unit?.name ?? r.unitText ?? "") || null : null;
+  const grades = r?.gradeLevels ? r.gradeLevels.split(",").join(", ") : "Mọi lớp";
+  // Nhãn hiệu lực: Sở đã ngừng (kể cả ngừng từ năm học sau) → "Ngừng từ …"; quá ngày thôi áp dụng → "Hết hiệu lực".
+  const validity: "active" | "stopped" | "expired" | null = !r ? null
+    : r.endDocument && r.effectiveTo ? "stopped" : effectiveNow(r) ? "active" : "expired";
   return (
     <Sheet open={id != null} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full gap-0 sm:max-w-[32rem]" aria-describedby={undefined}>
-        <SheetHeader className="px-6 pt-5 pb-3 pe-12">
+        <SheetHeader className="border-b px-6 pt-5 pb-3 pe-12">
           <SheetTitle className="text-[1.0625rem] leading-snug">
             {r?.name ?? "Thiết bị"}
             <ChangeTag kind={change?.kind} />
           </SheetTitle>
-          {r ? <p className="text-muted-foreground text-[0.8125rem]">{[r.subject?.name, topicOf(r)].filter(Boolean).join(" · ")}</p> : null}
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5">
           {query.isLoading || !r ? (
-            <Skeleton className="h-60 w-full" />
+            <Skeleton className="mt-4 h-60 w-full" />
           ) : (
-            <div className="divide-y [&>section]:grid [&>section]:gap-3 [&>section]:py-4">
-              <section className="border-t">
-                <DrawerRow label="Số lượng cần">
+            <>
+              <DrawerSection title="Định mức">
+                <KV label="Cần có">
                   {r.minQuantity == null
-                    ? <span className="text-muted-foreground font-normal">Phụ lục không ghi số — không tính đủ / thiếu</span>
-                    : <span className="text-xl font-semibold tabular-nums">{r.minQuantity}</span>}
-                </DrawerRow>
-                <DrawerRow label="Áp dụng cho">{applyTo(r) ?? "—"}</DrawerRow>
-                <DrawerRow label="Lớp">{gradesLabel(r.gradeLevels, ctx.level)}</DrawerRow>
-                <DrawerRow label="Đối tượng sử dụng">
-                  {[r.forTeacher ? "Giáo viên" : null, r.forStudent ? "Học sinh" : null].filter(Boolean).join(", ") || "—"}
-                </DrawerRow>
-                {r.optional ? <p className="text-muted-foreground text-[0.8125rem]">Tự chọn — không tính đủ / thiếu.</p> : null}
-              </section>
-              <section>
-                <DrawerRow label="Đơn vị">{r.unit?.name ?? r.unitText ?? "—"}</DrawerRow>
-                {r.catalog ? (
-                  <DrawerRow label="Danh mục">
+                    ? <span className="text-muted-foreground">Phụ lục không ghi số</span>
+                    : <b>{ratioLabel(r.minQuantity, unit, r.basisSize, r.normBasis)}</b>}
+                </KV>
+                <KV label="Lớp">{grades}</KV>
+                <KV label="Môn">{r.subject?.name ?? "—"}</KV>
+                {r.sectionName || r.itemNo ? (
+                  <KV label="Nhóm phụ lục">{[r.sectionName, r.itemNo ? `mục ${r.itemNo}` : null].filter(Boolean).join(" · ")}</KV>
+                ) : null}
+                <KV label="Mã thiết bị">
+                  {r.catalog ? (
                     <button type="button" className="text-primary text-start hover:underline" onClick={() => onOpenCatalog(r.catalog!.id, r.id)}>
-                      {r.catalog.code} · {r.catalog.name}
+                      {r.catalog.code}
                     </button>
-                  </DrawerRow>
+                  ) : "—"}
+                </KV>
+              </DrawerSection>
+              <DrawerSection title="Căn cứ">
+                <KV label="Văn bản">
+                  {doc ? (
+                    <button type="button" className="text-primary text-start hover:underline" onClick={() => ctx.onDoc?.(doc)}>
+                      {doc.documentNo}
+                    </button>
+                  ) : r.sourceDocument?.documentNo ?? "—"}
+                </KV>
+                <KV label="Hiệu lực">
+                  <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                    Từ {day(r.effectiveFrom)}
+                    {validity ? (
+                      <Badge variant={NORM_VALIDITY_VARIANTS[validity]}>
+                        {validity === "stopped" && r.effectiveTo ? `Ngừng từ ${ctx.stopText(r.effectiveTo)}` : NORM_VALIDITY_LABELS[validity]}
+                      </Badge>
+                    ) : null}
+                  </span>
+                </KV>
+                {r.endDocument ? <KV label="Căn cứ ngừng">{r.endDocument.documentNo}</KV> : null}
+                {r.note ? (
+                  <KV label="Ghi chú">
+                    <span className="border-border bg-surface-subtle text-foreground/80 block rounded-sm border-s-[3px] px-2.5 py-1 italic">{r.note}</span>
+                  </KV>
                 ) : null}
-                {r.quantityText || r.itemNo ? (
-                  <DrawerRow label="Phụ lục ghi">{r.quantityText || "—"}{r.itemNo ? ` · mục ${r.itemNo}` : ""}</DrawerRow>
-                ) : null}
-                {r.note ? <DrawerRow label="Ghi chú">{r.note}</DrawerRow> : null}
-              </section>
+              </DrawerSection>
+              <DrawerSection title="Điều chỉnh">
+                <AdjustmentView row={r} standardId={standardId} />
+              </DrawerSection>
               <section>
-                <details className="group/details">
-                  <summary className="text-primary cursor-pointer list-none text-[0.8125rem] [&::-webkit-details-marker]:hidden">
-                    Mục đích và mô tả <ChevronDown className="inline size-3.5 transition-transform group-open/details:rotate-180" />
-                  </summary>
-                  <div className="text-foreground/85 mt-2 space-y-3 text-[0.8125rem] leading-relaxed whitespace-pre-line">
-                    <p><span className="font-semibold">Mục đích:</span> {r.purpose || "—"}</p>
-                    <p>{r.description || "—"}</p>
-                  </div>
-                </details>
-              </section>
-              <section className="space-y-2">
-                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Lịch sử</p>
+                <p className="text-muted-foreground mt-4 mb-2 text-xs font-semibold tracking-wide uppercase">Lịch sử</p>
                 <div className="grid gap-3 text-[0.8125rem]">
-                  {log.map((l, i) => (
-                    <div key={i} className="flex gap-2">
-                      <i className={cn("mt-1.5 size-2 shrink-0 rounded-full", l.tone)} />
-                      <span>{l.text}{l.sub ? <><br /><span className="text-muted-foreground">{l.sub}</span></> : null}</span>
-                    </div>
-                  ))}
                   <NormChangeLog id={r.id} format={(field, v) => {
                     const ref = /^#(\d+)$/.exec(v);
                     if (ref && (field === "sourceDocument" || field === "endDocument")) {
                       const d = ctx.docIndex.get(Number(ref[1]));
                       return d ? docShort(d.documentNo) : undefined;
                     }
-                    if (field === "normBasis") return PER_LABEL[v.toLowerCase()] ? `theo ${PER_LABEL[v.toLowerCase()]}` : undefined;
+                    if (field === "normBasis" || field === "adjustBasis") {
+                      return PER_LABEL[v.toLowerCase()] ? `theo ${PER_LABEL[v.toLowerCase()]}` : undefined;
+                    }
+                    if (field === "adjustKind") return ADJUST_KIND_LABELS[v as keyof typeof ADJUST_KIND_LABELS];
                     return undefined;
                   }} />
+                  {origin.map((l, i) => (
+                    <div key={i} className="flex gap-2">
+                      <i className="bg-muted-foreground/40 mt-1.5 size-2 shrink-0 rounded-full" />
+                      <span>{l.text}{l.sub ? <><br /><span className="text-muted-foreground">{l.sub}</span></> : null}</span>
+                    </div>
+                  ))}
                 </div>
               </section>
-            </div>
+            </>
           )}
         </div>
         <SheetFooter className="flex-row gap-2 border-t px-6 py-3">
-          {canChange && id != null ? (
-            <Button type="button" variant="outline" className="text-destructive hover:text-destructive"
-              onClick={() => { if (r) { ctx.onDelete?.(r); onClose(); } }}>
+          {/* Dòng chưa dùng chỉ Xoá; dòng đã dùng chỉ Ngừng áp dụng (trưởng nhóm 20/11/2026). */}
+          {canChange && r && !r.endDocument && usage?.inUse ? (
+            <Button type="button" variant="outline" className="text-destructive-text hover:text-destructive-text"
+              onClick={() => ctx.onStop?.(r)}>
+              Ngừng áp dụng
+            </Button>
+          ) : null}
+          {canChange && r && usage && !usage.inUse ? (
+            <Button type="button" variant="outline" className="text-destructive-text hover:text-destructive-text"
+              onClick={() => ctx.onDelete?.(r)}>
               Xoá
             </Button>
           ) : null}
@@ -1185,19 +1378,30 @@ function NormFormDialog({ state, onOpenChange, standard }: {
         gradeLevels: "",
         forTeacher: true,
         forStudent: false,
-        optional: false,
         purpose: "",
         description: "",
+        adjustment: EMPTY_ADJUSTMENT,
       }}
     >
-      {(control, record) => <NormFields control={control} record={record} level={standard.educationLevel?.code} />}
+      {(control, record) => <NormFields control={control} record={record} standard={standard} />}
     </FormDialog>
   );
 }
 
-function NormFields({ control, record, level }: { control: Control<any>; record?: any; level?: string }) {
+function NormFields({ control, record, standard }: { control: Control<any>; record?: any; standard: any }) {
+  const level: string | undefined = standard?.educationLevel?.code;
   const basis = useWatch({ control, name: "normBasis" });
   const legalId = useWatch({ control, name: "legalDocument.id" });
+  // Sửa: văn bản căn cứ điền sẵn theo căn cứ đang ghi trên dòng (khớp số hiệu) — đổi thì chọn lại.
+  const { setValue, getValues } = useFormContext();
+  const { data: legalDocs } = useLegalDocs();
+  const sourceNo: string | undefined = record?.sourceDocument?.documentNo;
+  useEffect(() => {
+    if (!sourceNo || getValues("legalDocument.id")) return;
+    const hit = (legalDocs ?? []).find((d) => d.code.trim().toLowerCase() === sourceNo.trim().toLowerCase());
+    // Đánh dấu "đã sửa": lần nạp bản ghi (reset giữ ô đã sửa) chạy SAU hiệu ứng này, không thì nó xoá mất.
+    if (hit) setValue("legalDocument.id", hit.id, { shouldDirty: true });
+  }, [sourceNo, legalDocs, getValues, setValue]);
   const appliesFrom = useLegalEffectiveFrom(legalId);
   const qty = useWatch({ control, name: "minQuantity" });
   // Chọn trước rồi mới điền sau (trưởng nhóm 17/11/2026): chưa chọn văn bản căn cứ thì mọi ô khác khoá; chưa ghi "Cần
@@ -1209,7 +1413,7 @@ function NormFields({ control, record, level }: { control: Control<any>; record?
     <div className="space-y-4">
       {/* Một màn, không cuộn (trưởng nhóm 17/11/2026): bỏ tiêu đề nhóm, căn cứ đứng cùng hàng với mã và môn. Thêm / sửa
           phải có văn bản căn cứ; ngày áp dụng lấy theo hiệu lực của văn bản. */}
-      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_14rem]">
+      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,18rem)_9rem_9rem_minmax(0,14rem)]">
         <LegalBasisField control={control} block />
         <FormItem>
           <FormLabel>Áp dụng từ</FormLabel>
@@ -1228,7 +1432,7 @@ function NormFields({ control, record, level }: { control: Control<any>; record?
           disabledHint={noBasis ? "Chọn văn bản căn cứ trước" : undefined} />
       </div>
       <fieldset disabled={noBasis} className="min-w-0 space-y-4 disabled:opacity-60">
-      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,28rem)_minmax(0,1fr)_minmax(0,1fr)]">
         <TextField control={control} name="name" label="Tên thiết bị" rule="NAME" rules={{ required: "Nhập tên thiết bị" }} />
         <TextField control={control} name="sectionName" label="Nhóm trong phụ lục" rule="NOTE" placeholder="Tranh ảnh" />
         <TextField control={control} name="topic" label="Chủ đề dạy học" rule="NOTE" />
@@ -1240,15 +1444,16 @@ function NormFields({ control, record, level }: { control: Control<any>; record?
             rules={{ validate: (v: any) => v === null || v === undefined || String(v).trim() === "" || Number(v) > 0 || "Phải lớn hơn 0" }} />
           <RefField control={control} name="unit" resource="units" label="ĐVT" current={record?.unit} className="w-36"
             required={hasQty} disabledHint={!hasQty ? "Ghi Cần có trước" : undefined}
-            validate={(v: any) => !hasQty || !!v?.id || "Chọn ĐVT"} />
+            validate={(v: any) => !hasQty || v != null || "Chọn ĐVT"} />
           <fieldset disabled={!hasQty} className="contents">
             <SelectField control={control} name="normBasis" label="Đối tượng" options={BASIS_OPTIONS} className="w-48"
               rules={{ validate: (v: any) => !hasQty || !!v || "Chọn đối tượng" }} />
             {perGroup ? (
               <TextField control={control} name="basisSize" label="Số đối tượng" type="number" numberRule="COUNT" className="w-28"
-                placeholder={basis === "per_student" ? "6" : "5"}
-                rules={{ validate: (v: any) => !hasQty || (v !== null && v !== undefined && String(v).trim() !== "" && Number(v) >= 1)
-                  || "Nhập số đối tượng" }} />
+                placeholder="1"
+                // Để trống là 1 (máy chủ lưu 1 thành trống) — "01/HS" của phụ lục.
+                rules={{ validate: (v: any) => !hasQty || v === null || v === undefined || String(v).trim() === "" || Number(v) >= 1
+                  || "Ít nhất là 1" }} />
             ) : null}
           </fieldset>
           <TextField control={control} name="quantityText" label="Số lượng (theo phụ lục)" placeholder="01/4 đến 6HS"
@@ -1257,28 +1462,16 @@ function NormFields({ control, record, level }: { control: Control<any>; record?
         </div>
         <div className="mt-4 flex flex-wrap items-start gap-x-6 gap-y-4">
           <AudienceField control={control} />
-          <FormField
-            control={control}
-            name="optional"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tự chọn</FormLabel>
-                <label className="flex min-h-9 items-center gap-2 text-sm" title="Môn hoặc phương án trường tự chọn — không tính vào đủ / thiếu">
-                  <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(v === true)} />
-                  Không tính đủ / thiếu
-                </label>
-              </FormItem>
-            )}
-          />
           <TextField control={control} name="note" label="Ghi chú" rule="NOTE" className="min-w-[16rem] flex-1" />
         </div>
       </div>
       <div className="border-t pt-4">
         <div className="grid items-start gap-x-4 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <TextareaField control={control} name="purpose" label="Mục đích sử dụng" rows={3} className="max-w-none" boxClassName="h-[16rem] max-h-[16rem]" rule="LONG_TEXT" max={20000} />
-          <TextareaField control={control} name="description" label="Mô tả chi tiết" rows={3} className="max-w-none" boxClassName="h-[16rem] max-h-[16rem]" rule="LONG_TEXT" max={20000} />
+          <TextareaField control={control} name="purpose" label="Mục đích sử dụng" rows={3} className="max-w-none" boxClassName="h-[4.5rem] max-h-[4.5rem]" rule="LONG_TEXT" max={20000} />
+          <TextareaField control={control} name="description" label="Mô tả chi tiết" rows={3} className="max-w-none" boxClassName="h-[4.5rem] max-h-[4.5rem]" rule="LONG_TEXT" max={20000} />
         </div>
       </div>
+      <AdjustmentFields control={control} record={record} standard={standard} />
       </fieldset>
     </div>
   );

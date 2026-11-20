@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +60,14 @@ public class PurchaseProposalService
         this.catalogs = catalogs;
         this.adequacy = adequacy;
         this.intakes = intakes;
+    }
+
+    private List<ProposalSubmitGuard> submitGuards = List.of();
+
+    /** Kiểm khi trình của hồ sơ năm học — tiêm qua setter (tránh vòng phụ thuộc). */
+    @Autowired
+    void setSubmitGuards(List<ProposalSubmitGuard> guards) {
+        this.submitGuards = guards;
     }
 
     @Override
@@ -116,6 +125,9 @@ public class PurchaseProposalService
         }
         if (voucher.getReason() == null) {
             throw new FieldValidationException("reason", "Nêu sự cần thiết của đề xuất trước khi trình");
+        }
+        for (ProposalSubmitGuard guard : submitGuards) {
+            guard.beforeSubmit(voucher.getId(), voucher.getSchool().getId());
         }
         // Đơn giá dự kiến KHÔNG bắt buộc: trường đề xuất NHU CẦU (thiếu gì, bao nhiêu), thường chưa biết giá — ép nhập
         // thì ra con số bịa. Giá do cơ quan lập kế hoạch xác định; kế hoạch mới bắt đủ giá (ProcurementPlanService).
@@ -281,7 +293,7 @@ public class PurchaseProposalService
      * Các thiết bị đang được xin ở những đề xuất CÒN HIỆU LỰC khác của một trường — để form và màn duyệt cảnh
      * báo xin trùng. Chỉ cảnh báo, không chặn: trường có lý do xin thêm (phiếu trước bị cắt số lượng…). Tính
      * cả phiếu nháp, vì hai bản nháp trùng nhau là đúng chỗ cột "Đề xuất" của bảng định mức không thấy. Đọc
-     * qua phạm vi dòng như mọi lần đọc phiếu, nên Sở / UBND chỉ thấy đề xuất đã trình tới mình.
+     * qua phạm vi dòng như mọi lần đọc phiếu, nên Sở chỉ thấy đề xuất đã trình tới mình.
      */
     public List<Overlap> overlaps(Long schoolId, Long excludeId) {
         Specification<PurchaseProposal> spec = rowLevel.<PurchaseProposal>scope(PurchaseProposal.class,

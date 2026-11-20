@@ -23,6 +23,9 @@ import {
   EquipmentLookup,
   EquipmentAdequacy,
   EquipmentMinimum,
+  StaffAssignmentsPage,
+  SchoolYearProfilePage,
+  SchoolYearProgressPage,
   SchoolExplorer,
   SchoolCodeRulesPage,
   SchoolUsersPage,
@@ -391,6 +394,30 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
           element={
             <CanAccess resource="equipment_adequacy" action="list" fallback={<Forbidden resource="purchase_proposals" />}>
               <EquipmentAdequacy />
+            </CanAccess>
+          }
+        />
+        <Route
+          path="/staff-assignments"
+          element={
+            <CanAccess resource="staff_assignments" action="list" fallback={<Forbidden resource="staff_assignments" />}>
+              <StaffAssignmentsPage />
+            </CanAccess>
+          }
+        />
+        <Route
+          path="/school-year-profile"
+          element={
+            <CanAccess resource="school_year_profiles" action="list" fallback={<Forbidden resource="school_year_profiles" />}>
+              <SchoolYearProfilePage />
+            </CanAccess>
+          }
+        />
+        <Route
+          path="/school-year-progress"
+          element={
+            <CanAccess resource="school_year_progress" action="list" fallback={<Forbidden resource="school_year_profiles" />}>
+              <SchoolYearProgressPage />
             </CanAccess>
           }
         />

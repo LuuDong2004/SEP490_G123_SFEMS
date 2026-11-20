@@ -52,7 +52,7 @@ function status(d: LegalDoc) {
   return d.effective ? <Badge variant="success">Đang hiệu lực</Badge> : <Badge variant="neutral">Hết hiệu lực</Badge>;
 }
 
-function useLegalDocs() {
+export function useLegalDocs() {
   return useQuery({
     queryKey: ["legal_documents", "picker"],
     queryFn: () => kyInstance.get("legal_documents", { searchParams: { _start: "0", _end: "500" } }).json<LegalDoc[]>(),
@@ -189,7 +189,7 @@ export function LegalBasisPicker({ value, onChange, invalid, block }: {
   const { data } = useLegalDocs();
   const doc = (data ?? []).find((d) => d.id === value);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", block && "min-w-0")}>
       <button type="button" onClick={() => setOpen(true)}
         className={cn(
           "bg-card shadow-e1 flex h-9 max-w-full items-center gap-2 rounded-full border px-3.5 text-left text-sm transition-colors hover:border-primary",
@@ -203,7 +203,7 @@ export function LegalBasisPicker({ value, onChange, invalid, block }: {
             <span className="text-muted-foreground"> · {doc.name}</span>
           </span>
         ) : (
-          <span className="text-muted-foreground flex-1">Chọn văn bản căn cứ</span>
+          <span className="text-muted-foreground min-w-0 flex-1 truncate">Chọn văn bản căn cứ</span>
         )}
         <span className="text-primary inline-flex shrink-0 items-center text-xs font-medium">
           {doc ? "Đổi" : "Chọn"}

@@ -15,6 +15,7 @@ import { VoucherFormPage } from "@/shared/components/voucher/voucher-form-page";
 import { VoucherList } from "@/shared/components/voucher/voucher-list";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
 import { LineDetailsButton, lineDetailsText } from "@/shared/components/voucher/voucher-details";
+import { StandardTraceBlock } from "../school-year/standard-trace";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatPlainDate, todayLocal } from "@/shared/lib/format";
@@ -339,7 +340,7 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                       <LineDetailsButton config={config} value={field.value} onChange={field.onChange} schoolId={schoolId}
                         title={`Dòng ${i + 1}`} label="Chi tiết thêm" buttonClassName="text-primary hover:text-primary bg-info-subtle hover:bg-info-subtle border-primary/40 shadow-e1 rounded-full border font-semibold hover:brightness-95"
                         // Tên cụ thể / thông số kỹ thuật của thiết bị cần mua — không bắt buộc; tên trống thì máy chủ lấy tên
-                        // trong danh mục. Bên mua (Sở / UBND) đọc ở màn kế hoạch và file Excel kế hoạch.
+                        // trong danh mục. Bên mua (Sở) đọc ở màn kế hoạch và file Excel kế hoạch.
                         extras={[
                           { key: "name", label: "Tên cụ thể", placeholder: "Để trống thì dùng tên trong danh mục", max: maxLengthOf("NAME") },
                           // "Mô tả, yêu cầu chung" — không gọi "Thông số kỹ thuật": bảng thông số (tên · giá trị · đơn vị)
@@ -613,6 +614,8 @@ export const PurchaseProposalShow = () => {
           </TableFooter>
         </Table>
       </div>
+      {/* Đề xuất lập từ chuẩn tối thiểu theo năm học: căn cứ từng dòng (điểm trường, chuẩn TT, điều chỉnh). */}
+      {record ? <div className="mt-4"><StandardTraceBlock proposalId={record.id} /></div> : null}
     </VoucherShowShell>
   );
 };

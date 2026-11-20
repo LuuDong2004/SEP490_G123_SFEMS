@@ -71,7 +71,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdequacyService {
 
     private static final String USABLE = "('IN_STOCK', 'IN_USE', 'BORROWED', 'MAINTAINING')";
-    private static final Map<String, int[]> LEVEL_GRADES = Map.of(
+    static final Map<String, int[]> LEVEL_GRADES = Map.of(
             "TH", new int[] {1, 2, 3, 4, 5},
             "THCS", new int[] {6, 7, 8, 9},
             "THPT", new int[] {10, 11, 12});
@@ -581,10 +581,10 @@ public class AdequacyService {
     // ------------------------------------------------------------------ nội bộ
 
     /** Lớp học năm hiện hành của một trường: khối (số) và sĩ số. */
-    private record SchoolClass(int grade, Integer students) {
+    record SchoolClass(int grade, Integer students) {
     }
 
-    private record School(Long id, String code, String name, String level, String levelCode, String district,
+    record School(Long id, String code, String name, String level, String levelCode, String district,
             Integer classCount, Integer studentCount) {
     }
 
@@ -625,7 +625,7 @@ public class AdequacyService {
                         + campusId.longValue();
         String classCampus = inCampus("c.room_id", "c.school_id", campusId);
         String staffCampus = campusId == null ? "" : " AND (SELECT " + FacilityCounting.EFFECTIVE_CAMPUS
-                + " FROM (SELECT 1) one" + FacilityCounting.campusJoins("st.campus_id", "st.school_id") + ") = "
+                + " FROM (SELECT 1) one" + FacilityCounting.campusJoins("a.campus_id", "a.school_id") + ") = "
                 + campusId.longValue();
         String roomCampus = inCampus("r.id", "r.school_id", campusId);
         String eqCampus = inCampus("e.room_id", "e.school_id", campusId);
@@ -670,14 +670,18 @@ public class AdequacyService {
             }
         });
 
-        // Giáo viên theo môn (môn chính hoặc môn dạy) — và tổng số giáo viên cho thiết bị dùng chung.
+        // Giáo viên theo môn (môn chính hoặc môn dạy) theo PHÂN CÔNG của năm học hiện hành (277; điểm trường của
+        // phân công) — và tổng số giáo viên cho thiết bị dùng chung.
         Map<Long, Map<Long, Integer>> teachers = new HashMap<>();
         Map<Long, Integer> allTeachers = new HashMap<>();
         jdbc.query("""
                 SELECT st.school_id, x.subject_id, count(DISTINCT st.id) AS n
-                FROM staff st
-                JOIN (SELECT id AS staff_id, main_subject_id AS subject_id FROM staff WHERE main_subject_id IS NOT NULL
-                      UNION SELECT staff_id, subject_id FROM staff_subjects) x ON x.staff_id = st.id
+                FROM staff_assignments a
+                JOIN school_years y ON y.id = a.school_year_id AND y.is_current
+                JOIN staff st ON st.id = a.staff_id
+                JOIN (SELECT id AS assignment_id, main_subject_id AS subject_id FROM staff_assignments
+                      WHERE main_subject_id IS NOT NULL
+                      UNION SELECT assignment_id, subject_id FROM staff_assignment_subjects) x ON x.assignment_id = a.id
                 WHERE st.active AND st.staff_type = 'TEACHER'%s%s
                 GROUP BY 1, 2""".formatted(ids == null ? "" : " AND st.school_id IN (" + ids + ")", staffCampus),
                 rs -> {
@@ -685,7 +689,9 @@ public class AdequacyService {
                     .put(rs.getLong("subject_id"), rs.getInt("n"));
         });
         jdbc.query("""
-                SELECT st.school_id, count(*) AS n FROM staff st WHERE st.active AND st.staff_type = 'TEACHER'%s%s
+                SELECT st.school_id, count(*) AS n FROM staff_assignments a
+                JOIN school_years y ON y.id = a.school_year_id AND y.is_current
+                JOIN staff st ON st.id = a.staff_id WHERE st.active AND st.staff_type = 'TEACHER'%s%s
                 GROUP BY 1""".formatted(ids == null ? "" : " AND st.school_id IN (" + ids + ")", staffCampus),
                 rs -> {
                     allTeachers.put(rs.getLong("school_id"), rs.getInt("n"));
@@ -901,7 +907,7 @@ public class AdequacyService {
     }
 
     /** Định mức của từng cấp học — đọc một lần cho mọi trường cùng cấp, đệm 60 giây. */
-    private Map<String, List<Map<String, Object>>> normsByLevel() {
+    Map<String, List<Map<String, Object>>> normsByLevel() {
         Cached<Map<String, List<Map<String, Object>>>> hit = normsCache;
         if (hit != null && hit.fresh()) {
             return hit.value();
@@ -937,11 +943,11 @@ public class AdequacyService {
         return a.required() != null && a.required() > b.required();
     }
 
-    private record Requirement(Integer value, String warning) {
+    record Requirement(Integer value, String warning) {
     }
 
     /** Dữ liệu của một trường mà phép tính một dòng định mức cần. */
-    private record Context(School school, List<SchoolClass> classes, int[] levelGrades,
+    record Context(School school, List<SchoolClass> classes, int[] levelGrades,
             Map<Long, Integer> subjectTeachers, int teachers, Map<Long, Integer> subjectRooms) {
 
         Requirement required(Map<String, Object> n) {
@@ -1020,12 +1026,12 @@ public class AdequacyService {
         return qty.multiply(BigDecimal.valueOf(factor)).setScale(0, RoundingMode.CEILING).intValue();
     }
 
-    private static Integer gradeNumber(String code) {
+    static Integer gradeNumber(String code) {
         String digits = code == null ? "" : code.replaceAll("\\D", "");
         return digits.isEmpty() ? null : Integer.valueOf(digits);
     }
 
-    private static Long longOf(Object value) {
+    static Long longOf(Object value) {
         return value == null ? null : ((Number) value).longValue();
     }
 
@@ -1033,7 +1039,7 @@ public class AdequacyService {
         return visibleSchools.current();
     }
 
-    private static int percent(int part, int whole) {
+    static int percent(int part, int whole) {
         return whole == 0 ? 0 : Math.round(part * 100f / whole);
     }
 }

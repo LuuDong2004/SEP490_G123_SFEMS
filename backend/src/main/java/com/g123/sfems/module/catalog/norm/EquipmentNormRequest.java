@@ -3,6 +3,7 @@ package com.g123.sfems.module.catalog.norm;
 import com.g123.sfems.domain.catalog.standard.NormBasis;
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -63,19 +64,21 @@ public record EquipmentNormRequest(
         Boolean optional,
         IdRef sourceDocument,
         /** Văn bản căn cứ của lần thêm (danh mục Văn bản quy định) — bắt buộc với bộ đang áp dụng. */
-        IdRef legalDocument) implements CatalogInput {
+        IdRef legalDocument,
+        /** Điều chỉnh của dòng (changelog 276) — vắng là để nguyên (sửa) / không được phép (thêm). */
+        @Valid NormAdjustmentRequest adjustment) implements CatalogInput {
 
     EquipmentNormRequest withSortOrder(Integer order) {
         return new EquipmentNormRequest(code, name, order, active, note, standard, catalog,
                 equipmentType, subject, grade, roomType, minQuantity, unit, normBasis, basisSize, quantityText,
                 unitText, gradeLevels, itemNo, sectionName, topic, purpose, description, forTeacher, forStudent,
-                optional, sourceDocument, legalDocument);
+                optional, sourceDocument, legalDocument, adjustment);
     }
 
     EquipmentNormRequest withCode(String generated) {
         return new EquipmentNormRequest(generated, name, sortOrder, active, note, standard, catalog,
                 equipmentType, subject, grade, roomType, minQuantity, unit, normBasis, basisSize, quantityText,
                 unitText, gradeLevels, itemNo, sectionName, topic, purpose, description, forTeacher, forStudent,
-                optional, sourceDocument, legalDocument);
+                optional, sourceDocument, legalDocument, adjustment);
     }
 }

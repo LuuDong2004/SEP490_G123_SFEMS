@@ -183,6 +183,15 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
         return d.isEmpty() ? null : d;
     }
 
+    /** Hồ sơ mới thì có luôn phân công năm học hiện tại (ghi kép — xem {@link StaffAssignmentService#syncFromStaff}). */
+    @Override
+    @Transactional
+    public Staff create(StaffRequest request) {
+        Staff saved = super.create(request);
+        assignments.syncFromStaff(saved);
+        return saved;
+    }
+
     /** Mã cán bộ khoá sau khi tạo (trưởng nhóm, 12/11/2026) — như mã phòng. Gửi lại đúng mã đang có thì bỏ qua. */
     @Override
     @Transactional
@@ -190,7 +199,9 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
         if (request.code() != null && !request.code().trim().equalsIgnoreCase(getWritable(id).getCode())) {
             throw new FieldValidationException("code", "Mã cán bộ không đổi được sau khi tạo");
         }
-        return super.update(id, request);
+        Staff saved = super.update(id, request);
+        assignments.syncFromStaff(saved);
+        return saved;
     }
 
     @Override
@@ -236,6 +247,13 @@ public class StaffService extends SchoolOwnedService<Staff, StaffRequest, StaffP
 
     private CampusService campuses;
     private CampusScope campusScope;
+    private StaffAssignmentService assignments;
+
+    /** Phân công năm học hiện tại theo hồ sơ (277) — tiêm qua setter như phạm vi cơ sở. */
+    @Autowired
+    void setAssignments(StaffAssignmentService assignments) {
+        this.assignments = assignments;
+    }
 
     /** Tiêm qua setter — phạm vi cơ sở (271), xem {@link CampusScope}. */
     @Autowired

@@ -37,6 +37,7 @@ import {
   Stethoscope,
   University,
   Users,
+  CalendarCheck,
   Wallet,
   Workflow,
   UserCog,
@@ -111,7 +112,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       mgmtLabel: "Tổng hợp",
     },
   },
-  // Góc nhìn QUẢN LÝ (Sở, UBND) không đi theo phân hệ của trường: menu của nó dựng từ
+  // Góc nhìn QUẢN LÝ (Sở) không đi theo phân hệ của trường: menu của nó dựng từ
   // `meta.mgmt` (thứ tự mục gốc) và `meta.mgmtParent` (mục con của ba nhóm dưới đây),
   // trong `shared/components/layout/sidebar.tsx`. Ba nhóm này chỉ tồn tại ở góc nhìn đó —
   // không route, không con trong cây của Refine, nên góc nhìn trường không thấy chúng.
@@ -247,7 +248,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
     create: "/inventory-campaigns/create",
     edit: "/inventory-campaigns/edit/:id",
     show: "/inventory-campaigns/show/:id",
-    // `audience: "management"`: đợt kiểm kê là việc của Sở / UBND (phát động, theo dõi tiến độ). Trường thấy
+    // `audience: "management"`: đợt kiểm kê là việc của Sở (phát động, theo dõi tiến độ). Trường thấy
     // các đợt đang mở ngay trên tab Kiểm kê (`CampaignStrip`), nên không có tab riêng ở góc nhìn trường.
     meta: { icon: <Megaphone className="h-4 w-4" />, audience: "management", mgmtParent: "mgmt_inventory", mgmtLabel: "Đợt kiểm kê" },
   },
@@ -352,6 +353,30 @@ export const resources: ResourceProps[] = withHelp(withModules([
       canDelete: true,
       icon: <GraduationCap className="h-4 w-4" />,
       parent: "catalog_org",
+    },
+  },
+  // Phân công giáo viên theo năm học (277) — mở trong tab Nhân sự của trường; đường riêng cho liên kết.
+  {
+    name: "staff_assignments",
+    list: "/staff-assignments",
+    meta: { icon: <Users className="h-4 w-4" />, hide: true, label: "Phân công giáo viên" },
+  },
+  // Hồ sơ năm học (278): trường xác nhận từng điểm trường, chốt năm học — tab của phân hệ Thiết bị.
+  {
+    name: "school_year_profiles",
+    list: "/school-year-profile",
+    meta: { icon: <CalendarCheck className="h-4 w-4" />, label: "Hồ sơ năm học" },
+  },
+  // Tiến độ hồ sơ năm học các trường — Sở; mượn quyền `school_year_profiles:read`.
+  {
+    name: "school_year_progress",
+    list: "/school-year-progress",
+    meta: {
+      icon: <CalendarCheck className="h-4 w-4" />,
+      label: "Hồ sơ năm học",
+      audience: "management",
+      mgmtParent: "mgmt_schools",
+      mgmtLabel: "Hồ sơ năm học",
     },
   },
   // Định mức và nhu cầu mua sắm: màn tổng hợp, mượn quyền `purchase_proposals:read`.

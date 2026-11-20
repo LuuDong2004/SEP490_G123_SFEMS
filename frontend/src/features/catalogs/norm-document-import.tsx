@@ -1,6 +1,6 @@
 import { useInvalidate, useNotification } from "@refinedev/core";
 import { FileUp, Loader2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 
 import { kyInstance } from "@/shared/api/data";
 import { DetailTable, type DetailColumn, type DetailFilter } from "@/shared/components/data-table/detail-table";
@@ -44,13 +44,23 @@ const COLUMNS: DetailColumn[] = [
  * môn đó có "tính cho 01 phòng học bộ môn" không, và so với bộ — Mới / Đổi / Không đổi / Bỏ. Bước 2 (chỉ bộ NHÁP)
  * thay các môn có trong văn bản bằng dòng vừa đọc; môn khác giữ nguyên.
  */
-export function NormDocumentImport({ standardId, editable }: { standardId: number; editable: boolean }) {
+/** Mở chọn tệp từ nơi khác (mục trong menu thao tác) — khi đó không vẽ nút riêng. */
+export type NormDocumentImportHandle = { pick: () => void };
+
+export function NormDocumentImport({ standardId, editable, handle, onBusy, onImported }: {
+  standardId: number;
+  editable: boolean;
+  handle?: Ref<NormDocumentImportHandle>;
+  onBusy?: (busy: boolean) => void;
+  onImported?: () => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState<"read" | "import" | null>(null);
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
+  useImperativeHandle(handle, () => ({ pick: () => input.current?.click() }), []);
 
   const send = async (f: File, dryRun: boolean) => {
     const form = new FormData();
@@ -62,6 +72,7 @@ export function NormDocumentImport({ standardId, editable }: { standardId: numbe
 
   const read = async (f: File) => {
     setBusy("read");
+    onBusy?.(true);
     try {
       setFile(f);
       setPreview(await send(f, true));
@@ -69,6 +80,7 @@ export function NormDocumentImport({ standardId, editable }: { standardId: numbe
       notify?.({ type: "error", message: await errorMessage(error), description: "Không đọc được văn bản" });
     } finally {
       setBusy(null);
+      onBusy?.(false);
       if (input.current) input.current.value = "";
     }
   };
@@ -80,6 +92,7 @@ export function NormDocumentImport({ standardId, editable }: { standardId: numbe
       const res = await send(file, false);
       notify?.({ type: "success", message: `Đã nhập ${res.created} dòng vào bản nháp, thay ${res.deleted} dòng cũ.` });
       invalidate({ resource: "equipment_norms", invalidates: ["list"] });
+      onImported?.();
       setPreview(null);
     } catch (error) {
       notify?.({ type: "error", message: await errorMessage(error), description: "Chưa nhập dòng nào" });
@@ -99,10 +112,12 @@ export function NormDocumentImport({ standardId, editable }: { standardId: numbe
     <>
       <input ref={input} type="file" accept=".docx" className="hidden" aria-hidden
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void read(f); }} />
-      <Button type="button" variant="outline" size="sm" disabled={busy === "read"} onClick={() => input.current?.click()}>
-        {busy === "read" ? <Loader2 className="animate-spin" /> : <FileUp />}
-        Đọc văn bản (.docx)
-      </Button>
+      {handle ? null : (
+        <Button type="button" variant="outline" size="sm" disabled={busy === "read"} onClick={() => input.current?.click()}>
+          {busy === "read" ? <Loader2 className="animate-spin" /> : <FileUp />}
+          Đọc văn bản (.docx)
+        </Button>
+      )}
 
       <Dialog open={!!preview} onOpenChange={(o) => { if (!o && busy !== "import") setPreview(null); }}>
         <DialogContent size="wide">
@@ -163,7 +178,7 @@ export function NormDocumentImport({ standardId, editable }: { standardId: numbe
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline" disabled={busy === "import"}>Đóng</Button></DialogClose>
             <Button type="button" disabled={!editable || unknown.length > 0 || busy === "import"} onClick={apply}
-              title={!editable ? "Chỉ nhập vào bản nháp — lập bản nháp ở Danh mục thiết bị tối thiểu" : unknown.length ? "Có bảng chưa nhận ra môn" : undefined}>
+              title={!editable ? "Chỉ nhập vào bản nháp — Lập bộ mới trước" : unknown.length ? "Có bảng chưa nhận ra môn" : undefined}>
               {busy === "import" ? <Loader2 className="animate-spin" /> : null}
               Thay {known.length} môn trong bản nháp
             </Button>

@@ -13,6 +13,7 @@ import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
 import com.g123.sfems.module.school.facility.RoomService;
 import com.g123.sfems.module.school.staff.StaffService;
+import com.g123.sfems.module.school.yearprofile.SchoolYearLock;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
@@ -72,6 +73,7 @@ public class SchoolClassService
         item.setStudentCount(request.studentCount());
         setHomeroomTeacher(item, request.homeroomTeacher());
         setRoom(item, request.room());
+        guardYear(item);
         if (request.sortOrder() == null) {
             item.setSortOrder(autoOrder(item));
         }
@@ -79,6 +81,8 @@ public class SchoolClassService
 
     @Override
     protected void applyUpdateOwned(SchoolClass item, SchoolClassPatchRequest request) {
+        // Năm học đã chốt khoá lớp của năm đó (docs/du-lieu-theo-nam-hoc.md §3) — kiểm cả năm cũ lẫn năm chuyển sang.
+        guardYear(item);
         if (request.grade() != null && request.grade().id() != null) {
             item.setGrade(grades.get(request.grade().id()));
             requireGradeFitsSchool(item);
@@ -98,6 +102,32 @@ public class SchoolClassService
         if (request.sortOrder() == null && (request.grade() != null || request.code() != null)) {
             item.setSortOrder(autoOrder(item));
         }
+        guardYear(item);
+    }
+
+    @Override
+    protected void beforeDelete(SchoolClass item) {
+        super.beforeDelete(item);
+        guardYear(item);
+    }
+
+    /** Lớp là dữ liệu loại A: năm đã chốt thì không ghi; điểm trường đã xác nhận của lớp về "Đang khai". */
+    private void guardYear(SchoolClass item) {
+        if (yearLock == null || item.getSchool() == null || item.getSchoolYear() == null) {
+            return;
+        }
+        Long school = item.getSchool().getId();
+        Long year = item.getSchoolYear().getId();
+        yearLock.requireOpen(school, year);
+        yearLock.touched(school, year, yearLock.campusOfRoom(item.getRoom() == null ? null : item.getRoom().getId(),
+                school));
+    }
+
+    private SchoolYearLock yearLock;
+
+    @Autowired
+    void setYearLock(SchoolYearLock yearLock) {
+        this.yearLock = yearLock;
     }
 
     /**

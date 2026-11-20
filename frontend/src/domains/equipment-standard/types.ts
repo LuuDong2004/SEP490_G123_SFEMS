@@ -66,9 +66,78 @@ export type EquipmentNorm = {
   replacedById: number | null;
   /** Văn bản căn cứ của lần bỏ / thay. */
   endDocument: { id: number; documentNo: string; documentName: string | null } | null;
+  /** Điều chỉnh của dòng (changelog 276). */
+  adjustment: NormAdjustment;
   createdAt: string;
   updatedAt: string | null;
 };
+
+/** Kiểu điều chỉnh của một dòng danh mục tối thiểu (changelog 276) — Sở khai tay. */
+export type AdjustKind = "NONE" | "REDUCE" | "SUBSTITUTE" | "SHARED" | "CHOOSE_IN_GROUP";
+
+export const ADJUST_KIND_LABELS: Record<AdjustKind, string> = {
+  NONE: "Không được phép",
+  REDUCE: "Giảm",
+  SUBSTITUTE: "Thay thế",
+  SHARED: "Dùng chung",
+  CHOOSE_IN_GROUP: "Chọn trong nhóm",
+};
+
+/** Đối tượng tính của mức sau giảm — cùng bộ với `normBasis`, gọi theo danh từ ("Học sinh"). */
+export const ADJUST_BASIS_LABELS: Record<string, string> = {
+  per_student: "Học sinh",
+  per_class: "Lớp",
+  per_teacher: "Giáo viên",
+  per_room: "Phòng bộ môn",
+  per_school: "Trường",
+};
+
+type CatalogRef = { id: number; code: string | null; name: string };
+
+export type NormAdjustment = {
+  kind: AdjustKind;
+  /** Giảm: còn bao nhiêu, theo đối tượng nào, mỗi bao nhiêu đối tượng, khi nào. */
+  quantity: number | null;
+  basis: string | null;
+  basisSize: number | null;
+  condition: string | null;
+  /** Thay thế: thiết bị của danh mục, hoặc hình thức khác. */
+  substituteCatalog: CatalogRef | null;
+  substituteText: string | null;
+  /** Trường đã có thứ thay thế thì không tính thiết bị này. */
+  substituteRequired: boolean;
+  /** Chọn trong nhóm. */
+  group: string | null;
+  groupPick: number | null;
+  /** Câu căn cứ trong thông tư. */
+  basisText: string | null;
+  /** Dùng chung với. */
+  shared: CatalogRef[];
+};
+
+/** Gợi ý điều chỉnh đọc từ ghi chú — `GET /equipment_norms/adjustment-suggestion`; `kind` trống là không có. */
+export type AdjustmentSuggestion = Partial<Omit<NormAdjustment, "kind" | "substituteCatalog" | "shared">> & { kind: AdjustKind | null };
+
+/** Một nhóm "chọn trong nhóm" — `GET /equipment_norms/adjust-groups`. */
+export type AdjustGroup = { name: string; pick: number | null; items: { id: number; name: string }[] };
+
+/** Lọc hiệu lực của màn danh mục tối thiểu. */
+export type NormValidity = "active" | "stopped" | "expired" | "all";
+
+export const NORM_VALIDITY_LABELS: Record<NormValidity, string> = {
+  active: "Đang hiệu lực",
+  stopped: "Ngừng hiệu lực",
+  expired: "Hết hiệu lực",
+  all: "Tất cả",
+};
+
+/** "1 Bộ / 2 học sinh" — một mức định mức đọc được. */
+export function ratioLabel(quantity: number | null | undefined, unit: string | null | undefined, size: number | null | undefined,
+  basis: string | null | undefined): string {
+  if (quantity == null) return "—";
+  const per = basis ? ADJUST_BASIS_LABELS[basis]?.toLowerCase() : undefined;
+  return `${quantity}${unit ? ` ${unit}` : ""} / ${size && size > 1 ? size : 1}${per ? ` ${per}` : ""}`;
+}
 
 /** Số dòng của một môn — `GET /equipment_norms/groups`. */
 export type NormSubjectGroup = {

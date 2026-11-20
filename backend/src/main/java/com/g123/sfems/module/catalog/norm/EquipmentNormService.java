@@ -12,6 +12,8 @@ import java.time.LocalDate;
 import com.g123.sfems.module.organization.school.service.CallerSchoolLevel;
 
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
+import com.g123.sfems.domain.catalog.standard.AdjustKind;
 import com.g123.sfems.domain.catalog.standard.EquipmentNorm;
 import com.g123.sfems.domain.catalog.standard.EquipmentStandard;
 import com.g123.sfems.domain.catalog.standard.EquipmentStandardDocument;
@@ -24,10 +26,13 @@ import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
 import com.g123.sfems.module.catalog.equipmenttype.EquipmentTypeService;
 import com.g123.sfems.module.catalog.grade.GradeService;
 import com.g123.sfems.module.catalog.roomtype.RoomTypeService;
+import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
 import com.g123.sfems.module.catalog.standard.EquipmentStandardService;
 import com.g123.sfems.module.catalog.subject.SubjectService;
 import com.g123.sfems.module.catalog.unit.UnitService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.module.system.datachange.DataChangeService;
+import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.Tuple;
@@ -37,13 +42,22 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Root;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.hibernate.Hibernate;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,6 +86,15 @@ public class EquipmentNormService
     private final EquipmentNormRepository normRepository;
     private final CallerSchoolLevel callerLevel;
     private final LegalDocumentService legalDocuments;
+    private final SchoolYearService schoolYears;
+    private final DataChangeService dataChanges;
+
+    /**
+     * Bảng KHÔNG tính là "dòng đã được dùng" khi trỏ tới thiết bị của dòng: chính danh mục tối thiểu, danh mục thiết bị,
+     * và quy định điều chỉnh kiểu cũ của Sở (154) — còn lại (tài sản, phiếu, đề xuất, điều chỉnh của trường…) là đã dùng.
+     */
+    private static final Set<String> NOT_USAGE = Set.of("equipment_norms", "equipment_catalogs",
+            "standard_adjustment_rules", "standard_adjustment_rule_substitutes");
 
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -87,7 +110,9 @@ public class EquipmentNormService
             RoomTypeService roomTypes,
             UnitService units,
             CallerSchoolLevel callerLevel,
-            LegalDocumentService legalDocuments) {
+            LegalDocumentService legalDocuments,
+            SchoolYearService schoolYears,
+            DataChangeService dataChanges) {
         super(repository, rowLevel, EquipmentNorm.class, EquipmentNorm::new, "Định mức");
         this.standards = standards;
         this.catalogs = catalogs;
@@ -99,6 +124,21 @@ public class EquipmentNormService
         this.normRepository = repository;
         this.callerLevel = callerLevel;
         this.legalDocuments = legalDocuments;
+        this.schoolYears = schoolYears;
+        this.dataChanges = dataChanges;
+    }
+
+    /** Một nhóm "chọn trong nhóm" của một môn: tên, số được chọn, các thiết bị trong nhóm. */
+    public record AdjustGroup(String name, Integer pick, List<Member> items) {
+    }
+
+    /** Một dòng trong nhóm. */
+    public record Member(Long id, String name) {
+    }
+
+    @Override
+    protected void loadForResponse(EquipmentNorm item) {
+        Hibernate.initialize(item.getAdjustShared());
     }
 
     /** Số dòng của mỗi môn, theo đúng bộ lọc của danh sách — đầu nhóm của màn danh mục tối thiểu. */
@@ -269,6 +309,7 @@ public class EquipmentNormService
                     item.isForStudent(), legalBasisOf(item.getStandard())));
             inheritFromCatalog(item);
         }
+        applyAdjustment(item, request.adjustment());
     }
 
     /** Sửa một dòng là sửa luôn thiết bị chuẩn của nó, và tên của các dòng khác cùng thiết bị (định mức theo lớp). */
@@ -276,6 +317,8 @@ public class EquipmentNormService
     @Transactional
     public EquipmentNorm update(Long id, EquipmentNormPatchRequest request) {
         EquipmentNorm item = super.update(id, request);
+        entityManager().flush();
+        publish(new EquipmentNormChanged(item.getId(), "Sở sửa dòng danh mục", false));
         EquipmentCatalog catalog = item.getCatalog();
         if (catalog != null && catalog.getOwnerSchool() == null) {
             catalogs.syncFromStandard(catalog, item.getName(), item.getSubject(), item.getEquipmentType(), item.getUnit(),
@@ -292,6 +335,7 @@ public class EquipmentNormService
     @Override
     @Transactional
     public EquipmentNorm delete(Long id) {
+        publish(new EquipmentNormChanged(id, "Sở xoá dòng khỏi danh mục", true));
         EquipmentNorm item = super.delete(id);
         EquipmentCatalog catalog = item.getCatalog();
         if (catalog != null) {
@@ -389,6 +433,10 @@ public class EquipmentNormService
             item.setSourceDocument(null);
         }
         inheritFromCatalog(item);
+        // Điều chỉnh là cấu hình của Sở trên dòng đang áp dụng — sửa trực tiếp, có hiệu lực ngay, nhật ký giữ lại.
+        if (request.adjustment() != null) {
+            applyAdjustment(item, request.adjustment());
+        }
     }
 
     /** Tài khoản của một trường chỉ thấy dòng định mức thuộc bộ tiêu chuẩn của CẤP HỌC trường mình. */
@@ -443,6 +491,26 @@ public class EquipmentNormService
                         root.get("standard").get("status").as(String.class), c.value().toUpperCase()));
                 case "normBasis" -> specs.add((root, q, cb) -> cb.equal(root.get("normBasis").as(String.class),
                         c.value().toUpperCase()));
+                // Hiệu lực: active = còn áp dụng hôm nay; stopped = Sở đã ngừng (có văn bản căn cứ ngừng, kể cả ngừng từ
+                // năm học sau); expired = đã qua ngày thôi áp dụng mà không do Sở ngừng.
+                case "validity" -> {
+                    LocalDate today = LocalDate.now(VN);
+                    switch (c.value()) {
+                        case "active" -> specs.add((root, q, cb) -> cb.or(cb.isNull(root.get("effectiveTo")),
+                                cb.greaterThan(root.get("effectiveTo"), today)));
+                        case "stopped" -> specs.add((root, q, cb) -> cb.isNotNull(root.get("endDocument")));
+                        case "expired" -> specs.add((root, q, cb) -> cb.and(cb.isNull(root.get("endDocument")),
+                                cb.lessThanOrEqualTo(root.get("effectiveTo"), today)));
+                        default -> {
+                        }
+                    }
+                }
+                // Điều chỉnh: true = được phép (kiểu khác NONE), false = không được phép.
+                case "adjustable" -> {
+                    boolean allowed = "true".equalsIgnoreCase(c.value());
+                    specs.add((root, q, cb) -> allowed ? cb.notEqual(root.get("adjustKind"), AdjustKind.NONE)
+                            : cb.equal(root.get("adjustKind"), AdjustKind.NONE));
+                }
                 case "at", "upcoming" -> {
                 }
                 default -> {
@@ -505,13 +573,225 @@ public class EquipmentNormService
         }
     }
 
-    /** Danh sách phẳng (trưởng nhóm 17/11/2026): bộ đang áp dụng xoá trực tiếp, kèm văn bản căn cứ ({@link #remove}). */
+    /**
+     * Bộ đang áp dụng chỉ xoá được dòng CHƯA được dùng ở đâu (thường là nhập nhầm) — dòng đã có trường dùng thì ngừng áp
+     * dụng từ một năm học ({@link #stop}), không xoá.
+     */
     @Override
     protected void beforeDelete(EquipmentNorm item) {
         requireDraft(item.getStandard());
-        if (item.getStandard().getStatus() == StandardStatus.ACTIVE && item.getEndDocument() == null) {
-            throw new FieldValidationException("legalDocument", "Chọn văn bản căn cứ của lần xoá");
+        if (item.getStandard().getStatus() == StandardStatus.ACTIVE && inUse(item)) {
+            throw new ConflictException("Thiết bị đã được trường dùng — không xoá được, chỉ ngừng áp dụng.");
         }
+    }
+
+    /** Dòng đã được dùng: thiết bị của nó có tài sản, phiếu, đề xuất, điều chỉnh của trường… trỏ tới. */
+    @Transactional(readOnly = true)
+    public boolean inUse(Long id) {
+        return inUse(get(id));
+    }
+
+    private boolean inUse(EquipmentNorm item) {
+        return item.getCatalog() != null && catalogs.referencedOutside(item.getCatalog().getId(), NOT_USAGE);
+    }
+
+    /**
+     * Ngừng áp dụng một dòng từ một năm học, theo văn bản căn cứ: ngày thôi áp dụng = ĐÚNG ngày bắt đầu năm học đó
+     * (trưởng nhóm 20/11/2026; {@code effective_to} không tính — từ ngày đó dòng không còn áp dụng).
+     * Đủ / thiếu và báo cáo bỏ dòng từ đó ({@code effective_to}); báo cáo đã lưu và tài sản của trường không đổi.
+     */
+    @Transactional
+    public EquipmentNorm stop(Long id, IdRef legalRef, IdRef yearRef) {
+        EquipmentNorm item = getWritable(id);
+        if (item.getStandard().getStatus() != StandardStatus.ACTIVE) {
+            throw new FieldValidationException("standard", "Chỉ ngừng được dòng của bộ đang áp dụng");
+        }
+        if (legalRef == null || legalRef.id() == null) {
+            throw new FieldValidationException("legalDocument", "Chọn văn bản căn cứ");
+        }
+        if (yearRef == null || yearRef.id() == null) {
+            throw new FieldValidationException("schoolYear", "Chọn năm học");
+        }
+        SchoolYear year = schoolYears.get(yearRef.id());
+        if (year.getStartDate() == null) {
+            throw new FieldValidationException("schoolYear", "Năm học chưa có ngày bắt đầu");
+        }
+        LocalDate to = year.getStartDate();
+        if (item.getEffectiveFrom() != null && !to.isAfter(item.getEffectiveFrom())) {
+            throw new FieldValidationException("schoolYear",
+                    "Năm học phải sau ngày áp dụng của thiết bị (" + DAY.format(item.getEffectiveFrom()) + ")");
+        }
+        LegalDocument legal = legalDocuments.get(legalRef.id());
+        item.setEndDocument(standardDocumentFor(item.getStandard(), legal));
+        item.setEffectiveTo(to);
+        entityManager().flush();
+        publish(new EquipmentNormChanged(item.getId(), "Sở ngừng áp dụng dòng từ " + year.getName().toLowerCase(), true));
+        loadForResponse(item);
+        return item;
+    }
+
+    private ApplicationEventPublisher events;
+
+    /** Tiêm qua setter — báo dòng đổi cho điều chỉnh của trường (bước 9). */
+    @Autowired
+    void setEvents(ApplicationEventPublisher events) {
+        this.events = events;
+    }
+
+    private void publish(EquipmentNormChanged event) {
+        if (events != null) {
+            events.publishEvent(event);
+        }
+    }
+
+    /** Các nhóm "chọn trong nhóm" của một môn trong một bộ, theo thứ tự phụ lục — lựa chọn của ô Nhóm. */
+    @Transactional(readOnly = true)
+    public List<AdjustGroup> adjustGroups(Long standardId, Long subjectId) {
+        var query = entityManager().createQuery("""
+                SELECT n.adjustGroup, n.adjustGroupPick, n.name, n.id FROM EquipmentNorm n
+                WHERE n.standard.id = :s AND n.adjustKind = :kind AND n.adjustGroup IS NOT NULL AND """
+                        + (subjectId == null ? " n.subject IS NULL" : " n.subject.id = :subject")
+                        + " ORDER BY n.sortOrder, n.id", Object[].class)
+                .setParameter("s", standardId).setParameter("kind", AdjustKind.CHOOSE_IN_GROUP);
+        if (subjectId != null) {
+            query.setParameter("subject", subjectId);
+        }
+        Map<String, AdjustGroup> groups = new LinkedHashMap<>();
+        for (Object[] r : query.getResultList()) {
+            AdjustGroup g = groups.computeIfAbsent((String) r[0], k -> new AdjustGroup(k, (Integer) r[1], new ArrayList<>()));
+            g.items().add(new Member((Long) r[3], (String) r[2]));
+        }
+        return List.copyOf(groups.values());
+    }
+
+    /**
+     * Gán điều chỉnh (thay cả khối). Kiểu nào chỉ giữ ô của kiểu đó; trừ NONE, luôn bắt buộc câu căn cứ trong thông tư.
+     * Tập thiết bị dùng chung là bảng nối — bộ ghi nhật ký tự động không thấy, nên ghi tay một dòng.
+     */
+    private void applyAdjustment(EquipmentNorm item, NormAdjustmentRequest a) {
+        AdjustKind kind = a == null || a.kind() == null ? AdjustKind.NONE : a.kind();
+        String sharedBefore = sharedText(item.getAdjustShared());
+        item.setAdjustKind(kind);
+        item.setAdjustQuantity(null);
+        item.setAdjustBasis(null);
+        item.setAdjustBasisSize(null);
+        item.setAdjustCondition(null);
+        item.setAdjustSubstituteCatalog(null);
+        item.setAdjustSubstituteText(null);
+        item.setAdjustSubstituteRequired(false);
+        item.setAdjustGroup(null);
+        item.setAdjustGroupPick(null);
+        item.setAdjustBasisText(null);
+        Set<EquipmentCatalog> shared = new LinkedHashSet<>();
+        if (kind != AdjustKind.NONE) {
+            String basisText = blankToNull(a.basisText());
+            if (basisText == null) {
+                throw new FieldValidationException("adjustment.basisText", "Nhập câu căn cứ trong thông tư");
+            }
+            item.setAdjustBasisText(basisText.trim());
+        }
+        Long own = item.getCatalog() == null ? null : item.getCatalog().getId();
+        switch (kind) {
+            case REDUCE -> {
+                NormAdjustments.checkReduce(item.getMinQuantity(), item.getNormBasis(), item.getBasisSize(),
+                        a.quantity(), a.basis(), a.basisSize());
+                String condition = blankToNull(a.condition());
+                if (condition == null) {
+                    throw new FieldValidationException("adjustment.condition", "Nhập khi nào được giảm");
+                }
+                item.setAdjustQuantity(a.quantity());
+                item.setAdjustBasis(a.basis());
+                item.setAdjustBasisSize(a.basisSize());
+                item.setAdjustCondition(condition.trim());
+            }
+            case SUBSTITUTE -> {
+                EquipmentCatalog by = ref(a.substituteCatalog(), catalogs::get);
+                String text = blankToNull(a.substituteText());
+                if (by == null && text == null) {
+                    throw new FieldValidationException("adjustment.substituteCatalog",
+                            "Chọn thiết bị hoặc ghi hình thức thay thế");
+                }
+                if (by != null && text != null) {
+                    throw new FieldValidationException("adjustment.substituteText",
+                            "Chỉ chọn một: thiết bị trong danh mục hoặc hình thức khác");
+                }
+                if (by != null && by.getId().equals(own)) {
+                    throw new FieldValidationException("adjustment.substituteCatalog", "Không thay bằng chính thiết bị này");
+                }
+                item.setAdjustSubstituteCatalog(by);
+                item.setAdjustSubstituteText(text == null ? null : text.trim());
+                item.setAdjustSubstituteRequired(Boolean.TRUE.equals(a.substituteRequired()));
+            }
+            case SHARED -> {
+                for (IdRef r : a.shared() == null ? List.<IdRef>of() : a.shared()) {
+                    if (r == null || r.id() == null) {
+                        continue;
+                    }
+                    if (r.id().equals(own)) {
+                        throw new FieldValidationException("adjustment.shared", "Không dùng chung với chính thiết bị này");
+                    }
+                    shared.add(catalogs.get(r.id()));
+                }
+                if (shared.isEmpty()) {
+                    throw new FieldValidationException("adjustment.shared", "Chọn ít nhất một thiết bị dùng chung");
+                }
+            }
+            case CHOOSE_IN_GROUP -> {
+                String group = blankToNull(a.group());
+                if (group == null) {
+                    throw new FieldValidationException("adjustment.group", "Chọn hoặc đặt tên nhóm");
+                }
+                if (a.groupPick() == null || a.groupPick() < 1) {
+                    throw new FieldValidationException("adjustment.groupPick", "Số được chọn ít nhất là 1");
+                }
+                item.setAdjustGroup(group.trim());
+                item.setAdjustGroupPick(a.groupPick());
+                syncGroup(item);
+            }
+            case NONE -> {
+            }
+        }
+        item.getAdjustShared().clear();
+        item.getAdjustShared().addAll(shared);
+        if (item.getId() != null) {
+            dataChanges.record("equipment_norms", item.getId(), item.getCode() + " · " + item.getName(), "adjustShared",
+                    sharedBefore, sharedText(shared));
+        }
+    }
+
+    /**
+     * Nhóm "chọn trong nhóm": số được chọn phải ít hơn số thiết bị của nhóm (nhóm mới một thiết bị thì chờ thêm thiết bị
+     * vào mới kiểm được), và là số CHUNG của cả nhóm — lưu một dòng là đặt cho mọi dòng cùng nhóm.
+     */
+    private void syncGroup(EquipmentNorm item) {
+        String sameGroup = "n.standard = :s AND n.adjustKind = :kind AND lower(n.adjustGroup) = lower(:g)"
+                + (item.getSubject() == null ? " AND n.subject IS NULL" : " AND n.subject = :subject")
+                + (item.getId() == null ? "" : " AND n.id <> :id");
+        var count = entityManager().createQuery("SELECT count(n) FROM EquipmentNorm n WHERE " + sameGroup, Long.class);
+        var update = entityManager().createQuery("UPDATE EquipmentNorm n SET n.adjustGroupPick = :pick WHERE " + sameGroup);
+        for (var query : List.of(count, update)) {
+            query.setParameter("s", item.getStandard()).setParameter("kind", AdjustKind.CHOOSE_IN_GROUP)
+                    .setParameter("g", item.getAdjustGroup());
+            if (item.getSubject() != null) {
+                query.setParameter("subject", item.getSubject());
+            }
+            if (item.getId() != null) {
+                query.setParameter("id", item.getId());
+            }
+        }
+        long total = count.getSingleResult() + 1;
+        if (total >= 2 && item.getAdjustGroupPick() >= total) {
+            throw new FieldValidationException("adjustment.groupPick",
+                    "Nhóm có " + total + " thiết bị — số được chọn phải ít hơn " + total);
+        }
+        update.setParameter("pick", item.getAdjustGroupPick()).executeUpdate();
+    }
+
+    /** "THCS-20-014, THCS-20-015" — giá trị trên nhật ký của tập dùng chung. */
+    private static String sharedText(Collection<EquipmentCatalog> items) {
+        String text = items.stream().map(c -> Objects.requireNonNullElse(c.getCode(), c.getName()))
+                .sorted(Comparator.naturalOrder()).collect(Collectors.joining(", "));
+        return text.isEmpty() ? null : text;
     }
 
     /**

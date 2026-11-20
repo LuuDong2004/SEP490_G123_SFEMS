@@ -19,6 +19,7 @@ import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/types";
 import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
+import { StandardTraceBlock } from "../school-year/standard-trace";
 
 const PLAN_SORTS = [
   { label: "Năm học mới nhất", field: "budgetYear", order: "desc" as const },
@@ -123,6 +124,8 @@ export const ProcurementPlanShow = () => {
       <LoadingOverlay loading={query.isLoading}>
         {/* `key` theo lần sửa: lưu xong, bản ghi mới về thì form dựng lại từ đúng dữ liệu đã lưu. */}
         {plan ? <PlanEditor key={`${plan.id}-${plan.updatedAt}-${plan.status}`} plan={plan} onChanged={refresh} /> : null}
+        {/* Bước 7: dòng kế hoạch truy ngược về điểm trường, chuẩn thông tư, điều chỉnh, căn cứ (đề xuất lập từ chuẩn). */}
+        {plan ? <div className="mt-4"><StandardTraceBlock planId={plan.id} /></div> : null}
       </LoadingOverlay>
     </ShowView>
   );

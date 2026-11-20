@@ -543,30 +543,41 @@ public class EquipmentCatalogService extends CatalogService<
             return;
         }
         entityManager().flush();
+        if (referencedOutside(id, Set.of())) {
+            item.setMinimumRequired(Boolean.FALSE);
+        } else {
+            entityManager().remove(item);
+        }
+    }
+
+    /**
+     * Thiết bị {@code id} có bản ghi nào trỏ tới không (tài sản, phiếu, đề xuất, điều chỉnh của trường…) — đọc khoá ngoại
+     * tới {@code equipment_catalogs} của CSDL, trừ khoá xoá dây chuyền và các bảng trong {@code ignoredTables}. Thêm
+     * bảng mới không phải sửa ở đây.
+     */
+    @Transactional(readOnly = true)
+    public boolean referencedOutside(Long id, Set<String> ignoredTables) {
+        if (id == null) {
+            return false;
+        }
         List<Object[]> refs = entityManager().createNativeQuery("""
                 SELECT c.conrelid::regclass::text, a.attname::text
                 FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
                 WHERE c.confrelid = 'equipment_catalogs'::regclass AND c.confdeltype <> 'c'""").getResultList();
-        boolean used = false;
         for (Object[] r : refs) {
             String table = (String) r[0];
             String column = (String) r[1];
-            if (!table.matches("[a-z_]+") || !column.matches("[a-z_]+")) {
+            if (!table.matches("[a-z_]+") || !column.matches("[a-z_]+") || ignoredTables.contains(table)) {
                 continue;
             }
             Object hit = entityManager().createNativeQuery(
                     "SELECT EXISTS (SELECT 1 FROM " + table + " WHERE " + column + " = ?1)")
                     .setParameter(1, id).getSingleResult();
             if (Boolean.TRUE.equals(hit)) {
-                used = true;
-                break;
+                return true;
             }
         }
-        if (used) {
-            item.setMinimumRequired(Boolean.FALSE);
-        } else {
-            entityManager().remove(item);
-        }
+        return false;
     }
 
     @Override
@@ -694,7 +705,7 @@ public class EquipmentCatalogService extends CatalogService<
      * định mức của mình. Chặn ở DANH SÁCH (ghép AND, không query string nào nới được), nên mọi ô chọn
      * và màn danh mục phía trường đều theo — không màn nào phải tự nhớ lọc.
      *
-     * <p>Không áp cho Sở, UBND, quản trị (họ làm việc với nhiều cấp), và không áp cho đọc theo id: tài
+     * <p>Không áp cho Sở, quản trị (họ làm việc với nhiều cấp), và không áp cho đọc theo id: tài
      * sản cũ gắn thiết bị cấp khác vẫn mở được hồ sơ của nó.
      */
     private Specification<EquipmentCatalog> levelScope() {

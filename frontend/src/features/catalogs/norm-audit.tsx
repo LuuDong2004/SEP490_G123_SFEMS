@@ -1,16 +1,9 @@
-import { useInvalidate, useNotification } from "@refinedev/core";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import type { Control } from "react-hook-form";
 
-import type { EquipmentNorm } from "@/domains/equipment-standard/types";
 import { kyInstance } from "@/shared/api/data";
-import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
-import { errorMessage } from "@/shared/lib/api-error";
 import { formatDateTime } from "@/shared/lib/format";
-import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
-import { Label } from "@/shared/ui/label";
 
 import { LegalBasisPicker } from "./legal-doc-picker";
 
@@ -55,17 +48,29 @@ const FIELD_LABEL: Record<string, string> = {
   forTeacher: "Giáo viên dùng",
   forStudent: "Học sinh dùng",
   sourceDocument: "Căn cứ",
-  endDocument: "Căn cứ xoá",
+  endDocument: "Căn cứ ngừng / xoá",
   effectiveFrom: "Áp dụng từ",
-  effectiveTo: "Thôi áp dụng từ",
+  effectiveTo: "Ngày thôi áp dụng",
   note: "Ghi chú",
   itemNo: "Số thứ tự",
+  adjustKind: "Điều chỉnh",
+  adjustQuantity: "Còn",
+  adjustBasis: "Theo",
+  adjustBasisSize: "Mỗi",
+  adjustCondition: "Khi",
+  adjustSubstituteCatalog: "Thay bằng thiết bị",
+  adjustSubstituteText: "Thay bằng hình thức",
+  adjustSubstituteRequired: "Đã có thứ thay thì không tính",
+  adjustGroup: "Nhóm",
+  adjustGroupPick: "Được chọn",
+  adjustBasisText: "Câu căn cứ",
+  adjustShared: "Dùng chung với",
 };
 
 const fieldLabel = (f: string) => FIELD_LABEL[f] ?? f;
 
-/** Trường nội bộ của lần xoá (căn cứ xoá, ngày thôi áp dụng) — đã gói trong dòng "Xoá khỏi danh mục", không hiện riêng. */
-const HIDDEN_FIELDS = new Set(["endDocument", "effectiveTo", "replaces"]);
+/** Trường nội bộ — không hiện riêng. Căn cứ và ngày thôi áp dụng thì hiện: đó là lần "Ngừng áp dụng". */
+const HIDDEN_FIELDS = new Set(["replaces"]);
 
 /** Giá trị trên nhật ký đọc như chữ trên màn: ngày dd/mm/yyyy, có / không, mã nội bộ qua `format` của màn gọi. */
 function valueText(field: string, v: string | null, format?: (field: string, v: string) => string | undefined): string {
@@ -131,57 +136,6 @@ export function NormChangeLog({ id, format }: { id: number; format?: (field: str
   );
 }
 
-/** Hỏi lại rồi xoá một thiết bị khỏi danh mục (nhật ký giữ lại lần xoá). */
-export function DeleteNormDialog({ row, onClose }: { row: EquipmentNorm | null; onClose: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [legal, setLegal] = useState<number | null>(null);
-  const [missing, setMissing] = useState(false);
-  const invalidate = useInvalidate();
-  const { open: notify } = useNotification();
-  const run = async () => {
-    if (!row) return;
-    if (!legal) {
-      setMissing(true);
-      return;
-    }
-    setBusy(true);
-    try {
-      await kyInstance.post(`${NORMS}/${row.id}/remove`, { json: { legalDocument: { id: legal } } });
-      await invalidate({ resource: NORMS, invalidates: ["list"] });
-      notify?.({ type: "success", message: `Đã xoá "${row.name}" khỏi danh mục.` });
-      setLegal(null);
-      onClose();
-    } catch (error) {
-      notify?.({ type: "error", message: await errorMessage(error), description: "Không xoá được" });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <AlertDialog open={!!row} onOpenChange={(o) => !o && !busy && onClose()}>
-      <ConfirmContent
-        tone="danger"
-        title="Xoá thiết bị khỏi danh mục?"
-        description={
-          <div className="grid gap-3">
-            <p className="text-foreground font-medium">{row?.name}</p>
-            <div className="grid gap-2">
-              <Label>Văn bản căn cứ</Label>
-              <LegalBasisPicker value={legal} onChange={(id) => { setLegal(id); setMissing(false); }} invalid={missing} />
-              {missing ? <p className="text-destructive text-sm">Chọn văn bản căn cứ</p> : null}
-            </div>
-          </div>
-        }
-        cancelLabel="Không xoá"
-        confirmLabel="Xoá"
-        busy={busy}
-        keepOpen
-        onConfirm={() => void run()}
-      />
-    </AlertDialog>
-  );
-}
-
 /** Ô "Văn bản căn cứ" của form thêm / sửa (khoá `legalDocument`). */
 export function LegalBasisField({ control, block }: { control: Control<any>; block?: boolean }) {
   return (
@@ -190,7 +144,7 @@ export function LegalBasisField({ control, block }: { control: Control<any>; blo
       name="legalDocument.id"
       rules={{ required: "Chọn văn bản căn cứ" }}
       render={({ field, fieldState }) => (
-        <FormItem>
+        <FormItem className={block ? "min-w-0 grid-cols-[minmax(0,1fr)]" : undefined}>
           <FormLabel>Văn bản căn cứ</FormLabel>
           <LegalBasisPicker value={field.value ?? null} onChange={field.onChange} invalid={!!fieldState.error} block={block} />
           <FormMessage />
