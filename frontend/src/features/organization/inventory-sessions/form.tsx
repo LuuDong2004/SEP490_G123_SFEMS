@@ -1,4 +1,4 @@
-import { useOne } from "@refinedev/core";
+import { useList, useOne } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { Lock, Save } from "lucide-react";
 import { useEffect } from "react";
@@ -195,6 +195,22 @@ export const InventorySessionCreate = () => {
     if (!form.getValues("title" as any)) form.setValue("title" as any, picked.title ?? picked.name ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked?.id]);
+
+  // Không mở từ một đợt cụ thể mà Sở đang mở ĐÚNG MỘT đợt: chọn sẵn đợt đó — phần lớn phiếu kiểm kê là theo đợt của
+  // Sở; người lập vẫn đổi được sang "Trường tự kiểm kê".
+  const { result: openCampaigns } = useList<any>({
+    resource: "inventory_campaigns",
+    pagination: { currentPage: 1, pageSize: 50 },
+    queryOptions: { enabled: campaignId == null },
+  });
+  const onlyOpen = (openCampaigns?.data ?? []).filter((c: any) => !c.closed);
+  const soleOpen = onlyOpen.length === 1 ? onlyOpen[0] : null;
+  useEffect(() => {
+    if (!soleOpen?.id || form.getValues("campaign.id" as any)) return;
+    form.setValue("campaign.id" as any, soleOpen.id);
+    if (!form.getValues("title" as any)) form.setValue("title" as any, soleOpen.title ?? soleOpen.name ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soleOpen?.id]);
 
   return (
     <CreateView>

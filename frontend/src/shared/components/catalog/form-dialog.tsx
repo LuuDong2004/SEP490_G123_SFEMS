@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { useInvalidate } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import type { LucideIcon } from "lucide-react";
@@ -157,7 +158,7 @@ function DialogForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit((v: any) => onFinish(v))} className="flex min-h-0 flex-1 flex-col">
+      <form onSubmit={form.handleSubmit((v: any) => onFinish(v).catch(swallow))} className="flex min-h-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">{children(form.control, record)}</div>
         <DialogFooter className="border-t px-6 py-3">
           {footerNote ? <div className="me-auto flex min-w-0 items-center">{footerNote(form.control)}</div> : null}

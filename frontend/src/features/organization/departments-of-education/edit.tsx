@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { useForm } from "@refinedev/react-hook-form";
 import { useEffect } from "react";
 
@@ -45,7 +46,7 @@ export const DepartmentOfEducationEdit = () => {
       <Form {...form}>
         <form
           id={FORM_ID}
-          onSubmit={form.handleSubmit((v: DepartmentOfEducationFormValues) => onFinish(v))}
+          onSubmit={form.handleSubmit((v: DepartmentOfEducationFormValues) => onFinish(v).catch(swallow))}
           className="w-full"
         >
           <DepartmentOfEducationFields control={form.control} />

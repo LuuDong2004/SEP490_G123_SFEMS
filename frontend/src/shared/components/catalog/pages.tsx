@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Segmented } from "@/shared/components/segmented";
@@ -456,7 +457,7 @@ function CatalogCreatePage({ config }: { config: CatalogConfig }) {
       <CreateViewHeader />
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit((values: CatalogFormValues) => onFinish(values))}
+          onSubmit={form.handleSubmit((values: CatalogFormValues) => onFinish(values).catch(swallow))}
           className="w-full"
         >
           {extra?.FormBody && extra.FormSide ? (
@@ -576,7 +577,7 @@ function CatalogEditPage({ config }: { config: CatalogConfig }) {
       <Form {...form}>
         <form
           id={EDIT_FORM_ID}
-          onSubmit={form.handleSubmit((values: CatalogFormValues) => onFinish(values))}
+          onSubmit={form.handleSubmit((values: CatalogFormValues) => onFinish(values).catch(swallow))}
           className="w-full"
         >
           {extra?.FormBody && extra.FormSide ? (

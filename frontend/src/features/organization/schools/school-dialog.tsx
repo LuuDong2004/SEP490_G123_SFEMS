@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { useForm } from "@refinedev/react-hook-form";
 import { useEffect } from "react";
 
@@ -88,7 +89,7 @@ function SchoolDialogForm({ id, onDone }: { id?: number; onDone: () => void }) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v))} className="space-y-5">
+      <form onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v).catch(swallow))} className="space-y-5">
         <SchoolFields control={form.control} record={record} compact />
         <DialogFooter>
           {/* DialogClose: đóng bằng chính cơ chế của hộp thoại, một lần bấm là xong. */}

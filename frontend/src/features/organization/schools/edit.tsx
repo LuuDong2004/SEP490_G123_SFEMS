@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { useForm } from "@refinedev/react-hook-form";
 import { useEffect } from "react";
@@ -66,7 +67,7 @@ export const SchoolEdit = () => {
       ) : (
         <LoadingOverlay loading={query?.isLoading ?? false}>
           <Form {...form}>
-            <form id={FORM_ID} onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v))} className="w-full">
+            <form id={FORM_ID} onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v).catch(swallow))} className="w-full">
               {/* `record` để hai ô chọn ghép được giá trị hiện tại vào danh sách tuỳ chọn — thiếu nó, ô chọn hiện
                   RỖNG đè lên giá trị thật và bấm Lưu là mất. */}
               <SchoolFields control={form.control} record={record} compact />

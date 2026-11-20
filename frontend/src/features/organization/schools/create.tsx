@@ -1,3 +1,4 @@
+import { swallow } from "@/shared/lib/swallow";
 import { useForm } from "@refinedev/react-hook-form";
 
 import { RouteDialog } from "@/shared/components/views/route-dialog";
@@ -46,7 +47,7 @@ export const SchoolCreate = () => {
       }
     >
       <Form {...form}>
-        <form id={FORM_ID} onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v))} className="w-full">
+        <form id={FORM_ID} onSubmit={form.handleSubmit((v: SchoolFormValues) => onFinish(v).catch(swallow))} className="w-full">
           {/* Không truyền `record`: màn thêm không có giá trị hiện tại nào phải ghép vào danh sách tuỳ chọn. */}
           <SchoolFields control={form.control} compact />
         </form>

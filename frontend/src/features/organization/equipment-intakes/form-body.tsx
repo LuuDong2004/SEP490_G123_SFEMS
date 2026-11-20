@@ -28,6 +28,7 @@ import { formatPlainDate, localIsoDate, todayLocal } from "@/shared/lib/format";
 import { IntakeSourceCard } from "./head-documents";
 import { useDocumentFileCounts, useIntakeFiles } from "./invoice-drawer";
 import { countText, documentNoun, IntakeLinesEditor, lineSaveProblem } from "./lines-editor";
+import { InventoryFreezeNotice } from "@/shared/components/voucher/inventory-freeze-notice";
 import { intakeReadiness, isPurchaseCode, type ReadinessGroup, type ReadinessItem } from "./readiness";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -386,6 +387,8 @@ export function IntakeFormBody({ record, onFinish, header }: {
       className="grid w-full gap-4"
     >
       {header(null)}
+      {/* Trường đang kiểm kê thì trình phiếu bị chặn — nói trước, khỏi điền xong cả phiếu mới biết (KK-05). */}
+      <InventoryFreezeNotice resource="equipment_intakes" />
       <RequiredFieldsProvider names={submitRequired}>
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="grid min-w-0 gap-4">

@@ -31,9 +31,22 @@ import {
 type RuleProps = { rule?: TextRule; max?: number; min?: number; numberRule?: NumberRule };
 
 const ruled = (label: string, rules: any, rule?: TextRule, max?: number, numberRule?: NumberRule, min?: number) =>
-  rule ? mergeRules(textRules(rule, label, { max, min }), rules)
+  notBlank(rule ? mergeRules(textRules(rule, label, { max, min }), rules)
     : numberRule ? mergeRules(numberRules(numberRule, label), rules)
-      : rules;
+      : rules);
+
+/** Ô bắt buộc mà chỉ gõ dấu cách cũng tính là trống — báo ngay ở form, không đợi máy chủ trả 422. */
+function notBlank(rules: any) {
+  const required = rules?.required;
+  if (!required) return rules;
+  const message = typeof required === "string" ? required : required?.message ?? "Vui lòng nhập";
+  const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? message : true);
+  const validate = rules.validate;
+  return {
+    ...rules,
+    validate: typeof validate === "function" ? { blank, own: validate } : { blank, ...(validate ?? {}) },
+  };
+}
 
 /**
  * Các ô nhập đơn giản mà form phiếu nào cũng cần — chữ, số, ngày, đoạn văn, chọn
