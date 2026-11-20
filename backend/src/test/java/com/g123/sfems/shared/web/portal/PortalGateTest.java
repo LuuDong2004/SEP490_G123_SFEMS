@@ -73,7 +73,11 @@ class PortalGateTest {
         // Quản trị dùng được toàn bộ chức năng — qua cổng của mình.
         assertThat(status(get("/api/admin/rooms"), admin)).isEqualTo(200);
         assertThat(status(get("/api/admin/equipment"), admin)).isEqualTo(200);
-        assertThat(status(get("/api/admin/data_imports"), admin)).isIn(200, 404);
+        // Nhập dữ liệu đầu vào là việc của trường / Sở; quản trị viên không còn mã quyền này (272).
+        assertThat(status(get("/api/admin/data_imports"), admin)).isIn(403, 404);
+        // Cổng Admin không ghi dữ liệu nghiệp vụ (PortalRoutes.BUSINESS_DATA).
+        assertThat(status(post("/api/admin/equipment_intakes").contentType(MediaType.APPLICATION_JSON).content("{}"),
+                admin)).isIn(403, 404, 405);
         // Ghi danh mục chỉ Sở: trường gõ thẳng đường của Sở vẫn bị chặn ở cổng.
         assertThat(status(post("/api/so/equipment_catalogs").contentType(MediaType.APPLICATION_JSON).content("{}"),
                 school)).isEqualTo(403);

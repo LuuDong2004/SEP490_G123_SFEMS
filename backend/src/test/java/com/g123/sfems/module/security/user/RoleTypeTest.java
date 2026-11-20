@@ -89,11 +89,20 @@ class RoleTypeTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM roles WHERE code IN ('TEACHER', 'SUBJECT_HEAD')",
                 Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username = 'viewer'", Long.class)).isZero();
-        // Quản trị dùng được toàn bộ chức năng (237).
-        assertThat(jdbc.queryForObject("""
-                SELECT count(*) FROM permissions p WHERE NOT EXISTS (SELECT 1 FROM role_permissions rp
-                JOIN roles r ON r.id = rp.role_id WHERE r.code = 'ADMIN' AND rp.permission_id = p.id)""", Long.class))
-                .isZero();
+        // Quản trị viên: phần hệ thống và danh mục, không lập / duyệt phiếu nghiệp vụ (272, theo tài liệu G123).
+        assertThat(adminHas("users:write")).isTrue();
+        assertThat(adminHas("roles:write")).isTrue();
+        assertThat(adminHas("equipment:read")).isTrue();
+        assertThat(adminHas("equipment_intakes:approve")).isFalse();
+        assertThat(adminHas("purchase_proposals:write")).isFalse();
+        assertThat(adminHas("inventory_sessions:write")).isFalse();
+    }
+
+    private boolean adminHas(String code) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM role_permissions rp JOIN roles r ON r.id = rp.role_id
+                JOIN permissions p ON p.id = rp.permission_id WHERE r.code = 'ADMIN' AND p.code = ?)""",
+                Boolean.class, code));
     }
 
     @Test

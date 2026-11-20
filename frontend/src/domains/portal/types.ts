@@ -26,10 +26,11 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "roles": { read: ["admin"], write: ["admin"] },
   "permissions": { read: ["admin"], write: ["admin"] },
   "row_level_policies": { read: ["admin"], write: ["admin"] },
-  "approval_flows": { read: ["admin"], write: ["admin"] },
   "ai_settings": { read: ["admin"], write: ["admin"] },
   "data_changes": { read: ["admin"], write: ["admin"] },
   "system_status": { read: ["admin"], write: ["admin"] },
+  "approval_flows": { read: [], write: [] },
+  "school_users": { read: [], write: [] },
   "code_rules": { read: ["admin", "so", "school"], write: ["admin"] },
   "activity_logs": { read: ["admin"], write: ["admin", "so", "school"] },
   "notifications": { read: ["admin", "so", "school"], write: ["admin", "so", "school"] },
@@ -81,7 +82,6 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "voucher_events": { read: ["admin", "so", "school"], write: [] },
   "voucher_holds": { read: ["admin", "so", "school"], write: [] },
   "voucher_links": { read: ["admin", "so", "school"], write: [] },
-  "school_users": { read: ["school"], write: ["school"] },
   "school_code_rules": { read: ["school"], write: ["school"] },
   "school_profile": { read: ["school"], write: ["school"] },
   "data_imports": { read: ["admin", "so", "school"], write: ["admin", "so", "school"] },
@@ -100,7 +100,12 @@ export function portalAllows(portal: Portal | null, permission: string): boolean
 
 /** Màn chỉ có ở giao diện (không có mã quyền riêng) → cổng hiện nó. Ngoài danh sách thì theo mã quyền. */
 const UI_ONLY: Record<string, Portal[]> = {
-  dashboard: ["so", "school"],
+  dashboard: ["admin", "so", "school"],
+  // Ngoài 42 UC (trưởng nhóm chốt 20/11/2026): không lên menu ở cổng nào. Văn bản căn cứ vẫn chọn được trong danh mục
+  // tối thiểu (DM-03); luồng duyệt và tài khoản trường đóng cả API.
+  legal_documents: [],
+  approval_flows: [],
+  school_users: [],
   school_explorer: ["so", "school"],
 };
 

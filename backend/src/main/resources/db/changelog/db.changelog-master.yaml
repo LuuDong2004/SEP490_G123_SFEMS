@@ -500,3 +500,9 @@ databaseChangeLog:
       file: db/changelog/changes/270-user-campus.sql
   - include:
       file: db/changelog/changes/271-staff-campus.sql
+  - include:
+      file: db/changelog/changes/272-pham-vi-quan-tri-vien.sql
+  - include:
+      file: db/changelog/changes/273-tai-khoan-co-so-phu.sql
+  - include:
+      file: db/changelog/changes/274-email-demo-sfems.sql

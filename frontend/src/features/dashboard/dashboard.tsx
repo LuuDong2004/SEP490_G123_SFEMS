@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX,  Wrench } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX, Wrench } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
