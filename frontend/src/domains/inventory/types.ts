@@ -49,13 +49,15 @@ export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
   SHORTAGE: "Thiếu số lượng",
 };
 
-/** Mỗi chênh lệch sinh ra phiếu gì khi biên bản được duyệt. */
-/** Thiếu số lượng (hoá chất, vật tư theo lô) không sinh phiếu — xử lý tay theo biên bản. */
+/**
+ * Duyệt biên bản làm gì với từng loại chênh lệch (KK-06): ghi thẳng vào hồ sơ thiết bị, chỉ thừa mới lập phiếu ghi tăng
+ * nháp. Thiếu số lượng (hoá chất, vật tư theo lô) chỉ ghi trong biên bản.
+ */
 export const DISCREPANCY_OUTCOMES: Record<Exclude<Discrepancy, "SHORTAGE"> | "SURPLUS", string> = {
-  MISSING: "Đề nghị ghi giảm do mất",
-  WRONG_ROOM: "Phiếu điều chuyển nội bộ",
-  DAMAGED: "Phiếu báo hỏng",
-  SURPLUS: "Phiếu ghi tăng",
+  MISSING: "ghi trạng thái Mất vào hồ sơ thiết bị",
+  WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy",
+  DAMAGED: "ghi tình trạng Hỏng vào hồ sơ thiết bị",
+  SURPLUS: "lập phiếu ghi tăng nháp (nguồn Kiểm kê thừa)",
 };
 
 export type InventoryLine = {

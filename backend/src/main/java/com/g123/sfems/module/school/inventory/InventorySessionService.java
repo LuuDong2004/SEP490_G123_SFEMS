@@ -20,7 +20,6 @@ import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService.Vo
 import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.school.facility.RoomService;
-import com.g123.sfems.module.school.voucher.EquipmentIncident;
 import com.g123.sfems.module.school.voucher.InventoryFindings;
 import com.g123.sfems.module.school.voucher.VoucherService;
 import com.g123.sfems.module.school.voucher.VoucherServiceDeps;
@@ -30,11 +29,9 @@ import com.g123.sfems.shared.web.ListParams;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,10 +45,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
  *
- * <p>Biên bản CHỈ GHI NHẬN: duyệt xong thì lịch sử từng tài sản có dòng kiểm kê (tài sản hỏng thì tình trạng thành
- * "hỏng"), không đổi trạng thái tài sản nào và không tự sinh phiếu nào. Xử lý chênh lệch là việc của người dùng, lúc
- * nào và bằng phiếu nào là họ quyết; hệ thống chỉ giúp LẬP NHANH ({@link #followUp}): một lần bấm là một phiếu nháp
- * mang sẵn các tài sản thiếu / hỏng / sai vị trí / thừa CHƯA có phiếu, ghi nguồn là biên bản này.
+ * <p>Duyệt biên bản là ghi kết quả vào sổ (KK-06, trưởng nhóm chốt 20/11/2026): thiếu → trạng thái "Mất", hỏng →
+ * "Hỏng, chờ xử lý", sai vị trí → phòng theo nơi thấy; mỗi thay đổi một dòng lịch sử thiết bị. Ghi giảm, báo hỏng,
+ * điều chuyển nằm ngoài phạm vi đồ án nên không sinh phiếu cho chúng. Riêng thiết bị thừa thì lập phiếu ghi tăng nháp
+ * (nguồn "Kiểm kê thừa", PN-01) — tự động lúc duyệt, và còn nút LẬP NHANH ({@link #followUp}) nếu phiếu đó bị huỷ.
  */
 @Service
 public class InventorySessionService
@@ -336,11 +333,9 @@ public class InventorySessionService
     }
 
     /**
-     * Biên bản được duyệt: ghi lịch sử kiểm kê cho mọi tài sản, rồi LẬP NGAY phiếu nháp cho từng nhóm chênh lệch
-     * (607 — đúng như hộp duyệt nói): thiếu → đề nghị ghi giảm do mất, hỏng → phiếu báo hỏng, sai vị trí →
-     * phiếu điều chuyển nội bộ, thừa → phiếu ghi tăng. Trạng thái tài sản KHÔNG đổi lúc duyệt: phiếu báo hỏng được ghi
-     * nhận thì tài sản mới thành hỏng, đề nghị ghi giảm hoàn tất thì mới thành mất. Nhóm nào đã có phiếu thì bỏ qua;
-     * nút "Nghiệp vụ đề xuất" ({@link #followUp}) vẫn lập lại được phần còn thiếu.
+     * Biên bản được duyệt: ghi kết quả vào hồ sơ từng tài sản (đúng như hộp duyệt nói) — khớp thì một dòng lịch sử;
+     * thiếu → "Mất"; hỏng → tình trạng hỏng, trạng thái "Hỏng, chờ xử lý"; sai vị trí → chuyển về phòng thực tế thấy.
+     * Thừa → phiếu ghi tăng nháp. Tài sản đã ở trạng thái khác (vd. đã mất từ trước) thì chỉ ghi lịch sử.
      */
     @Override
     protected void onApproved(InventorySession voucher) {
@@ -352,55 +347,52 @@ public class InventorySessionService
                 lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: khớp hệ thống");
                 continue;
             }
+            boolean onBook = ON_BOOK.contains(item.getStatus());
             if (found.contains(Discrepancy.MISSING)) {
-                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: không tìm thấy");
+                if (onBook) {
+                    lifecycle.status(item, AssetStatus.LOST, Action.KIEM_KE, ref, "Kiểm kê: không tìm thấy — ghi mất");
+                } else {
+                    lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: không tìm thấy");
+                }
                 continue;
             }
             if (found.contains(Discrepancy.DAMAGED)) {
                 lifecycle.condition(item, EquipmentCondition.HONG, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
+                if (onBook) {
+                    lifecycle.status(item, AssetStatus.BROKEN, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
+                }
             }
             if (found.contains(Discrepancy.WRONG_ROOM)) {
-                lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: thấy ở "
-                        + (line.getFoundRoom() == null ? "kho" : line.getFoundRoom().getName()) + ", hệ thống ghi "
-                        + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName()));
+                String note = "Kiểm kê: thấy ở " + (line.getFoundRoom() == null ? "kho" : line.getFoundRoom().getName())
+                        + ", hệ thống ghi " + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName());
+                if (onBook) {
+                    lifecycle.room(item, line.getFoundRoom(), Action.KIEM_KE, ref, note);
+                } else {
+                    lifecycle.event(item, Action.KIEM_KE, ref, note);
+                }
             }
         }
-        workflow.complete(voucher, RESOURCE, "Đã ghi nhận kết quả kiểm kê");
-        for (FollowUp kind : FollowUp.values()) {
-            if (pendingCount(voucher, kind) > 0) {
-                followUp(voucher.getId(), kind);
-            }
+        workflow.complete(voucher, RESOURCE, "Đã ghi kết quả kiểm kê vào hồ sơ thiết bị");
+        if (pendingCount(voucher, FollowUp.SURPLUS) > 0) {
+            followUp(voucher.getId(), FollowUp.SURPLUS);
         }
     }
 
+    /** Trạng thái còn trong sổ — kiểm kê được phép đổi sang mất / hỏng / phòng khác. */
+    private static final Set<AssetStatus> ON_BOOK = Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE, AssetStatus.BROKEN);
+
     // ------------------------------------------------------------------ lập phiếu nhanh sau kiểm kê
 
-    /** Một nhóm chênh lệch và loại phiếu lập nhanh cho nó. */
+    /** Nhóm chênh lệch có phiếu lập nhanh: chỉ thiết bị thừa → phiếu ghi tăng (nguồn "Kiểm kê thừa"). */
     public enum FollowUp {
-        /** Thiếu → đề nghị ghi giảm do mất. */
-        LOSS("disposals", "disposal_lines", "disposal_id", "thiết bị thiếu",
-                Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE, AssetStatus.BROKEN, AssetStatus.UNREPAIRABLE)),
-        /** Hỏng → phiếu báo hỏng. */
-        DAMAGE("damage_reports", "damage_report_lines", "report_id", "thiết bị hỏng",
-                Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE, AssetStatus.BROKEN)),
-        /** Sai vị trí → cấp phát / thu hồi, mỗi phòng thực tế một phiếu. */
-        MOVE("equipment_allocations", "equipment_allocation_lines", "allocation_id", "thiết bị sai vị trí",
-                Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE)),
-        /** Thừa → phiếu ghi tăng (nguồn "Kiểm kê thừa"). */
-        SURPLUS("equipment_intakes", null, null, "thiết bị thừa", Set.of());
+        SURPLUS("equipment_intakes", "thiết bị thừa");
 
         private final String resource;
-        private final String lineTable;
-        private final String fk;
         private final String label;
-        private final Set<AssetStatus> statuses;
 
-        FollowUp(String resource, String lineTable, String fk, String label, Set<AssetStatus> statuses) {
+        FollowUp(String resource, String label) {
             this.resource = resource;
-            this.lineTable = lineTable;
-            this.fk = fk;
             this.label = label;
-            this.statuses = statuses;
         }
 
         public String resource() {
@@ -427,7 +419,7 @@ public class InventorySessionService
         }
         List<FollowUpState> states = new ArrayList<>();
         for (FollowUp kind : FollowUp.values()) {
-            int total = kind == FollowUp.SURPLUS ? session.getSurplus().size() : findings(session, kind).size();
+            int total = session.getSurplus().size();
             if (total > 0) {
                 states.add(new FollowUpState(kind, kind.resource, total, pendingCount(session, kind)));
             }
@@ -446,7 +438,6 @@ public class InventorySessionService
         if (session.getStatus() != VoucherStatus.COMPLETED) {
             throw new FieldValidationException("status", "Biên bản chưa được duyệt — chưa lập phiếu xử lý được");
         }
-        List<InventoryLine> lines = kind == FollowUp.SURPLUS ? List.of() : pending(session, kind);
         if (pendingCount(session, kind) == 0) {
             throw new FieldValidationException("kind",
                     "Không còn %s nào chưa có phiếu — xem khối Phiếu liên quan".formatted(kind.label));
@@ -454,72 +445,22 @@ public class InventorySessionService
         Long schoolId = session.getSchool().getId();
         String note = "Theo biên bản kiểm kê " + session.getCode();
         Long before = jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) FROM " + kind.resource, Long.class);
-        List<Long> ids = lines.stream().map(l -> l.getEquipment().getId()).toList();
-        switch (kind) {
-            case LOSS -> events.publishEvent(new EquipmentIncident(EquipmentIncident.Kind.MISSING, schoolId, ids,
-                    RESOURCE, session.getId(), session.getCode(), "Không tìm thấy khi kiểm kê — " + note));
-            case DAMAGE -> events.publishEvent(new EquipmentIncident(EquipmentIncident.Kind.DAMAGED, schoolId, ids,
-                    RESOURCE, session.getId(), session.getCode(), "Phát hiện hỏng khi kiểm kê — " + note));
-            case MOVE -> events.publishEvent(new InventoryFindings.Misplaced(schoolId, lines.stream()
-                    .map(l -> new InventoryFindings.Move(l.getEquipment().getId(),
-                            l.getFoundRoom() == null ? null : l.getFoundRoom().getId()))
-                    .toList(), session.getId(), session.getCode(), note));
-            case SURPLUS -> events.publishEvent(new InventoryFindings.Surplus(schoolId, session.getSurplus().stream()
-                    .map(s -> new InventoryFindings.Item(s.getCatalog().getId(), s.getName(), s.getQuantity(),
-                            s.getRoom() == null ? null : s.getRoom().getId()))
-                    .toList(), session.getId(), session.getCode(), note));
-        }
+        events.publishEvent(new InventoryFindings.Surplus(schoolId, session.getSurplus().stream()
+                .map(s -> new InventoryFindings.Item(s.getCatalog().getId(), s.getName(), s.getQuantity(),
+                        s.getRoom() == null ? null : s.getRoom().getId()))
+                .toList(), session.getId(), session.getCode(), note));
         entityManager.flush();
         return new FollowUpResult(kind.resource, jdbc.queryForList("SELECT id FROM " + kind.resource
                 + " WHERE source_resource = ? AND source_id = ? AND id > ? ORDER BY id", Long.class,
                 RESOURCE, session.getId(), before));
     }
 
-    /** Các dòng của biên bản thuộc nhóm này (chưa xét đã có phiếu hay chưa). */
-    private static List<InventoryLine> findings(InventorySession session, FollowUp kind) {
-        return session.getLines().stream().filter(line -> {
-            Set<Discrepancy> found = line.discrepancies();
-            return switch (kind) {
-                case LOSS -> found.contains(Discrepancy.MISSING);
-                case DAMAGE -> found.contains(Discrepancy.DAMAGED) && !found.contains(Discrepancy.MISSING);
-                case MOVE -> found.contains(Discrepancy.WRONG_ROOM) && !found.contains(Discrepancy.MISSING);
-                case SURPLUS -> false;
-            };
-        }).toList();
-    }
-
-    /**
-     * Dòng còn lập phiếu được: chưa nằm trên phiếu nào (trừ phiếu đã huỷ / bị từ chối) lập từ biên bản này, và tài sản
-     * vẫn ở trạng thái loại phiếu đó nhận — đã ghi giảm, đã điều chỉnh theo phiếu khác thì thôi. Sai vị trí mà tài sản
-     * đã ở đúng phòng thực tế (do phiếu khác) cũng thôi. Thừa: còn lập được khi chưa có phiếu ghi tăng nào còn hiệu lực.
-     */
+    /** Thừa: còn lập được khi chưa có phiếu ghi tăng nào lập từ biên bản này còn hiệu lực. */
     private int pendingCount(InventorySession session, FollowUp kind) {
-        if (kind != FollowUp.SURPLUS) {
-            return pending(session, kind).size();
-        }
-        Integer active = jdbc.queryForObject("SELECT COUNT(*) FROM equipment_intakes WHERE source_resource = ?"
+        Integer active = jdbc.queryForObject("SELECT COUNT(*) FROM " + kind.resource + " WHERE source_resource = ?"
                 + " AND source_id = ? AND status NOT IN ('CANCELLED', 'REJECTED')", Integer.class,
                 RESOURCE, session.getId());
         return active != null && active > 0 ? 0 : session.getSurplus().size();
-    }
-
-    private List<InventoryLine> pending(InventorySession session, FollowUp kind) {
-        Set<Long> covered = new HashSet<>(jdbc.queryForList("SELECT l.equipment_id FROM " + kind.lineTable + " l"
-                + " JOIN " + kind.resource + " v ON v.id = l." + kind.fk
-                + " WHERE v.source_resource = ? AND v.source_id = ? AND v.status NOT IN ('CANCELLED', 'REJECTED')",
-                Long.class, RESOURCE, session.getId()));
-        return findings(session, kind).stream().filter(line -> {
-            Equipment item = line.getEquipment();
-            if (covered.contains(item.getId()) || !kind.statuses.contains(item.getStatus())) {
-                return false;
-            }
-            if (kind == FollowUp.MOVE) {
-                Long now = item.getRoom() == null ? null : item.getRoom().getId();
-                Long seen = line.getFoundRoom() == null ? null : line.getFoundRoom().getId();
-                return !Objects.equals(now, seen);
-            }
-            return true;
-        }).toList();
     }
 
     @Override

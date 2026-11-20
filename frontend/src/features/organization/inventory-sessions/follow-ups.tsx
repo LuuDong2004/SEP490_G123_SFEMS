@@ -11,15 +11,12 @@ import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { VOUCHER_ROUTES } from "@/domains/equipment/types";
 
-type Kind = "LOSS" | "DAMAGE" | "MOVE" | "SURPLUS";
+type Kind = "SURPLUS";
 
 /** `GET /inventory_sessions/{id}/follow-ups` — mỗi nhóm chênh lệch: số biên bản ghi, số còn chưa có phiếu. */
 type FollowUpState = { kind: Kind; resource: string; total: number; pending: number };
 
 const TEXT: Record<Kind, { finding: string; action: string }> = {
-  LOSS: { finding: "thiết bị thiếu", action: "Lập đề nghị ghi giảm do mất" },
-  DAMAGE: { finding: "thiết bị hỏng", action: "Lập phiếu báo hỏng" },
-  MOVE: { finding: "thiết bị sai vị trí", action: "Lập phiếu cấp phát / thu hồi" },
   SURPLUS: { finding: "thiết bị thừa", action: "Lập phiếu ghi tăng" },
 };
 
@@ -80,9 +77,8 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
 }
 
 /**
- * Biên bản kiểm kê chỉ ghi nhận; xử lý chênh lệch là việc của người dùng. Khối này giúp LẬP NHANH: mỗi nhóm chênh
- * lệch một nút, bấm là có phiếu nháp mang sẵn các tài sản chưa có phiếu (nguồn = biên bản này). Chỉ hiện khi biên bản
- * đã duyệt và có chênh lệch.
+ * Thiết bị thừa sau kiểm kê: duyệt biên bản đã tự lập phiếu ghi tăng nháp; nếu phiếu đó bị huỷ thì nút ở đây lập lại.
+ * Thiếu, hỏng, sai vị trí không có phiếu — duyệt biên bản ghi thẳng vào hồ sơ thiết bị (KK-06).
  */
 export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number; approved: boolean }) {
   const { data } = useQuery({
@@ -96,12 +92,11 @@ export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number
   return (
     <Card className="gap-3 px-4 py-4">
       <StepTitle
-        title="Nghiệp vụ đề xuất"
+        title="Thiết bị thừa"
         hint={
           <>
-            Biên bản kiểm kê chỉ ghi nhận kết quả, không tự sửa sổ. Chênh lệch nào cần xử lý thì bấm nút để lập phiếu nháp
-            có sẵn các thiết bị đó (thiếu → ghi giảm do mất, hỏng → báo hỏng, sai vị trí → cấp phát / thu hồi, thừa → ghi
-            tăng), sửa lại rồi trình. Bấm lại chỉ lấy những thiết bị chưa có phiếu.
+            Thiếu, hỏng, sai vị trí đã được ghi vào hồ sơ thiết bị khi duyệt biên bản. Thiết bị thừa thì lập phiếu ghi tăng
+            nháp (nguồn "Kiểm kê thừa"), bổ sung thông tin rồi trình.
           </>
         }
       />

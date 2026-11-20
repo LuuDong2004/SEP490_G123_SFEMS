@@ -803,7 +803,7 @@ export const InventorySessionShow = () => {
               resource={RESOURCE}
               record={record}
               tucked={tucked}
-              invalidates={["equipment", "disposals", "damage_reports", "equipment_allocations", "equipment_intakes"]}
+              invalidates={["equipment", "equipment_intakes"]}
               text={{
                 submit: {
                   label: "Trình biên bản",
@@ -817,7 +817,7 @@ export const InventorySessionShow = () => {
                   description: (
                     <ul className="list-disc space-y-1 ps-5">
                       {Object.entries(DISCREPANCY_OUTCOMES).map(([k, v]) => (
-                        <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]} → {v} (nháp)</li>
+                        <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]}: {v}</li>
                       ))}
                     </ul>
                   ),
