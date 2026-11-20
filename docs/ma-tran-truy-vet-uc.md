@@ -30,7 +30,7 @@ Quy ước:
 |---|---|---|---|---|---|---|
 | DM-01 | Quản lý danh mục dùng chung | TuTN | `/catalogs` → `/units`, `/grades`, `/subjects`, `/subject-groups`, `/school-years`, `/semesters`, `/room-types`, `/facility-groups`, `/origin-sources`, `/acquisition-methods`, `/movement-reasons`, `/education-levels`, `/wards` | `/api/<danh mục>` (khung `CatalogController`) | `<danh mục>:read/write/delete` | ◐ `FieldRuleTest`, `FieldRulesExportTest` |
 | DM-02 | Quản lý danh mục thiết bị | TuTN | `/equipment-catalogs`, `/equipment-types`, `/equipment-configs` | `/api/equipment_catalogs` (+ `/school-items`, `/school-items/name-check`), `/api/equipment_types`, `/api/equipment_configs` | `equipment_catalogs:*` | ✅ `CatalogNamesTest` |
-| DM-03 | Quản lý danh mục TBDH tối thiểu và định mức | TuTN | `/equipment-standards`, `/equipment-minimum`, `/norm-matrix`, `/equipment-norms` | `/api/equipment_standards` (`/revise`, `/{id}/apply`, `/{id}/changes`), `/api/equipment_norms` (`/import`, `/export.xlsx`, `/batch`) | `equipment_standards:*`, `equipment_norms:*` | ◐ `AppendixParserTest` (đọc phụ lục thông tư) |
+| DM-03 | Quản lý danh mục TBDH tối thiểu và định mức | TuTN | `/equipment-standards`, `/equipment-minimum`, `/norm-matrix`, `/equipment-norms` | `/api/equipment_standards` (`/revise`, `/{id}/apply`, `/{id}/changes`), `/api/equipment_norms` (`/import`, `/export.xlsx`, `/batch`, `/adjustment-suggestion`, `/adjust-groups`) | `equipment_standards:*`, `equipment_norms:*` | ◐ `AppendixParserTest` (đọc phụ lục thông tư), `NormAdjustmentsTest`, `NormAuditTest` (điều chỉnh cho phép trên dòng, ngừng áp dụng từ ngày đầu năm học), `NormChangeTest` (Sở đổi dòng thì điều chỉnh của trường hết hiệu lực); e2e `flow-school-year` Y3 — chưa test form thêm / sửa dòng |
 | DM-04 | Quản lý quy tắc sinh mã | TuTN | `/code-rules`, `/school-code-rules` | `/api/code_rules` (`/next`), `/api/school_code_rules` | `code_rules:*`, `school_code_rules:*` | ❌ |
 
 ## Tổ chức và cơ sở vật chất (TC)
@@ -56,8 +56,8 @@ Quy ước:
 
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
-| NC-01 | Xem mức đáp ứng danh mục tối thiểu | HoangPND | `/equipment-adequacy` | `GET /api/purchase_proposals/adequacy`, `/adequacy-summary`, `/adequacy-catalog`, `*.xlsx` | `purchase_proposals:read` | ✅ e2e `flow-procurement` A1 |
-| NC-02 | Lập và trình đề xuất mua sắm | HoangPND | `/purchase-proposals` (+ `create`, `edit/:id`) | `/api/purchase_proposals` (CRUD, `/{id}/submit`, `/overlaps`) | `purchase_proposals:write` | ✅ `ReachedStepTest`; e2e `flow-procurement` A1, `validation` V1, `flow-exceptions` E1 (trả lại, trình lại) |
+| NC-01 | Xem mức đáp ứng danh mục tối thiểu | HoangPND | `/equipment-adequacy`, `/equipment-minimum` (theo năm học, điểm trường), `/school-year-profile`, `/school-year-progress` | `GET /api/purchase_proposals/adequacy`, `/adequacy-summary`, `/adequacy-catalog`, `*.xlsx`; `GET /api/year_standards` (`/overview`, `/suggestions`), `/api/school_norm_adjustments`, `/api/school_year_profiles`, `/api/staff_assignments` | `purchase_proposals:read`, `school_norm_adjustments:*`, `school_year_profiles:*`, `staff_assignments:*` | ✅ `YearAdequacyTest`, `SchoolNormAdjustmentTest`, `SchoolYearProfileTest`, `SchoolYearInitTest`, `StaffAssignmentTest`; e2e `flow-procurement` A1, `flow-school-year` Y1–Y3 |
+| NC-02 | Lập và trình đề xuất mua sắm | HoangPND | `/purchase-proposals` (+ `create`, `edit/:id`) | `/api/purchase_proposals` (CRUD, `/{id}/submit`, `/overlaps`); `POST /api/year_standards/proposal` (đưa dòng thiếu vào đề xuất), `GET /api/year_standards/traces` | `purchase_proposals:write` | ✅ `ReachedStepTest`, `YearGapTest` (đúng số thiếu, chỉ trình khi năm học đã chốt); e2e `flow-procurement` A1, `validation` V1, `flow-exceptions` E1 (trả lại, trình lại) |
 | NC-03 | Duyệt đề xuất cấp trường | HoangPND | `/purchase-proposals/show/:id` | `POST /api/purchase_proposals/{id}/approve`, `/reject`, `/return` | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A2, `flow-exceptions` E1 (trả lại) |
 | NC-04 | Duyệt đề xuất cấp Sở | HoangPND | như NC-03, tài khoản Sở | như NC-03 (bước 2 của luồng duyệt) | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A3, `flow-exceptions` E2 (từ chối) |
 | NC-05 | Lập kế hoạch mua sắm | HoangPND | `/procurement-plans` (+ `create`, `edit/:id`) | `/api/procurement_plans` (CRUD, `/candidates`, `/{id}/submit`) | `procurement_plans:write` | ✅ e2e `flow-procurement` A4, `flow-exceptions` E3 (đề xuất bị từ chối không vào kế hoạch) |
@@ -117,7 +117,8 @@ Việc tiếp theo: CRUD danh mục và trùng mã (DM-01..04), CRUD phòng (TC-
 
 ### 2. Chạy bộ e2e
 
-`frontend/e2e/audit`: `security`, `validation`, `flow-procurement`, `flow-inventory`, `flow-exceptions`, `smoke`. Kết
+`frontend/e2e/audit`: `security`, `validation`, `flow-procurement`, `flow-inventory`, `flow-exceptions`, `flow-school-year`,
+`smoke`. Kết
 quả ghi ra `frontend/e2e-audit/<bộ>.json`. Lệnh chạy và cổng mặc định ghi ở đầu `e2e/audit/lib.ts`.
 
 ### 2b. Số dư đầu kỳ và các luồng có duyệt (20/11/2026)
@@ -130,6 +131,19 @@ quả ghi ra `frontend/e2e-audit/<bộ>.json`. Lệnh chạy và cổng mặc đ
   bấm "Cấp mã chuẩn" (TS-05), mã cũ chuyển sang ô Mã cũ để tem cũ vẫn tra được (TS-02).
 - Hồ sơ vào sổ có dòng lịch sử "Vào sổ: số dư đầu kỳ" (TS-04). Hồ sơ khai nhầm, chưa qua phiếu hay kiểm kê nào, xoá
   được khi trường chưa chốt số dư; thiết bị đang trên sổ chỉ xoá được khi kiểm kê xác nhận Mất.
+
+### 2c. Chuẩn tối thiểu theo năm học (20/11/2026)
+
+Thiết kế và các chỗ khác thiết kế gốc ở `docs/du-lieu-theo-nam-hoc.md`. Tóm tắt:
+
+- Sở khai điều chỉnh cho phép trên từng dòng danh mục tối thiểu (DM-03, changelog 276): Không được phép / Giảm / Thay thế
+  / Dùng chung / Chọn trong nhóm, kèm câu căn cứ của thông tư.
+- Trường khai lớp, sĩ số, phân công giáo viên theo năm học (277) cho từng điểm trường; lãnh đạo trường xác nhận từng
+  điểm rồi chốt năm học (278), Sở mở lại có lý do. Khởi tạo năm học mới chép lớp (lên lớp tự động), phân công, điều chỉnh.
+- Mức đáp ứng (NC-01) tính theo năm học và điểm trường, hai cột theo thông tư / theo điều chỉnh; trường áp dụng điều
+  chỉnh (279) có hiệu lực ngay, không qua duyệt.
+- Dòng thiếu đưa vào đề xuất mua sắm nháp đúng số thiếu (NC-02, 280), mỗi dòng giữ căn cứ để kế hoạch (NC-05) truy
+  ngược; đề xuất loại này chỉ trình được khi năm học đã chốt. Không có điều chuyển nội bộ (chưa có phiếu cấp phát).
 
 ### 3. Code ngoài 42 UC còn trong nhánh
 
