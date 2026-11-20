@@ -1433,7 +1433,7 @@ function NormFields({ control, record, standard }: { control: Control<any>; reco
       </div>
       <fieldset disabled={noBasis} className="min-w-0 space-y-4 disabled:opacity-60">
       <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[minmax(0,28rem)_minmax(0,1fr)_minmax(0,1fr)]">
-        <TextField control={control} name="name" label="Tên thiết bị" rule="NAME" rules={{ required: "Nhập tên thiết bị" }} />
+        <TextField control={control} name="name" label="Tên thiết bị" rule="NAME" rules={{ required: "Vui lòng nhập tên thiết bị" }} />
         <TextField control={control} name="sectionName" label="Nhóm trong phụ lục" rule="NOTE" placeholder="Tranh ảnh" />
         <TextField control={control} name="topic" label="Chủ đề dạy học" rule="NOTE" />
       </div>

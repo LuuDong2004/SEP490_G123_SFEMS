@@ -112,7 +112,7 @@ function DocumentFields({ control, getValues, i, roleEditable, docId }: {
   return (
     <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-[14rem_10rem_10rem_minmax(0,18rem)]">
       {roleEditable ? (
-        <FormField control={control} name={at("documentRole")} rules={{ required: "Chọn vai trò" }}
+        <FormField control={control} name={at("documentRole")} rules={{ required: "Vui lòng chọn vai trò" }}
           render={({ field }) => (
             <FormItem className="sm:col-span-4 sm:max-w-[14rem]">
               <FormLabel>Vai trò</FormLabel>
@@ -130,25 +130,25 @@ function DocumentFields({ control, getValues, i, roleEditable, docId }: {
       ) : null}
       <TextField control={control} name={at("documentNo")} label="Số hiệu" placeholder="16/2026/TT-BGDĐT" rule="SHORT_TEXT" max={50} min={3}
         rules={{
-          required: "Nhập số hiệu",
+          required: "Vui lòng nhập số hiệu",
           validate: (v: string) => {
             const same = ((getValues("documents") ?? []) as any[]).filter((d) => norm(d.documentNo) === norm(v));
             return !norm(v) || same.length <= 1 || "Số hiệu trùng với văn bản khác trong bộ";
           },
         }} />
       <DateField control={control} name={at("issueDate")} label="Ngày ban hành" dateRule="PAST_OR_TODAY"
-        rules={{ required: "Nhập ngày ban hành", deps: [at("effectiveDate")] }} />
+        rules={{ required: "Vui lòng nhập ngày ban hành", deps: [at("effectiveDate")] }} />
       <DateField control={control} name={at("effectiveDate")} label="Ngày hiệu lực"
         rules={{
           validate: (v: string | null) => {
             const doc = getValues(`documents.${i}`) ?? {};
-            if (!v) return doc.documentRole === "reference" || "Nhập ngày hiệu lực";
+            if (!v) return doc.documentRole === "reference" || "Vui lòng nhập ngày hiệu lực";
             return !doc.issueDate || v >= doc.issueDate || "Không được trước ngày ban hành";
           },
         }} />
       <TextField control={control} name={at("issuingAuthority")} label="Cơ quan ban hành" rule="NAME" max={200} min={2} />
       <TextareaField control={control} name={at("documentName")} label="Trích yếu" rule="NOTE" min={10} className="sm:col-span-4 sm:max-w-[40rem]"
-        rules={{ required: "Nhập trích yếu" }} />
+        rules={{ required: "Vui lòng nhập trích yếu" }} />
       {/* Chỉ tệp, không ô đường dẫn (trưởng nhóm 16/11/2026) — đường dẫn đã khai trước đây vẫn giữ nguyên khi lưu. */}
       {docId != null ? (
         // Ô tệp dạng field không nhận className — bọc div để chiếm hai cột.

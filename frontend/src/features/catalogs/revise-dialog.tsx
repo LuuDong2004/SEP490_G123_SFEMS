@@ -153,17 +153,17 @@ export function ReviseDialog({ targets, initialId, open, onOpenChange, onCreated
             {amendment ? (
               <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-2">
                 <TextField control={control} name="document.documentNo" label="Số hiệu văn bản" placeholder="12/2026/TT-BGDĐT"
-                  rule="SHORT_TEXT" max={50} min={3} rules={{ required: "Nhập số hiệu văn bản" }} />
+                  rule="SHORT_TEXT" max={50} min={3} rules={{ required: "Vui lòng nhập số hiệu văn bản" }} />
                 <TextField control={control} name="document.issuingAuthority" label="Cơ quan ban hành" rule="NAME" max={200} min={2} />
                 <TextareaField control={control} name="document.documentName" label="Trích yếu" rule="NOTE" min={10} className="sm:col-span-2"
-                  placeholder="Sửa đổi, bổ sung Danh mục thiết bị dạy học tối thiểu…" rules={{ required: "Nhập trích yếu" }} />
+                  placeholder="Sửa đổi, bổ sung Danh mục thiết bị dạy học tối thiểu…" rules={{ required: "Vui lòng nhập trích yếu" }} />
                 {/* Hai ô ngày đứng sát nhau — không mỗi ô một nửa hàng. */}
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-5 sm:col-span-2">
                   <DateField control={control} name="document.issueDate" label="Ngày ban hành" dateRule="PAST_OR_TODAY"
-                    rules={{ required: "Nhập ngày ban hành", deps: ["document.effectiveDate"] }} />
+                    rules={{ required: "Vui lòng nhập ngày ban hành", deps: ["document.effectiveDate"] }} />
                   <DateField control={control} name="document.effectiveDate" label="Ngày hiệu lực"
                     rules={{
-                      required: "Nhập ngày hiệu lực",
+                      required: "Vui lòng nhập ngày hiệu lực",
                       validate: (d: string | null) => {
                         const issued = getValues("document.issueDate");
                         return !d || !issued || d >= issued || "Không được trước ngày ban hành";
@@ -174,11 +174,11 @@ export function ReviseDialog({ targets, initialId, open, onOpenChange, onCreated
             ) : (
               <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-2">
                 <TextField control={control} name="document.documentNo" label="Số văn bản" placeholder="1450/QĐ-BGDĐT"
-                  rule="SHORT_TEXT" max={50} min={3} rules={{ required: "Nhập số văn bản" }} />
+                  rule="SHORT_TEXT" max={50} min={3} rules={{ required: "Vui lòng nhập số văn bản" }} />
                 <DateField control={control} name="document.issueDate" label="Ngày ban hành" dateRule="PAST_OR_TODAY"
-                  rules={{ required: "Nhập ngày ban hành" }} />
+                  rules={{ required: "Vui lòng nhập ngày ban hành" }} />
                 <TextareaField control={control} name="reason" label="Lý do đính chính" rule="NOTE" min={10} className="sm:col-span-2"
-                  placeholder="VD: Phụ lục XI mục II số 8 — sửa tên thiết bị" rules={{ required: "Nhập lý do đính chính" }} />
+                  placeholder="VD: Phụ lục XI mục II số 8 — sửa tên thiết bị" rules={{ required: "Vui lòng nhập lý do đính chính" }} />
               </div>
             )}
 

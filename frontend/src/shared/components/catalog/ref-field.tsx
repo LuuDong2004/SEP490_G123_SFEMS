@@ -128,7 +128,7 @@ export function RefField({
     <FormField
       control={control}
       name={`${name}.id`}
-      rules={required || validate ? { ...(required ? { required: `Chọn ${lowerLabel(label)}` } : {}), ...(validate ? { validate } : {}) } : undefined}
+      rules={required || validate ? { ...(required ? { required: `Vui lòng chọn ${lowerLabel(label)}` } : {}), ...(validate ? { validate } : {}) } : undefined}
       render={({ field, fieldState }) => (
         <FormItem className={className}>
           <FormLabel className={hideLabel ? "sr-only" : undefined}>

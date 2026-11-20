@@ -142,7 +142,7 @@ export function LegalBasisField({ control, block }: { control: Control<any>; blo
     <FormField
       control={control}
       name="legalDocument.id"
-      rules={{ required: "Chọn văn bản căn cứ" }}
+      rules={{ required: "Vui lòng chọn văn bản căn cứ" }}
       render={({ field, fieldState }) => (
         <FormItem className={block ? "min-w-0 grid-cols-[minmax(0,1fr)]" : undefined}>
           <FormLabel>Văn bản căn cứ</FormLabel>

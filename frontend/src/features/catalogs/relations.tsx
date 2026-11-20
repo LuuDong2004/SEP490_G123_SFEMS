@@ -1,5 +1,8 @@
 import { useCan, useList } from "@refinedev/core";
-import { useWatch, type Control } from "react-hook-form";
+import { useEffect } from "react";
+import { useFormContext, useWatch, type Control } from "react-hook-form";
+
+import { useEducationLevels } from "@/shared/hooks/use-education-levels";
 
 import { MultiRefPickerField, union } from "@/shared/components/catalog/multi-ref-picker";
 
@@ -45,7 +48,15 @@ type LevelRow = {
  * <p>Ô chọn loại có tuỳ chọn là hằng số cục bộ, luôn mount sẵn, nên không vướng
  * bẫy "Select so khớp trước khi item tới".
  */
-export function SubjectLevelsField({ control }: { control: Control<any> }) {
+export function SubjectLevelsField({ control, creating }: { control: Control<any>; /** Môn mới: hệ thống một cấp học thì tích sẵn cấp đó. */ creating?: boolean }) {
+  const { single } = useEducationLevels();
+  const { setValue, getValues } = useFormContext();
+  useEffect(() => {
+    if (!creating || !single) return;
+    const now = getValues("educationLevels");
+    if (Array.isArray(now) && now.length) return;
+    setValue("educationLevels", [{ educationLevel: single, subjectType: "bat_buoc", sortOrder: null }], { shouldDirty: true });
+  }, [creating, single, getValues, setValue]);
   const mayRead =
     useCan({ resource: "education_levels", action: "list" }).data?.can ?? false;
   const { result, query } = useList<Ref & { sortOrder: number | null }>({

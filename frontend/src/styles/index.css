@@ -818,6 +818,52 @@
 }
 
 /* --------------------------------------------------------------------------
+   Form thêm / sửa DANH MỤC DÙNG CHUNG (`CatalogFields`, lớp `catalog-form`): mọi danh mục cùng một lưới cột ĐỀU NHAU thay vì
+   ô xếp nối tiếp rộng theo loại (ô tên 28rem, ô bật/tắt lúc nửa lúc cả hàng — 20/11/2026). Trong hộp thoại: 2 cột, mỗi ô một
+   cột (mã | tên, ngày bắt đầu | ngày kết thúc, hai ô bật/tắt cạnh nhau). Ghi chú, khối danh sách (`col-span-*`) và dòng chữ
+   chiếm trọn hàng. Khung rộng (trang, ≥ 48rem): 4 cột. Màn hẹp: 1 cột.
+   -------------------------------------------------------------------------- */
+.catalog-form .form-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.catalog-form .form-flow > *,
+.catalog-form .form-flow > .contents > * {
+  width: auto !important;
+}
+.catalog-form .form-flow > .contents {
+  display: contents;
+}
+.catalog-form .form-flow > *:has(textarea),
+.catalog-form .form-flow > .contents > *:has(textarea),
+.catalog-form .form-flow > :is([class^="col-span-"], [class*=" col-span-"], [class*="@md:col-span-"]):not(:has([data-slot="switch"])),
+.catalog-form .form-flow > .contents > :is([class^="col-span-"], [class*=" col-span-"], [class*="@md:col-span-"]):not(:has([data-slot="switch"])),
+.catalog-form .form-flow > p {
+  grid-column: 1 / -1;
+}
+.catalog-form .form-flow > *:has([data-slot="switch"]),
+.catalog-form .form-flow > .contents > *:has([data-slot="switch"]) {
+  grid-column: auto;
+}
+@container (min-width: 48rem) {
+  .catalog-form .form-flow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .catalog-form .form-flow > *:has([data-slot="switch"]),
+  .catalog-form .form-flow > .contents > *:has([data-slot="switch"]) {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 40rem) {
+  .catalog-form .form-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .catalog-form .form-flow > *:has([data-slot="switch"]) {
+    grid-column: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Hộp thoại cỡ cố định (`DialogContent size`). Không nằm trong @layer: phải thắng `grid` của chính hộp và của form bên trong.
    Thân dài thì cuộn; hàng nút luôn ở đáy dù form ít ô. Khối có `flex-1` / `min-h-0` là phần thân tự cuộn, được phép co; còn lại
    giữ nguyên cao để không bị ép bẹp (bảng trong hộp).

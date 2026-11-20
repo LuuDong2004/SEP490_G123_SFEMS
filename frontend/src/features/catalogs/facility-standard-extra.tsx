@@ -1,12 +1,14 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Control } from "react-hook-form";
-import { useWatch } from "react-hook-form";
+import { useEffect } from "react";
+import { useFormContext, useWatch } from "react-hook-form";
 
 import type { CatalogExtra } from "@/shared/components/catalog/types";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { SelectField, TextField } from "@/shared/components/form/simple-fields";
 import { Badge } from "@/shared/ui/badge";
 import { FacilityStandardRulesPage } from "@/features/catalogs/facility-standard-list";
+import { useFacilityLevels } from "@/features/catalogs/facility-catalog-extra";
 import { FACILITY_LEVELS } from "@/domains/facility/catalog";
 import {
   ruleSummary,
@@ -22,11 +24,20 @@ const levelName = (code: string | null | undefined) => FACILITY_LEVELS.find((l) 
 
 function RuleFields({ control, record }: { control: Control<any>; record?: FacilityStandardRule }) {
   const level = useWatch({ control, name: "levelCode" }) as string | undefined;
+  // Một cấp học: tự điền, không hỏi (xem `useFacilityLevels`).
+  const levels = useFacilityLevels();
+  const single = levels.length === 1 ? levels[0].code : null;
+  const { setValue } = useFormContext();
+  useEffect(() => {
+    if (single && !level) setValue("levelCode", single, { shouldDirty: true });
+  }, [single, level, setValue]);
   return (
     <div className="contents">
-      <SelectField control={control} name="levelCode" label="Cấp học" placeholder="Vui lòng chọn cấp học"
-        rules={{ required: "Vui lòng chọn cấp học" }}
-        options={FACILITY_LEVELS.map((l) => ({ value: l.code, label: l.name }))} />
+      {single && (!level || level === single) ? null : (
+        <SelectField control={control} name="levelCode" label="Cấp học" placeholder="Vui lòng chọn cấp học"
+          rules={{ required: "Vui lòng chọn cấp học" }}
+          options={levels.map((l) => ({ value: l.code, label: l.name }))} />
+      )}
       <SelectField control={control} name="tier" label="Mức" placeholder="Vui lòng chọn mức"
         rules={{ required: "Vui lòng chọn mức" }}
         options={STANDARD_TIERS.map((t) => ({ value: t.key, label: t.label }))} />

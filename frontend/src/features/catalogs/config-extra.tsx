@@ -174,7 +174,7 @@ function AttributesField({ control }: { control: Control<any> }) {
                 label="Tên thông số"
                 placeholder="Công suất"
                 rule="NAME"
-                rules={{ required: "Nhập tên" }}
+                rules={{ required: "Vui lòng nhập tên" }}
               />
               <TextInput
                 control={control}
@@ -183,7 +183,7 @@ function AttributesField({ control }: { control: Control<any> }) {
                 placeholder="cong_suat"
                 rule="CODE"
                 rules={{
-                  required: "Nhập mã",
+                  required: "Vui lòng nhập mã",
                   pattern: { value: /^[A-Za-z0-9_]+$/, message: "Chữ không dấu, số, _" },
                 }}
               />

@@ -13,6 +13,7 @@ import { FillBox } from "@/shared/components/layout/fill-box";
 import { Segmented } from "@/shared/components/segmented";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
+import { useFacilityLevels } from "@/features/catalogs/facility-catalog-extra";
 import { fold } from "@/shared/components/data-table/icon-filter";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
@@ -21,7 +22,6 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { FACILITY_LEVELS } from "@/domains/facility/catalog";
 import { STANDARD_TIER_LABELS, STANDARD_TIERS, type FacilityStandardRule, type StandardTier } from "@/domains/facility/standard";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
@@ -51,7 +51,10 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
   const mayCreate = useCan({ resource: config.resource, action: "create" }).data?.can ?? false;
   const mayEdit = useCan({ resource: config.resource, action: "edit" }).data?.can ?? false;
   const mayDelete = useCan({ resource: config.resource, action: "delete" }).data?.can ?? false;
-  const [level, setLevel] = usePersistentState<string>("facility-standard-rules.level", "THCS");
+  // Cấp của hệ thống (danh mục Cấp học): một cấp thì đứng luôn ở cấp đó — không còn dải chọn cấp.
+  const systemLevels = useFacilityLevels();
+  const [savedLevel, setLevel] = usePersistentState<string>("facility-standard-rules.level", systemLevels[0].code);
+  const level = systemLevels.some((l) => l.code === savedLevel) ? savedLevel : systemLevels[0].code;
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const [tier, setTier] = useState<string | null>(null);
@@ -64,7 +67,7 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
     pagination: { currentPage: 1, pageSize: 1000 },
   });
   const all = useMemo(() => result?.data ?? [], [result]);
-  const levels = FACILITY_LEVELS.filter((l) => all.some((r) => r.levelCode === l.code) || l.code === level);
+  const levels = systemLevels.filter((l) => all.some((r) => r.levelCode === l.code) || l.code === level);
   const ofLevel = all.filter((r) => r.levelCode === level);
   const groups = [...new Set(ofLevel.map((r) => r.roomType?.groupName ?? "Chưa xếp khối"))];
 

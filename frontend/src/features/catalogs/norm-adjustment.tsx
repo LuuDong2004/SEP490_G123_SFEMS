@@ -172,7 +172,7 @@ export function AdjustmentFields({ control, record, standard }: { control: Contr
         />
         {kind !== "NONE" ? (
           <TextField control={control} name="adjustment.basisText" label="Câu căn cứ trong thông tư" rule="LONG_TEXT" max={1000}
-            className="min-w-[18rem] max-w-[40rem] flex-1" rules={{ required: "Nhập câu căn cứ trong thông tư" }} />
+            className="min-w-[18rem] max-w-[40rem] flex-1" rules={{ required: "Vui lòng nhập câu căn cứ trong thông tư" }} />
         ) : null}
       </div>
       {kind === "REDUCE" ? <ReduceFields control={control} unit={unit} /> : null}
@@ -193,7 +193,7 @@ function ReduceFields({ control, unit }: { control: Control<any>; unit: string |
       <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-[5rem_10rem_6rem_minmax(0,22rem)]">
         <TextField control={control} name="adjustment.quantity" label="Còn" type="number" step="any" numberRule="DECIMAL_QUANTITY"
           rules={{
-            required: "Nhập số còn lại",
+            required: "Vui lòng nhập số còn lại",
             validate: (v: any, values: any) => {
               if (empty(values?.minQuantity)) return "Dòng chưa ghi Cần có — không giảm được";
               if (Number(v) <= 0) return "Phải lớn hơn 0";
@@ -204,11 +204,11 @@ function ReduceFields({ control, unit }: { control: Control<any>; unit: string |
             },
           }} />
         <SelectField control={control} name="adjustment.basis" label="Theo" options={BASIS_OPTIONS} placeholder="Vui lòng chọn"
-          rules={{ required: "Chọn đối tượng" }} />
+          rules={{ required: "Vui lòng chọn đối tượng" }} />
         <TextField control={control} name="adjustment.basisSize" label="Mỗi" type="number" numberRule="COUNT"
-          rules={{ required: "Nhập số", validate: (v: any) => Number(v) >= 1 || "Ít nhất là 1" }} />
+          rules={{ required: "Vui lòng nhập số", validate: (v: any) => Number(v) >= 1 || "Ít nhất là 1" }} />
         <TextField control={control} name="adjustment.condition" label="Khi" rule="NOTE" placeholder="Nơi chưa có điều kiện"
-          rules={{ required: "Nhập khi nào được giảm" }} />
+          rules={{ required: "Vui lòng nhập khi nào được giảm" }} />
       </div>
       {!empty(q) && basis && !empty(size) ? (
         <p className="text-muted-foreground mt-2 text-[0.8125rem]">
@@ -247,7 +247,7 @@ function SubstituteFields({ control, record, standard }: { control: Control<any>
             validate={(v: any) => v == null || v !== record?.catalog?.id || "Không thay bằng chính thiết bị này"} />
         ) : (
           <TextField control={control} name="adjustment.substituteText" label="Hình thức" rule="NOTE" placeholder="Phần mềm mô phỏng"
-            rules={{ required: "Ghi hình thức thay thế" }} />
+            rules={{ required: "Vui lòng nhập hình thức thay thế" }} />
         )}
       </div>
       <FormField
@@ -329,7 +329,7 @@ function GroupFields({ control, record, standard }: { control: Control<any>; rec
       <FormField
         control={control}
         name="adjustment.group"
-        rules={{ required: "Chọn hoặc đặt tên nhóm" }}
+        rules={{ required: "Vui lòng chọn hoặc đặt tên nhóm" }}
         render={({ field, fieldState }) => (
           <FormItem>
             <FormLabel>Nhóm</FormLabel>
@@ -348,7 +348,7 @@ function GroupFields({ control, record, standard }: { control: Control<any>; rec
         control={control}
         name="adjustment.groupPick"
         rules={{
-          required: "Chọn số được chọn",
+          required: "Vui lòng chọn số được chọn",
           validate: (v: any) => total < 2 || Number(v) < total || `Phải ít hơn ${total}`,
         }}
         render={({ field, fieldState }) => (
@@ -548,7 +548,7 @@ export function StopNormDialog({ row, onClose }: { row: EquipmentNorm | null; on
             <FormField
               control={form.control}
               name="legalDocument"
-              rules={{ required: "Chọn văn bản căn cứ" }}
+              rules={{ required: "Vui lòng chọn văn bản căn cứ" }}
               render={({ field, fieldState }) => (
                 <FormItem className="min-w-0">
                   <FormLabel>Văn bản căn cứ</FormLabel>
@@ -560,7 +560,7 @@ export function StopNormDialog({ row, onClose }: { row: EquipmentNorm | null; on
             <FormField
               control={form.control}
               name="schoolYear"
-              rules={{ required: "Chọn năm học" }}
+              rules={{ required: "Vui lòng chọn năm học" }}
               render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Từ năm học</FormLabel>

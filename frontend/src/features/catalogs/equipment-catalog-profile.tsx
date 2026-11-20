@@ -484,7 +484,7 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
           <FormField
             control={control}
             name="code"
-            rules={mergeRules(textRules("CODE", "Mã DM thiết bị"), { required: "Nhập mã DM thiết bị" })}
+            rules={mergeRules(textRules("CODE", "Mã DM thiết bị"), { required: "Vui lòng nhập mã DM thiết bị" })}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Mã DM thiết bị</FormLabel>
@@ -503,7 +503,7 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
             )}
           />
           <TextInput control={control} name="name" label="Tên thiết bị" required className="sm:col-span-2" placeholder={config.nameExample} readOnly={byCircular}
-            rule="NAME" rules={{ required: "Nhập tên thiết bị" }} />
+            rule="NAME" rules={{ required: "Vui lòng nhập tên thiết bị" }} />
           <RefField control={control} name="equipmentType" resource="equipment_types" label="Loại thiết bị" current={record?.equipmentType}
             onPicked={(type) => void suggestUnit(type?.id)} />
           {unitLocked ? (

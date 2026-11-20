@@ -16,6 +16,7 @@ import {
 } from "@/shared/ui/form";
 import { FormSection } from "@/shared/components/form/form-section";
 import { maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
+import { lowerLabel } from "@/shared/lib/label";
 import type { CatalogConfig } from "@/shared/components/catalog/types";
 
 /** Payload tạo/sửa — `CatalogRequest` / `CatalogPatchRequest` ở backend. */
@@ -65,7 +66,7 @@ export function CatalogFields({
   // Lưới theo bề rộng của CHÍNH khung chứa (container query), không theo màn hình: trong hộp thoại
   // hẹp là 2 cột, trên trang rộng là 4 — cùng một khuôn mà không để trống nửa hộp thoại.
   return (
-    <div className="@container max-w-5xl space-y-6">
+    <div className="catalog-form @container max-w-5xl space-y-6">
       <FormSection title="Thông tin cơ bản" compact>
         <div className="form-flow">
           {config.hideCode ? null : <CatalogCodeField control={control} config={config} suggestedCode={suggestedCode} />}
@@ -94,8 +95,6 @@ export function CatalogFields({
   );
 }
 
-/** Hạ chữ đầu cho câu "Nhập …" — giữ chữ viết tắt ("Mã DM thiết bị" → "mã DM thiết bị"). */
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /**
  * Ô mã của danh mục — tách riêng để form có bố cục riêng (`FormBody`, vd. lớp học) dùng lại đúng luật mã.
@@ -119,7 +118,9 @@ export function CatalogCodeField({ control, config, suggestedCode, fill }: {
             ? "Chưa cấp được mã, xem gợi ý bên dưới"
             : config.codeAuto
               ? "Chọn đủ thông tin để được cấp mã"
-              : `Nhập ${lowerFirst(config.codeLabel ?? "Mã")}`,
+              : `Vui lòng nhập ${lowerLabel(config.codeLabel ?? "Mã")}`,
+          // Chỉ gõ dấu cách cũng là trống — báo ngay, không đợi máy chủ trả 422.
+          validate: { blank: (v: unknown) => String(v ?? "").trim() !== "" || `Vui lòng nhập ${lowerLabel(config.codeLabel ?? "Mã")}` },
           ...(config.codePattern
             ? {
                 maxLength: { value: 64, message: `${config.codeLabel ?? "Mã"} tối đa 64 ký tự` },
@@ -171,7 +172,8 @@ export function CatalogNameField({ control, config, className }: {
       control={control}
       name="name"
       rules={mergeRules(textRules(config.nameRule ?? "NAME", config.nameLabel ?? "Tên", { max: config.nameMax }), {
-        required: `Nhập ${(config.nameLabel ?? "Tên").toLowerCase()}`,
+        required: `Vui lòng nhập ${lowerLabel(config.nameLabel ?? "Tên")}`,
+        validate: { blank: (v: unknown) => String(v ?? "").trim() !== "" || `Vui lòng nhập ${lowerLabel(config.nameLabel ?? "Tên")}` },
       })}
       render={({ field }) => (
         <FormItem className={className}>

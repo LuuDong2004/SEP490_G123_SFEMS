@@ -1,7 +1,9 @@
 import { useCan, useSelect } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
-import type { Control } from "react-hook-form";
+import { useEffect, useMemo } from "react";
+import { useFormContext, useWatch, type Control } from "react-hook-form";
+
+import { useEducationLevels } from "@/shared/hooks/use-education-levels";
 
 import type { CatalogExtra } from "@/shared/components/catalog/types";
 import { SwitchRow } from "@/shared/components/form/switch-row";
@@ -23,13 +25,24 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Cấp áp dụng: ba ô tích. Đủ ba cấp = mọi cấp (máy chủ lưu trống). */
+/**
+ * Cấp áp dụng: mỗi cấp học của hệ thống một ô tích. Đủ ba cấp = mọi cấp (máy chủ lưu trống). Hệ thống chỉ có MỘT cấp
+ * học thì ô này ẩn và luôn là cấp đó — mặc định "cả ba cấp" của bản ghi mới không còn đúng.
+ */
 function LevelsField({ control }: { control: Control<any> }) {
+  const shown = useFacilityLevels();
+  const single = shown.length === 1 ? shown[0].code : null;
+  const { setValue } = useFormContext();
+  const current = useWatch({ control, name: "levels" }) as string[] | undefined;
+  useEffect(() => {
+    if (single && !(current?.length === 1 && current[0] === single)) setValue("levels", [single], { shouldDirty: true });
+  }, [single, current, setValue]);
+  if (single) return null;
   return (
     <FormField
       control={control}
       name="levels"
-      rules={{ validate: (v: string[] | undefined) => (v && v.length > 0) || "Chọn ít nhất một cấp" }}
+      rules={{ validate: (v: string[] | undefined) => (v && v.length > 0) || "Vui lòng chọn ít nhất một cấp" }}
       render={({ field }) => {
         const value: string[] = field.value ?? [];
         const toggle = (code: string, on: boolean) =>
@@ -38,7 +51,7 @@ function LevelsField({ control }: { control: Control<any> }) {
           <FormItem>
             <FormLabel>Cấp áp dụng</FormLabel>
             <div className="flex min-h-9 flex-wrap items-center gap-x-5 gap-y-2">
-              {FACILITY_LEVELS.map((l) => (
+              {shown.map((l) => (
                 <Label key={l.code} className="flex items-center gap-2 text-sm font-normal">
                   <Checkbox checked={value.includes(l.code)} onCheckedChange={(on) => toggle(l.code, on === true)} />
                   {l.name}
@@ -51,6 +64,16 @@ function LevelsField({ control }: { control: Control<any> }) {
       }}
     />
   );
+}
+
+/** Các cấp của `FACILITY_LEVELS` có trong danh mục Cấp học (chưa đọc được danh mục thì đủ ba cấp). */
+export function useFacilityLevels() {
+  const { levels } = useEducationLevels();
+  return useMemo(() => {
+    const codes = new Set(levels.map((l) => l.code));
+    const shown = FACILITY_LEVELS.filter((l) => codes.has(l.code));
+    return shown.length ? shown : [...FACILITY_LEVELS];
+  }, [levels]);
 }
 
 /** Khối CSVC — ghép khối của bản ghi vào danh sách để ô chọn không trống khi danh sách về sau. */

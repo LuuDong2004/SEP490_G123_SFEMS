@@ -162,7 +162,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
   subjects: {
     section: { title: "Giảng dạy" },
     defaults: { teachingCode: "", educationLevels: [] },
-    Fields: ({ control }) => (
+    Fields: ({ control, record }) => (
       <div className="form-flow">
         <TextField
           control={control}
@@ -170,7 +170,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
           label="Mã môn dạy học"
           rule="CODE"
           rules={{
-            required: "Nhập mã môn dạy học",
+            required: "Vui lòng nhập mã môn dạy học",
             pattern: { value: /^\d{2}$/, message: "Mã môn dạy học gồm đúng hai chữ số" },
           }}
           max={32}
@@ -178,7 +178,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
           description="Hai chữ số theo chương trình dạy học — đi vào mã thiết bị in trên tem và làm mã danh mục của môn."
         />
         <div className="@md:col-span-2 @3xl:col-span-3">
-          <SubjectLevelsField control={control} />
+          <SubjectLevelsField control={control} creating={!record} />
         </div>
       </div>
     ),
@@ -317,7 +317,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
       <FormField
         control={control}
         name="reasonType"
-        rules={{ required: "Loại lý do là bắt buộc" }}
+        rules={{ required: "Vui lòng chọn loại lý do" }}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Loại lý do</FormLabel>
@@ -379,7 +379,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
           label="Mã khối dạy học"
           rule="CODE"
           max={32}
-          placeholder="6"
+          placeholder="10"
           description="Theo chương trình dạy học, khác mã danh mục."
         />
       </div>

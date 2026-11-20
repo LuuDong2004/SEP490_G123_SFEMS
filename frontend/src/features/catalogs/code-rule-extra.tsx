@@ -148,7 +148,7 @@ function CodeRuleFields({ control }: { control: Control<any> }) {
       <FormField
         control={control}
         name="target"
-        rules={{ required: "Chọn danh mục" }}
+        rules={{ required: "Vui lòng chọn danh mục" }}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Áp dụng cho</FormLabel>
@@ -179,7 +179,7 @@ function CodeRuleFields({ control }: { control: Control<any> }) {
           control={control}
           name="numberLength"
           rules={{
-            required: "Nhập số chữ số",
+            required: "Vui lòng nhập số chữ số",
             min: { value: MIN_NUMBER_LENGTH, message: "Độ dài phần số từ 1 đến 10" },
             max: { value: MAX_NUMBER_LENGTH, message: "Độ dài phần số từ 1 đến 10" },
             validate: (v: unknown) => v == null || Number.isInteger(Number(v)) || "Số chữ số phải là số nguyên",

@@ -376,8 +376,8 @@ export function LegalDocDialog({ state, onClose, onSaved }: {
                     <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-[14rem_minmax(0,1fr)]">
                       <TextField control={form.control} name="code" label="Số hiệu" rule="SHORT_TEXT" max={50}
                         placeholder="37/2021/TT-BGDĐT"
-                        rules={{ required: "Nhập số hiệu", pattern: { value: LEGAL_DOC_NUMBER, message: "Số hiệu chỉ gồm chữ, số và dấu / . -" } }} />
-                      <TextField control={form.control} name="name" label="Tên văn bản" rule="NAME" rules={{ required: "Nhập tên văn bản" }}
+                        rules={{ required: "Vui lòng nhập số hiệu", pattern: { value: LEGAL_DOC_NUMBER, message: "Số hiệu chỉ gồm chữ, số và dấu / . -" } }} />
+                      <TextField control={form.control} name="name" label="Tên văn bản" rule="NAME" rules={{ required: "Vui lòng nhập tên văn bản" }}
                         placeholder="Ban hành Danh mục thiết bị dạy học tối thiểu cấp Tiểu học" />
                     </div>
                     <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-[repeat(2,minmax(0,10rem))_minmax(0,22rem)]">

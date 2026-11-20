@@ -1,4 +1,5 @@
 import RULES from "@/shared/lib/field-rules.json";
+import { lowerLabel } from "@/shared/lib/label";
 
 /**
  * Quy tắc kiểm tra dữ liệu dùng chung — CÙNG số, cùng biểu thức với máy chủ (`shared/validation/FieldRule`,
@@ -83,7 +84,8 @@ export function dateError(rule: DateRule, label: string, value: unknown): string
 
 type Rules = { required?: string; validate?: Record<string, (v: unknown) => true | string> };
 
-const required = (label: string, on?: boolean) => (on ? { required: `${label} là bắt buộc` } : {});
+// Câu bắt buộc chung của mọi ô gõ (chữ, số, ngày): "Vui lòng nhập …" — ô chọn dùng "Vui lòng chọn …" (20/11/2026).
+const required = (label: string, on?: boolean) => (on ? { required: `Vui lòng nhập ${lowerLabel(label)}` } : {});
 
 /** Luật react-hook-form cho ô chữ. */
 export const textRules = (rule: TextRule, label: string, opts: { required?: boolean; max?: number; min?: number } = {}): Rules => ({

@@ -1,6 +1,8 @@
 import { useCan, useSelect } from "@refinedev/core";
-import { useMemo } from "react";
-import type { Control } from "react-hook-form";
+import { useEffect, useMemo } from "react";
+import { useFormContext, useWatch, type Control } from "react-hook-form";
+
+import { useEducationLevels } from "@/shared/hooks/use-education-levels";
 
 import {
   Select,
@@ -49,6 +51,13 @@ export function EducationLevelField({
 }) {
   const mayRead =
     useCan({ resource: "education_levels", action: "list" }).data?.can ?? false;
+  // Hệ thống chỉ có một cấp học: bản ghi mới tự nhận cấp đó, ô chọn ẩn đi (bản ghi cũ đang trỏ cấp khác thì vẫn hiện).
+  const { single } = useEducationLevels();
+  const { setValue } = useFormContext();
+  const value = useWatch({ control, name: "educationLevel.id" });
+  useEffect(() => {
+    if (single && value == null) setValue("educationLevel.id", single.id, { shouldDirty: true });
+  }, [single, value, setValue]);
 
   const { options } = useSelect({
     resource: "education_levels",
@@ -68,6 +77,8 @@ export function EducationLevelField({
       ? list
       : [{ value: String(current.id), label: current.name }, ...list];
   }, [options, current?.id, current?.name]);
+
+  if (single && (value == null || value === single.id) && (!current?.id || current.id === single.id)) return null;
 
   return (
     <FormField
