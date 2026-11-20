@@ -31,8 +31,7 @@ class VoucherProgressNotifier {
             JOIN role_permissions rp ON rp.role_id = ur.role_id
             JOIN permissions p ON p.id = rp.permission_id
             LEFT JOIN user_schools us ON us.id = u.id
-            LEFT JOIN (SELECT id, managing_body_id FROM user_sos
-                       UNION ALL SELECT id, managing_body_id FROM user_ubnds) ag ON ag.id = u.id
+            LEFT JOIN (SELECT id, managing_body_id FROM user_sos) ag ON ag.id = u.id
             WHERE p.code = ? AND u.status = 'ACTIVE' AND\s""";
 
     private final NotificationService notifications;
