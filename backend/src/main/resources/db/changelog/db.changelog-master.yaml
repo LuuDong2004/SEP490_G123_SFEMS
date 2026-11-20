@@ -506,3 +506,5 @@ databaseChangeLog:
       file: db/changelog/changes/273-tai-khoan-co-so-phu.sql
   - include:
       file: db/changelog/changes/274-email-demo-sfems.sql
+  - include:
+      file: db/changelog/changes/275-chot-so-du-dau-ky.sql

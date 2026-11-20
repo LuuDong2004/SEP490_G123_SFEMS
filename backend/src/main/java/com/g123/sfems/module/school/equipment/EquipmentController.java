@@ -10,6 +10,8 @@ import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -42,6 +44,7 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
     private final RowLevelSecurity scopes;
     private final EquipmentSummaryService summary;
     private final AdequacyService adequacy;
+    private final OpeningBalance openingBalance;
 
     public EquipmentController(
             EquipmentService service,
@@ -51,8 +54,10 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
             EquipmentCatalogService catalogs,
             RowLevelPrincipalResolver principals,
             EquipmentSummaryService summary,
-            AdequacyService adequacy) {
+            AdequacyService adequacy,
+            OpeningBalance openingBalance) {
         super(service, rowLevel);
+        this.openingBalance = openingBalance;
         this.adequacy = adequacy;
         this.summary = summary;
         this.codes = codes;
@@ -130,6 +135,35 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
      * không, dòng phụ lục nào đòi, định mức trường phải có, đang có, còn thiếu. Đọc tài sản qua phạm
      * vi dòng trước, nên tài sản ngoài phạm vi là 404 như mọi đường đọc khác.
      */
+    /**
+     * Số dư đầu kỳ của trường: đã chốt chưa, ai chốt, bao nhiêu thiết bị lúc chốt. Người của trường xem trường mình
+     * ({@code schoolId} bỏ qua); Sở truyền {@code schoolId}.
+     */
+    @GetMapping("/opening-balance")
+    @PreAuthorize("hasAuthority('equipment:read')")
+    public OpeningBalance.State openingBalance(@RequestParam(required = false) Long schoolId) {
+        Long own = principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        Long sid = own != null ? own : schoolId;
+        if (sid == null) {
+            throw new FieldValidationException("schoolId", "Chọn trường");
+        }
+        return openingBalance.state(schools.get(sid).getId());
+    }
+
+    /**
+     * Lãnh đạo trường chốt số dư đầu kỳ của trường mình. Mã quyền duyệt ghi tăng: từ lúc chốt, thiết bị mới chỉ vào
+     * sổ qua phiếu ghi tăng do chính người này duyệt. Chốt một lần, không mở lại.
+     */
+    @PostMapping("/opening-balance/close")
+    @PreAuthorize("hasAuthority('equipment_intakes:approve')")
+    public OpeningBalance.State closeOpeningBalance() {
+        Long sid = principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        if (sid == null) {
+            throw new FieldValidationException("school", "Chỉ lãnh đạo trường chốt số dư đầu kỳ của trường mình");
+        }
+        return openingBalance.close(sid, CurrentUser.id().orElse(null));
+    }
+
     @GetMapping("/{id}/standard")
     @PreAuthorize("hasAuthority('equipment:read')")
     public AdequacyService.CatalogStandard standard(@PathVariable Long id) {

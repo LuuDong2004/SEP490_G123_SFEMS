@@ -26,6 +26,7 @@ import com.g123.sfems.module.school.base.SchoolOwnedService;
 import com.g123.sfems.domain.school.equipment.EquipmentHistory;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService;
+import com.g123.sfems.module.school.voucher.InventoryFreeze;
 import com.g123.sfems.module.school.voucher.VoucherHolds;
 import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService.VoucherRef;
 import com.g123.sfems.module.school.facility.RoomService;
@@ -107,6 +108,9 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     /** Tài sản đang nằm trên phiếu chạy thì không xếp chỗ trên hồ sơ — phiếu đó đang quyết định chỗ của nó. */
     private final VoucherHolds holds;
+    /** Khai tay / nhập từ tệp: chỉ khi trường chưa chốt số dư đầu kỳ, và không vào chỗ đang kiểm kê. */
+    private final OpeningBalance openingBalance;
+    private final InventoryFreeze inventoryFreeze;
 
     @PersistenceContext
     private EntityManager em;
@@ -125,7 +129,9 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             StaffService staff,
             EquipmentConfigService configs,
             EquipmentHistoryService history,
-            VoucherHolds holds) {
+            VoucherHolds holds,
+            OpeningBalance openingBalance,
+            InventoryFreeze inventoryFreeze) {
         super(repository, rowLevel, Equipment.class, Equipment::new, "Thiết bị", schools, principals);
         this.repository = repository;
         this.codes = codes;
@@ -139,6 +145,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.history = history;
         this.scopes = rowLevel;
         this.holds = holds;
+        this.openingBalance = openingBalance;
+        this.inventoryFreeze = inventoryFreeze;
     }
 
     /** Tài sản trong phạm vi GHI của người gọi, trong cơ sở của người gọi (422 ngoài cơ sở). */
@@ -284,10 +292,20 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setConfig(ref(request.config(), configs::get));
         item.setSpecs(checkedSpecs(item.getConfig(), request.specs()));
         requireRules(item);
+        // Hồ sơ khai tay / nhập từ tệp là số dư đầu kỳ: sau khi hiệu trưởng chốt, thiết bị mới vào sổ qua phiếu ghi
+        // tăng có duyệt. Và không thêm vào chỗ đang kiểm kê — tài sản mới không có trong danh sách phiếu đã chụp.
+        openingBalance.requireOpen(item.getSchool().getId());
+        inventoryFreeze.requirePlaceNotFrozen(item.getSchool().getId(),
+                item.getRoom() == null ? null : item.getRoom().getId(), "room");
 
-        // Mã do hệ thống cấp theo chuẩn của Sở — không gõ tay. Mã người dùng đưa vào mà
-        // không phải mã gợi ý (sổ cũ, tệp nhập) được giữ làm mã cũ để tra cứu tem cũ.
+        // Không gõ mã: hệ thống cấp mã chuẩn của Sở (TS-06). Gõ mã KHÔNG theo mẫu chuẩn (tem cũ, sổ cũ, tệp nhập): giữ
+        // làm mã hiện hành để tem cũ vẫn đúng; hồ sơ báo thiếu mã chuẩn và cán bộ bấm "Cấp mã chuẩn" khi dán tem mới
+        // (TS-05). Gõ một mã theo mẫu nhưng khác mã gợi ý: vẫn cấp mã chuẩn của hệ thống, mã gõ giữ làm mã cũ.
         String typed = item.getCode() == null ? "" : item.getCode().trim();
+        if (!typed.isEmpty() && !Equipment.STANDARD_CODE.matcher(typed).matches()) {
+            item.setCode(typed);
+            return;
+        }
         String suggested = codes.parts(item.getSchool(), item.getCatalog(), item.getPhysicalOrDigital(),
                         item.getReceivedDate(), item.getPurchaseDate())
                 .flatMap(parts -> codes.peek(item.getSchool(), parts))
@@ -298,21 +316,42 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
     }
 
+    /** Khai tay (TS-01) và nhập từ tệp (TS-07) đều qua đây; lịch sử ghi lần vào sổ để hồ sơ có điểm bắt đầu. */
+    @Override
+    @Transactional
+    public Equipment create(EquipmentRequest request) {
+        Equipment saved = super.create(request);
+        history.event(saved, EquipmentHistory.Action.CAP_NHAT, null, "Vào sổ: số dư đầu kỳ (khai tay hoặc nhập từ tệp)"
+                + (Equipment.STANDARD_CODE.matcher(saved.getCode()).matches() ? "" : ", mang mã cũ " + saved.getCode()));
+        return saved;
+    }
+
     /**
-     * Thiết bị KHÔNG xoá thẳng được: tài sản ra khỏi sổ bằng phiếu — thanh lý / tiêu huỷ
-     * ({@code LIQUIDATED}, {@code DESTROYED}) hoặc ghi giảm do mất ({@code LOST}). Chỉ hồ sơ đã ra khỏi sổ mới
-     * được xoá; xoá một tài sản đang dùng là làm nó biến mất khỏi mọi báo cáo mà không có chứng
-     * từ nào giải thích.
+     * Thiết bị đang trên sổ KHÔNG xoá thẳng được: xoá là làm tài sản biến mất khỏi mọi báo cáo mà không chứng từ nào
+     * giải thích. Được xoá: hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất, đã thanh lý / tiêu huỷ / dùng hết), và hồ sơ khai
+     * nhầm lúc trường còn khai số dư đầu kỳ, chưa qua phiếu hay kiểm kê nào.
      */
     @Override
     protected void beforeDelete(Equipment item) {
-        if (item.getStatus() != AssetStatus.LIQUIDATED && item.getStatus() != AssetStatus.DESTROYED
-                && item.getStatus() != AssetStatus.LOST
-                && item.getStatus() != AssetStatus.USED_UP) {
-            throw new FieldValidationException("status",
-                    "Không xoá thẳng thiết bị được. Thiết bị ra khỏi hệ thống qua phiếu thanh lý / tiêu huỷ hoặc ghi giảm do mất; "
-                            + "chỉ hồ sơ đã thanh lý hoặc đã ghi giảm mới được xoá.");
+        if (item.getStatus() == AssetStatus.LIQUIDATED || item.getStatus() == AssetStatus.DESTROYED
+                || item.getStatus() == AssetStatus.LOST || item.getStatus() == AssetStatus.USED_UP) {
+            return;
         }
+        if (openingBalance.isOpen(item.getSchool().getId()) && !touchedByVoucher(item)) {
+            return;
+        }
+        throw new FieldValidationException("status", openingBalance.isOpen(item.getSchool().getId())
+                ? "Thiết bị đã qua phiếu hoặc kiểm kê nên không xoá được. Hồ sơ chỉ xoá được khi kiểm kê xác nhận Mất."
+                : "Trường đã chốt số dư đầu kỳ: thiết bị trên sổ không xoá được. Hồ sơ chỉ xoá được khi kiểm kê xác nhận Mất.");
+    }
+
+    /** Đã có phiếu nào (ghi tăng, kiểm kê…) động tới tài sản này chưa — dấu vết nằm trong lịch sử. */
+    private boolean touchedByVoucher(Equipment item) {
+        Number n = (Number) em.createNativeQuery(
+                        "SELECT COUNT(*) FROM equipment_history WHERE equipment_id = :id AND voucher_resource IS NOT NULL")
+                .setParameter("id", item.getId())
+                .getSingleResult();
+        return n.longValue() > 0;
     }
 
     /** Chốt một mã chuẩn mới cho tài sản; thiếu dữ liệu sinh mã thì nói thiếu gì. */

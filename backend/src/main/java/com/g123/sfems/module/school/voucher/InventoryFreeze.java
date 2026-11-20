@@ -81,7 +81,30 @@ public class InventoryFreeze {
         if (touches == null || id == null) {
             return;
         }
-        String touched = String.join(" UNION ", touches);
+        Object[] ids = Collections.nCopies(touches.size(), (Object) id).toArray();
+        Map<String, Object> session = countingSession(String.join(" UNION ", touches), ids);
+        if (session != null) {
+            throw new FieldValidationException("lines", message(session));
+        }
+    }
+
+    /**
+     * Từ chối (422) nếu đưa một tài sản MỚI vào {@code (trường, phòng)} đang kiểm kê — khai tay, nhập từ tệp. Tài sản
+     * thêm giữa chừng không có trong danh sách đã chụp của phiếu kiểm kê, nên biên bản sẽ lệch với sổ.
+     */
+    public void requirePlaceNotFrozen(Long schoolId, Long roomId, String field) {
+        if (schoolId == null) {
+            return;
+        }
+        Map<String, Object> session = countingSession("SELECT CAST(? AS BIGINT), CAST(? AS BIGINT)",
+                new Object[] {schoolId, roomId});
+        if (session != null) {
+            throw new FieldValidationException(field, placeMessage(session));
+        }
+    }
+
+    /** Phiếu kiểm kê đang kiểm động tới một trong các cặp (trường, phòng) mà câu {@code touched} trả về. */
+    private Map<String, Object> countingSession(String touched, Object[] touchedArgs) {
         // Kiểm kê toàn cơ sở (271) chỉ khoá phòng / tài sản của cơ sở đó (tài sản chưa có phòng → cơ sở chính).
         String sql = "SELECT s.code, s.title, r.name AS room, c.name AS campus FROM inventory_sessions s"
                 + " LEFT JOIN rooms r ON r.id = s.room_id LEFT JOIN campuses c ON c.id = s.campus_id"
@@ -91,27 +114,33 @@ public class InventoryFreeze {
                 + FacilityCounting.campusOfRoomSql("t.room_id", "t.school_id") + " = s.campus_id))"
                 + " OR s.room_id = t.room_id))"
                 + " ORDER BY s.id LIMIT 1";
-        Object[] args = new Object[COUNTING.size() + touches.size()];
+        Object[] args = new Object[COUNTING.size() + touchedArgs.length];
         for (int i = 0; i < COUNTING.size(); i++) {
             args[i] = COUNTING.get(i);
         }
-        for (int i = 0; i < touches.size(); i++) {
-            args[COUNTING.size() + i] = id;
-        }
+        System.arraycopy(touchedArgs, 0, args, COUNTING.size(), touchedArgs.length);
         List<Map<String, Object>> found = jdbc.queryForList(sql, args);
-        if (found.isEmpty()) {
-            return;
-        }
-        throw new FieldValidationException("lines", message(found.get(0)));
+        return found.isEmpty() ? null : found.get(0);
+    }
+
+    static String placeMessage(Map<String, Object> session) {
+        return "Đang kiểm kê %s theo %s — số liệu đang khoá. Thêm thiết bị vào sổ sau khi phiếu kiểm kê hoàn tất"
+                .formatted(scope(session), which(session));
+    }
+
+    private static String which(Map<String, Object> session) {
+        Object code = session.get("code");
+        return code != null ? "phiếu kiểm kê " + code : "phiếu kiểm kê nháp \"" + session.get("title") + "\"";
+    }
+
+    private static String scope(Map<String, Object> session) {
+        Object room = session.get("room");
+        Object campus = session.get("campus");
+        return room != null ? "phòng " + room : campus != null ? "cơ sở " + campus : "cả trường";
     }
 
     static String message(Map<String, Object> session) {
-        Object code = session.get("code");
-        String which = code != null ? "phiếu kiểm kê " + code : "phiếu kiểm kê nháp \"" + session.get("title") + "\"";
-        Object room = session.get("room");
-        Object campus = session.get("campus");
-        String scope = room != null ? "phòng " + room : campus != null ? "cơ sở " + campus : "cả trường";
         return "Đang kiểm kê %s theo %s — số liệu đang khoá. Hãy hoàn tất hoặc hủy phiếu kiểm kê trước khi trình hay duyệt phiếu này; nếu không mở được phiếu nháp, liên hệ cán bộ thiết bị đang lập phiếu"
-                .formatted(scope, which);
+                .formatted(scope(session), which(session));
     }
 }
