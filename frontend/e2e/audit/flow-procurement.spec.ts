@@ -24,7 +24,8 @@ test("A1 cán bộ thiết bị xem mức đáp ứng và lập, trình đề xu
   await page.locator('textarea[name="reason"]').fill("E2E-AUDIT: thiếu so với định mức");
   await main(page).getByRole("button", { name: /Thêm thiết bị/ }).first().click();
   const dlg = page.locator('[role="dialog"]').last();
-  await dlg.getByText("Toán", { exact: true }).first().click();
+  // Mở nhóm môn đầu tiên còn thiếu (môn nào hết thiếu — do các lần chạy trước đã đề xuất — thì không còn trong danh sách).
+  await dlg.locator("tbody tr").filter({ hasText: /loại thiết bị/ }).first().click();
   const row = dlg.locator("tbody tr").filter({ has: page.locator('[role=checkbox],input[type=checkbox]') }).first();
   await row.locator('[role=checkbox],input[type=checkbox]').first().click();
   await dlg.getByRole("button", { name: /^Thêm thiết bị|^Thêm \d/ }).last().click();
