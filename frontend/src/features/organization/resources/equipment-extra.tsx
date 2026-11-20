@@ -20,6 +20,7 @@ import { Textarea } from "@/shared/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 import { EquipmentMoreMenu } from "./equipment-history";
 import { EquipmentAside } from "./equipment-aside";
+import { OpeningBalanceButton, useOpeningBalance } from "./opening-balance";
 import { OFF_BOOK_STATUSES } from "@/domains/equipment/types";
 
 import { Badge } from "@/shared/ui/badge";
@@ -868,12 +869,18 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
  */
 function EquipmentListActions() {
   const canIntake = useCan({ resource: "equipment_intakes", action: "create" }).data?.can ?? false;
-  // Thiết bị MỚI vào sổ bằng phiếu nhập (lập → duyệt → sinh tài sản), không tạo thẳng.
-  return canIntake ? (
-    <Button asChild>
-      <Link to="/equipment-intakes/create"><PackagePlus />Ghi tăng</Link>
-    </Button>
-  ) : null;
+  // Thiết bị MỚI vào sổ bằng phiếu nhập (lập → duyệt → sinh tài sản), không tạo thẳng. Cạnh đó là việc chốt số dư
+  // đầu kỳ của lãnh đạo trường — chốt xong thì phiếu ghi tăng là lối DUY NHẤT.
+  return (
+    <>
+      <OpeningBalanceButton />
+      {canIntake ? (
+        <Button asChild>
+          <Link to="/equipment-intakes/create"><PackagePlus />Ghi tăng</Link>
+        </Button>
+      ) : null}
+    </>
+  );
 }
 
 /** Lối phụ của màn Thiết bị — trong menu bánh răng của bảng, không thành một dãy nút biểu tượng. */
@@ -883,7 +890,9 @@ function EquipmentListMenu() {
   // mới vào sổ, nên giao cho lãnh đạo trường (đầu mối của trường) và quản trị, không để cạnh
   // nút chính cho cán bộ dùng nhầm thay phiếu nhập.
   const roles = getAuthorities()?.roles ?? [];
-  const mayOpening = canOpening && (roles.includes("SCHOOL_LEADER") || roles.includes("ADMIN"));
+  // Đã chốt số dư đầu kỳ thì không còn lối nhập thiết bị đang có — máy chủ cũng từ chối.
+  const closed = !!useOpeningBalance().data?.closedAt;
+  const mayOpening = canOpening && !closed && (roles.includes("SCHOOL_LEADER") || roles.includes("ADMIN"));
   return (
     <>
       <DropdownMenuItem asChild>
@@ -911,7 +920,7 @@ export const EQUIPMENT_EXTRA = {
   ListActions: EquipmentListActions,
   ListMenu: EquipmentListMenu,
   hideCreate: true,
-  // Không xoá thẳng thiết bị: ra khỏi sổ qua thanh lý / tiêu huỷ hoặc ghi giảm do mất.
+  // Không xoá thẳng thiết bị đang trên sổ: chỉ hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất…) mới xoá được.
   canDelete: (r: any) => OFF_BOOK_STATUSES.includes(r?.status),
   // Đã ra khỏi sổ (thanh lý, mất, dùng hết) thì hồ sơ chỉ còn để tra — không sửa.
   canEdit: (r: any) => !OFF_BOOK_STATUSES.includes(r?.status),
