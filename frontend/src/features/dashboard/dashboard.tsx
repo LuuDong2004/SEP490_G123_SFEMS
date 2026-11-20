@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Boxes, CalendarClock, ChevronRight, CircleCheck, ClipboardCheck, Clock, PackageX,  Wrench } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX,  Wrench } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -112,9 +112,6 @@ export const Dashboard = () => {
       to: `${VOUCHER_ROUTES[p.key]}?${PENDING_FILTER}`,
       tone: "warning" as const,
     })),
-    { key: "overdue", icon: <Clock />, label: "Phiếu mượn quá hạn trả", count: k?.overdueLoans ?? 0, to: "/equipment-loans", tone: "destructive" as const },
-    { key: "maintenance", icon: <CalendarClock />, label: "Việc bảo trì đến hạn trong 7 ngày", count: k?.maintenanceDue ?? 0, to: "/maintenance-plans", tone: "warning" as const },
-    { key: "liquidation", icon: <PackageX />, label: "Thiết bị chờ thanh lý / tiêu huỷ", count: k?.pendingLiquidation ?? 0, to: "/disposals", tone: "warning" as const },
   ].filter((t) => t.count > 0);
 
   return (
@@ -141,9 +138,9 @@ export const Dashboard = () => {
         {/* Ra đúng các phiếu đang chờ (lọc sẵn Chờ duyệt) như mục "Cần xử lý", không phải cả danh sách (E2E-19). */}
         <Kpi to={pending[0] ? `${VOUCHER_ROUTES[pending[0].key]}?${PENDING_FILTER}` : "/equipment-intakes"} icon={<ClipboardCheck />}
           tone={k && k.pendingVouchers > 0 ? "warning" : "good"} label="Phiếu chờ duyệt" value={k ? <WithUnit value={count.format(k.pendingVouchers)} unit="phiếu" /> : "…"} />
-        <Kpi to="/damage-reports" icon={<Wrench />} tone={k && k.broken > 0 ? "destructive" : "good"} label="Hỏng, đang sửa"
+        <Kpi to="/equipment" icon={<Wrench />} tone={k && k.broken > 0 ? "destructive" : "good"} label="Hỏng (theo kiểm kê)"
           value={k ? <WithUnit value={count.format(k.broken)} unit="thiết bị" /> : "…"} />
-        <Kpi to="/disposals" icon={<PackageX />} tone={k && k.missing > 0 ? "destructive" : "good"} label="Chờ ghi giảm do mất"
+        <Kpi to="/equipment" icon={<PackageX />} tone={k && k.missing > 0 ? "destructive" : "good"} label="Mất (theo kiểm kê)"
           value={k ? <WithUnit value={count.format(k.missing)} unit="thiết bị" /> : "…"} />
       </div>
 
@@ -172,15 +169,12 @@ export const Dashboard = () => {
         <ChartCard className="xl:col-span-2"
           title={
             <span className="flex items-center gap-2">
-              Biến động thiết bị 12 tháng
-              <HelpHint>Số thiết bị có phát sinh trong tháng, theo loại việc.</HelpHint>
+              Thiết bị ghi tăng 12 tháng
+              <HelpHint>Số thiết bị được ghi tăng (phiếu ghi tăng đã duyệt) trong từng tháng.</HelpHint>
             </span>
           }>
           <GroupedBars height="h-64" data={d?.months ?? []} xKey="month" xFormatter={(m) => m.slice(0, 2) + "/" + m.slice(5)} series={[
             { key: "intake", label: "Ghi tăng" },
-            { key: "allocation", label: "Cấp phát, điều chuyển" },
-            { key: "damage", label: "Báo hỏng" },
-            { key: "disposal", label: "Thanh lý, mất" },
           ]} />
         </ChartCard>
         <ChartCard title="Cần xử lý" action={k ? <Badge variant={todo.length ? "warning" : "success"}>{count.format(todo.reduce((s, t) => s + t.count, 0))}</Badge> : null}>

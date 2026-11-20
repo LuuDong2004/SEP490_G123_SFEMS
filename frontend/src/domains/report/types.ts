@@ -44,9 +44,7 @@ export type Dashboard = {
 export const ASSET_STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
   { key: "use", label: "Đang sử dụng", statuses: ["IN_USE"] },
   { key: "stock", label: "Trong kho", statuses: ["IN_STOCK"] },
-  { key: "moving", label: "Mượn, điều chuyển, bảo trì", statuses: ["BORROWED", "TRANSFERRING", "MAINTAINING"] },
-  { key: "broken", label: "Hỏng, sửa, bảo hành", statuses: ["BROKEN", "UNREPAIRABLE", "REPAIRING", "WARRANTY"] },
-  { key: "leaving", label: "Chờ ghi giảm", statuses: ["PENDING_LIQUIDATION", "PENDING_DESTRUCTION", "MISSING"] },
+  { key: "broken", label: "Hỏng, chờ xử lý", statuses: ["BROKEN", "UNREPAIRABLE", "REPAIRING", "WARRANTY"] },
 ];
 
 export type ReportDefinition = {

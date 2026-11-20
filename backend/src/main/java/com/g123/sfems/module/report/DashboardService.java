@@ -190,9 +190,7 @@ public class DashboardService {
                        COALESCE(SUM(e.original_value) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')), 0) AS value,
                        COUNT(*) FILTER (WHERE e.status = 'IN_USE') AS in_use,
                        COUNT(*) FILTER (WHERE e.condition = 'HONG' OR e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')) AS broken,
-                       COUNT(*) FILTER (WHERE e.status = 'MISSING' OR EXISTS (
-                           SELECT 1 FROM disposal_lines dl JOIN disposals d ON d.id = dl.disposal_id
-                           WHERE dl.equipment_id = e.id AND d.kind = 'LOSS' AND d.status IN ('DRAFT', 'PENDING'))) AS missing,
+                       COUNT(*) FILTER (WHERE e.status IN ('MISSING', 'LOST')) AS missing,
                        COUNT(*) FILTER (WHERE e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')) AS pending_liq
                 FROM equipment e WHERE TRUE""" + eq);
         long schools = jdbc.queryForObject("SELECT COUNT(*) FROM schools s WHERE s.status = 'ACTIVE'"

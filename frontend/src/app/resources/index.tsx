@@ -108,7 +108,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
     meta: {
       icon: <LayoutDashboard className="h-4 w-4" />,
       mgmt: 1,
-      mgmtLabel: "Tổng quan địa bàn",
+      mgmtLabel: "Tổng hợp",
     },
   },
   // Góc nhìn QUẢN LÝ (Sở, UBND) không đi theo phân hệ của trường: menu của nó dựng từ

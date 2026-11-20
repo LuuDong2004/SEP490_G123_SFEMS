@@ -95,7 +95,7 @@ export function ManagementOverview({ d, tools }: { d: DashboardData | undefined;
           label="Đáp ứng tối thiểu (trường đã nhập)" value={k ? `${k.adequacyPercent}%` : "…"}
           info="Tỷ lệ thiết bị đã đủ so với danh mục tối thiểu. Chỉ tính trường đã nhập thiết bị."
           meter={k ? { percent: k.adequacyPercent, label: "" } : undefined} />
-        <Kpi to="/damage-reports" icon={<PackageX />} tone={k && k.broken + k.missing > 0 ? "destructive" : "good"}
+        <Kpi to="/equipment" icon={<PackageX />} tone={k && k.broken + k.missing > 0 ? "destructive" : "good"}
           label="Hỏng, báo mất" value={k ? <WithUnit value={count.format(k.broken + k.missing)} unit="thiết bị" /> : "…"} />
       </div>
 
@@ -164,15 +164,12 @@ export function ManagementOverview({ d, tools }: { d: DashboardData | undefined;
         <ChartCard title="Thiết bị toàn địa bàn theo trạng thái">
           <DonutBreakdown items={assetGroups} unit="thiết bị" spread />
         </ChartCard>
-        <ChartCard title="Biến động thiết bị 12 tháng">
+        <ChartCard title="Thiết bị ghi tăng 12 tháng">
           {/* Khung cao theo chỗ còn lại của trang; biểu đồ nằm tuyệt đối bên trong nên không tự đẩy khung giãn ra. */}
           <div className="relative min-h-44 flex-1">
             <div className="absolute inset-0">
               <GroupedBars height="aspect-auto h-full" data={d?.months ?? []} xKey="month" xFormatter={(m) => m.slice(0, 2) + "/" + m.slice(5)} series={[
                 { key: "intake", label: "Ghi tăng" },
-                { key: "allocation", label: "Cấp phát, điều chuyển" },
-                { key: "damage", label: "Báo hỏng" },
-                { key: "disposal", label: "Thanh lý, mất" },
               ]} />
             </div>
           </div>
