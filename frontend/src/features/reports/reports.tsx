@@ -1,7 +1,7 @@
 import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-table/filter-popover";
 import { useCan, useNotification } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, GraduationCap, Inbox, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, GraduationCap, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -32,6 +32,8 @@ import { ReportDrillDialog, type ReportDrill } from "@/features/reports/report-d
 import { SaveSnapshotDialog } from "@/features/reports/snapshots";
 import { CSVC_STATISTICS, CsvcStatisticsNotes, CsvcStatisticsTable, csvcCell } from "@/shared/components/facility/csvc-statistics";
 import { QueryError } from "@/shared/components/query-error";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { useFillHeight } from "@/shared/hooks/use-fill-height";
 import { CampusFilterButton } from "@/shared/components/campus/campus";
 
 const number = new Intl.NumberFormat("vi-VN");
@@ -208,6 +210,10 @@ export const Reports = () => {
   const charts = r && r.rows.length > 1 ? ReportVisual({ report: r, part: "charts", filter, onDrill: setDrill }) : null;
   // Báo cáo không có biểu đồ (sổ, danh sách chi tiết) thì bảng chính là nội dung — luôn mở.
   const detailOpen = !charts || !!(name && detailBy[name]);
+  // Không có biểu đồ thì bảng chi tiết là nội dung chính: thẻ kéo kín phần còn lại của màn như các danh sách, bảng cuộn
+  // bên trong, bảng trống thì chữ đứng giữa khung (không bẹp thành một dải dưới bộ lọc).
+  const fillDetail = useFillHeight(16, 1024, 320);
+  const detailFills = !charts && fillDetail.height != null;
   // Biểu số liệu CSVC: bảng theo mẫu Sở (tiêu đề ba hàng, khối in đậm), xuất Excel đúng bố cục mẫu.
   const csvc = name === CSVC_STATISTICS;
 
@@ -434,8 +440,9 @@ export const Reports = () => {
             `data-fit`): khung cao vừa nội dung — kéo cao thì vòng nằm giữa một khoảng trắng lớn (góp ý của người dùng). */}
         {charts ? <Card className="min-h-[calc(var(--chart-h)+7.5rem)] gap-0 py-0 [--chart-h:max(18rem,calc(100dvh-34.75rem))] *:flex-1 has-[[data-fit]]:min-h-0">{charts}</Card> : null}
 
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className={cn("flex items-center justify-between gap-3 px-5 py-3", detailOpen && "border-b")}>
+        <Card ref={!charts ? fillDetail.ref : undefined} style={detailFills ? { height: fillDetail.height } : undefined}
+          className={cn("gap-0 overflow-hidden py-0", detailFills && "flex flex-col print:!h-auto")}>
+          <div className={cn("flex shrink-0 items-center justify-between gap-3 px-5 py-3", detailOpen && "border-b")}>
             <div className="flex min-w-0 items-baseline gap-3">
               <h3 className="text-sm font-semibold">Số liệu chi tiết</h3>
               <p className="text-muted-foreground truncate text-xs">
@@ -450,8 +457,8 @@ export const Reports = () => {
               </Button>
             ) : null}
           </div>
-          {detailOpen ? <CardContent className="animate-in fade-in slide-in-from-top-1 p-0 duration-300">
-            <div className="max-h-[65vh] overflow-auto">
+          {detailOpen ? <CardContent className={cn("animate-in fade-in slide-in-from-top-1 p-0 duration-300", detailFills && "flex min-h-0 flex-1 flex-col")}>
+            <div className={detailFills ? "min-h-0 flex-1 overflow-auto" : "max-h-[65vh] overflow-auto"}>
               {csvc && r ? <CsvcStatisticsTable report={r} /> : (
               <Table>
                 <TableHeader className="bg-surface-subtle sticky top-0 z-10">
@@ -481,14 +488,8 @@ export const Reports = () => {
                       </TableRow>
                     ))
                   ) : r && r.rows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={r.columns.length} className="py-14">
-                        <div className="text-muted-foreground flex flex-col items-center gap-2 text-center text-sm">
-                          <Inbox className="size-8 opacity-50" />
-                          Không có dữ liệu trong phạm vi và kỳ đã chọn.
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={r.columns.length} title="Không có dữ liệu trong phạm vi và kỳ đã chọn"
+                      description="Đổi kỳ, địa bàn hoặc bộ lọc để xem số liệu khác." />
                   ) : (
                     (r?.rows ?? []).map((row, i) => {
                       // Bấm dòng: mở hồ sơ tài sản / phiếu / phòng, hoặc xem các lượt mượn của phòng trong kỳ.

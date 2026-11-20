@@ -26,10 +26,18 @@ export function TableSkeletonRows({ rows = 6, cols }: { rows?: number; cols: num
   ));
 }
 
-/** Phần tử gần nhất (từ ô lên) tự cuộn — vùng mà ô trống phải lấp kín. */
+/**
+ * Phần tử gần nhất (từ ô lên) tự cuộn — vùng mà ô trống phải lấp kín. Bỏ qua lớp bọc của chính bảng
+ * (`data-slot="table-container"`): nó chỉ cuộn NGANG, nhưng `overflow-x: auto` làm trình duyệt coi `overflow-y` cũng là
+ * `auto` trong khi cao theo nội dung — đo nó thì ô trống chỉ cao tối thiểu, chữ dính trên đầu khung.
+ */
 function scrollParent(el: HTMLElement | null): HTMLElement | null {
   let node = el?.parentElement ?? null;
   while (node) {
+    if (node.dataset.slot === "table-container") {
+      node = node.parentElement;
+      continue;
+    }
     const style = getComputedStyle(node);
     if (/(auto|scroll)/.test(style.overflowY) && node.clientHeight > 0) return node;
     node = node.parentElement;

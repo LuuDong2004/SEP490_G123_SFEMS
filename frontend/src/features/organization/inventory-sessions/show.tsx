@@ -65,6 +65,7 @@ import {
   type InventorySession,
 } from "@/domains/inventory/types";
 import { maxLengthOf, numberError, textError } from "@/shared/lib/field-rules";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 
 const RESOURCE = "inventory_sessions";
@@ -437,11 +438,8 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
           </TableHeader>
           <TableBody>
             {visible.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={cols.length} className="text-muted-foreground h-24 text-center font-normal">
-                  {filter === "all" ? "Không có dòng nào khớp ô tìm." : `Không có dòng nào thuộc nhóm “${FILTER_LABEL[filter]}”.`}
-                </TableCell>
-              </TableRow>
+              <TableEmpty colSpan={cols.length} filtered
+                title={filter === "all" ? "Không có dòng nào khớp ô tìm" : `Không có dòng nào thuộc nhóm “${FILTER_LABEL[filter]}”`} />
             ) : (
               shown.map((l, i) => {
                 const head = grouped && (i === 0 || roomKey(shown[i - 1]) !== roomKey(l)) ? roomTotals.get(roomKey(l)) : undefined;

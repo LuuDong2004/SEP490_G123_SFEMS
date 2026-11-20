@@ -8,6 +8,7 @@ import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
 import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -262,9 +263,7 @@ export function DetailTable<T extends Record<string, any>>({ columns, rows, text
             </TableHeader>
             <TableBody>
               {visible.length === 0 ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={shown.length} className="text-muted-foreground h-32 text-center">Không có dòng nào khớp.</TableCell>
-                </TableRow>
+                <TableEmpty colSpan={shown.length} filtered title="Không có dòng nào khớp" />
               ) : visible.map((r, i) => {
                 const clickable = onRowClick?.clickable(r) ?? false;
                 return (
