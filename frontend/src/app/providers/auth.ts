@@ -1,6 +1,6 @@
 import type { AuthProvider } from "@refinedev/core";
 
-import { portalBase } from "@/shared/api/portal";
+import { currentPortal, portalBase, portalInPath } from "@/shared/api/portal";
 import { API_URL } from "@/shared/api/constants";
 import { connect, disconnect } from "@/shared/api/live";
 import { queryClient } from "@/shared/api/query-client";
@@ -11,6 +11,7 @@ import {
   getIdentity,
   getRefreshToken,
   homePath,
+  lastSignedOutUser,
   loadAuthorities,
   refreshSession,
   revalidateAuthorities,
@@ -18,6 +19,21 @@ import {
   type Identity,
   type TokenPair,
 } from "@/shared/api/session";
+
+/**
+ * Trang cũ `to` có phải của tài khoản vừa đăng nhập không: đường dẫn an toàn (một `/` đầu), mang cổng thì đúng cổng của
+ * tài khoản này, và nếu tab vừa có người rời phiên (đăng xuất / hết phiên) thì người đăng nhập phải đúng người đó.
+ * Người khác đăng nhập thì về trang chủ của họ — địa chỉ cũ của người trước là màn họ có thể không được vào. Tab mới
+ * mở liên kết (thư thông báo) chưa có ai rời phiên thì vẫn về đúng trang.
+ */
+function sameOwner(to: string): boolean {
+  if (!to.startsWith("/") || to.startsWith("//")) return false;
+  const inPath = portalInPath(to);
+  if (inPath && inPath !== currentPortal()) return false;
+  const last = lastSignedOutUser();
+  const now = getIdentity()?.username;
+  return !last || (!!now && last.toLowerCase() === now.toLowerCase());
+}
 
 /**
  * Wires the `/api/auth` endpoints to the hooks Refine calls.
@@ -100,10 +116,11 @@ export const authProvider: AuthProvider = {
       // này chỉ còn màn đăng nhập, không màn nào đang giữ truy vấn để bị gỡ ngang.
       queryClient.clear();
       // Vào cổng của loại tài khoản (docs/kien-truc/11): tải lại trang để giao diện dựng với gốc `/school`, `/so`…
-      // Cán bộ thiết bị vào thẳng danh sách thiết bị, các vai khác vào Tổng hợp (`homePath`); địa chỉ đăng nhập mang
-      // `?to=` (bị đẩy ra khi đang ở một trang) thì quay lại đúng trang đó.
+      // Cán bộ thiết bị vào thẳng danh sách thiết bị, các vai khác vào Tổng hợp (`homePath`). Địa chỉ đăng nhập mang
+      // `?to=` (bị đẩy ra khi đang ở một trang) thì quay lại trang đó — CHỈ khi đúng người vừa rời phiên và đúng cổng
+      // của tài khoản này: quản trị đăng xuất rồi cán bộ trường đăng nhập thì không bị đưa vào màn `/admin/...` cũ (403).
       const to = new URLSearchParams(window.location.search).get("to");
-      const target = to && to.startsWith("/") && !to.startsWith("//") ? to : homePath();
+      const target = to && sameOwner(to) ? to : homePath();
       window.location.replace(`${portalBase()}${target.replace(/^\/(admin|so|ubnd|school)(?=\/|$)/, "") || "/"}`);
       return { success: true };
     } catch {
@@ -144,9 +161,9 @@ export const authProvider: AuthProvider = {
     // that has signed out, and hand the next account somebody else's channel.
     disconnect();
     clearSession();
-    // Ra khỏi cổng: tải lại ở gốc để người đăng nhập sau vào đúng cổng của họ.
-    // Mọi loại tài khoản về cùng một màn đăng nhập.
-    window.location.replace("/login");
+    // Ra khỏi cổng: tải lại ở GỐC (không mang đường dẫn cũ) — gốc chưa đăng nhập là màn đăng nhập, người đăng nhập
+    // sau vào đúng trang chủ cổng của họ. Mọi loại tài khoản về cùng một màn đăng nhập.
+    window.location.replace("/");
     return { success: true };
   },
 

@@ -57,6 +57,9 @@ export function AppRoutes({ ready }: { ready: boolean }) {
         }
       >
         <Route path="/login" element={<Login />} />
+        {/* Gốc khi chưa đăng nhập (đăng xuất xong về đây) là màn đăng nhập, không mang `?to=` của trang cũ. Đã đăng
+            nhập thì lớp bọc trên chuyển về trang chủ của cổng như trước. */}
+        <Route index element={<Login />} />
         {/* Quên mật khẩu: người chưa đăng nhập mới cần. */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

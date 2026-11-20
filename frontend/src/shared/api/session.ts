@@ -215,7 +215,20 @@ export function saveIdentity(identity: Identity) {
   write(STORAGE_KEYS.identity, JSON.stringify(identity));
 }
 
+/** Ai vừa rời phiên trong tab này — màn đăng nhập chỉ đưa về trang cũ (`?to=`) khi đúng người đó đăng nhập lại. */
+const LAST_USER_KEY = "sfems.lastUser";
+
+export function lastSignedOutUser(): string | null {
+  try {
+    return window.sessionStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function clearSession() {
+  // Không có ai đang đăng nhập (Refine `check` gọi lại khi mở trang lúc đã đăng xuất) thì giữ dấu người rời trước.
+  const leaving = getIdentity()?.username ?? lastSignedOutUser();
   remove(STORAGE_KEYS.accessToken);
   remove(STORAGE_KEYS.refreshToken);
   remove(STORAGE_KEYS.identity);
@@ -231,6 +244,7 @@ export function clearSession() {
   // lâu dài (dạng xem, giao diện) ở localStorage thì giữ.
   try {
     window.sessionStorage.clear();
+    if (leaving) window.sessionStorage.setItem(LAST_USER_KEY, leaving);
   } catch {
     // bộ nhớ bị chặn — không có gì để dọn
   }
