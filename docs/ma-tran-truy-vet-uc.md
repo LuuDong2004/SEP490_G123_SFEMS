@@ -44,11 +44,11 @@ Quy ước:
 
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
-| TS-01 | Quản lý hồ sơ thiết bị | NghiaNV | Phân hệ Thiết bị › Danh sách thiết bị | `/api/equipment` (+ `/summary`, `/summary.xlsx`), `/api/equipment_items` | `equipment:read/write/delete` | ◐ e2e `security` S3 (hồ sơ trường khác bị chặn), `flow-procurement` A7 (sinh hồ sơ khi duyệt ghi tăng) |
+| TS-01 | Quản lý hồ sơ thiết bị | NghiaNV | Phân hệ Thiết bị › Danh sách thiết bị | `/api/equipment` (+ `/summary`, `/summary.xlsx`), `/api/equipment_items` | `equipment:read/write/delete` | ◐ `OpeningBalanceTest` (khai tay chỉ khi chưa chốt số dư, không vào chỗ đang kiểm kê, hồ sơ khai nhầm xoá được); e2e `security` S3, `flow-procurement` A7, `flow-exceptions` E8 — chưa test màn sửa hồ sơ |
 | TS-02 | Tra cứu thiết bị theo mã tài sản | NghiaNV | `/equipment-lookup` | `GET /api/equipment` (lọc theo mã tài sản, mã cũ) | `equipment:read` | ✅ e2e `flow-exceptions` E7 (tra theo mã cũ qua API và màn tra cứu) |
 | TS-03 | Đính kèm tài liệu, hình ảnh thiết bị | NghiaNV | Hồ sơ thiết bị › Tệp, ảnh | `/api/attachments` (+ `/{id}/content`, `/{id}/cover`) | quyền của bản ghi gắn tệp | ◐ e2e `flow-procurement` A6 (đính kèm phiếu, tệp giả bị từ chối) — chưa test tệp trên hồ sơ thiết bị |
-| TS-04 | Xem lịch sử thay đổi thiết bị | NghiaNV | Hồ sơ thiết bị › Lịch sử | `GET /api/equipment/{id}/history` | `equipment:read` | ◐ e2e `security` S3 (lịch sử thiết bị trường khác bị chặn) |
-| TS-05 | Cấp mã chuẩn cho thiết bị mang mã cũ | NghiaNV | Hồ sơ thiết bị › nút Cấp mã chuẩn | `GET /api/equipment/{id}/standard`, `POST /api/equipment/{id}/standard-code` | `equipment:write` | ◐ e2e `flow-exceptions` E7 (giữ mã cũ, chặn cấp mã lần hai) — ca đổi mã cũ sang mã chuẩn cần dữ liệu nhập từ tệp (TS-07) |
+| TS-04 | Xem lịch sử thay đổi thiết bị | NghiaNV | Hồ sơ thiết bị › Lịch sử | `GET /api/equipment/{id}/history` | `equipment:read` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (dòng vào sổ, dòng đổi sang mã chuẩn), `security` S3 |
+| TS-05 | Cấp mã chuẩn cho thiết bị mang mã cũ | NghiaNV | Hồ sơ thiết bị › nút Cấp mã chuẩn | `GET /api/equipment/{id}/standard`, `POST /api/equipment/{id}/standard-code` | `equipment:write` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (mã cũ giữ làm mã hiện hành, bấm Cấp mã chuẩn, chặn cấp lần hai) |
 | TS-06 | Sinh mã tài sản thiết bị | NghiaNV | (gọi qua ghi tăng, cấp mã chuẩn) | `GET /api/equipment/next-code`; service sinh mã khi duyệt phiếu | — | ✅ e2e `flow-procurement` A7, `flow-exceptions` E7 (mã đúng mẫu TT.TR.MH.LT.ST.NC) |
 | TS-07 | Nhập dữ liệu thiết bị ban đầu từ tệp | NghiaNV | `/data-imports`, `/data-imports/:id` | `/api/data_imports` (`/template`, `/sheets`, `/{id}/choices`…), `/api/data_transfer` | `data_imports:*`, `data_transfer:*` | ✅ `OnboardingParsingTest`, `OnboardingValidatorTest`, `OnboardingQuickFixTest`, `OnboardingAiServiceTest`, `SpreadsheetReaderTest` |
 
@@ -102,7 +102,7 @@ Quy ước:
 
 ## Khoảng trống cần xử lý
 
-### 1. Độ phủ test: ✅ 26 · ◐ 14 · ❌ 2
+### 1. Độ phủ test: ✅ 28 · ◐ 12 · ❌ 2
 
 | Người | UC chưa có test (❌) | UC mới phủ một phần (◐) |
 |---|---|---|
@@ -110,16 +110,26 @@ Quy ước:
 | QuangTD | BC-01 | HT-06, BC-02, BC-03, BC-04, BC-05, BC-06 |
 | TuTN | DM-04 | DM-01, DM-03 |
 | HoangPND | — | TC-02 |
-| NghiaNV | — | TS-01, TS-03, TS-04, TS-05 |
+| NghiaNV | — | TS-01, TS-03 |
 
-Việc tiếp theo: CRUD danh mục và trùng mã (DM-01..04), CRUD phòng (TC-02), hồ sơ thiết bị và tệp đính kèm (TS-01,
-TS-03, TS-04), nhập Excel rồi cấp mã chuẩn cho mã cũ (TS-07 → TS-05), đối chiếu số liệu dashboard và báo cáo với dữ
-liệu vừa tạo qua luồng (BC-01..05).
+Việc tiếp theo: CRUD danh mục và trùng mã (DM-01..04), CRUD phòng (TC-02), màn sửa hồ sơ thiết bị và tệp đính kèm
+(TS-01, TS-03), đối chiếu số liệu dashboard và báo cáo với dữ liệu vừa tạo qua luồng (BC-01..05).
 
 ### 2. Chạy bộ e2e
 
 `frontend/e2e/audit`: `security`, `validation`, `flow-procurement`, `flow-inventory`, `flow-exceptions`, `smoke`. Kết
 quả ghi ra `frontend/e2e-audit/<bộ>.json`. Lệnh chạy và cổng mặc định ghi ở đầu `e2e/audit/lib.ts`.
+
+### 2b. Số dư đầu kỳ và các luồng có duyệt (20/11/2026)
+
+- Khai tay (TS-01) và nhập từ tệp (TS-07) là **số dư đầu kỳ**: chỉ làm được khi trường chưa chốt. Lãnh đạo trường bấm
+  "Chốt số dư đầu kỳ" ở màn Thiết bị (quyền `equipment_intakes:approve`, bảng `school_opening_balances`, changelog
+  275); chốt một lần, không mở lại. Sau đó thiết bị mới chỉ vào sổ qua phiếu ghi tăng có duyệt (PN-01..03).
+- Khoá số liệu kiểm kê (KK-05) chặn cả khai tay / nhập từ tệp vào chỗ đang kiểm, không chỉ chặn phiếu.
+- Mã gõ vào không theo mẫu chuẩn (tem cũ, sổ cũ, tệp nhập) giữ làm mã hiện hành; hồ sơ báo thiếu mã chuẩn và cán bộ
+  bấm "Cấp mã chuẩn" (TS-05), mã cũ chuyển sang ô Mã cũ để tem cũ vẫn tra được (TS-02).
+- Hồ sơ vào sổ có dòng lịch sử "Vào sổ: số dư đầu kỳ" (TS-04). Hồ sơ khai nhầm, chưa qua phiếu hay kiểm kê nào, xoá
+  được khi trường chưa chốt số dư; thiết bị đang trên sổ chỉ xoá được khi kiểm kê xác nhận Mất.
 
 ### 3. Code ngoài 42 UC còn trong nhánh
 

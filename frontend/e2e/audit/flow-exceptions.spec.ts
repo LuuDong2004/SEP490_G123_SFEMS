@@ -265,38 +265,73 @@ test("E6 xuất Excel báo cáo (BC-06)", async ({ page, request }) => {
   w.stop();
 });
 
-test("E7 thiết bị mang mã cũ: giữ mã cũ, tra cứu được, không cấp mã chuẩn hai lần (TS-02, TS-05)", async ({ page, request }) => {
+test("E7 thiết bị mang mã cũ: giữ mã cũ, bấm Cấp mã chuẩn, tra theo tem cũ (TS-02, TS-04, TS-05)", async ({ page, request }) => {
   const c2 = await as(request, "thcs2Canbo");
-  // Dùng lại hồ sơ thử của lần chạy trước nếu có: hồ sơ thiết bị không xoá thẳng được (phải qua phiếu).
-  const found = await call(request, c2, "GET", `equipment?q=${encodeURIComponent("E2E-AUDIT thiết bị mã cũ")}&_start=0&_end=5`);
-  let item = (Array.isArray(found.body) ? found.body : []).find((x: any) => x.legacyCode);
-  let old = item?.legacyCode as string | undefined;
-  if (!item) {
-    const sample = (await call(request, c2, "GET", "equipment?_start=0&_end=1")).body[0];
-    old = `MACU-E2E-${Date.now() % 100000}`;
-    const c = await call(request, c2, "POST", "equipment", {
-      code: old, name: "E2E-AUDIT thiết bị mã cũ", catalog: { id: sample.catalog.id }, unit: sample.unit ? { id: sample.unit.id } : undefined,
-      quantity: 1, room: sample.room ? { id: sample.room.id } : undefined, originalValue: 1_000_000, remainingValue: 1_000_000, usageStartYear: 2020,
-    });
-    item = c.body;
-  }
-  const standard = /^\d{2}\.[A-Z0-9]{2}\.\d{2}\.(TB|PM|HL)\.\d{3}\.\d{2}$/;
-  rec.check("E7:legacy-kept", "Thiết bị", "Hồ sơ nhập với mã cũ: hệ thống cấp mã chuẩn, mã cũ giữ lại để tra", standard.test(item?.code ?? "") && item?.legacyCode === old, "high", "mã chuẩn + mã cũ", `${item?.code} · mã cũ ${item?.legacyCode}`, { role: "thcs2Canbo" });
-  const look = await call(request, c2, "GET", `equipment?legacyCode=${encodeURIComponent(old!)}&_start=0&_end=5`);
-  rec.check("E7:lookup-api", "Thiết bị", "Tra theo mã cũ ra đúng một thiết bị", Array.isArray(look.body) && look.body.length === 1 && look.body[0].id === item.id, "high", "1 kết quả", `${Array.isArray(look.body) ? look.body.length : look.status} kết quả`, { role: "thcs2Canbo" });
-  const again = await call(request, c2, "POST", `equipment/${item.id}/standard-code`);
-  rec.check("E7:already-standard", "Thiết bị", "Cấp mã chuẩn cho thiết bị đã mang mã chuẩn thì bị chặn, có lời giải thích", again.status === 422 && /mã chuẩn/.test(again.body?.message ?? ""), "medium", "422 + lời giải thích", `${again.status} · ${again.body?.message ?? ""}`.slice(0, 140), { role: "thcs2Canbo" });
+  // Hồ sơ mang mã cũ vào sổ qua nhập số dư đầu kỳ (TS-07); ở đây gọi thẳng API tạo hồ sơ như bước ghi của lần nhập.
+  const sample = (await call(request, c2, "GET", "equipment?_start=0&_end=1")).body[0];
+  const old = `TEMCU-E2E-${Date.now() % 100000}`;
+  const created = await call(request, c2, "POST", "equipment", {
+    code: old, name: "E2E-AUDIT thiết bị mã cũ", catalog: { id: sample.catalog.id }, unit: sample.unit ? { id: sample.unit.id } : undefined,
+    quantity: 1, room: sample.room ? { id: sample.room.id } : undefined, originalValue: 1_000_000, remainingValue: 1_000_000, usageStartYear: 2020,
+  });
+  const id = created.body.id as number;
+  rec.check("E7:old-code-kept", "Thiết bị", "Hồ sơ vào sổ với mã cũ: giữ mã cũ làm mã hiện hành, báo thiếu mã chuẩn", created.body.code === old && (created.body.missingProfile ?? []).some((m: string) => m.startsWith("mã chuẩn")), "high", `${old} + thiếu mã chuẩn`, `${created.status} · ${created.body.code} · ${JSON.stringify(created.body.missingProfile ?? [])}`.slice(0, 160), { role: "thcs2Canbo" });
 
   const w = watch(page);
   await uiLogin(page, "thcs2Canbo");
+  await page.goto(`/equipment/show/${id}`);
+  await loaded(page);
+  const btn = main(page).getByRole("button", { name: /Cấp mã chuẩn/ }).first();
+  const visible = await btn.isVisible({ timeout: 5_000 }).catch(() => false);
+  if (visible) {
+    const done = page.waitForResponse((r) => r.url().endsWith(`/equipment/${id}/standard-code`), { timeout: 15_000 }).catch(() => null);
+    await btn.click();
+    await done;
+  }
+  const after = await call(request, c2, "GET", `equipment/${id}`);
+  const standard = /^\d{2}\.[A-Z0-9]{2}\.\d{2}\.(TB|PM|HL)\.\d{3}\.\d{2}$/;
+  rec.check("E7:standard-code", "Thiết bị", "Bấm 'Cấp mã chuẩn' trên hồ sơ: mã chuẩn mới, mã cũ chuyển sang ô Mã cũ", visible && standard.test(after.body.code ?? "") && after.body.legacyCode === old, "critical", "mã chuẩn + mã cũ", `nút: ${visible ? "có" : "không"} · ${after.body.code} · mã cũ ${after.body.legacyCode}`, { role: "thcs2Canbo", evidence: await shot(page, "E7-standard-code") });
+
   await page.goto("/equipment-lookup");
   await loaded(page);
-  await page.getByLabel("Mã hoặc tên thiết bị").fill(old!);
+  await page.getByLabel("Mã hoặc tên thiết bị").fill(old);
   await page.keyboard.press("Enter");
-  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  await main(page).getByText(item.code).first().waitFor({ timeout: 10_000 }).catch(() => {});
+  await main(page).getByText(after.body.code).first().waitFor({ timeout: 10_000 }).catch(() => {});
   const t = await main(page).innerText();
-  rec.check("E7:lookup-ui", "Thiết bị", "Màn tra cứu: gõ mã cũ (tem cũ) ra thiết bị với mã chuẩn mới", t.includes(item.code), "high", item.code, t.includes(item.code) ? "ra đúng thiết bị" : t.slice(0, 120).replace(/\s+/g, " "), { role: "thcs2Canbo", evidence: await shot(page, "E7-lookup-old-code") });
+  rec.check("E7:lookup-ui", "Thiết bị", "Màn tra cứu: quét / gõ mã tem cũ ra đúng thiết bị với mã chuẩn mới", t.includes(after.body.code), "high", after.body.code, t.includes(after.body.code) ? "ra đúng thiết bị" : t.slice(0, 120).replace(/\s+/g, " "), { role: "thcs2Canbo", evidence: await shot(page, "E7-lookup-old-code") });
   rec.check("E7:clean", "Lỗi kỹ thuật", "Không lỗi JS / API ở E7", !w.js.length && !w.api.length, "high", "sạch", clean(w));
   w.stop();
+
+  const again = await call(request, c2, "POST", `equipment/${id}/standard-code`);
+  rec.check("E7:already-standard", "Thiết bị", "Cấp mã chuẩn lần hai bị chặn, có lời giải thích", again.status === 422 && /mã chuẩn/.test(again.body?.message ?? ""), "medium", "422 + lời giải thích", `${again.status} · ${again.body?.message ?? ""}`.slice(0, 140), { role: "thcs2Canbo" });
+  const hist = JSON.stringify((await call(request, c2, "GET", `equipment/${id}/history`)).body);
+  rec.check("E7:history", "Thiết bị", "Lịch sử có lần vào sổ và lần đổi sang mã chuẩn", hist.includes("Vào sổ") && hist.includes("Cấp mã chuẩn"), "medium", "2 dòng", hist.slice(0, 160), { role: "thcs2Canbo" });
+  const del = await call(request, c2, "DELETE", `equipment/${id}`);
+  rec.check("E7:delete-mistaken", "Thiết bị", "Hồ sơ khai nhầm (chưa qua phiếu, trường chưa chốt số dư) xoá được", del.status === 200, "medium", "200", `${del.status} ${typeof del.body === "object" ? del.body?.message ?? "" : ""}`.slice(0, 140), { role: "thcs2Canbo" });
+});
+
+test("E8 số dư đầu kỳ: lãnh đạo trường thấy nút chốt, cán bộ không (TS-01, PN-01)", async ({ page, request }) => {
+  const state = await call(request, await as(request, "thcs2HieuTruong"), "GET", "equipment/opening-balance");
+  test.skip(!!state.body?.closedAt, "trường thử đã chốt số dư — không kiểm được nút chốt");
+  const w = watch(page);
+  await uiLogin(page, "thcs2HieuTruong");
+  await page.goto("/equipment");
+  await loaded(page);
+  const leader = await main(page).getByRole("button", { name: /Chốt số dư đầu kỳ/ }).first().isVisible({ timeout: 8_000 }).catch(() => false);
+  rec.check("E8:leader-button", "Thiết bị", "Lãnh đạo trường thấy nút 'Chốt số dư đầu kỳ' khi trường chưa chốt", leader, "medium", "có nút", leader ? "có" : "không thấy", { role: "thcs2HieuTruong", evidence: await shot(page, "E8-opening-balance") });
+  if (leader) {
+    // Mở hộp hỏi lại rồi KHÔNG chốt: chốt là một chiều, trường thử phải còn mở cho các kịch bản khác.
+    await main(page).getByRole("button", { name: /Chốt số dư đầu kỳ/ }).first().click();
+    const dlg = page.locator('[role="alertdialog"]').last();
+    const text = (await dlg.innerText().catch(() => "")).replace(/\s+/g, " ");
+    rec.check("E8:confirm-text", "UI/UX", "Hộp hỏi lại nói rõ hệ quả: thiết bị mới chỉ vào sổ qua phiếu ghi tăng, không mở lại", /phiếu ghi tăng/.test(text) && /không mở lại/.test(text), "low", "nói rõ hệ quả", text.slice(0, 160), { role: "thcs2HieuTruong" });
+    await dlg.getByRole("button", { name: "Chưa chốt" }).click();
+  }
+  rec.check("E8:clean", "Lỗi kỹ thuật", "Không lỗi JS / API ở E8", !w.js.length && !w.api.length, "high", "sạch", clean(w));
+  w.stop();
+  await uiLogin(page, "thcs2Canbo");
+  await page.goto("/equipment");
+  await loaded(page);
+  const staff = await main(page).getByRole("button", { name: /Chốt số dư đầu kỳ/ }).first().isVisible({ timeout: 3_000 }).catch(() => false);
+  rec.check("E8:staff-no-button", "Phân quyền theo vai", "Cán bộ thiết bị không thấy nút chốt số dư", !staff, "medium", "không có", staff ? "có nút" : "không có", { role: "thcs2Canbo" });
 });

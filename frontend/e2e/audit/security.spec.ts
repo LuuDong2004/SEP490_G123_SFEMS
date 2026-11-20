@@ -4,7 +4,7 @@ import { API, ACCOUNTS, Recorder, apiLogin, auth, call, type Session } from "./l
 
 /**
  * Bảo mật ở mức API (không ghi dữ liệu nghiệp vụ, trừ một phiếu nháp thử rồi xoá). Khoá thử tài khoản
- * `thcs2.canbo` 15 phút ở bước cuối — các bộ khác không dùng tài khoản đó.
+ * `thcs.canbo2` (cán bộ cơ sở phụ) 15 phút ở bước cuối — các bộ khác không dùng tài khoản đó.
  */
 test.describe.configure({ mode: "serial" });
 const rec = new Recorder("security");
@@ -186,12 +186,12 @@ test("S9 dữ liệu nhạy cảm trong phản hồi", async ({ request }) => {
     "giống nhau", `tên lạ: ${login.status()} "${String(msg(a)).slice(0, 60)}" · sai MK: ${wrongPw.status()} "${String(msg(b)).slice(0, 60)}"`);
 });
 
-test("S10 khoá tạm sau 5 lần sai mật khẩu (dùng thcs2.canbo)", async ({ request }) => {
+test("S10 khoá tạm sau 5 lần sai mật khẩu (dùng thcs.canbo2)", async ({ request }) => {
   let last = 0; let lastMsg = "";
   for (let i = 0; i < 6; i++) {
-    const r = await request.post(`${API}/api/auth/login`, { data: { username: "thcs2.canbo", password: `sai-${i}` }, failOnStatusCode: false });
+    const r = await request.post(`${API}/api/auth/login`, { data: { username: "thcs.canbo2", password: `sai-${i}` }, failOnStatusCode: false });
     last = r.status(); lastMsg = (await r.text()).slice(0, 160);
   }
-  const right = await request.post(`${API}/api/auth/login`, { data: { username: "thcs2.canbo", password: ACCOUNTS.thcs2Canbo.password }, failOnStatusCode: false });
+  const right = await request.post(`${API}/api/auth/login`, { data: { username: "thcs.canbo2", password: ACCOUNTS.canbo2.password }, failOnStatusCode: false });
   rec.check("S10:lockout", "Xác thực", "Sai 5 lần liên tiếp thì khoá tạm, kể cả nhập đúng ngay sau đó", right.status() !== 200, "high", "đúng mật khẩu vẫn bị chặn 15 phút", `lần 6: ${last}; nhập đúng: ${right.status()} ${(await right.text()).slice(0, 100)}`, { evidence: lastMsg });
 });
