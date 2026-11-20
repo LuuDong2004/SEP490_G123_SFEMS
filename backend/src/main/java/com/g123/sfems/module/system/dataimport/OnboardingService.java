@@ -369,6 +369,9 @@ public class OnboardingService {
 
     // ------------------------------------------------------------------ tải lên, sửa
 
+    /** Câu báo khi tệp có tiêu đề đúng mẫu nhưng chưa có dòng dữ liệu nào. */
+    static final String EMPTY_FILE = "Tệp chưa có dòng dữ liệu nào — điền dữ liệu bên dưới dòng tiêu đề của tệp mẫu rồi tải lên";
+
     @Transactional
     public Batch upload(Long requestedSchool, String filename, byte[] content) {
         long schoolId = resolveSchool(requestedSchool);
@@ -388,6 +391,10 @@ public class OnboardingService {
         if (found.isEmpty()) {
             throw new FieldValidationException("file", "Không nhận ra trang nào — dòng tiêu đề phải có đủ các cột "
                     + "bắt buộc của mẫu (tải tệp mẫu để xem)");
+        }
+        // Tệp mẫu chưa điền: có trang, có tiêu đề nhưng không dòng nào — không lập lô rỗng.
+        if (found.values().stream().allMatch(List::isEmpty)) {
+            throw new FieldValidationException("file", EMPTY_FILE);
         }
         Long userId = CurrentUser.id().orElse(null);
         Long batchId = jdbc.queryForObject("""
