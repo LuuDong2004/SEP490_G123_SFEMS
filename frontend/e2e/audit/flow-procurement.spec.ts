@@ -34,7 +34,7 @@ test("A1 cán bộ thiết bị xem mức đáp ứng và lập, trình đề xu
   ctx.proposalId = await idFromUrl(page);
   const t = await toastText(page);
   const state = await voucherState(page);
-  ctx.proposalCode = ((await main(page).innerText()).match(/MS-\d{4}-\d+/) ?? [])[0];
+  ctx.proposalCode = ((await main(page).innerText()).match(/ĐỀ XUẤT MUA SẮM\s+(MS-\d{4}-\d+)/i) ?? [])[1];
   rec.check("A1:submit", "Luồng mua sắm", "Lập và trình đề xuất từ định mức còn thiếu", /Chờ.*trường/i.test(state), "critical", "Chờ lãnh đạo trường duyệt", `${state} · toast: ${t}`, { role: "canbo", evidence: await shot(page, "A1-submitted") });
   const btns = await mainButtons(page);
   rec.check("A1:no-self-approve", "Phân quyền theo vai", "Người lập không thấy nút Duyệt trên phiếu của mình", !btns.some((b) => /^Duyệt$/.test(b)), "high", "không có nút Duyệt", btns.join(", "), { role: "canbo" });

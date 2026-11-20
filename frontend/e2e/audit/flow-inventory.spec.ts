@@ -10,7 +10,7 @@ import { bell, idFromUrl, loaded, main, voucherState } from "./ui";
 test.describe.configure({ mode: "serial" });
 test.use({ viewport: { width: 1600, height: 900 } });
 const rec = new Recorder("flow-inventory");
-const ctx: { title: string; cutoff: string; sessionId?: number; missingCode?: string } = { title: `E2E-AUDIT đợt ${Date.now() % 100000}`, cutoff: `${10 + (Date.now() % 18)}/12/2026` };
+const ctx: { title: string; cutoff: string; sessionId?: number; missingCode?: string } = { title: `E2E-AUDIT đợt ${Date.now() % 100000}`, cutoff: `${String(1 + (Date.now() % 28)).padStart(2, "0")}/${String(1 + (Math.floor(Date.now() / 28) % 12)).padStart(2, "0")}/2027` };
 test.afterAll(() => rec.flush());
 
 test("K1 chuyên viên Sở phát động đợt kiểm kê, kiểm validate form (KK-01)", async ({ page }) => {
@@ -46,7 +46,7 @@ test("K1 chuyên viên Sở phát động đợt kiểm kê, kiểm validate for
   rec.check("K1:one-open", "Validate", "Không mở hai đợt trùng ngày chốt số liệu", /đã có một đợt kiểm kê đang mở/.test(dup) || !/20\/11/.test(dup), "medium", "chặn", dup.match(/"message":"([^"]+)/)?.[1] ?? dup.slice(0, 120), { role: "soChuyenVien" });
   const okResp = page.waitForResponse((r) => r.request().method() === "POST" && /inventory_campaigns$/.test(r.url()));
   await dlg.locator("input[name=cutoffDate]").fill(ctx.cutoff);
-  await dlg.locator("input[name=deadline]").fill("30/12/2026");
+  await dlg.locator("input[name=deadline]").fill("31/12/2027");
   await page.keyboard.press("Tab");
   await dlg.getByRole("button", { name: "Phát động" }).click();
   const created = (await okResp).status();
@@ -65,7 +65,11 @@ test("K2 cán bộ trường nhận thông báo, lập phiếu kiểm kê theo �
   await loaded(page);
   const m = main(page);
   const defaultMode = (await m.innerText()).includes("Trường tự kiểm kê");
-  rec.check("K2:default-campaign", "UI/UX", "Đang có đợt của Sở thì form mặc định chọn đợt đó", !defaultMode, "low", "chọn sẵn đợt đang mở", defaultMode ? "mặc định 'Trường tự kiểm kê' — phải tự đổi" : "chọn sẵn", { role: "thptCanbo" });
+  const sOpen = await apiLogin(request, "thptCanbo");
+  const camps = await call(request, sOpen, "GET", "inventory_campaigns?_start=0&_end=50");
+  const openCount = Array.isArray(camps.body) ? camps.body.filter((c: any) => !c.closed).length : 0;
+  rec.check("K2:default-campaign", "UI/UX", "Sở mở đúng một đợt thì form chọn sẵn đợt đó", openCount !== 1 || !defaultMode, "low",
+    "chọn sẵn khi chỉ có một đợt mở", `${openCount} đợt đang mở · ${defaultMode ? "mặc định 'Trường tự kiểm kê'" : "đã chọn sẵn đợt"}`, { role: "thptCanbo" });
   await m.getByRole("button", { name: /^Đợt của Sở/ }).click();
   await page.locator('[role="dialog"]').last().locator("tbody tr", { hasText: ctx.title }).first().click();
   await m.getByRole("textbox", { name: "Tên phiếu" }).fill(`${ctx.title} — THPT An Lạc`);
