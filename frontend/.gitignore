@@ -33,3 +33,7 @@ _.sln
 e2e-report/
 e2e-results/
 e2e-onboarding/
+
+# Kết quả chạy bộ kiểm thử đánh giá (e2e/audit)
+e2e-audit/
+e2e-results*/

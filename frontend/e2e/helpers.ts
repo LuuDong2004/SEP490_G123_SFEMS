@@ -8,8 +8,6 @@ export const ACCOUNTS = {
   canbo: { username: "thcs.canbo", password: "Demo@123" },
   hieutruong: { username: "thcs.hieutruong", password: "Demo@123" },
   soChuyenVien: { username: "so.chuyenvien", password: "Demo@123" },
-  ubndLanhDao: { username: "ubnd.lanhdao", password: "Demo@123" },
-  ubndChuyenVien: { username: "ubnd.chuyenvien", password: "Demo@123" },
   admin: { username: "admin", password: process.env.E2E_ADMIN_PASSWORD ?? "Admin@123" },
 } as const;
 
