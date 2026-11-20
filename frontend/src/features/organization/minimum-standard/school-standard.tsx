@@ -16,13 +16,12 @@ import { errorMessage } from "@/shared/lib/api-error";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
-import type { NormRow, SchoolAdequacy, StandardInputs } from "@/domains/procurement/types";
+import type { SchoolAdequacy, StandardInputs } from "@/domains/procurement/types";
 
 import { AdequacyTable, type AdequacyView } from "../purchase-proposals/adequacy-table";
 import { GapActions, QuickAssignRooms, QuickAssignTeachers } from "./gap-actions";
 import { QuickAddClasses } from "../resources/class-extra";
 import { WithUnit } from "@/shared/components/charts/with-unit";
-import { AdjustCell, AdjustDialog, AdjustmentBar, useCanAdjust, useCurrentAdjustment } from "../standard-adjustments/school-adjust";
 import { QueryError } from "@/shared/components/query-error";
 import { CampusFilterButton } from "@/shared/components/campus/campus";
 
@@ -188,12 +187,6 @@ export function SchoolStandard({ schoolId, onBack }: {
     queryFn: ({ signal }) => kyInstance.get("purchase_proposals/adequacy", { signal,  searchParams: params }).json<SchoolAdequacy>(),
   });
   const d = data && "rows" in data ? data : undefined;
-  // Điều chỉnh chuẩn (154): chỉ trường tự đề nghị; Sở / UBND xem một trường thì chỉ thấy điều chỉnh đã duyệt.
-  const ownView = perspective === "school";
-  const canAdjust = useCanAdjust();
-  const { data: current } = useCurrentAdjustment(ownView);
-  const [adjusting, setAdjusting] = useState<NormRow | null>(null);
-  const draftLines = new Map((current?.items ?? []).map((l) => [l.catalogId, l]));
 
   const exportXlsx = async () => {
     setExporting(true);
@@ -222,9 +215,6 @@ export function SchoolStandard({ schoolId, onBack }: {
   }
   const own = perspective === "school";
   const sources = sourcesOf(d.schoolId, d.inputs, own);
-  // Sở chưa cho điều chỉnh thiết bị nào, chưa có đề nghị hay dòng đã duyệt: ẩn cả dải lẫn cột "Điều chỉnh" —
-  // một khung trống và một cột toàn "Theo chuẩn Bộ" không làm được gì. Sở khai quy định thì tự hiện.
-  const showAdjust = Boolean(current) || d.rows.some((r) => r.adjustable || r.adjustment);
 
   // Cấp học chưa có danh mục tối thiểu: nói thẳng thay vì
   // vẽ "0 / 0 thiết bị", trông như một trường đã đủ hoặc chưa khai gì.
@@ -306,16 +296,10 @@ export function SchoolStandard({ schoolId, onBack }: {
       </Card>
       )}
 
-      {own && showAdjust ? <AdjustmentBar data={d} current={current} canWrite={canAdjust} /> : null}
-
       <AdequacyTable
         aside
         data={d}
         onView={showView}
-        adjust={showAdjust ? (r) => (
-          <AdjustCell row={r} line={r.catalogId ? draftLines.get(r.catalogId) : undefined} current={own ? current : null}
-            canWrite={own && canAdjust} onAdjust={setAdjusting} />
-        ) : undefined}
         actions={
           <>
             <CampusFilterButton schoolId={schoolId} value={campusId} onChange={setCampusId} />
@@ -353,10 +337,6 @@ export function SchoolStandard({ schoolId, onBack }: {
         }
       />
     </div>
-    {adjusting ? (
-      <AdjustDialog row={adjusting} line={adjusting.catalogId ? draftLines.get(adjusting.catalogId) : undefined} rows={d.rows}
-        onClose={() => setAdjusting(null)} />
-    ) : null}
     </>
   );
 }

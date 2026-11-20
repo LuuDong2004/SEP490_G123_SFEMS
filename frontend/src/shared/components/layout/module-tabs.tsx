@@ -286,7 +286,6 @@ const TAB_SHORT: Record<string, string> = {
   purchase_proposals: "Đề xuất",
   procurement_plans: "Kế hoạch",
   // Danh mục chung
-  standard_adjustment_rules: "Điều chỉnh chuẩn",
   equipment_configs: "Thông số kỹ thuật",
   equipment_standards: "Danh mục tối thiểu",
   equipment_norms: "Định mức",

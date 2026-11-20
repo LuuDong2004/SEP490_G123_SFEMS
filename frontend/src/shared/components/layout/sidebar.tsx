@@ -243,7 +243,6 @@ const TOP_ORDER: Record<string, number> = {
   mod_loans: 4,
   mod_maintenance: 5,
   mod_procurement: 6,
-  standard_adjustments: 7,
   reports: 8,
   catalog: 9,
   administration: 10,

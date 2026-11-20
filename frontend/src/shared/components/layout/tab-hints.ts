@@ -14,7 +14,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   // Thiết bị
   equipment: ["Danh sách các thiết bị toàn trường", "Thiết bị hiện có của các trường trong địa bàn"],
   equipment_minimum: ["Thiết bị của trường so với danh mục tối thiểu", "Mức đáp ứng danh mục tối thiểu của từng trường"],
-  standard_adjustments: "Đề nghị điều chỉnh chuẩn tối thiểu của các trường",
   equipment_intakes: "Phiếu nhập thiết bị mới vào hệ thống, cấp mã thiết bị",
   inventory_campaigns: "Đợt kiểm kê giao cho các trường, có hạn nộp",
   inventory_sessions: ["Biên bản kiểm kê thiết bị của trường", "Biên bản kiểm kê các trường đã nộp"],
@@ -59,7 +58,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   subject_groups: "Tổ chuyên môn theo nhóm môn",
   subjects: "Môn học dùng cho thiết bị và tổ bộ môn",
   // Thiết bị
-  standard_adjustment_rules: "Thiết bị nào trường được đề nghị điều chỉnh chuẩn",
   equipment_catalogs: "Tất cả thiết bị trong danh mục chung",
   equipment_types: "Nhóm thiết bị: dùng chung, vật tư, hoá chất…",
   units: "Cái, bộ, chiếc, lít…",
