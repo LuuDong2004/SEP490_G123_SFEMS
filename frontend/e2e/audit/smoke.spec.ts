@@ -90,6 +90,6 @@ test("SM mobile: màn chính trên điện thoại 390×844", async ({ page }) =
       overflow: document.documentElement.scrollWidth - window.innerWidth,
       tiny: [...document.querySelectorAll("#main-content button, #main-content a")].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24); }).length,
     }));
-    rec.check(`SM:mobile:${path}`, "UI/UX điện thoại", `Điện thoại 390px: ${path}`, info.overflow <= 2, "medium", "không tràn ngang", `${info.overflow > 2 ? `tràn ${info.overflow}px` : "không tràn"} · ${info.tiny} nút/liên kết nhỏ hơn 24px`, { role: "canbo", evidence: await shot(page, `mobile-${path.replace(/\W+/g, "_")}`) });
+    rec.check(`SM:mobile:${path}`, "UI/UX điện thoại", `Điện thoại 390px: ${path}`, info.overflow <= 2 && info.tiny === 0, "medium", "không tràn ngang, nút/liên kết ≥ 24px", `${info.overflow > 2 ? `tràn ${info.overflow}px` : "không tràn"} · ${info.tiny} nút/liên kết nhỏ hơn 24px`, { role: "canbo", evidence: await shot(page, `mobile-${path.replace(/\W+/g, "_")}`) });
   }
 });

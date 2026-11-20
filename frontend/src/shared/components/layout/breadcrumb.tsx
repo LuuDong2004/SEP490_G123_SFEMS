@@ -42,7 +42,7 @@ export function Breadcrumb() {
       key: "breadcrumb-item-home",
       href: rootRouteResource.matchedRoute ?? "/",
       Component: (
-        <Link to={rootRouteResource.matchedRoute ?? "/"}>
+        <Link to={rootRouteResource.matchedRoute ?? "/"} className="inline-flex size-6 items-center justify-center">
           {rootRouteResource?.resource?.meta?.icon ?? (
             <LayoutDashboard className="h-4 w-4" />
           )}
@@ -78,7 +78,7 @@ export function Breadcrumb() {
         key: `breadcrumb-item-${i}`,
         href: href ?? "",
         Component: href
-          ? <Link to={href} className="block truncate" title={label}>{label}</Link>
+          ? <Link to={href} className="block truncate py-0.5" title={label}>{label}</Link>
           : <span className="block truncate" title={label}>{label}</span>,
       });
     }

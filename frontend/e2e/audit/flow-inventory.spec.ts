@@ -142,8 +142,11 @@ test("K3 hiệu trưởng duyệt biên bản; Sở xem tiến độ (KK-06, KK-
   await main(page).locator("tbody tr", { hasText: ctx.title }).first().click();
   await main(page).getByText(/Đã duyệt biên bản/).first().waitFor({ timeout: 20_000 }).catch(() => {});
   await loaded(page);
+  // Đợt của Sở phủ cả trăm trường, bảng phân trang: lọc theo tên trường trước khi đọc.
+  await main(page).getByLabel("Tìm trường").fill("THPT An Lạc").catch(() => {});
+  await page.waitForTimeout(800);
   const prog = (await main(page).innerText()).replace(/\s+/g, " ");
-  rec.check("K3:progress", "Luồng kiểm kê", "Sở thấy tiến độ đợt: trường đã duyệt, số thiếu", /Đã duyệt 1/.test(prog) && /THPT An Lạc/.test(prog), "high", "THPT An Lạc · Hoàn tất · thiếu 1", (prog.match(/Đã duyệt biên bản[^A-Z]{0,40}/)?.[0] ?? prog.slice(0, 120)), { role: "soChuyenVien", evidence: await shot(page, "K3-progress") });
+  rec.check("K3:progress", "Luồng kiểm kê", "Sở thấy tiến độ đợt: trường đã duyệt, số thiếu", /Đã duyệt biên bản [1-9][0-9]*\//.test(prog) && /THPT An Lạc/.test(prog), "high", "THPT An Lạc · Hoàn tất · thiếu 1", (prog.match(/Đã duyệt biên bản[^A-Z]{0,40}/)?.[0] ?? prog.slice(0, 120)), { role: "soChuyenVien", evidence: await shot(page, "K3-progress") });
   rec.check("K3:clean", "Lỗi kỹ thuật", "Không lỗi JS / API ở K3", !w.js.length && !w.api.length, "high", "sạch", [...w.js, ...w.api].join(" | ") || "sạch");
   w.stop();
   void API;

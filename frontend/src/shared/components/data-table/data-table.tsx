@@ -409,7 +409,7 @@ export function DataTable<TData extends BaseRecord>({
                           onClick={header.column.getToggleSortingHandler()}
                           className={cn(
                             "group/sort -mx-1 flex max-w-full min-w-0 items-center gap-1",
-                            "rounded px-1 py-0.5 text-inherit",
+                            "rounded -my-0.5 px-1 py-1 text-inherit",
                             // Preflight xoá `text-transform` trên `button`: nhắc lại `text-overline`, không thì
                             // cột sắp được ra chữ thường giữa các cột viết hoa.
                             "text-overline",

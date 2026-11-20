@@ -81,6 +81,8 @@ test("A4 chuyên viên Sở lập kế hoạch từ đề xuất đã duyệt v�
   await page.keyboard.press("Tab");
   await main(page).getByRole("button", { name: /Thêm đề xuất/ }).click();
   const dlg = page.locator('[role="dialog"]').last();
+  // Hộp chọn tải danh sách sau khi mở: chờ hết dòng "Đang tải…" rồi mới đọc.
+  await dlg.locator("tbody tr", { hasNotText: /Đang tải/ }).first().waitFor({ timeout: 15_000 }).catch(() => {});
   const listed = await dlg.locator("tbody tr").allInnerTexts();
   rec.check("A4:candidates", "Luồng mua sắm", "Hộp chọn chỉ liệt kê đề xuất ĐÃ DUYỆT chưa vào kế hoạch", listed.some((t) => t.includes(ctx.proposalCode!)), "high", `có ${ctx.proposalCode}`, listed.map((t) => t.replace(/\s+/g, " ")).join(" | ").slice(0, 200), { role: "soChuyenVien" });
   await dlg.locator("tbody tr", { hasText: ctx.proposalCode! }).click();
