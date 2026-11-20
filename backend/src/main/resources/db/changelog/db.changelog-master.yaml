@@ -520,3 +520,5 @@ databaseChangeLog:
       file: db/changelog/changes/280-proposal-standard-traces.sql
   - include:
       file: db/changelog/changes/281-quan-tri-vien-toan-quyen.sql
+  - include:
+      file: db/changelog/changes/282-danh-muc-chung-thpt.sql
