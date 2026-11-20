@@ -148,10 +148,6 @@ public class CatalogImports {
     public long upload(Kind kind, String filename, byte[] content, boolean deactivateMissing) {
         require(kind);
         SheetImport.Rows rows = SheetImport.read(filename, content, kind.columns, kind.maxRows);
-        // Lô rỗng mà bật "ngừng mục không có trong tệp" thì ghi vào sẽ ngừng cả danh mục — chặn ngay lúc tải lên.
-        if (rows.values().isEmpty()) {
-            throw new FieldValidationException("file", OnboardingService.EMPTY_FILE);
-        }
         Long batchId = jdbc.queryForObject("""
                 INSERT INTO data_import_batches (kind, school_id, file_name, created_by_id, created_at, options)
                 VALUES (?, NULL, ?, ?, now(), ?::jsonb) RETURNING id

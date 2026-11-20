@@ -427,11 +427,12 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
           </DropdownMenu>
         </div>
       </div>
-      {rows.length === 0 ? (
+      {rows.length === 0 && search ? (
         // Giữ đúng chiều cao của vùng bảng: khung không co lại khi tìm không ra, các tab trang tính đứng yên chỗ cũ.
+        // Trang chưa có dòng nào (tệp mẫu trống) thì vẫn vẽ lưới trắng đủ cột; thêm dòng bằng chuột phải hoặc nút Thêm dòng.
         <div ref={fill.ref} style={{ height: fill.height ?? "70vh" }}
           className="text-muted-foreground flex items-center justify-center text-sm">
-          {search ? "Không có dòng nào khớp." : "Không có dòng nào."}
+          Không có dòng nào khớp.
         </div>
       ) : (
         <ContextMenu modal={false} onOpenChange={(open) => { if (open) setTip(null); }}>

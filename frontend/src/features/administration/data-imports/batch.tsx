@@ -31,7 +31,6 @@ import {
 import { AiSuggestButton } from "./ai-suggest";
 import { CatalogPreviewBar } from "./catalog-preview";
 import { EditHistory } from "./edit-history";
-import { EmptyState } from "@/shared/components/data-table/table-empty";
 import { BATCHES_KEY, download } from "./download";
 import { ImportGrid, type RowEdit } from "./import-grid";
 import { matches, nextSort, searchWords, sortRows, type SortState } from "./view";
@@ -112,7 +111,10 @@ export const DataImportBatch = () => {
     queryFn: ({ signal }) => kyInstance.get("data_imports/sheets", { signal }).json<ImportSheetInfo[]>(),
     staleTime: Infinity,
   });
-  const present = (batch?.sheets ?? []).filter((s) => s.total > 0);
+  // Lô chưa ghi: hiện MỌI trang của mẫu, kể cả trang chưa có dòng — tải tệp mẫu trống lên (hoặc tệp thiếu trang) vẫn
+  // điền tiếp được trên lưới. Lô đã ghi chỉ còn các trang có dòng.
+  const hasRows = (batch?.sheets ?? []).some((s) => s.total > 0);
+  const present = batch?.status === "DRAFT" ? (batch?.sheets ?? []) : (batch?.sheets ?? []).filter((s) => s.total > 0);
   const active = sheetKey ?? present.find((s) => s.error > 0)?.sheet ?? present[0]?.sheet ?? null;
   const sheet = (Array.isArray(sheets) ? sheets : []).find((s) => s.key === active);
   // Viên của trang đang mở trượt sang trang mới (cùng chuyển động với thanh tab của app).
@@ -301,7 +303,7 @@ export const DataImportBatch = () => {
             <span className="hidden min-w-0 truncate min-[1800px]:inline">{batch.fileName}</span>
           </span>
           <Badge variant={draft ? "info" : "success"} className="shrink-0">{IMPORT_BATCH_STATUS[batch.status]}</Badge>
-          {draft && present.length === 0 ? null : draft ? (
+          {draft && !hasRows ? <Badge variant="info" className="shrink-0">Chưa có dòng — thêm dòng trên lưới</Badge> : draft ? (
             batch.errors > 0
               ? <Badge variant="destructive" className="shrink-0">Còn {batch.errors.toLocaleString("vi-VN")} dòng lỗi</Badge>
               : <Badge variant={warnings ? "warning" : "success"}
@@ -351,7 +353,7 @@ export const DataImportBatch = () => {
               Kiểm tra lại
             </Button>
           ) : null}
-          {mayWrite && draft && present.length > 0 ? (
+          {mayWrite && draft && hasRows ? (
             <Button type="button" disabled={busy || batch.errors > 0} onClick={() => setConfirm("commit")}>
               <Upload />
               Cập nhật
@@ -416,10 +418,6 @@ export const DataImportBatch = () => {
                 <History />
               </Button>
             </>} />
-        ) : batch && present.length === 0 ? (
-          // Lô không có dòng nào (tệp mẫu chưa điền, tải lên trước khi máy chủ chặn) — nói rõ thay vì để trắng.
-          <EmptyState icon={<FileSpreadsheet />} title="Lô này không có dòng dữ liệu nào"
-            description="Tệp tải lên chỉ có dòng tiêu đề. Điền dữ liệu bên dưới dòng tiêu đề của tệp mẫu rồi tải lên lại; lô rỗng này có thể xoá." />
         ) : null}
       </Card>
         {/* Các trang của tệp: dải viên dưới bảng, cùng dáng thanh tab của app — viên đang chọn trượt sang trang mới. */}

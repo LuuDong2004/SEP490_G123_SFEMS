@@ -369,8 +369,8 @@ public class OnboardingService {
 
     // ------------------------------------------------------------------ tải lên, sửa
 
-    /** Câu báo khi tệp có tiêu đề đúng mẫu nhưng chưa có dòng dữ liệu nào. */
-    static final String EMPTY_FILE = "Tệp chưa có dòng dữ liệu nào — điền dữ liệu bên dưới dòng tiêu đề của tệp mẫu rồi tải lên";
+    /** Lô chưa có dòng nào (tệp mẫu trống, điền trên lưới chưa xong) thì không ghi. */
+    static final String EMPTY_BATCH = "Lô chưa có dòng dữ liệu nào — thêm dòng trên lưới (hoặc tải tệp đã điền) rồi cập nhật";
 
     @Transactional
     public Batch upload(Long requestedSchool, String filename, byte[] content) {
@@ -391,10 +391,6 @@ public class OnboardingService {
         if (found.isEmpty()) {
             throw new FieldValidationException("file", "Không nhận ra trang nào — dòng tiêu đề phải có đủ các cột "
                     + "bắt buộc của mẫu (tải tệp mẫu để xem)");
-        }
-        // Tệp mẫu chưa điền: có trang, có tiêu đề nhưng không dòng nào — không lập lô rỗng.
-        if (found.values().stream().allMatch(List::isEmpty)) {
-            throw new FieldValidationException("file", EMPTY_FILE);
         }
         Long userId = CurrentUser.id().orElse(null);
         Long batchId = jdbc.queryForObject("""
@@ -560,6 +556,13 @@ public class OnboardingService {
         // Khoá TRƯỚC rồi mới kiểm còn nháp: bấm "Ghi" hai lần thì lần sau chờ khoá, và lúc có khoá lô đã là
         // COMMITTED — kiểm trước khi khoá thì cả hai cùng qua, lô được ghi hai lần (tài sản nhân đôi).
         lockBatch(id);
+        // Tệp mẫu trống tải lên được để điền thẳng trên lưới; ghi thì phải có dòng — lô danh mục rỗng có bật "ngừng
+        // mục không có trong tệp" sẽ ngừng cả danh mục.
+        Boolean hasRows = jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM data_import_rows WHERE batch_id = ? AND NOT skipped)", Boolean.class, id);
+        if (!Boolean.TRUE.equals(hasRows)) {
+            throw new FieldValidationException("file", EMPTY_BATCH);
+        }
         CatalogImports.Kind kind = kindOf(id);
         if (kind != null) {
             requireDraft(id);
