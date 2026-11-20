@@ -75,8 +75,8 @@ public class AuthorizationService {
 
     /**
      * Như trên, và token mang phiên ({@code sid}) mà phiên đó đã đóng — đăng xuất, bị đăng xuất từ máy khác, khoá tài
-     * khoản — thì từ chối ngay, qua sổ phiên dùng chung ({@link RefreshTokenService#isSessionOpen}). Không có Redis
-     * thì sổ luôn trả "mở", và token sống tới hết hạn như trước.
+     * khoản — thì từ chối ngay, qua sổ phiên ({@link RefreshTokenService#isSessionOpen}): Redis nếu có, không thì hỏi
+     * CSDL (nhớ "mở" 30 giây trong máy).
      */
     public Collection<GrantedAuthority> authoritiesOf(String subject, Instant issuedAt, String sessionId) {
         if (!sessions.isSessionOpen(sessionId, Instant.now())) {

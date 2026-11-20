@@ -93,7 +93,13 @@ class PortalGateTest {
         // Người dùng đăng nhập (token có phiên `sid`) phải đi qua cổng; đường cũ không cổng chỉ còn cho khoá API.
         User user = users.findByUsernameOrEmail("thcs.canbo").orElse(null);
         Assumptions.assumeTrue(user != null, "Thiếu tài khoản demo thcs.canbo");
-        String signedIn = jwt.issueAccessToken(user, Instant.now(), "test-session");
+        // Đăng nhập thật để token mang phiên còn sống — phiên bịa ra giờ bị từ chối (401) như phiên đã đăng xuất.
+        var login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"thcs.canbo\",\"password\":\"Demo@123\"}")).andReturn().getResponse();
+        Assumptions.assumeTrue(login.getStatus() == 200, "Không đăng nhập được tài khoản demo thcs.canbo");
+        String signedIn = com.jayway.jsonpath.JsonPath.read(login.getContentAsString(), "$.accessToken");
+        assertThat(status(get("/api/school/rooms"), jwt.issueAccessToken(user, Instant.now(), "phien-khong-co-that")))
+                .isEqualTo(401);
         assertThat(status(get("/api/rooms"), signedIn)).isEqualTo(403);
         assertThat(status(get("/api/school/rooms"), signedIn)).isNotEqualTo(403);
         String apiKey = jwt.issueAccessToken(user, Instant.now());
