@@ -2,6 +2,7 @@ package com.g123.sfems.module.school.voucher;
 
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.system.notification.service.NotificationService;
 import com.g123.sfems.shared.security.CurrentUser;
 import java.util.Objects;
@@ -37,7 +38,8 @@ class VoucherDecisionNotifier {
         boolean rejected = event.decision() == VoucherDecided.Decision.REJECTED;
         String title = rejected ? kind + number + " bị từ chối" : kind + number + " bị trả lại, cần sửa";
         String body = (rejected ? "Lý do: " : "Cần sửa: ") + event.note();
-        notifications.notify(recipient, rejected ? NotificationLevel.ERROR : NotificationLevel.WARNING, title, body,
+        notifications.notify(NotificationType.VOUCHER_RESULT, recipient,
+                rejected ? NotificationLevel.ERROR : NotificationLevel.WARNING, title, body,
                 "/" + event.resource().replace('_', '-') + "/show/" + event.voucherId());
     }
 

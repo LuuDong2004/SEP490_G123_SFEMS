@@ -3,6 +3,7 @@ package com.g123.sfems.module.school.voucher;
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.system.notification.service.NotificationService;
 import com.g123.sfems.shared.security.CurrentUser;
 import java.util.List;
@@ -58,7 +59,8 @@ class VoucherProgressNotifier {
         String body = "Trường " + event.schoolName() + " trình, đang chờ " + stepLabel(event.step()) + " duyệt.";
         for (Long recipient : recipients) {
             if (!Objects.equals(recipient, me)) {
-                notifications.notify(recipient, NotificationLevel.INFO, title, body, link(event.resource(), event.voucherId()));
+                notifications.notify(NotificationType.VOUCHER_PENDING, recipient, NotificationLevel.INFO, title, body,
+                        link(event.resource(), event.voucherId()));
             }
         }
     }
@@ -69,7 +71,7 @@ class VoucherProgressNotifier {
         if (recipient == null || Objects.equals(recipient, CurrentUser.id().orElse(null))) {
             return;
         }
-        notifications.notify(recipient, NotificationLevel.SUCCESS,
+        notifications.notify(NotificationType.VOUCHER_RESULT, recipient, NotificationLevel.SUCCESS,
                 kind(event.resource()) + number(event.code()) + " đã được duyệt",
                 "Phiếu đã qua đủ các cấp duyệt. Mở phiếu để làm bước tiếp theo nếu có.",
                 link(event.resource(), event.voucherId()));

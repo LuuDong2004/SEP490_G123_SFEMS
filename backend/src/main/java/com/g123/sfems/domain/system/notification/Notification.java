@@ -47,6 +47,11 @@ public class Notification {
     @Column(nullable = false, length = 32)
     private NotificationLevel level = NotificationLevel.INFO;
 
+    /** Thông báo nói về việc gì — quyết định có gửi email không. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private NotificationType type = NotificationType.ADMIN_MESSAGE;
+
     @Column(nullable = false, length = 255)
     private String title;
 
@@ -69,6 +74,12 @@ public class Notification {
     }
 
     public Notification(User recipient, NotificationLevel level, String title, String body, String link) {
+        this(NotificationType.ADMIN_MESSAGE, recipient, level, title, body, link);
+    }
+
+    public Notification(NotificationType type, User recipient, NotificationLevel level, String title, String body,
+                        String link) {
+        this.type = type == null ? NotificationType.ADMIN_MESSAGE : type;
         this.recipient = recipient;
         this.level = level == null ? NotificationLevel.INFO : level;
         this.title = title;
@@ -106,6 +117,10 @@ public class Notification {
 
     public User getRecipient() {
         return recipient;
+    }
+
+    public NotificationType getType() {
+        return type;
     }
 
     public NotificationLevel getLevel() {

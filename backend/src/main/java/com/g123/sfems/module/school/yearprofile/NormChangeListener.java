@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.yearprofile;
 
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.catalog.norm.EquipmentNormChanged;
 import com.g123.sfems.module.system.notification.service.NotificationService;
 import java.util.List;
@@ -42,7 +43,7 @@ public class NormChangeListener {
                     JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id
                     WHERE us.school_id = ? AND u.status = 'ACTIVE' AND r.code IN ('SCHOOL_LEADER', 'SCHOOL_STAFF')""",
                     Long.class, school)) {
-                notifications.notify(user, NotificationLevel.WARNING,
+                notifications.notify(NotificationType.YEAR_PROFILE, user, NotificationLevel.WARNING,
                         "Điều chỉnh chuẩn hết hiệu lực: " + name, event.reason() + ". Chọn lại điều chỉnh cho dòng này.",
                         "/equipment-minimum");
             }

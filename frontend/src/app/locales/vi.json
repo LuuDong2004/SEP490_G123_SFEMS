@@ -785,6 +785,12 @@
       "list": "Cấu hình AI"
     }
   },
+  "notification_type_settings": {
+    "notification_type_settings": "Cài đặt thông báo",
+    "titles": {
+      "list": "Cài đặt thông báo"
+    }
+  },
   "system_status": {
     "system_status": "Tình trạng hệ thống",
     "titles": {

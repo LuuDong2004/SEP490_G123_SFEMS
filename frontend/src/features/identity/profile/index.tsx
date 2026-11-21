@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { TwoFactorCard } from "./mfa-card";
+import { NotificationPreferencesCard } from "./notification-card";
 import { SessionsCard } from "@/shared/components/security/sessions-card";
 import {
   useCustomMutation,
@@ -11,7 +12,7 @@ import {
   useTranslate,
 } from "@refinedev/core";
 import { useQuery } from "@tanstack/react-query";
-import { AtSign, BadgeCheck, Check, KeyRound, Mail, MonitorSmartphone, School, Search, ShieldCheck, X } from "lucide-react";
+import { AtSign, BadgeCheck, Bell, Check, KeyRound, Mail, MonitorSmartphone, School, Search, ShieldCheck, X } from "lucide-react";
 
 import { API_URL } from "@/shared/api/constants";
 import { kyInstance } from "@/shared/api/data";
@@ -63,7 +64,7 @@ export const Profile = () => {
   const [search] = useSearchParams();
   const asked = search.get("tab") ?? "";
   const initialTab = asked === "password" || asked === "mfa" ? "security"
-    : ["security", "sessions", "permissions"].includes(asked) ? asked : "security";
+    : ["security", "sessions", "notifications", "permissions"].includes(asked) ? asked : "security";
   const { data: identity } = useGetIdentity<Identity>();
   // Roles and permissions are not part of the identity: they come from
   // `/auth/permissions`, which `authProvider.check` has already fetched and
@@ -162,6 +163,10 @@ export const Profile = () => {
             <MonitorSmartphone className="size-4" />
             Phiên đăng nhập
           </TabsTrigger>
+          <TabsTrigger value="notifications" className={tab}>
+            <Bell className="size-4" />
+            Thông báo
+          </TabsTrigger>
           <TabsTrigger value="permissions" className={tab}>
             <BadgeCheck className="size-4" />
             Quyền truy cập
@@ -196,6 +201,9 @@ export const Profile = () => {
             <SessionsCard source="auth/sessions" endPath={(id) => `auth/sessions/${id}`} endOthers="auth/sessions/end-others" />
           </TabsContent>
 
+          <TabsContent value="notifications" className="mt-0">
+            <NotificationPreferencesCard email={identity?.email} />
+          </TabsContent>
           <TabsContent value="permissions" className="mt-0">
           <Card className="gap-0 py-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">

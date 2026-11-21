@@ -43,7 +43,7 @@ export function CredentialsDialog({ issued, name, onClose }: { issued: Issued | 
           <DialogTitle>Tài khoản của {name}</DialogTitle>
           <DialogDescription>
             {issued?.invitedEmail
-              ? `Đã gửi thư mời tới ${issued.invitedEmail} — cán bộ mở link trong thư để tự đặt mật khẩu. Mật khẩu tạm dưới đây chỉ dùng khi thư không tới.`
+              ? `Đã gửi thư tới ${issued.invitedEmail} — cán bộ mở link trong thư để tự đặt mật khẩu. Mật khẩu tạm dưới đây chỉ dùng khi thư không tới.`
               : "Đưa thông tin này cho cán bộ. Mật khẩu chỉ hiện một lần, đăng nhập xong nên đổi mật khẩu."}
           </DialogDescription>
         </DialogHeader>

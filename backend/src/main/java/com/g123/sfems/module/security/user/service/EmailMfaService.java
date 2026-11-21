@@ -4,6 +4,7 @@ import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.mail.MailContent;
 import com.g123.sfems.shared.mail.MailService;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.Hashes;
@@ -84,10 +85,13 @@ public class EmailMfaService {
         Outgoing outgoing = tx.execute(status -> issueCode(userId, now));
         if (outgoing.code() != null) {
             try {
-                mail.send(outgoing.email(), "Mã đăng nhập hệ thống quản lý CSVC & thiết bị",
-                        "Mã đăng nhập của tài khoản " + outgoing.username() + " là: " + outgoing.code() + "\n\n"
-                                + "Mã có hiệu lực " + CODE_TTL.toMinutes() + " phút và chỉ dùng một lần. "
-                                + "Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay.");
+                mail.send(outgoing.email(), "Mã đăng nhập " + outgoing.code(), MailContent.titled("Mã đăng nhập")
+                        .label("Tài khoản " + outgoing.username())
+                        .paragraph("Nhập mã dưới đây ở màn đăng nhập để hoàn tất đăng nhập. Mã có hiệu lực "
+                                + CODE_TTL.toMinutes() + " phút và chỉ dùng được một lần.")
+                        .code(outgoing.code())
+                        .note("Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay — ai đó đã biết mật khẩu"
+                                + " của bạn."));
             } catch (RuntimeException e) {
                 tx.executeWithoutResult(status -> repository.findById(userId).ifPresent(user -> {
                     user.setEmailCodeHash(null);

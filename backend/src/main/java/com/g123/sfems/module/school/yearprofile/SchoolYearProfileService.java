@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.yearprofile;
 
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.school.procurement.YearAdequacyService;
@@ -283,7 +284,7 @@ public class SchoolYearProfileService {
         jdbc.update("UPDATE school_year_profiles SET status = 'DRAFT', confirmed_at = NULL, confirmed_by_id = NULL,"
                 + " updated_at = now() WHERE school_id = ? AND school_year_id = ?", school, year.id());
         for (Long user : schoolUsers(school)) {
-            notifications.notify(user, NotificationLevel.WARNING,
+            notifications.notify(NotificationType.YEAR_PROFILE, user, NotificationLevel.WARNING,
                     year.name() + " đã được mở lại", "Lý do: " + reason + ". Sửa dữ liệu rồi chốt lại.",
                     "/school-year-profile?year=" + year.id());
         }

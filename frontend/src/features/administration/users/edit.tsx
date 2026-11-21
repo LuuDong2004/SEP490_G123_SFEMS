@@ -262,7 +262,7 @@ export const UserEdit = () => {
           </form>
         </Form>
 
-        {userId != null && <ResetPasswordCard userId={userId} />}
+        {userId != null && <ResetPasswordCard userId={userId} email={user?.email ?? null} />}
         {userId != null && <ResetMfaCard userId={userId} />}
       </div>
     </EditView>

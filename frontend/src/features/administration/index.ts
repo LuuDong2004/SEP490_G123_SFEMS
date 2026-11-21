@@ -14,4 +14,8 @@ export const PermissionList = lazyNamed(() => import("./permissions/list"), "Per
 export const PermissionShow = lazyNamed(() => import("./permissions/show"), "PermissionShow");
 export const DataImports = lazyNamed(() => import("./data-imports"), "DataImports");
 export const DataImportBatch = lazyNamed(() => import("./data-imports"), "DataImportBatch");
+export const NotificationSettingsPage = lazyNamed(
+  () => import("./notification-settings/page"),
+  "NotificationSettingsPage",
+);
 export const ApprovalFlowsPage = lazyNamed(() => import("./approval-flows/page"), "ApprovalFlowsPage");

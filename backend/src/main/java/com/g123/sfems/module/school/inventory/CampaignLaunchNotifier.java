@@ -1,6 +1,7 @@
 package com.g123.sfems.module.school.inventory;
 
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.system.notification.service.NotificationService;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -47,7 +48,8 @@ class CampaignLaunchNotifier {
         String body = "Chốt số liệu ngày %s, nộp biên bản trước ngày %s. Lập phiếu kiểm kê theo đợt này."
                 .formatted(event.cutoffDate().format(DAY), event.deadline().format(DAY));
         for (Long recipient : recipients) {
-            notifications.notify(recipient, NotificationLevel.INFO, title, body, "/inventory-sessions");
+            notifications.notify(NotificationType.INVENTORY_CAMPAIGN, recipient, NotificationLevel.INFO, title, body,
+                    "/inventory-sessions");
         }
     }
 

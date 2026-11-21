@@ -522,3 +522,5 @@ databaseChangeLog:
       file: db/changelog/changes/281-quan-tri-vien-toan-quyen.sql
   - include:
       file: db/changelog/changes/282-danh-muc-chung-thpt.sql
+  - include:
+      file: db/changelog/changes/283-thong-bao-qua-email.sql

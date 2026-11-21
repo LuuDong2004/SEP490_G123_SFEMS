@@ -89,8 +89,10 @@ public class StaffAccountService {
     public Issued resetPassword(Long staffId) {
         User account = accountOf(staffId);
         String password = temporaryPassword();
-        users.setPassword(account.getId(), password);
-        return new Issued(account.getId(), account.getUsername(), null, password, null);
+        User updated = users.setPassword(account.getId(), password);
+        // Có email thật thì gửi link tự đặt mật khẩu; mật khẩu tạm vẫn hiện cho lúc thư không tới.
+        return new Issued(account.getId(), account.getUsername(), null, password,
+                invites.sendResetLink(updated, "Lãnh đạo trường"));
     }
 
     /** Khoá (không cho đăng nhập) hoặc mở lại tài khoản của cán bộ. */

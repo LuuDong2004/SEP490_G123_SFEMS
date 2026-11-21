@@ -70,7 +70,7 @@ public final class PortalRoutes {
     static {
         // Quản trị hệ thống — chỉ cổng Admin.
         put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies", "ai_settings",
-                "data_changes", "system_status");
+                "data_changes", "system_status", "notification_type_settings");
         // Ngoài 42 UC (trưởng nhóm chốt 20/11/2026): đóng ở mọi cổng. Luồng duyệt dùng cấu hình mặc định trong code;
         // tài khoản của trường do quản trị viên cấp ở màn Người dùng (HT-04).
         own(NONE, NONE, "approval_flows", "school_users");
@@ -79,7 +79,7 @@ public final class PortalRoutes {
         // Nhật ký: Admin xem; mọi người ghi lần xuất dữ liệu (activity_logs/exports).
         put(ADMIN_ONLY, ALL, "activity_logs");
         // Mọi người đã đăng nhập.
-        put(ALL, ALL, "notifications");
+        put(ALL, ALL, "notifications", "notification_preferences");
         put(ALL, NONE, "enum_catalogs");
         // Danh bạ đơn vị: Admin đọc để gán tài khoản vào trường / cơ quan.
         put(EnumSet.of(ADMIN, SO, SCHOOL), EnumSet.of(SO), "schools", "departments_of_education", "wards",

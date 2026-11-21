@@ -76,6 +76,7 @@ import { PermissionList, PermissionShow } from "@/features/administration";
 import {
   DataImports,
   DataImportBatch,
+  NotificationSettingsPage,
   ApprovalFlowsPage,
 } from "@/features/administration";
 import { AdminMfaSetup, Profile } from "@/features/identity";
@@ -445,6 +446,18 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
           element={
             <CanAccess resource="data_imports" action="show" fallback={<Forbidden resource="data_imports" />}>
               <DataImportBatch />
+            </CanAccess>
+          }
+        />
+        <Route
+          path="/notification-settings"
+          element={
+            <CanAccess
+              resource="notification_type_settings"
+              action="list"
+              fallback={<Forbidden resource="notification_type_settings" />}
+            >
+              <NotificationSettingsPage />
             </CanAccess>
           }
         />

@@ -60,6 +60,8 @@ public final class Permissions {
     // for somebody else needs USERS_WRITE because that is what it really does.
     public static final String NOTIFICATIONS_READ = "notifications:read";
     public static final String NOTIFICATIONS_DELETE = "notifications:delete";
+    public static final String NOTIFICATION_SETTINGS_READ = "notification_type_settings:read";
+    public static final String NOTIFICATION_SETTINGS_WRITE = "notification_type_settings:write";
 
     private Permissions() {
     }

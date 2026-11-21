@@ -2,6 +2,7 @@ package com.g123.sfems.module.system.notification.service;
 
 import com.g123.sfems.domain.system.notification.Notification;
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.system.notification.repo.NotificationRepository;
 import com.g123.sfems.module.system.notification.repo.NotificationSpecifications;
@@ -54,12 +55,16 @@ public class NotificationService {
 
     private final ApplicationEventPublisher events;
 
+    private final NotificationSettingsService settings;
+
     public NotificationService(NotificationRepository repository,
                                UserService userService,
-                               ApplicationEventPublisher events) {
+                               ApplicationEventPublisher events,
+                               NotificationSettingsService settings) {
         this.repository = repository;
         this.userService = userService;
         this.events = events;
+        this.settings = settings;
     }
 
     /**
@@ -76,11 +81,34 @@ public class NotificationService {
      */
     @Transactional
     public Notification notify(Long recipientId, NotificationLevel level, String title, String body, String link) {
-        User recipient = userService.get(recipientId);
-        Notification saved = repository.save(
-                new Notification(recipient, level, title.trim(), trimToNull(body), trimToNull(link)));
+        return notify(NotificationType.ADMIN_MESSAGE, recipientId, level, title, body, link);
+    }
 
-        events.publishEvent(new NotificationRaised(saved.getId(), recipient.getId()));
+    /**
+     * Như trên, có loại. Loại bị quản trị tắt trên hệ thống thì không ghi gì và trả {@code null}; email (nếu
+     * loại và người nhận cùng bật) do {@code NotificationMailer} gửi sau commit.
+     */
+    @Transactional
+    public Notification notify(NotificationType type, Long recipientId, NotificationLevel level, String title,
+                               String body, String link) {
+        return notify(type, recipientId, level, title, body, link, true);
+    }
+
+    /**
+     * Như trên; {@code email = false} thì lần này chỉ báo trên hệ thống, không gửi thư dù cài đặt cho phép — dùng
+     * cho lời nhắc lặp hằng ngày mà thư chỉ nên đi theo nhịp thưa hơn.
+     */
+    @Transactional
+    public Notification notify(NotificationType type, Long recipientId, NotificationLevel level, String title,
+                               String body, String link, boolean email) {
+        if (!settings.setting(type).inAppEnabled()) {
+            return null;
+        }
+        User recipient = userService.get(recipientId);
+        Notification saved = repository.save(new Notification(type, recipient, level, clip(title.trim(), 255),
+                clip(trimToNull(body), 2000), trimToNull(link)));
+
+        events.publishEvent(new NotificationRaised(saved.getId(), recipient.getId(), email));
         return saved;
     }
 
@@ -139,6 +167,10 @@ public class NotificationService {
      */
     private static Specification<Notification> mine(Long recipientId) {
         return (root, query, cb) -> cb.equal(root.get("recipient").get("id"), recipientId);
+    }
+
+    private static String clip(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max - 1) + "…";
     }
 
     private static String trimToNull(String value) {

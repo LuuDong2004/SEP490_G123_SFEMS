@@ -120,6 +120,16 @@ public class UserController {
         return UserResponse.from(service.setPassword(id, request.password()));
     }
 
+    /**
+     * Đặt lại mật khẩu qua email: mật khẩu cũ mất hiệu lực, mọi phiên bị đăng xuất, người dùng nhận thư mang link tự
+     * đặt mật khẩu mới. Trả email đã che để màn hình báo "đã gửi tới …"; tài khoản chưa có email thì 422.
+     */
+    @PostMapping("/{id}/password-reset-link")
+    @PreAuthorize("hasAuthority('" + Permissions.USERS_WRITE + "')")
+    public Map<String, String> sendPasswordResetLink(@PathVariable Long id) {
+        return Map.of("sentTo", invites.resetByEmail(id));
+    }
+
     /** Echoes the deleted row — the data provider parses the response body. */
     /** Phiên đăng nhập đang mở của tài khoản. */
     @GetMapping("/{id}/sessions")

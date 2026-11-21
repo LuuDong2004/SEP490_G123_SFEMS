@@ -137,7 +137,9 @@ public class SchoolUserService {
     public Issued resetPassword(Long id) {
         get(id);
         String password = temporaryPassword();
-        return new Issued(users.setPassword(id, password), password, null);
+        User user = users.setPassword(id, password);
+        // Có email thật thì gửi link tự đặt mật khẩu; mật khẩu tạm vẫn trả về cho lúc thư không tới.
+        return new Issued(user, password, invites.sendResetLink(user, "Lãnh đạo trường"));
     }
 
     @Transactional

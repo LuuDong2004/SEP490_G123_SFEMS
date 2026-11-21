@@ -6,6 +6,7 @@ import type { ResourceProps } from "@refinedev/core";
 import {
   Activity,
   Bell,
+  BellRing,
   BookOpen,
   Boxes,
   Building2,
@@ -536,6 +537,12 @@ export const resources: ResourceProps[] = withHelp(withModules([
       icon: <KeyRound className="h-4 w-4" />,
       parent: "admin_accounts",
     },
+  },
+  // Cài đặt thông báo toàn hệ thống: loại nào gửi trên hệ thống / email, gửi thư thử — chỉ quản trị.
+  {
+    name: "notification_type_settings",
+    list: "/notification-settings",
+    meta: { icon: <BellRing className="h-4 w-4" />, parent: "admin_config" },
   },
   {
     name: "notifications",

@@ -2,8 +2,10 @@ package com.g123.sfems.module.security.user.service;
 
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.mail.MailContent;
 import com.g123.sfems.shared.mail.MailService;
 import com.g123.sfems.shared.security.Hashes;
+import com.g123.sfems.shared.security.PasswordPolicy;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -105,11 +107,14 @@ public class PasswordResetService {
     }
 
     private void sendLink(User user, String token) {
-        mail.send(user.getEmail(), "Đặt lại mật khẩu hệ thống quản lý CSVC & thiết bị",
-                "Có yêu cầu đặt lại mật khẩu cho tài khoản " + user.getUsername() + ".\n\n"
-                        + "Mở link sau để đặt mật khẩu mới (hiệu lực " + TTL.toMinutes() + " phút, dùng một lần):\n"
-                        + frontendUrl + "/reset-password?token=" + token + "\n\n"
-                        + "Nếu không phải bạn yêu cầu, bỏ qua thư này — mật khẩu hiện tại vẫn giữ nguyên.");
+        mail.send(user.getEmail(), "Đặt lại mật khẩu", MailContent.titled("Đặt lại mật khẩu")
+                .label("Tài khoản " + user.getUsername())
+                .paragraph("Chào " + user.getFullName() + ",")
+                .paragraph("Hệ thống vừa nhận yêu cầu đặt lại mật khẩu cho tài khoản " + user.getUsername()
+                        + ". Bấm nút dưới đây để đặt mật khẩu mới (link có hiệu lực " + TTL.toMinutes()
+                        + " phút và chỉ dùng được một lần).")
+                .action("Đặt mật khẩu mới", frontendUrl + "/reset-password?token=" + token)
+                .note("Nếu không phải bạn yêu cầu, hãy bỏ qua thư này — mật khẩu hiện tại vẫn giữ nguyên."));
     }
 
     /**
@@ -122,25 +127,77 @@ public class PasswordResetService {
      */
     @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
     public String invite(User user) {
+        return mailLink(user, INVITE_TTL, token -> MailContent.titled("Tài khoản của bạn đã được cấp")
+                .label("Thư mời sử dụng hệ thống")
+                .paragraph("Chào " + user.getFullName() + ",")
+                .paragraph("Bạn đã được cấp tài khoản trên hệ thống quản lý cơ sở vật chất và thiết bị trường học.\n"
+                        + "Tên đăng nhập: " + user.getUsername())
+                .paragraph("Bấm nút dưới đây để tự đặt mật khẩu rồi đăng nhập (link có hiệu lực " + INVITE_TTL.toDays()
+                        + " ngày và chỉ dùng được một lần).")
+                .action("Đặt mật khẩu và đăng nhập", frontendUrl + "/reset-password?token=" + token + "&invite=1")
+                .note("Link hết hạn thì bấm \"Quên mật khẩu\" ở màn đăng nhập để nhận link mới."), "thư mời");
+    }
+
+    /**
+     * Quản trị viên / lãnh đạo trường đặt lại mật khẩu thay người dùng: gửi link tự đặt mật khẩu mới tới email của tài
+     * khoản (không gửi mật khẩu qua thư). Cùng cách gửi với {@link #invite}: sau khi commit, gửi hỏng chỉ ghi log.
+     *
+     * @return email đã che, hoặc {@code null} khi tài khoản không có email thật — khi đó người đặt lại phải tự trao
+     *         mật khẩu tạm
+     */
+    @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
+    public String sendResetLink(User user, String requestedBy) {
+        return mailLink(user, INVITE_TTL, token -> MailContent.titled("Mật khẩu của bạn đã được đặt lại")
+                .label("Tài khoản " + user.getUsername())
+                .paragraph("Chào " + user.getFullName() + ",")
+                .paragraph((requestedBy == null || requestedBy.isBlank() ? "Quản trị viên" : requestedBy)
+                        + " vừa đặt lại mật khẩu cho tài khoản " + user.getUsername()
+                        + ". Mật khẩu cũ không còn dùng được và tài khoản đã bị đăng xuất ở mọi thiết bị.")
+                .paragraph("Bấm nút dưới đây để tự đặt mật khẩu mới (link có hiệu lực " + INVITE_TTL.toDays()
+                        + " ngày và chỉ dùng được một lần).")
+                .action("Đặt mật khẩu mới", frontendUrl + "/reset-password?token=" + token)
+                .note("Nếu bạn không nhờ đặt lại mật khẩu, hãy báo ngay cho quản trị viên của trường hoặc của Sở.")
+                .tone(MailContent.Tone.WARNING), "link đặt lại mật khẩu");
+    }
+
+    /**
+     * Quản trị viên đặt lại mật khẩu qua email: mật khẩu cũ bị thay bằng một mật khẩu ngẫu nhiên không ai biết, mọi
+     * phiên bị đăng xuất, người dùng nhận thư mang link tự đặt mật khẩu mới. Tài khoản chưa có email thật thì báo lỗi —
+     * người quản trị đặt mật khẩu trực tiếp.
+     *
+     * @return email đã che, để màn hình báo "đã gửi tới …"
+     */
+    @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
+    public String resetByEmail(Long userId) {
+        User user = users.get(userId);
         String email = user.getEmail();
-        if (email == null || email.isBlank() || email.endsWith(PLACEHOLDER_DOMAIN)) {
+        if (email == null || email.isBlank() || !email.contains("@") || email.endsWith(PLACEHOLDER_DOMAIN)) {
+            throw new FieldValidationException("email",
+                    "Tài khoản chưa có email — đặt mật khẩu mới trực tiếp ở ô bên dưới");
+        }
+        // Mật khẩu thay thế không ai biết, chỉ để mật khẩu cũ mất hiệu lực; ghép hai mật khẩu tạm cho đủ 20 ký tự —
+        // đạt cả luật của tài khoản quyền cao (≥ 12).
+        User updated = users.setPassword(userId, PasswordPolicy.temporary() + PasswordPolicy.temporary());
+        return sendResetLink(updated, "Quản trị viên");
+    }
+
+    /** Lưu token rồi gửi thư mang link SAU khi giao dịch hiện tại commit. */
+    private String mailLink(User user, Duration ttl, java.util.function.Function<String, MailContent> content,
+            String what) {
+        String email = user.getEmail();
+        if (email == null || email.isBlank() || !email.contains("@") || email.endsWith(PLACEHOLDER_DOMAIN)) {
             return null;
         }
         String token = Hashes.urlToken(32);
         Instant now = Instant.now();
         jdbc.update("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
-                user.getId(), Hashes.sha256(token), Timestamp.from(now.plus(INVITE_TTL)), Timestamp.from(now));
+                user.getId(), Hashes.sha256(token), Timestamp.from(now.plus(ttl)), Timestamp.from(now));
+        String subject = content.apply(token).title();
         Runnable send = () -> {
             try {
-                mail.send(email, "Tài khoản hệ thống quản lý CSVC & thiết bị",
-                        "Chào " + user.getFullName() + ",\n\n"
-                                + "Bạn đã được cấp tài khoản trên hệ thống quản lý cơ sở vật chất và thiết bị.\n"
-                                + "Tên đăng nhập: " + user.getUsername() + "\n\n"
-                                + "Mở link sau để tự đặt mật khẩu (hiệu lực " + INVITE_TTL.toDays() + " ngày, dùng một lần):\n"
-                                + frontendUrl + "/reset-password?token=" + token + "&invite=1\n\n"
-                                + "Link hết hạn thì dùng \"Quên mật khẩu\" ở màn đăng nhập để nhận link mới.");
+                mail.send(email, subject, content.apply(token));
             } catch (RuntimeException e) {
-                log.error("Không gửi được thư mời tới tài khoản {}: {}", user.getUsername(), e.getMessage());
+                log.error("Không gửi được {} tới tài khoản {}: {}", what, user.getUsername(), e.getMessage());
             }
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

@@ -1,4 +1,4 @@
-# Dịch vụ phụ cho môi trường dev. Chạy: docker compose -f backend/compose.yaml up -d minio redis
+# Dịch vụ phụ cho môi trường dev. Chạy: docker compose -f backend/compose.yaml up -d minio redis mailpit
 # PostgreSQL vẫn cài thẳng trên máy như trước; ở đây có kho tệp đính kèm và bộ nhớ đệm dùng chung.
 # Redis không bắt buộc: chạy app với REDIS_HOST=localhost REDIS_PORT=6380 thì dùng, không thì thôi.
 services:
@@ -21,6 +21,16 @@ services:
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6380:6379" # 6379 hay bị Redis của dự án khác chiếm
+    restart: unless-stopped
+
+  # Hộp thư giả cho dev: bắt mọi thư app gửi (đặt lại mật khẩu, mã đăng nhập, thông báo), không gửi ra ngoài.
+  # Xem thư ở http://localhost:8025. App dùng khi application-local.properties khai spring.mail.host=localhost,
+  # spring.mail.port=1025 (mẫu ở application-local.properties.example).
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP — backend gửi thư vào đây
+      - "8025:8025" # giao diện web xem thư
     restart: unless-stopped
 
 volumes:
