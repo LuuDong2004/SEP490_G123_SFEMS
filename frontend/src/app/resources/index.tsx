@@ -481,7 +481,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       parent: "admin_accounts",
     },
   },
-  // Luồng phê duyệt của từng loại phiếu — Sở cấu hình (approval_flows:*, 110).
+  // Luồng phê duyệt của từng loại phiếu (HT-08) — chỉ quản trị viên cấu hình (approval_flows:*, 110).
   {
     name: "approval_flows",
     list: "/approval-flows",

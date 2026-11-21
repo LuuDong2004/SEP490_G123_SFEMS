@@ -14,8 +14,9 @@ import java.util.Set;
  * UBND). Khoá là đoạn đầu sau {@code /api/} của đường dẫn controller; {@link PortalHandlerMapping} đăng ký thêm
  * {@code /api/<cổng>/<đường dẫn cũ>} cho đúng các cổng ở đây — một controller, nhiều cổng, không nhân bản code.
  *
- * <p>Cổng Admin ĐỌC mọi tài nguyên và GHI được mọi thứ một cổng nghiệp vụ ghi được — quản trị viên đi được toàn bộ
- * luồng (trưởng nhóm 20/11/2026, changelog 281 trả lại quyền nghiệp vụ cho vai ADMIN).
+ * <p>Cổng Admin ĐỌC mọi tài nguyên, nhưng chỉ GHI phần cấu hình, hỗ trợ và quản trị hệ thống. Dữ liệu nghiệp vụ của
+ * trường và Sở ({@link #BUSINESS_DATA}) cổng Admin chỉ xem — lập, sửa, duyệt là việc của người trường / Sở (chốt
+ * 22/11/2026, changelog 284 đảo 281).
  *
  * <p>Đây là lớp chặn THỨ NHẤT (theo loại tài khoản). Sau nó vẫn là mã quyền {@code resource:action} và phạm vi dòng —
  * bảng này chỉ hẹp lại, không bao giờ nới quyền. Thêm controller mới mà quên khai ở đây thì
@@ -41,8 +42,17 @@ public final class PortalRoutes {
     private static final Map<String, Rule> RULES = new LinkedHashMap<>();
 
     /**
-     * Khai cổng cho các tài nguyên. Cổng Admin luôn được đọc, và được ghi những gì một cổng nghiệp vụ ghi được — quản
-     * trị viên đi được toàn bộ luồng (trưởng nhóm 20/11/2026, changelog 281). Tài nguyên chỉ đọc vẫn chỉ đọc.
+     * Dữ liệu nghiệp vụ: chỉ người của trường / Sở lập, sửa, duyệt — cổng Admin chỉ xem (284). Hồ sơ năm học không nằm
+     * đây: quản trị viên khởi tạo / mở lại năm cho trường ở màn Trường học; xác nhận, chốt vẫn là của lãnh đạo trường.
+     */
+    private static final Set<String> BUSINESS_DATA = Set.of("buildings", "campuses", "rooms", "facility_info",
+            "facility_todo", "equipment", "equipment_items", "inventory_sessions", "school_classes", "staff",
+            "subject_teams", "data_transfer", "equipment_intakes", "purchase_proposals", "inventory_campaigns",
+            "procurement_plans", "data_imports", "staff_assignments", "year_standards", "school_norm_adjustments");
+
+    /**
+     * Khai cổng cho các tài nguyên. Cổng Admin luôn được đọc, và được ghi những gì một cổng nghiệp vụ ghi được TRỪ dữ
+     * liệu nghiệp vụ ({@link #BUSINESS_DATA}). Tài nguyên chỉ đọc vẫn chỉ đọc.
      */
     /** Như {@link #put} nhưng KHÔNG mở thêm cổng Admin — tài nguyên gắn với đơn vị của người gọi. */
     private static void own(Set<Portal> read, Set<Portal> write, String... segments) {
@@ -58,7 +68,7 @@ public final class PortalRoutes {
         r.add(ADMIN);
         for (String segment : segments) {
             Set<Portal> w = write.isEmpty() ? NONE : EnumSet.copyOf(write);
-            if (!w.isEmpty()) {
+            if (!w.isEmpty() && !BUSINESS_DATA.contains(segment)) {
                 w.add(ADMIN);
             }
             if (RULES.put(segment, new Rule(Set.copyOf(r), Set.copyOf(w))) != null) {
@@ -71,9 +81,11 @@ public final class PortalRoutes {
         // Quản trị hệ thống — chỉ cổng Admin.
         put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies", "ai_settings",
                 "data_changes", "system_status", "notification_type_settings");
-        // Ngoài 42 UC (trưởng nhóm chốt 20/11/2026): đóng ở mọi cổng. Luồng duyệt dùng cấu hình mặc định trong code;
-        // tài khoản của trường do quản trị viên cấp ở màn Người dùng (HT-04).
-        own(NONE, NONE, "approval_flows", "school_users");
+        // Luồng phê duyệt (HT-08): chỉ quản trị viên cấu hình; chưa cấu hình thì dùng luồng mặc định trong code.
+        put(ADMIN_ONLY, ADMIN_ONLY, "approval_flows");
+        // Màn tài khoản của trường đóng ở mọi cổng: lãnh đạo trường cấp tài khoản cho cán bộ từ tab Nhân sự
+        // (HT-07, staff_accounts), quản trị viên cấp ở màn Người dùng (HT-04).
+        own(NONE, NONE, "school_users");
         // Quy tắc mã: Admin quản lý; mọi form lập mới đọc "mã kế tiếp" (code_rules/next).
         put(ALL, ADMIN_ONLY, "code_rules");
         // Nhật ký: Admin xem; mọi người ghi lần xuất dữ liệu (activity_logs/exports).
@@ -112,7 +124,7 @@ public final class PortalRoutes {
         // Riêng trường — lối của lãnh đạo trường trên CHÍNH trường mình (trường lấy từ người gọi); quản trị không gắn
         // trường nên không mở ở cổng Admin (tài khoản do màn Người dùng quản lý).
         own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "school_code_rules", "school_profile");
-        // Nhập dữ liệu đầu vào: trường nhập của mình, Sở nhập danh sách trường, quản trị nhập cho trường nào cũng được.
+        // Nhập dữ liệu đầu vào: trường nhập của mình, Sở nhập danh sách trường; quản trị viên chỉ xem.
         put(EnumSet.of(SO, SCHOOL), EnumSet.of(SO, SCHOOL), "data_imports");
     }
 

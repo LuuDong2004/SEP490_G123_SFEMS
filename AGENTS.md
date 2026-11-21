@@ -142,8 +142,9 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4. Tóm tắt phần hay sai:
   | 380–399 | QuangTD |
 
 - **Tài khoản thử:** `admin` / `Admin@123`; Sở `so.lanhdao`, `so.chuyenvien`; trường `thcs.hieutruong`,
-  `thcs.canbo`, `thcs.canbo2` (chỉ cơ sở phụ), `thcs2.*`, `thpt.*` — mật khẩu `Demo@123`. Quản trị viên đi được
-  toàn bộ luồng: có mọi mã quyền, cổng Admin ghi được dữ liệu nghiệp vụ (changelog 281, đảo 272).
+  `thcs.canbo`, `thcs.canbo2` (chỉ cơ sở phụ), `thcs2.*`, `thpt.*` — mật khẩu `Demo@123`. Quản trị viên chỉ
+  cấu hình, hỗ trợ, quản trị hệ thống: dữ liệu nghiệp vụ chỉ xem, không lập / duyệt phiếu (changelog 284, đảo 281).
+  Thử luồng nghiệp vụ thì đăng nhập bằng tài khoản đúng vai.
 - **Kho tệp (MinIO) phải chạy** trước khi bật backend: `docker compose -f backend/compose.yaml up -d minio`. Thiếu
   MinIO thì mọi lần đính kèm trả 503, mà phiếu ghi tăng bắt buộc tệp quyết định giao — cả luồng ghi tăng bị chặn.
 - **Tài liệu API** (`/swagger-ui.html`) mặc định TẮT; muốn xem trên máy mình thì chạy với `APP_API_DOCS=true`.

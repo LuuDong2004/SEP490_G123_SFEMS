@@ -20,15 +20,21 @@ const parse = (expr) => {
 };
 const SET = String.raw`(ADMIN_ONLY|ALL|BUSINESS|NONE|EnumSet\.of\([^)]*\))`;
 const re = new RegExp(String.raw`(put|own)\(${SET},\s*${SET},\s*((?:"[^"]+"\s*,?\s*)+)\)`, "gs");
+// Dữ liệu nghiệp vụ (PortalRoutes.BUSINESS_DATA): cổng Admin chỉ đọc, không được thêm vào cổng ghi.
+const businessDecl = /BUSINESS_DATA\s*=\s*Set\.of\(([^;]*)\);/s.exec(java);
+const BUSINESS_DATA = new Set(businessDecl ? [...businessDecl[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : []);
 const rows = [];
 for (const m of body.matchAll(re)) {
-  // Như PortalRoutes.put: cổng Admin luôn đọc được, và ghi được mọi thứ có cổng ghi (quản trị dùng toàn bộ chức năng).
+  // Như PortalRoutes.put: cổng Admin luôn đọc được, và ghi được mọi thứ có cổng ghi TRỪ dữ liệu nghiệp vụ.
   // `own(...)` thì không thêm Admin (tài nguyên gắn với đơn vị của người gọi).
   const own = m[1] === "own";
   const withAdmin = (xs) => (own || xs.includes("admin") ? xs : ["admin", ...xs]);
   const read = withAdmin(parse(m[2]));
-  const write = parse(m[3]).length ? withAdmin(parse(m[3])) : [];
-  for (const [, seg] of m[4].matchAll(/"([^"]+)"/g)) rows.push([seg, read, write]);
+  for (const [, seg] of m[4].matchAll(/"([^"]+)"/g)) {
+    const w = parse(m[3]);
+    const write = w.length ? (BUSINESS_DATA.has(seg) ? w : withAdmin(w)) : [];
+    rows.push([seg, read, write]);
+  }
 }
 const list = (xs) => xs.map((x) => `"${x}"`).join(", ");
 const table = rows.map(([seg, r, w]) => `  "${seg}": { read: [${list(r)}], write: [${list(w)}] },`).join("\n");

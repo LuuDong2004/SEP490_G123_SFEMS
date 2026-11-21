@@ -157,7 +157,10 @@ Thiết kế và các chỗ khác thiết kế gốc ở `docs/du-lieu-theo-nam-
 
 ### 4. Quyền của quản trị viên
 
-Đã chốt lại (20/11/2026, tối): quản trị viên đi được toàn bộ luồng — vai `ADMIN` có mọi mã quyền (changelog 281,
-đảo 272), cổng Admin ghi được dữ liệu nghiệp vụ (bỏ `PortalRoutes.BUSINESS_DATA`), menu Admin hiện mọi phân hệ đọc
-được. Việc gắn với một trường (xác nhận, chốt năm học, chốt số dư đầu kỳ) vẫn là của lãnh đạo trường đó.
-`RoleTypeTest`, `PortalGateTest` và e2e `security` S5 giữ phạm vi này.
+Đã chốt lại (22/11/2026): quản trị viên chỉ cấu hình, hỗ trợ, quản trị hệ thống — HT-04, HT-05, HT-08, DM-01,
+DM-04, TC-01 và các UC chung (tổng hợp, báo cáo, tra cứu thiết bị). Với dữ liệu nghiệp vụ của trường và Sở, vai
+`ADMIN` chỉ giữ quyền xem, xuất (changelog 284, đảo 281); cổng Admin không có đường ghi tới chúng
+(`PortalRoutes.BUSINESS_DATA`); `VoucherWorkflow` không coi quản trị viên thuộc cấp duyệt nào. Khác 272: vẫn giữ
+quyền đọc nên menu Admin hiện mọi phân hệ để xem, không lỗi 403. Hồ sơ năm học: quản trị viên vẫn khởi tạo / mở
+lại năm cho trường; xác nhận, chốt là của lãnh đạo trường. `RoleTypeTest`, `PortalGateTest` và e2e `security` S5
+giữ phạm vi này.

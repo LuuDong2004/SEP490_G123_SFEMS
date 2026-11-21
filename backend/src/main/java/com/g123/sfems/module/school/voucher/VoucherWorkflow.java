@@ -301,10 +301,8 @@ public class VoucherWorkflow {
         if (current.isEmpty()) {
             return false;
         }
+        // Quản trị viên không thuộc cấp duyệt nào (284): duyệt là quyết định của lãnh đạo trường / Sở.
         RowLevelPrincipal principal = current.get();
-        if (isAdmin(principal)) {
-            return true;
-        }
         return switch (voucher.getApprovalStep()) {
             case SCHOOL -> Objects.equals(principal.schoolId(), voucher.getSchool().getId());
             case MANAGING_BODY -> principal.managingBodyId() != null
@@ -329,9 +327,6 @@ public class VoucherWorkflow {
                 return cb.disjunction();
             }
             RowLevelPrincipal principal = current.get();
-            if (isAdmin(principal)) {
-                return pending;
-            }
             List<Predicate> mine = new ArrayList<>();
             if (principal.schoolId() != null) {
                 mine.add(cb.and(cb.equal(root.get("approvalStep"), ApprovalStep.SCHOOL),
