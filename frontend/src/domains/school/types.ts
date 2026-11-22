@@ -35,19 +35,13 @@ export type School = {
     name: string;
     shortName: string | null;
   } | null;
-  /** Loại hình trường (Công lập, Dân lập, Tư thục) — danh mục `school_types`. */
-  schoolType: {
-    id: number;
-    code: string;
-    name: string;
-    shortName: string | null;
-  } | null;
   /**
    * Phường/xã, giờ là tham chiếu tới danh mục chứ không còn là chữ tự do.
    *
    * Đổi vì Chương V mục 3.5.2 và 3.5.8 yêu cầu tổng hợp số liệu THEO ĐỊA BÀN:
    * "Phường Sài Gòn" và "P. Sài Gòn" là hai nhóm khác nhau khi gộp, nên báo
-   * cáo vẫn ra số mà ra nhầm. Nó cũng là khoá để gộp số liệu theo địa bàn.
+   * cáo vẫn ra số mà ra nhầm. Nó cũng là khoá phân quyền — UBND quản lý
+   * trường trên địa bàn mình.
    */
   ward: WardSummary | null;
 
@@ -60,8 +54,6 @@ export type School = {
   wardText: string | null;
   address: string | null;
   primaryColor: string | null;
-  classCount: number | null;
-  studentCount: number | null;
   status: SchoolStatus;
   createdAt: string;
   updatedAt: string | null;
