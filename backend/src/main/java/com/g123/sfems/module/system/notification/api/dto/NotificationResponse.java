@@ -2,6 +2,7 @@ package com.g123.sfems.module.system.notification.api.dto;
 
 import com.g123.sfems.domain.system.notification.Notification;
 import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import java.time.Instant;
 
 /**
@@ -21,6 +22,7 @@ import java.time.Instant;
  */
 public record NotificationResponse(
         Long id,
+        NotificationType type,
         NotificationLevel level,
         String title,
         String body,
@@ -32,6 +34,7 @@ public record NotificationResponse(
     public static NotificationResponse from(Notification notification) {
         return new NotificationResponse(
                 notification.getId(),
+                notification.getType(),
                 notification.getLevel(),
                 notification.getTitle(),
                 notification.getBody(),

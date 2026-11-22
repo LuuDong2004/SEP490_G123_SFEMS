@@ -2,7 +2,6 @@ import React, { type ComponentProps } from "react";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
 import { CheckCheckIcon } from "lucide-react";
-import { Link } from "react-router";
 
 import {
   DataTable,
@@ -87,21 +86,9 @@ export const NotificationList = () => {
         enableSorting: true,
         cell: ({ row }) => (
           <div className="flex flex-col gap-0.5">
-            {row.original.link ? (
-              <Link
-                to={row.original.link}
-                onClick={() => {
-                  if (!row.original.read) void markRead(row.original.id);
-                }}
-                className={cn("text-sm hover:underline", !row.original.read && "font-semibold")}
-              >
-                {row.original.title}
-              </Link>
-            ) : (
-              <span className={cn("text-sm", !row.original.read && "font-semibold")}>
-                {row.original.title}
-              </span>
-            )}
+            <span className={cn("text-sm", !row.original.read && "font-semibold")}>
+              {row.original.title}
+            </span>
             {row.original.body && (
               <span className="line-clamp-1 text-xs text-muted-foreground">
                 {row.original.body}
@@ -197,7 +184,7 @@ export const NotificationList = () => {
       <ListViewHeader />
       <DataTable
         table={table}
-        empty={{ title: "Chưa có thông báo nào", description: "Phiếu chờ duyệt, việc bảo trì đến hạn, phiếu mượn quá hạn sẽ báo ở đây." }}
+        empty={{ title: "Chưa có thông báo nào", description: "Phiếu chờ duyệt, kết quả duyệt, đợt kiểm kê mới sẽ báo ở đây." }}
         toolbar={
           <>
             <ListToolbar

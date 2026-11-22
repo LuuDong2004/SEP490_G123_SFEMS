@@ -1,16 +1,25 @@
 package com.g123.sfems.domain.system.notification;
 
 /**
- * Mức chú ý của một thông báo. Chỉ bốn giá trị: đây là thứ chuông đổi thành biểu tượng và màu, không
- * phải "chức năng nào phát ra" — cái đó nằm ở tiêu đề và đường dẫn.
+ * How much attention a notification is asking for.
+ *
+ * <p>Four values and no more. This is what the bell turns into an icon and a
+ * colour, so it is about presentation, not about which feature raised the
+ * notification — that belongs in the title and the link. Keeping it coarse is
+ * what stops this enum growing a case per feature and needing a migration
+ * every time the application learns to tell somebody something new.
  */
 public enum NotificationLevel {
-    /** Có chuyện đáng biết. Mặc định. */
+
+    /** Something happened that is worth knowing. The default. */
     INFO,
-    /** Việc gì đó xong và thành công. */
+
+    /** Something finished, and it worked. */
     SUCCESS,
-    /** Cần để ý trước khi thành vấn đề. */
+
+    /** Something needs attention before it becomes a problem. */
     WARNING,
-    /** Có việc thất bại. */
+
+    /** Something failed. */
     ERROR
 }
