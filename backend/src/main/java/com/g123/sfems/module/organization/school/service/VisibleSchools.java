@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Các trường người đang đăng nhập được nhìn thấy trong một bảng TỔNG HỢP:
- * quản trị viên và Sở thấy mọi trường, tài khoản của một cơ quan quản lý thấy
- * các trường cơ quan đó quản lý, tài khoản trường thấy đúng trường của mình.
+ * quản trị viên và Sở thấy mọi trường, UBND thấy các trường mình quản lý, tài
+ * khoản trường thấy đúng trường của mình.
  *
  * <p>Báo cáo và bảng điều khiển là các truy vấn gộp (SQL thuần) chứ không đi qua
  * một repository có phạm vi dòng, nên cần một câu trả lời tường minh cho "gộp
