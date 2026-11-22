@@ -6,9 +6,6 @@
 export const TAB_HINTS: Record<string, string | [school: string, management: string]> = {
   // Quy trình của mỗi phân hệ
   process_equipment: "Các bước quản lý thiết bị: ai lập, ai duyệt",
-  process_usage: "Các bước cấp phát, điều chuyển, tiêu hao: ai lập, ai duyệt",
-  process_loans: "Các bước mượn trả thiết bị và phòng",
-  process_maintenance: "Các bước báo hỏng, sửa chữa, bảo hành, bảo trì",
   process_procurement: "Các bước đề xuất và lập kế hoạch mua sắm",
 
   // Thiết bị
@@ -17,23 +14,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   equipment_intakes: "Phiếu nhập thiết bị mới vào hệ thống, cấp mã thiết bị",
   inventory_campaigns: "Đợt kiểm kê giao cho các trường, có hạn nộp",
   inventory_sessions: ["Biên bản kiểm kê thiết bị của trường", "Biên bản kiểm kê các trường đã nộp"],
-  disposals: ["Thanh lý, tiêu huỷ, ghi giảm thiết bị mất", "Đề nghị ghi giảm của các trường chờ duyệt"],
-
-  // Cấp phát & sử dụng
-  equipment_allocations: "Giao thiết bị cho phòng, người quản lý trong trường",
-  equipment_transfers: ["Chuyển thiết bị sang trường khác", "Điều chuyển thiết bị giữa các trường"],
-  consumption_records: "Ghi vật tư, hoá chất đã dùng, trừ tồn kho",
-
-  // Mượn trả
-  equipment_loans: "Ghi giáo viên mượn và trả thiết bị",
-  room_bookings: "Ghi mượn phòng theo tiết, buổi",
-
-  // Sửa chữa & bảo trì
-  damage_reports: "Ghi nhận thiết bị hỏng",
-  repair_orders: "Phiếu sửa chữa, bảo trì và kết quả",
-  warranty_claims: "Gửi bảo hành và kết quả bảo hành",
-  maintenance_plans: "Lịch bảo trì định kỳ của từng thiết bị",
-  facility_works: "Sửa chữa, cải tạo phòng, khối nhà",
 
   // Mua sắm
   equipment_adequacy: ["Thiết bị còn thiếu so với định mức", "Tổng hợp nhu cầu mua sắm của các trường"],
@@ -53,7 +33,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   facility_standard_rules: "Tối thiểu, mức độ 1, mức độ 2 theo loại",
   // Năm học và môn học
   school_years: "Các năm học, ngày bắt đầu và kết thúc",
-  semesters: "Học kỳ trong năm học",
   grades: "Khối lớp 1 đến 12",
   subject_groups: "Tổ chuyên môn theo nhóm môn",
   subjects: "Môn học dùng cho thiết bị và tổ bộ môn",
@@ -89,24 +68,15 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   // Cơ sở vật chất
   report_facilities: "Số phòng, khối nhà, diện tích",
   report_csvc_statistics: "Biểu số liệu theo mẫu Sở",
-  report_room_usage: "Phòng được mượn bao nhiêu lần",
   report_room_standard: "Phòng bộ môn đạt chuẩn hay chưa",
   report_facility_standard: "Trường đạt chuẩn CSVC mức nào",
-  // Hư hỏng & bảo trì
+  // Hư hỏng
   report_broken_equipment: "Thiết bị hỏng, mất, cần thay thế",
   report_unused_equipment: "Thiết bị không còn dùng được",
   report_idle_equipment: "Thiết bị nằm kho lâu không dùng",
-  report_damage_trends: "Số hỏng theo thời gian",
-  report_maintenance: "Số lần sửa chữa, bảo trì",
-  // Biến động & mượn trả
+  // Biến động, chứng từ
   report_movements: "Thiết bị tăng, giảm trong kỳ",
-  report_transfers: "Thiết bị đã chuyển giữa phòng, trường",
-  report_overdue_loans: "Thiết bị mượn chưa trả đúng hạn",
-  report_loans: "Số lượt mượn trả",
-  report_utilization: "Thiết bị được dùng nhiều hay ít",
   report_vouchers: "Phiếu đang chờ duyệt, đã duyệt, bị trả lại",
-  report_disposals: "Thiết bị đã thanh lý, tiêu huỷ, ghi giảm",
-  report_supply_consumption: "Vật tư, hoá chất đã dùng",
   report_supply_expiry: "Vật tư, hoá chất sắp và đã hết hạn",
   // Mua sắm & định mức
   report_purchase: "Thiết bị cần mua theo đề xuất",
@@ -130,9 +100,7 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   school_code_rules: "Cách sinh mã phòng, khối nhà, cán bộ của trường",
   approval_flows: "Ai duyệt từng loại phiếu, theo thứ tự nào",
   ai_settings: "Kết nối AI dùng khi nhập dữ liệu",
-  // Tích hợp
-  api_clients: "Khoá cho hệ thống ngoài gọi API",
-  integrations: "Kết nối với hệ thống của Bộ, Sở",
+  // Dữ liệu
   data_transfer: "Nhập, xuất dữ liệu bằng tệp",
   // Giám sát
   system_status: "Máy chủ, CSDL, bộ lưu tệp đang chạy ra sao",

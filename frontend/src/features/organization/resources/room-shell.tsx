@@ -120,13 +120,13 @@ export function RoomFrame({ rail, children, active, boxRef, onFocusCapture, onCl
   );
 }
 
-/** Tem QR thu thành một biểu tượng cạnh tên phòng: bấm thì hiện mã QR và nút In tem. */
+/** Mã QR thu thành một biểu tượng cạnh tên phòng: bấm thì hiện mã QR. */
 export function RoomQrButton({ record }: { record: any }) {
   if (!record?.id || !record?.code) return null;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" aria-label="Tem QR của phòng" title="Tem QR"
+        <button type="button" aria-label="Mã QR của phòng" title="Mã QR"
           className="text-muted-foreground hover:text-primary hover:bg-muted flex size-7 items-center justify-center rounded-md transition-colors">
           <QrCode className="size-4" />
         </button>

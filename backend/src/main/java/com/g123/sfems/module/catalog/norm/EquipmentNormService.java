@@ -90,11 +90,10 @@ public class EquipmentNormService
     private final DataChangeService dataChanges;
 
     /**
-     * Bảng KHÔNG tính là "dòng đã được dùng" khi trỏ tới thiết bị của dòng: chính danh mục tối thiểu, danh mục thiết bị,
-     * và quy định điều chỉnh kiểu cũ của Sở (154) — còn lại (tài sản, phiếu, đề xuất, điều chỉnh của trường…) là đã dùng.
+     * Bảng KHÔNG tính là "dòng đã được dùng" khi trỏ tới thiết bị của dòng: chính danh mục tối thiểu và danh mục thiết
+     * bị — còn lại (tài sản, phiếu, đề xuất, điều chỉnh của trường…) là đã dùng.
      */
-    private static final Set<String> NOT_USAGE = Set.of("equipment_norms", "equipment_catalogs",
-            "standard_adjustment_rules", "standard_adjustment_rule_substitutes");
+    private static final Set<String> NOT_USAGE = Set.of("equipment_norms", "equipment_catalogs");
 
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");

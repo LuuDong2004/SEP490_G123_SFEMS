@@ -277,7 +277,7 @@ public class InventoryCampaignService {
             body = requested;
         }
         if (body == null) {
-            throw new FieldValidationException("managingBody", "Chỉ Sở hoặc UBND mới phát động được đợt kiểm kê");
+            throw new FieldValidationException("managingBody", "Chỉ tài khoản thuộc Sở mới phát động được đợt kiểm kê");
         }
         Long bodyId = body;
         return rowLevel.asSystem("inventory_campaigns.body", () -> bodies.get(bodyId));

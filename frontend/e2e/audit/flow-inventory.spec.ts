@@ -129,13 +129,11 @@ test("K3 hiệu trưởng duyệt biên bản; Sở xem tiến độ (KK-06, KK-
   const state = await voucherState(page);
   rec.check("K3:approve", "Luồng kiểm kê", "Hiệu trưởng duyệt biên bản", /Hoàn tất|Đã duyệt/i.test(state), "critical", "Hoàn tất", `${state} · ${await toastText(page)}`, { role: "thptHieuTruong" });
   const s = await apiLogin(request, "thptCanbo");
-  const fu = await call(request, s, "GET", `inventory_sessions/${ctx.sessionId}/follow-ups`);
   if (ctx.missingCode) {
     const eq = await call(request, s, "GET", `equipment?q=${encodeURIComponent(ctx.missingCode)}&_start=0&_end=1`);
     const st = Array.isArray(eq.body) ? eq.body[0]?.status : undefined;
     rec.check("K3:missing-lost", "Luồng kiểm kê", `Thiết bị không thấy (${ctx.missingCode}) chuyển trạng thái Mất sau khi duyệt`, st === "LOST", "high", "LOST", String(st), { role: "thptHieuTruong" });
   }
-  rec.check("K3:followups-orphan", "Phạm vi", "Thiết bị 'thiếu' sau kiểm kê có lối xử lý trong phạm vi đồ án", !JSON.stringify(fu.body).includes("disposals"), "high", "không sinh phiếu của chức năng đã bỏ", `máy chủ sinh: ${JSON.stringify(fu.body).slice(0, 120)} — không có màn nào mở được`, { role: "thptHieuTruong" });
 
   await uiLogin(page, "soChuyenVien");
   await page.goto("/inventory-campaigns");

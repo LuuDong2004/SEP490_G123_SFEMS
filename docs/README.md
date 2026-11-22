@@ -1,10 +1,10 @@
 # Tài liệu dự án SFEMS (đồ án)
 
-Bản sửa sau góp ý hội đồng lần 1: phạm vi Sở GD&ĐT + trường THPT, 3 luồng nghiệp vụ (mua sắm, nhập thiết bị – ghi tăng tài sản, kiểm kê), 7 tính năng (FE-01 – FE-07), 42 use case.
+Bản sửa sau góp ý hội đồng lần 1: phạm vi Sở GD&ĐT + trường THPT, 3 luồng nghiệp vụ (mua sắm, ghi tăng thiết bị, kiểm kê), 7 tính năng (FE-01 – FE-07), 46 use case.
 
 | Tài liệu | Đường dẫn | Trạng thái |
 |---|---|---|
-| Danh sách 42 use case (mức S/M/C, mã cũ, ngoài phạm vi, chi tiết báo cáo) | `SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` | Đã sửa |
+| Danh sách 46 use case (mức S/M/C, mã cũ, ngoài phạm vi, chi tiết báo cáo) | `SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` | Đã sửa |
 | Report 1 – Giới thiệu dự án (VN) | `VN/Report-1_Gioi thieu du an.docx` | Đã sửa |
 | Report 2 – Kế hoạch quản lý dự án (VN) | `VN/Report-2_Ke hoach quan ly du an.docx` | Chưa sửa (bản gốc) |
 | Report 3 – Đặc tả yêu cầu phần mềm (VN) | `VN/Report-3_Dac ta yeu cau phan mem.docx` | Đã sửa |

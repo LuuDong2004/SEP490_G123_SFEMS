@@ -388,7 +388,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       mgmtOrder: 2,
     },
   },
-  // Tra cứu và in tem: màn hình trên dữ liệu thiết bị, mượn quyền `equipment:read`.
+  // Tra cứu theo mã: màn hình trên dữ liệu thiết bị, mượn quyền `equipment:read`.
   // Không có mục menu riêng — mở từ nút trên màn Thiết bị. Đường dẫn vẫn giữ vì tem
   // QR đã in trỏ về `/equipment-lookup`.
   {

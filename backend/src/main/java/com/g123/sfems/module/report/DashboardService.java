@@ -47,7 +47,7 @@ public class DashboardService {
 
     public record Kpis(long schools, long equipment, java.math.BigDecimal originalValue, long inUse, long broken,
             // Tên trường JSON cũ được giữ để các màn đang dùng API không bị gãy; gồm cả chờ tiêu huỷ.
-            long missing, long pendingLiquidation, long pendingVouchers, long overdueLoans, long maintenanceDue,
+            long missing, long pendingLiquidation, long pendingVouchers,
             int adequacyPercent, int adequacySchools) {
     }
 
@@ -218,16 +218,13 @@ public class DashboardService {
         waiting.put("UBND", 0L);
         waiting.put("SO", 0L);
         for (String table : ReportService.voucherTables().keySet()) {
-            String approver = "equipment_transfers".equals(table)
-                    ? "CASE WHEN v.approval_step = 'RECEIVING_BODY' THEN v.target_school_id ELSE v.school_id END"
-                    : "v.school_id";
             jdbc.query("""
                     SELECT CASE WHEN v.approval_step IN ('MANAGING_BODY', 'RECEIVING_BODY') AND d.type IS NOT NULL
                                 THEN d.type ELSE 'SCHOOL' END, COUNT(*)
                     FROM %s v
-                    LEFT JOIN schools s ON s.id = %s
+                    LEFT JOIN schools s ON s.id = v.school_id
                     LEFT JOIN departments_of_education d ON d.id = s.department_of_education_id
-                    WHERE v.status = 'PENDING'""".formatted(table, approver) + visible.sqlFilter("v.school_id")
+                    WHERE v.status = 'PENDING'""".formatted(table) + visible.sqlFilter("v.school_id")
                     + reports.campusVoucher(table, "v", campus) + " GROUP BY 1", rs -> {
                         waiting.merge(rs.getString(1), rs.getLong(2), Long::sum);
                     });
@@ -240,14 +237,6 @@ public class DashboardService {
                     default -> w.getKey();
                 }, w.getValue()))
                 .toList();
-
-        Long overdue = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM equipment_loans v WHERE status = 'APPROVED' AND due_date < CURRENT_DATE"""
-                + visible.sqlFilter("v.school_id") + reports.campusVoucher("equipment_loans", "v", campus), Long.class);
-        Long maintenance = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM maintenance_plans mp WHERE active AND plan_status = 'ACTIVE' AND approval_status = 'APPROVED'
-                  AND next_due_date <= CURRENT_DATE + 7"""
-                + visible.sqlFilter("mp.school_id") + reports.campusPlan("mp", campus), Long.class);
 
         List<Count> statuses = jdbc.query("""
                 SELECT e.status, COUNT(*) FROM equipment e WHERE TRUE""" + eq + " GROUP BY 1 ORDER BY 2 DESC",
@@ -350,7 +339,7 @@ public class DashboardService {
 
         Kpis kpis = new Kpis(schools, num(e.get("total")), (java.math.BigDecimal) e.get("value"), num(e.get("in_use")),
                 num(e.get("broken")), num(e.get("missing")), num(e.get("pending_liq")), pendingTotal,
-                overdue == null ? 0 : overdue, maintenance == null ? 0 : maintenance, adequacyPercent, entered);
+                adequacyPercent, entered);
         return new Dashboard(visible.level(), reports.scopeLabel(), kpis, statuses, pending, months, attention,
                 kind, vouchers, span, daily, conditions, waitingAt);
     }

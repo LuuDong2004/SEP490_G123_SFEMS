@@ -27,7 +27,6 @@ import com.g123.sfems.domain.school.equipment.EquipmentHistory;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService;
 import com.g123.sfems.module.school.voucher.InventoryFreeze;
-import com.g123.sfems.module.school.voucher.VoucherHolds;
 import com.g123.sfems.module.school.equipment.history.EquipmentHistoryService.VoucherRef;
 import com.g123.sfems.module.school.facility.RoomService;
 import com.g123.sfems.shared.data.RecordAccess;
@@ -106,8 +105,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private final EquipmentHistoryService history;
     private final RowLevelSecurity scopes;
 
-    /** Tài sản đang nằm trên phiếu chạy thì không xếp chỗ trên hồ sơ — phiếu đó đang quyết định chỗ của nó. */
-    private final VoucherHolds holds;
     /** Khai tay / nhập từ tệp: chỉ khi trường chưa chốt số dư đầu kỳ, và không vào chỗ đang kiểm kê. */
     private final OpeningBalance openingBalance;
     private final InventoryFreeze inventoryFreeze;
@@ -129,7 +126,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             StaffService staff,
             EquipmentConfigService configs,
             EquipmentHistoryService history,
-            VoucherHolds holds,
             OpeningBalance openingBalance,
             InventoryFreeze inventoryFreeze) {
         super(repository, rowLevel, Equipment.class, Equipment::new, "Thiết bị", schools, principals);
@@ -144,7 +140,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.configs = configs;
         this.history = history;
         this.scopes = rowLevel;
-        this.holds = holds;
         this.openingBalance = openingBalance;
         this.inventoryFreeze = inventoryFreeze;
     }
@@ -585,9 +580,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         requireDatesConsistent(item, datesBefore);
         requireSameSchool(item);
-        if (unplaced && item.getRoom() != null) {
-            holds.requireNotHeld(item.getId(), "xếp chỗ");
-        }
         // Xếp chỗ lần đầu: trạng thái theo chỗ vừa xếp, như lúc khai tay (kho → trong kho,
         // phòng → đang sử dụng) — chỉ khi tài sản đang ở một trong hai trạng thái đó.
         if (unplaced && item.getRoom() != null

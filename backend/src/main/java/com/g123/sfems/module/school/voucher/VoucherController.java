@@ -40,8 +40,8 @@ import tools.jackson.databind.node.ObjectNode;
  * reject|cancel|complete}).
  *
  * <p>Quyền được kiểm bằng code thay vì {@code @PreAuthorize}, vì chuỗi mã quyền
- * phụ thuộc tài nguyên của lớp con — {@code equipment_transfers:approve},
- * {@code equipment_loans:write}... Kết quả giống hệt: thiếu mã quyền là 403, trước
+ * phụ thuộc tài nguyên của lớp con — {@code equipment_intakes:approve},
+ * {@code inventory_sessions:write}... Kết quả giống hệt: thiếu mã quyền là 403, trước
  * khi chạm tới service. Hành động DUYỆT cần {@code :approve}, không phải
  * {@code :write}: người lập phiếu không tự duyệt phiếu của mình.
  *

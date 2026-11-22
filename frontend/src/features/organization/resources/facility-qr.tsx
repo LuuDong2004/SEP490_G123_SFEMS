@@ -1,5 +1,5 @@
 import { useList } from "@refinedev/core";
-import { ArrowRight, Printer, ScanLine, Search } from "lucide-react";
+import { ArrowRight, ScanLine, Search } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -20,57 +20,31 @@ export function facilityLookupUrl(code: string) {
 }
 
 /**
- * Mã QR của phòng / hạng mục CSVC trên màn xem: cùng cơ chế với tem tài sản — QR mang đường dẫn tra cứu
- * theo mã. "In tem" mở trang in một tem.
+ * Mã QR của phòng / hạng mục CSVC trên màn xem: cùng cơ chế với mã QR của thiết bị — QR mang đường dẫn tra cứu
+ * theo mã. In tem QR nằm ngoài phạm vi (AGENTS.md mục 0), nên ở đây chỉ hiện mã.
  */
 export function FacilityQr({ record, stacked }: {
   record: any;
-  /** Cột hẹp (cột phải tab Thông tin của hộp xem phòng): QR trên, mã và nút In tem dưới, QR nhỏ hơn. */
+  /** Cột hẹp (dải đầu hộp xem phòng): chỉ mã QR nhỏ. */
   stacked?: boolean;
 }) {
-  const box = useRef<HTMLDivElement>(null);
   if (!record?.code) return null;
-  const print = () => {
-    const svg = box.current?.querySelector("svg")?.outerHTML ?? "";
-    const w = window.open("", "_blank", "width=420,height=520");
-    if (!w) return;
-    const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(record.code)}</title>
-      <style>body{font-family:system-ui,sans-serif;margin:0;display:flex;justify-content:center}
-      .tem{border:1px solid #999;border-radius:8px;padding:16px;margin:16px;text-align:center;width:240px}
-      .tem svg{width:200px;height:200px}.c{font-family:monospace;font-size:16px;font-weight:600;margin-top:8px}
-      .n{font-size:13px;margin-top:4px}.s{font-size:11px;color:#555;margin-top:2px}</style></head>
-      <body><div class="tem">${svg}<div class="c">${esc(record.code)}</div><div class="n">${esc(record.name ?? "")}</div>
-      <div class="s">${esc(record.school?.name ?? "")}</div></div>
-      <script>window.onload=function(){window.print()}</script></body></html>`);
-    w.document.close();
-  };
   if (stacked) {
-    // Gọn trong dải đầu hộp phòng: chỉ mã QR nhỏ và nút In tem — không khung, không tiêu đề (mã phòng đã ở cạnh tên).
+    // Gọn trong dải đầu hộp phòng: chỉ mã QR nhỏ — không khung, không tiêu đề (mã phòng đã ở cạnh tên).
     return (
-      <div className="flex flex-col items-center gap-1.5">
-        <div ref={box} className="rounded-md border bg-white p-1" title={`Mã QR của ${record.code}`}>
-          <QRCodeSVG value={facilityLookupUrl(record.code)} size={72} />
-        </div>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={print}>
-          <Printer />
-          In tem
-        </Button>
+      <div className="rounded-md border bg-white p-1" title={`Mã QR của ${record.code}`}>
+        <QRCodeSVG value={facilityLookupUrl(record.code)} size={72} />
       </div>
     );
   }
   return (
     <div className="flex flex-wrap items-center gap-5">
-      <div ref={box} className="rounded-lg border bg-white p-3">
+      <div className="rounded-lg border bg-white p-3">
         <QRCodeSVG value={facilityLookupUrl(record.code)} size={148} />
       </div>
       <div className="min-w-0 space-y-2">
         <p className="font-mono text-base font-semibold">{record.code}</p>
         <p className="text-muted-foreground text-sm">Quét mã để xem hiện trạng của {record.name ?? "hạng mục"}.</p>
-        <Button type="button" variant="outline" size="sm" onClick={print}>
-          <Printer />
-          In tem
-        </Button>
       </div>
     </div>
   );

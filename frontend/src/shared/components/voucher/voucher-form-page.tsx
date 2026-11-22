@@ -448,7 +448,7 @@ export function VoucherFormPage({
     <Card className="gap-0 py-0">
       <SideSection title={title}>
         <SideFact label="Số phiếu">
-          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">{submit || (direct && directText) ? "Cấp khi ghi nhận" : "Cấp khi duyệt"}</span>}
+          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">{submit || direct ? "Cấp khi ghi nhận" : "Cấp khi trình"}</span>}
         </SideFact>
         {creator ? <SideFact label="Người lập">{creator}</SideFact> : null}
         {hasLines ? <SideFact label="Số dòng"><span className="tabular-nums">{lineCount}</span></SideFact> : null}

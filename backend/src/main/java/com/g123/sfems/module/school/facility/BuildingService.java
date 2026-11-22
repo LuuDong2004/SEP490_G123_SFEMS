@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
-import java.util.ArrayList;
 import com.g123.sfems.domain.school.facility.FacilityCondition;
 import com.g123.sfems.domain.school.facility.FacilityStructure;
 import com.g123.sfems.domain.school.facility.Building;
@@ -166,22 +165,13 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
     }
 
     /**
-     * Không xoá khối nhà còn hạng mục, còn kế hoạch bảo trì; đã có trong phiếu kiểm kê thì giữ lại làm lịch sử.
+     * Không xoá khối nhà còn hạng mục. Đã có trong phiếu kiểm kê thì giữ lại làm lịch sử.
      */
     @Override
     protected void beforeDelete(Building item) {
         long rooms = count("SELECT count(*) FROM rooms WHERE building_id = :id", item.getId());
-        long plans = count("SELECT count(*) FROM maintenance_plans WHERE building_id = :id", item.getId());
-        List<String> parts = new ArrayList<>();
         if (rooms > 0) {
-            parts.add(rooms + " hạng mục");
-        }
-        if (plans > 0) {
-            parts.add(plans + " kế hoạch bảo trì");
-        }
-        if (!parts.isEmpty()) {
-            throw new FieldValidationException("id",
-                    "Khối nhà còn " + String.join(", ", parts) + " — chuyển đi trước khi xoá");
+            throw new FieldValidationException("id", "Khối nhà còn " + rooms + " hạng mục — chuyển đi trước khi xoá");
         }
         long inventories = count(
                 "SELECT count(DISTINCT session_id) FROM inventory_facility_lines WHERE building_id = :id", item.getId());

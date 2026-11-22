@@ -6,7 +6,6 @@ import com.g123.sfems.domain.school.coderule.SchoolCodeRule;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import jakarta.persistence.Table;
-import java.time.Year;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,8 +41,6 @@ public class SchoolCodeService {
         TARGETS.put("campuses", "Cơ sở");
         TARGETS.put("staff", "Cán bộ, giáo viên");
         TARGETS.put("subject_teams", "Tổ bộ môn");
-        TARGETS.put("facility_works", "Sửa chữa, cải tạo công trình");
-        TARGETS.put("maintenance_plans", "Kế hoạch bảo trì");
     }
 
     private static final Pattern SAFE_PREFIX = Pattern.compile("^[A-Za-z0-9._-]{0,20}$");
@@ -180,7 +177,7 @@ public class SchoolCodeService {
     }
 
     private List<String> codesStartingWith(Long schoolId, String target, String prefix) {
-        // `target` đã qua requireTarget / targetOf — chỉ là một trong bốn tên bảng cố định.
+        // `target` đã qua requireTarget / targetOf — chỉ là một trong các tên bảng cố định của TARGETS.
         return jdbc.queryForList(
                 "SELECT upper(code) FROM " + target + " WHERE school_id = ? AND upper(code) LIKE ? ESCAPE '\\'",
                 String.class,
@@ -200,9 +197,6 @@ public class SchoolCodeService {
             case "buildings" -> new Effective(target, label, "NHA-", 2, 1, false);
             case "campuses" -> new Effective(target, label, "CS", 2, 1, false);
             case "subject_teams" -> new Effective(target, label, "TO", 2, 1, false);
-            case "facility_works" -> new Effective(target, label, "SC", 3, 1, false);
-            // Theo năm: BT-2026-001, sang năm đánh số lại từ 001.
-            case "maintenance_plans" -> new Effective(target, label, "BT-" + Year.now() + "-", 3, 1, false);
             default -> new Effective(target, label, "CB", 4, 1, false);
         };
     }

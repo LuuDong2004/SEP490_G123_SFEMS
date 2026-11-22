@@ -526,3 +526,5 @@ databaseChangeLog:
       file: db/changelog/changes/283-thong-bao-qua-email.sql
   - include:
       file: db/changelog/changes/284-quan-tri-vien-chi-xem-nghiep-vu.sql
+  - include:
+      file: db/changelog/changes/285-xoa-bang-ngoai-pham-vi.sql

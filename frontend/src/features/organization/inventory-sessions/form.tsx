@@ -150,7 +150,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
     <Card className="gap-0 py-0">
       <SideSection title="Phiếu kiểm kê">
         <SideFact label="Số phiếu">
-          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi duyệt</span>}
+          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi trình</span>}
         </SideFact>
         {record?.school?.name ? <SideFact label="Trường">{record.school.name}</SideFact> : null}
         <SideFact label="Tên phiếu">{title || <span className="text-warning-text font-normal">Chưa nhập</span>}</SideFact>

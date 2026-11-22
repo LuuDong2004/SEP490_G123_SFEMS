@@ -14,26 +14,16 @@ import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
 import { LoadingText } from "@/shared/components/spinner";
 
-/** Loại phiếu → màn danh sách của nó. Xuất kho và lưu kho không còn màn nên không liệt kê. */
+/** Loại phiếu → màn danh sách của nó. */
 const VOUCHER_ROUTES: Record<string, string> = {
   equipment_intakes: "/equipment-intakes",
-  equipment_allocations: "/equipment-allocations",
-  equipment_transfers: "/equipment-transfers",
-  equipment_loans: "/equipment-loans",
-  damage_reports: "/damage-reports",
   inventory_sessions: "/inventory-sessions",
-  disposals: "/disposals",
   purchase_proposals: "/purchase-proposals",
-  repair_orders: "/repair-orders",
-  warranty_claims: "/warranty-claims",
-  maintenance_orders: "/maintenance-orders",
-  consumption_records: "/consumption-records",
-  room_bookings: "/room-bookings",
 };
 
 /** Một loại phiếu đang có phiếu chờ duyệt: bấm mở danh sách nếu tài khoản xem được loại phiếu đó. */
 function PendingRow({ kind, label, pending }: { kind: string; label: string; pending: number }) {
-  // Loại phiếu không còn màn (xuất kho, lưu kho) vẫn được đếm để tổng khớp với bảng bên cạnh, chỉ không mở được.
+  // Loại phiếu không có màn vẫn được đếm để tổng khớp với bảng bên cạnh, chỉ không mở được.
   const allowed = useCan({ resource: kind, action: "list" }).data?.can ?? false;
   const mayOpen = allowed && !!VOUCHER_ROUTES[kind];
   const body = (

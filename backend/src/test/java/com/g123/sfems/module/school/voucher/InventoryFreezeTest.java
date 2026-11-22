@@ -20,15 +20,9 @@ class InventoryFreezeTest {
 
     @Test
     void coversVouchersThatChangeAssetsButNotInventoryItself() {
-        assertThat(InventoryFreeze.covers("equipment_allocations")).isTrue();
-        assertThat(InventoryFreeze.covers("equipment_transfers")).isTrue();
-        assertThat(InventoryFreeze.covers("equipment_loans")).isTrue();
-        assertThat(InventoryFreeze.covers("damage_reports")).isTrue();
-        assertThat(InventoryFreeze.covers("repair_orders")).isTrue();
-        assertThat(InventoryFreeze.covers("disposals")).isTrue();
         assertThat(InventoryFreeze.covers("equipment_intakes")).isTrue();
         assertThat(InventoryFreeze.covers("inventory_sessions")).isFalse();
-        assertThat(InventoryFreeze.covers("room_bookings")).isFalse();
+        assertThat(InventoryFreeze.covers("purchase_proposals")).isFalse();
     }
 
     @Test
@@ -46,7 +40,7 @@ class InventoryFreezeTest {
         row.put("title", "Kiểm kê cuối năm");
         row.put("room", null);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
-        assertThatThrownBy(() -> new InventoryFreeze(jdbc).requireNotFrozen("equipment_allocations", 5L))
+        assertThatThrownBy(() -> new InventoryFreeze(jdbc).requireNotFrozen("equipment_intakes", 5L))
                 .isInstanceOf(FieldValidationException.class)
                 .hasMessageContaining("KK-2026-001")
                 .hasMessageContaining("cả trường");
@@ -65,6 +59,6 @@ class InventoryFreezeTest {
     void freeWhenNoSessionMatches() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
-        new InventoryFreeze(jdbc).requireNotFrozen("disposals", 5L);
+        new InventoryFreeze(jdbc).requireNotFrozen("equipment_intakes", 5L);
     }
 }

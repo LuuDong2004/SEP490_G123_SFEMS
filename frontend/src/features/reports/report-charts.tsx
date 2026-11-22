@@ -1,4 +1,4 @@
-import { Banknote, BookOpen, Boxes, Building2, CircleHelp, DoorOpen, CalendarClock, CircleAlert, ClipboardList, FileCheck2, Gauge, Package, Ruler, School, ShieldCheck, ShoppingCart, TrendingDown, TrendingUp, Wrench } from "lucide-react";
+import { Banknote, Boxes, Building2, CircleHelp, CalendarClock, CircleAlert, ClipboardList, FileCheck2, Gauge, Package, Ruler, School, ShieldCheck, ShoppingCart, TrendingDown, TrendingUp, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ChartCard, ColumnChart, DonutBreakdown, GroupedBars, Meter, StatTile, TrendArea, type Series, type Slice } from "@/shared/components/charts/charts";
@@ -179,29 +179,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
         </Pair>
       );
     }
-    case "room-usage": {
-      const used = rows.filter((r) => n(r.bookings) > 0);
-      const data = [...used].sort((a, b) => n(b.bookings) - n(a.bookings));
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<DoorOpen />} label="Phòng bộ môn, chức năng" value={count.format(rows.length)}
-            hint={`${count.format(rows.length - used.length)} phòng chưa được mượn trong kỳ`} />
-          <StatTile flat icon={<CalendarClock />} label="Lượt mượn" value={count.format(sum(rows, "bookings"))}
-            hint={`${count.format(sum(rows, "practice"))} thực hành · ${count.format(sum(rows, "theory"))} lý thuyết`} />
-          <StatTile flat icon={<BookOpen />} label="Số tiết sử dụng" value={count.format(sum(rows, "periods"))}
-            hint="Buổi sáng / chiều tính 5 tiết, cả ngày 10 tiết" />
-          <StatTile flat icon={<CircleAlert />} tone="warning" label="Trả có vấn đề" value={count.format(sum(rows, "issues"))} />
-        </Tiles>
-      ) : data.length ? (
-        <Breakdown rows={data} labelKey="room" unit="lượt" donutTitle="Mục đích mượn" columnsTitle="Lượt mượn theo phòng"
-          onSlice={pickSeries("lượt", data)} onColumn={pickRecord("room")}
-          description="Phòng được mượn nhiều nhất" series={[
-            { key: "practice", label: "Thực hành" },
-            { key: "theory", label: "Lý thuyết" },
-            { key: "other", label: "Khác" },
-          ]} />
-      ) : null;
-    }
     case "equipment-by-school": {
       const sorted = [...rows].sort((a, b) => n(b.total) - n(a.total));
       // Gộp theo đơn vị thì mỗi dòng là một trường; gộp theo chiều khác thì cột "Số trường" đã đếm sẵn.
@@ -341,62 +318,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
               <ColumnChart rows={bySchool} labelKey="label" unit="thiết bị" series={[{ key: "count", label: "Thiết bị" }]} onPick={pickSchool("thiết bị")} />
             </ChartCard>
           ) : null}
-        </Pair>
-      ) : null;
-    }
-    case "transfers": {
-      const byKind = foldOther(Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        m[r.kind] = (m[r.kind] ?? 0) + 1;
-        return m;
-      }, {})).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ key: `k${i}`, label: k, count: v })));
-      const of = (k: string) => rows.filter((r) => r.kind === k).length;
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<ClipboardList />} label="Lượt đổi chỗ" value={count.format(rows.length)}
-            hint={`${count.format(new Set(rows.map((r) => r.code)).size)} thiết bị`} />
-          <StatTile flat icon={<TrendingUp />} tone="success" label="Cấp phát" value={count.format(of("Cấp phát"))} />
-          <StatTile flat icon={<TrendingDown />} label="Thu hồi, chuyển phòng"
-            {...sumOf([[of("Thu hồi"), "thu hồi"], [of("Chuyển phòng"), "chuyển phòng"]])} />
-          <StatTile flat icon={<School />} label="Điều chuyển giữa trường" value={count.format(of("Điều chuyển giữa trường"))} />
-        </Tiles>
-      ) : rows.length ? (
-        <ChartCard bare title="Theo hình thức">
-          <DonutBreakdown items={byKind} unit="lượt" bars onPick={pickFolded("lượt", byKind, (r) => r.kind, "kind")} />
-        </ChartCard>
-      ) : null;
-    }
-    case "utilization": {
-      const total = sum(rows, "total");
-      const inUse = sum(rows, "in_use");
-      const rooms = report.columns.some((c) => c.key === "bookings");
-      const data = [...rows].sort((a, b) => n(b.total) - n(a.total))
-        .map((r) => ({ ...r, rest: Math.max(n(r.total) - n(r.in_use) - n(r.idle), 0) }));
-      const dimension = report.columns.find((c) => c.key === "name")?.label ?? "Nhóm";
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<Gauge />} tone={total && inUse / total >= 0.5 ? "success" : "warning"} label="Tỷ lệ đang dùng"
-            info="Thiết bị đang dùng và đang cho mượn trên tổng thiết bị."
-            value={total ? `${Math.round((inUse / total) * 100)}%` : "—"} hint={`${count.format(inUse)} / ${count.format(total)} thiết bị`} />
-          <StatTile flat icon={<ClipboardList />} label="Lượt mượn thiết bị" value={count.format(sum(rows, "loans"))}
-            hint={`${count.format(sum(rows, "loaned"))} thiết bị được mượn`} />
-          <StatTile flat icon={<Building2 />} label="Lượt mượn theo phòng" value={rooms ? count.format(sum(rows, "bookings")) : "—"}
-            hint={rooms ? undefined : "Không tính khi gộp theo loại thiết bị"} />
-          <StatTile flat icon={<CircleAlert />} tone="warning" label="Nằm kho, không phát sinh" value={count.format(sum(rows, "idle"))}
-            hint="Cả kỳ không dùng tới" />
-        </Tiles>
-      ) : data.length ? (
-        <Pair className="lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
-          <ChartCard bare title="Tỷ lệ đang dùng" description="Đang sử dụng + đang cho mượn">
-            <Meter percent={pct(inUse, total)} good={70} warn={40} label={`${count.format(inUse)} / ${count.format(total)} thiết bị`}
-              hint={`${count.format(sum(rows, "idle"))} thiết bị nằm kho cả kỳ`} />
-          </ChartCard>
-          <ChartCard bare title={`Khai thác — ${dimension.toLowerCase()}`} description="Nhóm nhiều thiết bị nhất">
-            <ColumnChart rows={data} labelKey="name" unit="thiết bị" onPick={pickRecord("name")} series={[
-              { key: "in_use", label: "Đang dùng, cho mượn" },
-              { key: "rest", label: "Khác (trong kho có dùng, đang sửa…)" },
-              { key: "idle", label: "Nằm kho, không phát sinh" },
-            ]} />
-          </ChartCard>
         </Pair>
       ) : null;
     }
@@ -554,33 +475,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
         </Pair>
       ) : null;
     }
-    case "maintenance": {
-      const sorted = [...rows].sort((a, b) => n(b.repairs) - n(a.repairs))
-        .map((r) => ({ ...r, open: Math.max(n(r.repairs) - n(r.repaired) - n(r.unrepairable), 0) }));
-      const est = sum(rows, "cost_estimated");
-      const act = sum(rows, "cost_actual");
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<Wrench />} label="Phiếu sửa chữa" value={count.format(sum(rows, "repairs"))}
-            hint={`${count.format(sum(rows, "repaired"))} sửa được · ${count.format(sum(rows, "unrepairable"))} không sửa được`} />
-          <StatTile flat icon={<Banknote />} tone={act > est && est > 0 ? "destructive" : undefined} label="Chi phí sửa thực tế"
-            value={money(act)} hint={`Dự kiến ${money(est)}`} />
-          <StatTile flat icon={<ShieldCheck />} label="Bảo hành, bảo trì"
-            value={count.format(sum(rows, "warranty") + sum(rows, "maintenance"))}
-            hint={`${partsHint([[sum(rows, "warranty"), "bảo hành"], [sum(rows, "maintenance"), "bảo trì"]])} · ${count.format(sum(rows, "maintenance_done"))} bảo trì xong`} />
-          <StatTile flat icon={<Banknote />} label="Tổng chi phí thực tế" value={money(sum(rows, "total_cost"))}
-            hint="Sửa chữa, bảo hành, bảo trì" />
-        </Tiles>
-      ) : sorted.length ? (
-        <Breakdown rows={sorted} labelKey="name" unit="phiếu" donutTitle="Kết quả sửa chữa" columnsTitle="Phiếu sửa chữa theo nhóm"
-          onSlice={pickSeries("phiếu", sorted)} onColumn={pickRecord("name")}
-          description="Nhóm nhiều phiếu sửa chữa nhất" series={[
-            { key: "repaired", label: "Sửa được" },
-            { key: "open", label: "Chưa có kết quả" },
-            { key: "unrepairable", label: "Không sửa được" },
-          ]} />
-      ) : null;
-    }
     case "movements": {
       const data = rows.map((r) => ({ ...r, out: n(r.THANH_LY) + n(r.TIEU_HUY) + n(r.MAT) }));
       return part === "stats" ? (
@@ -690,47 +584,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
         </>
       );
     }
-    case "overdue-loans": {
-      const bySchool = Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        m[r.school] = (m[r.school] ?? 0) + 1;
-        return m;
-      }, {})).map(([k, v]) => ({ key: k, label: k, count: v })).sort((a, b) => b.count - a.count).slice(0, 10);
-      return part === "stats" ? (
-        <>
-          <Tiles>
-            <StatTile flat icon={<CalendarClock />} tone="warning" label="Phiếu mượn quá hạn" value={count.format(rows.length)} />
-            <StatTile flat icon={<Boxes />} label="Thiết bị chưa trả" value={count.format(sum(rows, "items"))} />
-            <StatTile flat icon={<CircleAlert />} tone="destructive" label="Trễ lâu nhất"
-              value={`${count.format(Math.max(0, ...rows.map((r) => n(r.days_late))))} ngày`} />
-            <StatTile flat icon={<School />} label="Trường có phiếu quá hạn" value={count.format(bySchool.length)} />
-          </Tiles>
-        </>
-      ) : rows.length ? (
-        <ChartCard bare title="Phiếu quá hạn theo trường">
-          <ColumnChart rows={bySchool} labelKey="label" unit="phiếu" series={[{ key: "count", label: "Phiếu quá hạn" }]} onPick={pickSchool("phiếu")} />
-        </ChartCard>
-      ) : null;
-    }
-    case "disposals": {
-      const byKind = foldOther(Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        m[r.kind] = (m[r.kind] ?? 0) + n(r.items);
-        return m;
-      }, {})).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ key: `kind${i}`, label: k, count: v })));
-      return part === "stats" ? (
-        <>
-          <Tiles>
-            <StatTile flat icon={<FileCheck2 />} label="Phiếu đã thực hiện" value={count.format(rows.length)} />
-            <StatTile flat icon={<Boxes />} label="Thiết bị ghi giảm" value={count.format(sum(rows, "items"))} />
-            <StatTile flat icon={<TrendingUp />} tone="success" label="Thu về / chi phí" value={money(sum(rows, "recovered_value"))}
-              hint={`Chi phí ${money(sum(rows, "disposal_cost"))}`} />
-          </Tiles>
-        </>
-      ) : (
-        <ChartCard bare title="Thiết bị ghi giảm theo hình thức">
-          <DonutBreakdown items={byKind} unit="thiết bị" bars onPick={pickFolded("thiết bị", byKind, (r) => r.kind, "kind")} />
-        </ChartCard>
-      );
-    }
     case "purchase": {
       const data = rows.map((r) => ({ ...r, amountM: Math.round(n(r.amount) / 1e6), approvedM: Math.round(n(r.approved_amount) / 1e6) }));
       return part === "stats" ? (
@@ -759,29 +612,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             ]} />
           </ChartCard>
         </Pair>
-      );
-    }
-    case "supply-consumption": {
-      // Theo thiết bị thì mỗi dòng là một thiết bị; theo chiều khác thì cột "Số thiết bị" đã đếm sẵn.
-      const byCatalog = report.columns.some((c) => c.key === "unit");
-      const top = [...rows].sort((a, b) => n(b.entries) - n(a.entries)).slice(0, 10)
-        .map((r, i) => ({ key: `r${i}`, label: String(r.name ?? ""), count: n(r.entries) }));
-      return part === "stats" ? (
-        <>
-          <Tiles>
-            <StatTile flat icon={<Package />} label="Thiết bị đã dùng"
-              value={count.format(byCatalog ? rows.length : Math.max(0, ...rows.map((r) => n(r.catalogs))))} />
-            <StatTile flat icon={<ClipboardList />} label="Số lượt" value={count.format(sum(rows, "entries"))} />
-          </Tiles>
-        </>
-      ) : (
-        <ChartCard bare title="Dùng nhiều nhất" description="Số lượt">
-          <ColumnChart rows={top} labelKey="label" unit="lượt" series={[{ key: "count", label: "Số lượt" }]}
-            onPick={onDrill && ((t) => {
-              const row = rows.find((r) => String(r.name ?? "") === t.label);
-              if (row) onDrill({ title: t.label, record: row });
-            })} />
-        </ChartCard>
       );
     }
     case "supply-expiry": {

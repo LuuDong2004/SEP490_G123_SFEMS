@@ -1,4 +1,4 @@
-import { CalendarClock, DoorOpen, GraduationCap, Hammer, Hotel, IdCard, PackageSearch, School as SchoolIcon, UsersRound } from "lucide-react";
+import { DoorOpen, GraduationCap, Hotel, IdCard, PackageSearch, School as SchoolIcon, UsersRound } from "lucide-react";
 
 import type { CatalogConfig } from "@/shared/components/catalog/types";
 import { EQUIPMENT_EXTRA } from "@/features/organization/resources/equipment-extra";
@@ -6,9 +6,6 @@ import { BUILDING_EXTRA, CAMPUS_EXTRA, ROOM_EXTRA } from "@/features/organizatio
 import { STAFF_EXTRA } from "@/features/organization/resources/staff-extra";
 import { SCHOOL_CLASS_EXTRA } from "@/features/organization/resources/class-extra";
 import { SUBJECT_TEAM_EXTRA } from "@/features/organization/resources/team-extra";
-import { FACILITY_WORK_EXTRA } from "@/features/organization/resources/work-extra";
-import { withWorkHistory, withWorkHistoryTab } from "@/features/organization/resources/work-history";
-import { MAINTENANCE_EXTRA } from "@/features/organization/resources/maintenance-extra";
 
 /**
  * Dữ liệu CỦA TỪNG TRƯỜNG dựng trên bộ màn danh mục dùng chung: cán bộ, cơ sở,
@@ -89,20 +86,6 @@ export const ORG_RESOURCES: CatalogConfig[] = [
     hideSortOrder: true,
   },
   {
-    resource: "facility_works",
-    hidden: true,
-    path: "/facility-works",
-    group: "organization",
-    icon: Hammer,
-    label: "Sửa chữa, cải tạo",
-    description: "Danh sách sửa chữa, cải tạo, nâng cấp công trình của trường.",
-    codeExample: "SC001",
-    nameExample: "Sơn lại dãy nhà A",
-    nameLabel: "Nội dung công việc",
-    codeAuto: true,
-    hideSortOrder: true,
-  },
-  {
     resource: "school_classes",
     hidden: true,
     path: "/school-classes",
@@ -131,18 +114,6 @@ export const ORG_RESOURCES: CatalogConfig[] = [
     codeReadOnly: "Mã được cấp tự động theo chuẩn của Sở, không sửa tay.",
     nameExample: "Máy chiếu Epson EB-X51",
   },
-  {
-    resource: "maintenance_plans",
-    // Trang riêng, không hộp thoại: kế hoạch có bảng nhiều tài sản, cần chỗ.
-    pageForm: true,
-    path: "/maintenance-plans",
-    group: "ops_maintenance",
-    icon: CalendarClock,
-    label: "Kế hoạch bảo trì",
-    description: "Lịch bảo trì định kỳ thiết bị và phòng. Được nhắc trước hạn 7 ngày.",
-    codeExample: "BT-MC-01",
-    nameExample: "Vệ sinh máy chiếu phòng 101",
-  },
 ];
 
 const EXTRAS: Record<string, CatalogConfig["extra"]> = {
@@ -152,16 +123,7 @@ const EXTRAS: Record<string, CatalogConfig["extra"]> = {
   rooms: ROOM_EXTRA,
   school_classes: SCHOOL_CLASS_EXTRA,
   subject_teams: SUBJECT_TEAM_EXTRA,
-  facility_works: FACILITY_WORK_EXTRA,
   equipment: EQUIPMENT_EXTRA,
-  maintenance_plans: MAINTENANCE_EXTRA,
 };
 for (const c of ORG_RESOURCES) c.extra = EXTRAS[c.resource];
 
-// Hồ sơ phòng, khối nhà, cơ sở có lịch sử sửa chữa, cải tạo của chính nó và nút ghi ngay tại đó.
-const works = ORG_RESOURCES.find((c) => c.resource === "facility_works")!;
-for (const [resource, level] of [["rooms", "room"], ["buildings", "building"], ["campuses", "campus"]] as const) {
-  const extra = EXTRAS[resource]!;
-  extra.ShowBelow = withWorkHistory(level, works, extra.ShowBelow);
-  extra.ShowTabs = withWorkHistoryTab(level, works, extra.ShowTabs);
-}

@@ -21,11 +21,8 @@ type VoucherLink = {
   name: string | null;
 };
 
-/** Đường dẫn màn chi tiết của một phiếu liên quan — kế hoạch bảo trì không phải phiếu nên không nằm trong VOUCHER_ROUTES. */
-const routeOf = (resource: string) => (resource === "maintenance_plans" ? "/maintenance-plans" : VOUCHER_ROUTES[resource]);
-
 function Row({ link }: { link: VoucherLink }) {
-  const route = routeOf(link.resource);
+  const route = VOUCHER_ROUTES[link.resource];
   const title = `${humanizeResource(link.resource)} ${link.code ?? (link.direction === "child" ? "(nháp)" : `#${link.id}`)}`;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
@@ -40,7 +37,7 @@ function Row({ link }: { link: VoucherLink }) {
       {link.name ? <span className="text-muted-foreground truncate">{link.name}</span> : null}
       {link.status ? (
         <Badge variant={VOUCHER_STATUS_VARIANTS[link.status] ?? "neutral"} className="ms-auto">
-          {voucherStatusText(link.status, null, false, link.resource)}
+          {voucherStatusText(link.status, null, false)}
         </Badge>
       ) : null}
     </li>
@@ -48,8 +45,8 @@ function Row({ link }: { link: VoucherLink }) {
 }
 
 /**
- * Phiếu liên quan của một phiếu: phiếu GỐC đã sinh ra nó và các phiếu sinh ra TỪ nó (báo hỏng → sửa chữa, sửa chữa
- * không được → thanh lý, kiểm kê → ghi giảm / cấp phát / ghi tăng, kế hoạch bảo trì → phiếu bảo trì…). Không có phiếu
+ * Phiếu liên quan của một phiếu: phiếu GỐC đã sinh ra nó và các phiếu sinh ra TỪ nó (đề xuất mua sắm → ghi tăng,
+ * kiểm kê → ghi tăng). Không có phiếu
  * nào liên quan thì không vẽ gì. Dùng chung cho mọi màn chi tiết phiếu (`VoucherShowShell` tự gắn).
  */
 export function RelatedVouchers({ resource, id }: { resource: string; id?: number | null }) {

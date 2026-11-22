@@ -735,33 +735,10 @@ public class AdequacyService {
                     .merge(rs.getLong("catalog_id"), rs.getInt("n"), Integer::sum);
         });
 
-        // Điều chỉnh chuẩn (154): thiết bị nào Sở cho điều chỉnh ở cấp nào, và dòng đã duyệt mới nhất của mỗi
-        // (trường, thiết bị). Thiết bị thay thế đếm như thiết bị gốc: số dùng được ở trường.
-        Map<String, Set<Long>> adjustableByLevel = new HashMap<>();
-        jdbc.query("""
-                SELECT lv.code, r.catalog_id FROM standard_adjustment_rules r
-                JOIN education_levels lv ON lv.id = r.education_level_id""", rs -> {
-            adjustableByLevel.computeIfAbsent(rs.getString(1), k -> new HashSet<>()).add(rs.getLong(2));
-        });
-        Map<Long, Map<Long, Adjustment>> adjustments = new HashMap<>();
-        jdbc.query("""
-                SELECT DISTINCT ON (a.school_id, l.catalog_id) a.school_id, l.catalog_id, l.id, l.method, l.quantity,
-                       l.substitute_catalog_id, sc.code AS sub_code, sc.name AS sub_name, l.ratio, l.reason,
-                       to_char(a.reviewed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'DD/MM/YYYY') AS approved_at
-                FROM standard_adjustment_lines l
-                JOIN standard_adjustments a ON a.id = l.adjustment_id
-                LEFT JOIN equipment_catalogs sc ON sc.id = l.substitute_catalog_id
-                WHERE l.decision = 'APPROVED'%s
-                ORDER BY a.school_id, l.catalog_id, a.reviewed_at DESC, l.id DESC""".formatted(
-                ids == null ? "" : " AND a.school_id IN (" + ids + ")"), rs -> {
-            long school = rs.getLong("school_id");
-            Long sub = (Long) rs.getObject("substitute_catalog_id");
-            int subCount = sub == null ? 0 : byCatalog.getOrDefault(school, Map.of()).getOrDefault(sub, 0);
-            adjustments.computeIfAbsent(school, k -> new HashMap<>()).put(rs.getLong("catalog_id"),
-                    new Adjustment(rs.getLong("id"), rs.getString("method"), (Integer) rs.getObject("quantity"), sub,
-                            rs.getString("sub_code"), rs.getString("sub_name"), rs.getBigDecimal("ratio"), subCount,
-                            rs.getString("reason"), rs.getString("approved_at")));
-        });
+        // Điều chỉnh chuẩn kiểu cũ (154) đã bỏ cùng bảng của nó (285): không thiết bị nào "được điều chỉnh" theo
+        // quy định cũ, không dòng điều chỉnh cũ nào. Điều chỉnh của trường nay đi qua school_norm_adjustments (279).
+        Map<String, Set<Long>> adjustableByLevel = Map.of();
+        Map<Long, Map<Long, Adjustment>> adjustments = Map.of();
 
         for (School s : schools) {
             Set<Long> adjustable = adjustableByLevel.getOrDefault(s.levelCode(), Set.of());

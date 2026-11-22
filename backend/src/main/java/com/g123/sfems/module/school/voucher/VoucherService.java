@@ -63,7 +63,6 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
     protected final RowLevelPrincipalResolver principals;
     protected final EntityManager entityManager;
     protected final VoucherForms forms;
-    protected final VoucherHolds holds;
     protected final VoucherCampus campus;
     private final Class<V> type;
     private final String resource;
@@ -78,7 +77,6 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         this.principals = deps.principals();
         this.entityManager = deps.entityManager();
         this.forms = deps.forms();
-        this.holds = deps.holds();
         this.campus = deps.campus();
         this.type = type;
         this.resource = resource;
@@ -294,8 +292,6 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         V voucher = writable(id);
         lockAndReread(voucher);
         validateSubmit(voucher);
-        // Một tài sản chỉ nằm trên một phiếu đang chạy — đặt ở đây để mọi loại phiếu cùng một luật.
-        holds.requireFree(resource, voucher.getId());
         forms.requireComplete(resource, voucher.getDetails(), null, formVariant(voucher));
         for (var line : linesToCheck(voucher)) {
             forms.requireLineComplete(resource, line.getDetails(), line.getLineNo(), null, formVariant(voucher));

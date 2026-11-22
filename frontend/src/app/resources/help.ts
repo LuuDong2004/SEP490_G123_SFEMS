@@ -60,14 +60,6 @@ const ADMIN_HELP: Record<string, ScreenHelp> = {
     title: "Quy tắc mã của trường",
     summary: "Ký hiệu đầu và độ dài số của mã phòng, khối nhà, điểm trường, cán bộ — theo từng trường.",
   },
-  api_clients: {
-    title: "Khoá API tích hợp",
-    summary: "Khoá cho hệ thống ngoài gọi API, đứng tên một tài khoản dịch vụ.",
-    tips: [
-      "Khoá chỉ hiện MỘT lần lúc tạo. Đổi lấy access token: POST /api/auth/token.",
-      "Thu hồi khoá có hiệu lực chậm nhất 15 phút (thời hạn của access token đã cấp).",
-    ],
-  },
   system_status: {
     title: "Tình trạng hệ thống",
     summary: "Cơ sở dữ liệu, dung lượng đĩa, bộ nhớ, sao lưu.",
@@ -87,25 +79,6 @@ const ADMIN_HELP: Record<string, ScreenHelp> = {
     tips: [
       "Lịch sử chỉ thêm, không ai sửa hay xoá được — kể cả quản trị viên.",
       "Thiết bị và phiếu có lịch sử riêng: tab Lịch sử của hồ sơ thiết bị, \"Quá trình duyệt\" của phiếu.",
-    ],
-  },
-  evidence: {
-    title: "Minh chứng hoạt động hằng năm",
-    summary: "Mỗi năm học, trường nộp tệp minh chứng cho từng tiêu chí Sở đặt ra; cơ quan quản lý nhận hoặc trả lại.",
-    tips: [
-      "Trường: chọn năm học → \"Thêm minh chứng\" ở tiêu chí → tải tệp → \"Nộp\". Bị trả lại thì sửa tệp và nộp lại.",
-      "Cơ quan quản lý: tab Các trường xem tiến độ, bấm một trường để Nhận / Trả lại từng mục (trả lại phải ghi lý do).",
-      "Sở: tab Tiêu chí minh chứng khai danh mục; tiêu chí đã có trường nộp thì tắt Đang dùng thay vì xoá.",
-    ],
-  },
-  integrations: {
-    title: "Kết nối hệ thống ngoài",
-    summary: "Các hệ thống đối tác (CSDL ngành, SSO, đồng bộ dữ liệu) và tình trạng kết nối, nhật ký trao đổi.",
-    tips: [
-      "Thêm hệ thống: địa chỉ gốc, đường dẫn kiểm tra (vd /health), kiểu xác thực và khoá. Khoá được mã hoá, không hiện lại.",
-      "\"Làm mới tình trạng\" kiểm tra lại mọi hệ thống đang dùng; \"Kiểm tra\" từng dòng kiểm tra một hệ thống.",
-      "Nhật ký giao dịch ghi mọi lần trao đổi; lần lỗi có nút Chạy lại.",
-      "Tài liệu API cho đối tác: /swagger-ui.html trên máy chủ API.",
     ],
   },
 };

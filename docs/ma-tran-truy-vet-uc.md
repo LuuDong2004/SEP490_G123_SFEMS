@@ -1,6 +1,6 @@
-# Ma trận truy vết 42 UC — SFEMS
+# Ma trận truy vết 46 UC — SFEMS
 
-Cập nhật 20/11/2026 theo nhánh `refactor` (nền mới). Nguồn: `docs/SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` (sheet 1),
+Cập nhật 20/11/2026 theo nhánh `refactor` (nền mới). Ngày 22/11/2026 thêm HT-07, HT-08, TC-03, TC-04 và bỏ danh mục học kỳ (changelog 285). Nguồn: `docs/SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` (sheet 1),
 controller ở `backend/.../module`, route ở `frontend/src/app/router` và `features/catalogs/registry.ts`, bảng cổng
 `PortalRoutes.java`, test ở `backend/src/test` và `frontend/e2e/audit` (bộ e2e theo vai; mã như A4, K2, E3 là mã kiểm tra trong bộ đó).
 
@@ -23,14 +23,16 @@ Quy ước:
 | HT-04 | Quản lý tài khoản người dùng | DongLV | `/users` (+ `create`, `edit/:id`, `show/:id`) | `/api/users` (CRUD, `/{id}/password`, `/{id}/sessions`) | `users:read/write/delete` | ✅ `UserSubtypeTest`; e2e `validation` V2, `security` S5 |
 | HT-05 | Quản lý vai trò và quyền chức năng | DongLV | `/roles`, `/permissions` | `/api/roles`, `/api/permissions`, `/api/row_level_policies` | `roles:*`, `permissions:read`, `row_level_policies:*` | ✅ `RoleTypeTest`, `PolicyCompilerTest`, `ScopeAlgebraTest`, `AuthorityCacheRlsTest`, `CompilerAgreementTest`; e2e `security` S2, S5 |
 | HT-06 | Nhận và quản lý thông báo | QuangTD | `/notifications`, chuông trên đầu trang | `/api/notifications` (`/recent`, `/unread-count`, `/{id}/read`, `/read-all`) | đã đăng nhập | ◐ e2e `flow-procurement` A2/A3, `flow-inventory` K2, `flow-exceptions` E1 (nhận thông báo đúng người) — chưa test đánh dấu đã đọc |
+| HT-07 | Cấp tài khoản cho nhân sự trường | DongLV | `/school-users`, Tổng quan trường › Nhân sự › Cấp tài khoản | `/api/staff/{id}/account`, `/api/school_users` | `staff_accounts:write`, `school_users:*` | ❌ |
+| HT-08 | Cấu hình luồng phê duyệt | DongLV | `/approval-flows` | `/api/approval_flows` | `approval_flows:read/write` | ◐ `RoleTypeTest` (chỉ quản trị viên có `approval_flows:write`) — chưa test luồng không có bước, ngưỡng tiền |
 
 ## Danh mục dùng chung (DM)
 
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
-| DM-01 | Quản lý danh mục dùng chung | TuTN | `/catalogs` → `/units`, `/grades`, `/subjects`, `/subject-groups`, `/school-years`, `/semesters`, `/room-types`, `/facility-groups`, `/origin-sources`, `/acquisition-methods`, `/movement-reasons`, `/education-levels`, `/wards` | `/api/<danh mục>` (khung `CatalogController`) | `<danh mục>:read/write/delete` | ◐ `FieldRuleTest`, `FieldRulesExportTest` |
+| DM-01 | Quản lý danh mục dùng chung | TuTN | `/catalogs` → `/units`, `/grades`, `/subjects`, `/subject-groups`, `/school-years`, `/room-types`, `/facility-groups`, `/origin-sources`, `/acquisition-methods`, `/movement-reasons`, `/education-levels`, `/wards` | `/api/<danh mục>` (khung `CatalogController`) | `<danh mục>:read/write/delete` | ◐ `FieldRuleTest`, `FieldRulesExportTest` |
 | DM-02 | Quản lý danh mục thiết bị | TuTN | `/equipment-catalogs`, `/equipment-types`, `/equipment-configs` | `/api/equipment_catalogs` (+ `/school-items`, `/school-items/name-check`), `/api/equipment_types`, `/api/equipment_configs` | `equipment_catalogs:*` | ✅ `CatalogNamesTest` |
-| DM-03 | Quản lý danh mục TBDH tối thiểu và định mức | TuTN | `/equipment-standards`, `/equipment-minimum`, `/norm-matrix`, `/equipment-norms` | `/api/equipment_standards` (`/revise`, `/{id}/apply`, `/{id}/changes`), `/api/equipment_norms` (`/import`, `/export.xlsx`, `/batch`, `/adjustment-suggestion`, `/adjust-groups`) | `equipment_standards:*`, `equipment_norms:*` | ◐ `AppendixParserTest` (đọc phụ lục thông tư), `NormAdjustmentsTest`, `NormAuditTest` (điều chỉnh cho phép trên dòng, ngừng áp dụng từ ngày đầu năm học), `NormChangeTest` (Sở đổi dòng thì điều chỉnh của trường hết hiệu lực); e2e `flow-school-year` Y3 — chưa test form thêm / sửa dòng |
+| DM-03 | Quản lý danh mục thiết bị dạy học tối thiểu và định mức | TuTN | `/equipment-standards`, `/equipment-minimum`, `/norm-matrix`, `/equipment-norms` | `/api/equipment_standards` (`/revise`, `/{id}/apply`, `/{id}/changes`), `/api/equipment_norms` (`/import`, `/export.xlsx`, `/batch`, `/adjustment-suggestion`, `/adjust-groups`) | `equipment_standards:*`, `equipment_norms:*` | ◐ `AppendixParserTest` (đọc phụ lục thông tư), `NormAdjustmentsTest`, `NormAuditTest` (điều chỉnh cho phép trên dòng, ngừng áp dụng từ ngày đầu năm học), `NormChangeTest` (Sở đổi dòng thì điều chỉnh của trường hết hiệu lực); e2e `flow-school-year` Y3 — chưa test form thêm / sửa dòng |
 | DM-04 | Quản lý quy tắc sinh mã | TuTN | `/code-rules`, `/school-code-rules` | `/api/code_rules` (`/next`), `/api/school_code_rules` | `code_rules:*`, `school_code_rules:*` | ❌ |
 
 ## Tổ chức và cơ sở vật chất (TC)
@@ -39,17 +41,19 @@ Quy ước:
 |---|---|---|---|---|---|---|
 | TC-01 | Quản lý trường học | HoangPND | `/schools`, `/school-explorer` › Hồ sơ trường | `/api/schools`, `/api/schools/{id}/logo`, `/api/school_overview`, `/api/school_profile` | `schools:*` | ✅ `SchoolShortCodesTest`, `SchoolImportNameKeyTest` |
 | TC-02 | Quản lý phòng | HoangPND | Tổng quan trường › Cơ sở vật chất | `/api/rooms` (+ `/custom-types`), `/api/buildings`, `/api/campuses`, `/api/facility_info` | `rooms:*` | ◐ e2e `security` S3 (lọc phòng của trường khác bị chặn) |
+| TC-03 | Quản lý nhân sự trường | HoangPND | Tổng quan trường › Nhân sự (cán bộ, giáo viên, tổ chuyên môn) | `/api/staff`, `/api/subject_teams` | `staff:*`, `subject_teams:*` | ❌ |
+| TC-04 | Đánh giá cơ sở vật chất theo chuẩn | HoangPND | Tổng quan trường › Đánh giá CSVC theo chuẩn, `/reports/facility-standard` | `GET /api/facility-standard/schools/{id}` (+ `/export`) | `rooms:read` hoặc `reports:read` | ◐ e2e `security` S3 (đánh giá của trường khác bị chặn) |
 
-## Hồ sơ thiết bị và mã tài sản (TS)
+## Hồ sơ thiết bị và mã thiết bị (TS)
 
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
 | TS-01 | Quản lý hồ sơ thiết bị | NghiaNV | Phân hệ Thiết bị › Danh sách thiết bị | `/api/equipment` (+ `/summary`, `/summary.xlsx`), `/api/equipment_items` | `equipment:read/write/delete` | ◐ `OpeningBalanceTest` (khai tay chỉ khi chưa chốt số dư, không vào chỗ đang kiểm kê, hồ sơ khai nhầm xoá được); e2e `security` S3, `flow-procurement` A7, `flow-exceptions` E8 — chưa test màn sửa hồ sơ |
-| TS-02 | Tra cứu thiết bị theo mã tài sản | NghiaNV | `/equipment-lookup` | `GET /api/equipment` (lọc theo mã tài sản, mã cũ) | `equipment:read` | ✅ e2e `flow-exceptions` E7 (tra theo mã cũ qua API và màn tra cứu) |
+| TS-02 | Tra cứu thiết bị theo mã thiết bị | NghiaNV | `/equipment-lookup` | `GET /api/equipment` (lọc theo mã thiết bị, mã cũ) | `equipment:read` | ✅ e2e `flow-exceptions` E7 (tra theo mã cũ qua API và màn tra cứu) |
 | TS-03 | Đính kèm tài liệu, hình ảnh thiết bị | NghiaNV | Hồ sơ thiết bị › Tệp, ảnh | `/api/attachments` (+ `/{id}/content`, `/{id}/cover`) | quyền của bản ghi gắn tệp | ◐ e2e `flow-procurement` A6 (đính kèm phiếu, tệp giả bị từ chối) — chưa test tệp trên hồ sơ thiết bị |
 | TS-04 | Xem lịch sử thay đổi thiết bị | NghiaNV | Hồ sơ thiết bị › Lịch sử | `GET /api/equipment/{id}/history` | `equipment:read` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (dòng vào sổ, dòng đổi sang mã chuẩn), `security` S3 |
 | TS-05 | Cấp mã chuẩn cho thiết bị mang mã cũ | NghiaNV | Hồ sơ thiết bị › nút Cấp mã chuẩn | `GET /api/equipment/{id}/standard`, `POST /api/equipment/{id}/standard-code` | `equipment:write` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (mã cũ giữ làm mã hiện hành, bấm Cấp mã chuẩn, chặn cấp lần hai) |
-| TS-06 | Sinh mã tài sản thiết bị | NghiaNV | (gọi qua ghi tăng, cấp mã chuẩn) | `GET /api/equipment/next-code`; service sinh mã khi duyệt phiếu | — | ✅ e2e `flow-procurement` A7, `flow-exceptions` E7 (mã đúng mẫu TT.TR.MH.LT.ST.NC) |
+| TS-06 | Sinh mã thiết bị | NghiaNV | (gọi qua ghi tăng, cấp mã chuẩn) | `GET /api/equipment/next-code`; service sinh mã khi duyệt phiếu | — | ✅ e2e `flow-procurement` A7, `flow-exceptions` E7 (mã đúng mẫu TT.TR.MH.LT.ST.NC) |
 | TS-07 | Nhập dữ liệu thiết bị ban đầu từ tệp | NghiaNV | `/data-imports`, `/data-imports/:id` | `/api/data_imports` (`/template`, `/sheets`, `/{id}/choices`…), `/api/data_transfer` | `data_imports:*`, `data_transfer:*` | ✅ `OnboardingParsingTest`, `OnboardingValidatorTest`, `OnboardingQuickFixTest`, `OnboardingAiServiceTest`, `SpreadsheetReaderTest` |
 
 ## Nhu cầu và kế hoạch mua sắm (NC)
@@ -58,19 +62,19 @@ Quy ước:
 |---|---|---|---|---|---|---|
 | NC-01 | Xem mức đáp ứng danh mục tối thiểu | HoangPND | `/equipment-adequacy`, `/equipment-minimum` (theo năm học, điểm trường), `/school-year-profile`, trang trường trong `/school-explorer` (trạng thái năm, mở lại, khởi tạo) | `GET /api/purchase_proposals/adequacy`, `/adequacy-summary`, `/adequacy-catalog`, `*.xlsx`; `GET /api/year_standards` (`/overview`, `/suggestions`), `/api/school_norm_adjustments`, `/api/school_year_profiles`, `/api/staff_assignments` | `purchase_proposals:read`, `school_norm_adjustments:*`, `school_year_profiles:*`, `staff_assignments:*` | ✅ `YearAdequacyTest`, `SchoolNormAdjustmentTest`, `SchoolYearProfileTest`, `SchoolYearInitTest`, `StaffAssignmentTest`; e2e `flow-procurement` A1, `flow-school-year` Y1–Y3 |
 | NC-02 | Lập và trình đề xuất mua sắm | HoangPND | `/purchase-proposals` (+ `create`, `edit/:id`) | `/api/purchase_proposals` (CRUD, `/{id}/submit`, `/overlaps`); `POST /api/year_standards/proposal` (đưa dòng thiếu vào đề xuất), `GET /api/year_standards/traces` | `purchase_proposals:write` | ✅ `ReachedStepTest`, `YearGapTest` (đúng số thiếu, chỉ trình khi năm học đã chốt); e2e `flow-procurement` A1, `validation` V1, `flow-exceptions` E1 (trả lại, trình lại) |
-| NC-03 | Duyệt đề xuất cấp trường | HoangPND | `/purchase-proposals/show/:id` | `POST /api/purchase_proposals/{id}/approve`, `/reject`, `/return` | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A2, `flow-exceptions` E1 (trả lại) |
-| NC-04 | Duyệt đề xuất cấp Sở | HoangPND | như NC-03, tài khoản Sở | như NC-03 (bước 2 của luồng duyệt) | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A3, `flow-exceptions` E2 (từ chối) |
+| NC-03 | Duyệt đề xuất mua sắm cấp trường | HoangPND | `/purchase-proposals/show/:id` | `POST /api/purchase_proposals/{id}/approve`, `/reject`, `/return` | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A2, `flow-exceptions` E1 (trả lại) |
+| NC-04 | Duyệt đề xuất mua sắm cấp Sở | HoangPND | như NC-03, tài khoản Sở | như NC-03 (bước 2 của luồng duyệt) | `purchase_proposals:approve` | ✅ `ReachedStepTest`; e2e `flow-procurement` A3, `flow-exceptions` E2 (từ chối) |
 | NC-05 | Lập kế hoạch mua sắm | HoangPND | `/procurement-plans` (+ `create`, `edit/:id`) | `/api/procurement_plans` (CRUD, `/candidates`, `/{id}/submit`) | `procurement_plans:write` | ✅ e2e `flow-procurement` A4, `flow-exceptions` E3 (đề xuất bị từ chối không vào kế hoạch) |
 | NC-06 | Duyệt kế hoạch mua sắm | HoangPND | `/procurement-plans/show/:id` | `POST /api/procurement_plans/{id}/approve`, `/return` (kế hoạch không có từ chối, chỉ trả lại) | `procurement_plans:approve` | ✅ e2e `flow-procurement` A5, `flow-exceptions` E3 (trả lại kế hoạch) |
-| NC-07 | Lập phiếu nhập từ đề xuất đã hoàn tất | HoangPND | đề xuất đã duyệt › Lập phiếu nhập | `GET /api/purchase_proposals/{id}/intake-lines` → `POST /api/equipment_intakes` | `equipment_intakes:write` | ✅ e2e `flow-procurement` A6 |
+| NC-07 | Lập phiếu ghi tăng từ đề xuất đã hoàn tất | HoangPND | đề xuất đã duyệt › Hàng về, lập phiếu ghi tăng | `GET /api/purchase_proposals/{id}/intake-lines` → `POST /api/equipment_intakes` | `equipment_intakes:write` | ✅ e2e `flow-procurement` A6 |
 
-## Nhập thiết bị – ghi tăng tài sản (PN)
+## Ghi tăng thiết bị (PN)
 
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
-| PN-01 | Lập phiếu nhập thiết bị | DongLV | `/equipment-intakes` (+ `create`, `edit/:id`) | `/api/equipment_intakes` (CRUD, `/catalog-history`, `/duplicate`), `/api/attachments` | `equipment_intakes:write` | ✅ `IntakeFormRulesTest`, `IntakeLinesExcelTest`, `VoucherFormsOtherTest`; e2e `flow-procurement` A6 |
-| PN-02 | Trình phiếu nhập | DongLV | `/equipment-intakes/show/:id` | `POST /api/equipment_intakes/{id}/submit` | `equipment_intakes:write` | ✅ `IntakeFormRulesTest`, `ReachedStepTest`; e2e `flow-procurement` A6 |
-| PN-03 | Duyệt phiếu nhập và ghi tăng tài sản | DongLV | `/equipment-intakes/show/:id` | `POST /api/equipment_intakes/{id}/approve`, `/reject`, `/return` | `equipment_intakes:approve` | ✅ e2e `flow-procurement` A7 (sinh tài sản), `flow-exceptions` E4 (trả lại, từ chối không sinh tài sản) |
+| PN-01 | Lập phiếu ghi tăng thiết bị | DongLV | `/equipment-intakes` (+ `create`, `edit/:id`) | `/api/equipment_intakes` (CRUD, `/catalog-history`, `/duplicate`), `/api/attachments` | `equipment_intakes:write` | ✅ `IntakeFormRulesTest`, `IntakeLinesExcelTest`, `VoucherFormsOtherTest`; e2e `flow-procurement` A6 |
+| PN-02 | Trình phiếu ghi tăng | DongLV | `/equipment-intakes/show/:id` | `POST /api/equipment_intakes/{id}/submit` | `equipment_intakes:write` | ✅ `IntakeFormRulesTest`, `ReachedStepTest`; e2e `flow-procurement` A6 |
+| PN-03 | Duyệt phiếu ghi tăng | DongLV | `/equipment-intakes/show/:id` | `POST /api/equipment_intakes/{id}/approve`, `/reject`, `/return` | `equipment_intakes:approve` | ✅ e2e `flow-procurement` A7 (sinh hồ sơ thiết bị), `flow-exceptions` E4 (trả lại, từ chối không sinh thiết bị) |
 
 ## Kiểm kê (KK)
 
@@ -89,10 +93,10 @@ Quy ước:
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
 | BC-01 | Xem bảng điều khiển | QuangTD | `/dashboard` | `GET /api/reports/dashboard` | `reports:read` | ❌ |
-| BC-02 | Báo cáo tài sản thiết bị | QuangTD | `/reports/equipment-by-school`, `-by-catalog`, `-by-status`, `-by-condition`, `/reports/equipment-list`, `/reports/equipment-ledger` | `GET /api/reports/{name}` | `reports:read` | ◐ `ReportFiltersTest` |
-| BC-03 | Báo cáo mức đáp ứng danh mục tối thiểu | QuangTD | `/reports/adequacy` | `GET /api/reports/adequacy` | `reports:read` | ◐ `ReportFiltersTest` |
-| BC-04 | Báo cáo nhu cầu và kế hoạch mua sắm | QuangTD | `/reports/purchase` | `GET /api/reports/purchase` | `reports:read` | ◐ `ReportFiltersTest` |
-| BC-05 | Báo cáo kết quả kiểm kê | QuangTD | `/reports/inventory` | `GET /api/reports/inventory` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-02 | Xem báo cáo thiết bị | QuangTD | `/reports/equipment-by-school`, `-by-catalog`, `-by-status`, `-by-condition`, `/reports/equipment-list`, `/reports/equipment-ledger` | `GET /api/reports/{name}` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-03 | Xem báo cáo mức đáp ứng danh mục thiết bị tối thiểu | QuangTD | `/reports/adequacy` | `GET /api/reports/adequacy` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-04 | Xem báo cáo nhu cầu và kế hoạch mua sắm | QuangTD | `/reports/purchase` | `GET /api/reports/purchase` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-05 | Xem báo cáo kết quả kiểm kê | QuangTD | `/reports/inventory` | `GET /api/reports/inventory` | `reports:read` | ◐ `ReportFiltersTest` |
 | BC-06 | Xuất dữ liệu danh sách và báo cáo | QuangTD | nút Xuất trên danh sách và báo cáo, `/report-snapshots/show/:id` | `GET /api/reports/{name}/export`, `/api/report_snapshots`, `POST /api/activity_logs/exports` | `reports:export`, `<resource>:export` | ◐ e2e `flow-exceptions` E6 (xuất Excel 5 báo cáo qua API và nút Xuất) — chưa test xuất danh sách, bản lưu |
 
 ## Test dùng chung cho mọi UC
@@ -102,14 +106,14 @@ Quy ước:
 
 ## Khoảng trống cần xử lý
 
-### 1. Độ phủ test: ✅ 28 · ◐ 12 · ❌ 2
+### 1. Độ phủ test: ✅ 28 · ◐ 14 · ❌ 4
 
 | Người | UC chưa có test (❌) | UC mới phủ một phần (◐) |
 |---|---|---|
-| DongLV | — | HT-03 |
+| DongLV | HT-07 | HT-03, HT-08 |
 | QuangTD | BC-01 | HT-06, BC-02, BC-03, BC-04, BC-05, BC-06 |
 | TuTN | DM-04 | DM-01, DM-03 |
-| HoangPND | — | TC-02 |
+| HoangPND | TC-03 | TC-02, TC-04 |
 | NghiaNV | — | TS-01, TS-03 |
 
 Việc tiếp theo: CRUD danh mục và trùng mã (DM-01..04), CRUD phòng (TC-02), màn sửa hồ sơ thiết bị và tệp đính kèm
@@ -145,14 +149,13 @@ Thiết kế và các chỗ khác thiết kế gốc ở `docs/du-lieu-theo-nam-
 - Dòng thiếu đưa vào đề xuất mua sắm nháp đúng số thiếu (NC-02, 280), mỗi dòng giữ căn cứ để kế hoạch (NC-05) truy
   ngược; đề xuất loại này chỉ trình được khi năm học đã chốt. Không có điều chuyển nội bộ (chưa có phiếu cấp phát).
 
-### 3. Code ngoài 42 UC còn trong nhánh
+### 3. Code ngoài 46 UC còn trong nhánh
 
 | Phần | Ở đâu | Đề xuất |
 |---|---|---|
-| Đánh giá CSVC theo chuẩn, Nhân sự | Tổng quan trường, `/api/facility-standard`, `/api/staff` | Thêm UC (ví dụ TC-03, TC-04) vào SRS hoặc ẩn |
 | Cơ sở, khối nhà, lớp học | `/api/campuses`, `/api/buildings`, `/api/school_classes` | Ghi là một phần của TC-02 trong SRS |
-| Tài khoản của trường (`school_users`) | `/school-users` | HT-04 chỉ giao quản trị viên — chốt giữ hay bỏ |
-| Luồng duyệt cấu hình được | `/approval-flows` | Ghi vào HT-05 hoặc ẩn |
+
+Đã xử lý ngày 22/11/2026: nhân sự thành TC-03, đánh giá CSVC theo chuẩn thành TC-04, tài khoản của trường thành HT-07, luồng phê duyệt thành HT-08. Bảng của các chức năng ngoài phạm vi (cấp phát, điều chuyển, mượn – trả, báo hỏng, sửa chữa, bảo trì, thanh lý…) và danh mục học kỳ đã xoá ở changelog 285. Báo cáo ẩn ngoài phạm vi và `/api/voucher_holds` đã gỡ khỏi backend.
 | Nhật ký, trạng thái hệ thống, cài đặt AI, thay đổi dữ liệu | `/api/activity_logs`, `/api/system_status`, `/api/ai_settings`, `/api/data_changes` | Controller còn, menu đã ẩn — bỏ hẳn hoặc ghi là chức năng phụ trợ |
 
 ### 4. Quyền của quản trị viên

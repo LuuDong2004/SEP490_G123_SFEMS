@@ -645,8 +645,6 @@ public class OnboardingService {
                 throw new ConflictException("Thiết bị của lô đã có nghiệp vụ (cấp phát, sửa chữa, cập nhật…) — "
                         + "không hoàn tác được; sửa từng hồ sơ trên màn Thiết bị");
             }
-            refuseIf("SELECT EXISTS (SELECT 1 FROM maintenance_plan_equipment WHERE equipment_id = ANY (?))",
-                    equipmentIds, "Thiết bị của lô đã nằm trong kế hoạch bảo trì");
         }
         Long[] staffIds = ids(created, "staff");
         refuseIf("SELECT EXISTS (SELECT 1 FROM staff WHERE id = ANY (?) AND user_id IS NOT NULL)", staffIds,

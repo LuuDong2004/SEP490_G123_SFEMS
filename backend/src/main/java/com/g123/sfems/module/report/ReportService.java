@@ -131,9 +131,6 @@ public class ReportService {
     private static final Group BY_ROOM_TYPE = new Group("room_type", "Theo loại phòng");
     private static final Group BY_BUILDING = new Group("building", "Chi tiết từng khối nhà");
     private static final Group BY_ROOM = new Group("room", "Chi tiết từng phòng");
-    private static final Group BY_PURPOSE = new Group("purpose", "Theo mục đích");
-    private static final Group BY_SUBJECT = new Group("subject", "Theo môn học");
-    private static final Group BY_BORROWER = new Group("borrower", "Theo người mượn");
 
     private static final List<Group> IDLE_CHOICES = List.of(new Group("180", "Từ 6 tháng"),
             new Group("90", "Từ 3 tháng"), new Group("365", "Từ 1 năm"));
@@ -180,10 +177,6 @@ public class ReportService {
                             + "mòn, còn lại, chỗ để, người quản lý. Chọn bảng: thiết bị, tài sản cố định, công cụ dụng cụ, "
                             + "vật tư hoá chất.",
                     false, false, List.of(), LEDGER_CHOICES),
-            new Definition("room-usage", "Sử dụng phòng bộ môn, phòng chức năng",
-                    "Mỗi phòng cho mượn: số lượt mượn, số tiết đã dùng trong kỳ, tiết thực hành / lý thuyết, lần "
-                            + "mượn gần nhất, số lần trả phòng có vấn đề.",
-                    true, false, List.of()),
             FacilityStandardReports.DEFINITION,
             new Definition("room-standard", "Đánh giá chuẩn phòng bộ môn",
                     "Mỗi phòng bộ môn: thiết bị phải có theo định mức \"tính cho 01 phòng\" của môn, đang đặt tại "
@@ -202,35 +195,12 @@ public class ReportService {
                     "Thiết bị trong kho lâu không phát sinh sử dụng (cấp phát, mượn, sửa, bảo trì…), tính từ lần dùng "
                             + "gần nhất hoặc ngày tiếp nhận.",
                     false, false, List.of(), IDLE_CHOICES),
-            new Definition("damage-trends", "Xu hướng hư hỏng",
-                    "Thiết bị nào hay hỏng: lượt báo hỏng trong kỳ so với kỳ liền trước, số thiết bị bị báo hỏng và "
-                            + "tỷ lệ trên số đang có.",
-                    true, false, List.of()),
             new Definition("inventory", "Kết quả kiểm kê",
                     "Mỗi phiên kiểm kê trong kỳ: số thiết bị kiểm, tìm thấy, thiếu, thừa, sai vị trí, sai tình trạng.",
                     true, false, List.of()),
-            new Definition("maintenance", "Bảo trì, sửa chữa",
-                    "Số phiếu sửa chữa, bảo hành, bảo trì trong kỳ, kết quả và chi phí dự kiến / thực tế.",
-                    true, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL)),
             new Definition("movements", "Tăng, giảm thiết bị",
                     "Ghi tăng, cấp phát, điều chuyển, mượn, báo hỏng, sửa chữa, thanh lý... trong kỳ, theo tháng.",
                     true, false, List.of()),
-            new Definition("transfers", "Lịch sử điều chuyển thiết bị",
-                    "Từng lần thiết bị đổi chỗ trong kỳ — cấp phát, thu hồi, chuyển phòng, điều chuyển giữa trường: "
-                            + "từ đâu, đến đâu, theo phiếu nào.",
-                    true, false, List.of()),
-            new Definition("overdue-loans", "Thiết bị mượn quá hạn",
-                    "Các phiếu mượn đã quá hạn trả mà chưa trả.", false, false, List.of()),
-            new Definition("loans", "Thống kê mượn trả",
-                    "Phiếu mượn, lượt thiết bị, đã trả / chưa trả, quá hạn, trả hỏng, báo mất, người mượn và lượt "
-                            + "mượn theo phòng trong kỳ — theo đơn vị, địa bàn, cấp học, mục đích, môn học hoặc người "
-                            + "mượn. Bấm một dòng để xem các phiếu của dòng đó.",
-                    true, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_PURPOSE, BY_SUBJECT, BY_BORROWER)),
-            new Definition("utilization", "Hiệu quả khai thác thiết bị",
-                    "Tỷ lệ thiết bị đang dùng, số lượt mượn thiết bị và mượn phòng trong kỳ, và thiết bị nằm kho không "
-                            + "phát sinh sử dụng trong kỳ.",
-                    true, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_TYPE)),
-            SupplyReports.CONSUMPTION,
             new Definition("purchase", "Tổng hợp nhu cầu mua sắm",
                     "Đề xuất mua sắm của năm ngân sách — theo địa bàn, cấp học, đơn vị hoặc loại thiết bị.",
                     false, true, List.of(BY_BODY, BY_LEVEL, BY_SCHOOL, BY_TYPE)),
@@ -252,30 +222,14 @@ public class ReportService {
                     false, false, List.of(), STALE_CHOICES),
             new Definition("vouchers", "Tình hình xử lý chứng từ",
                     "Mỗi loại phiếu lập trong kỳ: bao nhiêu nháp, chờ duyệt, hoàn tất, bị từ chối, huỷ.",
-                    true, false, List.of()),
-            new Definition("disposals", "Thiết bị ghi giảm",
-                    "Thiết bị thanh lý, tiêu huỷ, ghi giảm do mất trong kỳ, kèm nguyên giá và số thu về.",
                     true, false, List.of()));
 
     private static final Map<String, String> VOUCHER_TABLES = new LinkedHashMap<>();
 
     static {
         VOUCHER_TABLES.put("equipment_intakes", "Phiếu ghi tăng");
-        VOUCHER_TABLES.put("equipment_allocations", "Cấp phát, thu hồi");
-        VOUCHER_TABLES.put("equipment_transfers", "Điều chuyển giữa trường");
-        VOUCHER_TABLES.put("equipment_loans", "Mượn, trả");
-        VOUCHER_TABLES.put("damage_reports", "Báo hỏng, sửa chữa");
         VOUCHER_TABLES.put("inventory_sessions", "Kiểm kê");
-        VOUCHER_TABLES.put("disposals", "Thanh lý, ghi giảm");
         VOUCHER_TABLES.put("purchase_proposals", "Đề xuất mua sắm");
-        VOUCHER_TABLES.put("repair_orders", "Sửa chữa, bảo trì");
-        VOUCHER_TABLES.put("warranty_claims", "Bảo hành");
-        VOUCHER_TABLES.put("maintenance_orders", "Bảo dưỡng");
-        VOUCHER_TABLES.put("stock_issues", "Xuất kho vật tư");
-        VOUCHER_TABLES.put("storage_orders", "Lưu kho");
-        VOUCHER_TABLES.put("depreciation_orders", "Tính hao mòn");
-        VOUCHER_TABLES.put("consumption_records", "Tiêu hao theo tiết");
-        VOUCHER_TABLES.put("room_bookings", "Mượn phòng bộ môn");
     }
 
     static Map<String, String> voucherTables() {
@@ -332,21 +286,6 @@ public class ReportService {
         return CsvcStatisticsXlsx.write(csvc.header(p), csvc.build(p).rows());
     }
 
-    /** Các phiếu của một dòng "Thống kê mượn trả" — dòng có khoá {@code key} ở chiều {@code params.group()}. */
-    public Report loanRows(Params params, String key) {
-        Params p = ReportFilters.only(resolve(params), ReportFilters.of("loans"));
-        LocalDate to = p.to() == null ? LocalDate.now() : p.to();
-        LocalDate from = p.from() == null ? to.withDayOfYear(1) : p.from();
-        Definition definition = DEFINITIONS.stream().filter(d -> d.name().equals("loans")).findFirst().orElseThrow();
-        String group = definition.groups().stream().map(Group::key).filter(k -> k.equals(p.group())).findFirst()
-                .orElse(definition.groups().getFirst().key());
-        Report report = analysis.loanRows(p, group, key, from, to, "Từ %s đến %s".formatted(vn(from), vn(to)));
-        for (Map<String, Object> row : report.rows()) {
-            row.replaceAll((k, v) -> v instanceof Date d ? d.toLocalDate() : v);
-        }
-        return report;
-    }
-
     public Report build(String name, Params params) {
         // Bộ lọc theo tài sản báo cáo không nhận thì gạt đi trước khi tính, không lặng lẽ áp vào truy vấn khác nghĩa.
         Report report = compute(name, ReportFilters.only(resolve(params), ReportFilters.of(name)));
@@ -383,31 +322,22 @@ public class ReportService {
             case "equipment-by-condition" -> equipmentByCondition(params, group);
             case "equipment-list" -> equipmentList(params, definition.choices().stream().map(Group::key)
                     .filter(k -> k.equals(params.choice())).findFirst().orElse("IN_STOCK"));
-            case "transfers" -> transfers(params, from, to, period);
-            case "utilization" -> utilization(params, group, from, to, period);
             case "data-quality" -> dataQuality(params, group);
             case "facilities" -> facilities(params, group);
             case CsvcStatisticsReport.NAME -> csvc.build(params);
             case "broken-equipment" -> brokenEquipment(params);
             case "inventory" -> inventory(params, from, to, period);
-            case "maintenance" -> maintenance(params, group, from, to, period);
             case "movements" -> movements(params, from, to, period);
             case "vouchers" -> vouchers(params, from, to, period);
             case "adequacy" -> adequacyReport(params);
-            case "overdue-loans" -> overdueLoans(params);
-            case "disposals" -> disposals(params, from, to, period);
             case "unused-equipment" -> analysis.unused(params);
             case "idle-equipment" -> analysis.idle(params, Integer.parseInt(choice(definition, params)));
-            case "loans" -> analysis.loans(params, group, from, to, period);
-            case "damage-trends" -> analysis.damageTrends(params, from, to, period);
             case "last-update" -> analysis.lastUpdate(params, null);
             case "stale-schools" -> analysis.lastUpdate(params, Integer.parseInt(choice(definition, params)));
             case "data-anomalies" -> analysis.anomalies(params);
             case "equipment-ledger" -> analysis.ledger(params, choice(definition, params));
-            case "room-usage" -> analysis.roomUsage(params, from, to, period);
             case "room-standard" -> analysis.roomStandard(params);
             case "facility-standard" -> facilityStandard.build(params);
-            case "supply-consumption" -> supply.consumption(params, group, from, to, period);
             case "supply-expiry" -> supply.expiry(params, choice(definition, params));
             case "purchase" -> purchase(params, group,
                     params.year() == null ? LocalDate.now().getYear() + 1 : params.year());
@@ -733,55 +663,6 @@ public class ReportService {
                 rows);
     }
 
-    /** Mục 3.5.6 / 3.5.8: khối lượng, kết quả và chi phí bảo trì, sửa chữa trong kỳ. */
-    private Report maintenance(Params p, String group, LocalDate from, LocalDate to, String period) {
-        Dim d = dim(group);
-        String live = " status NOT IN" + NOT_LIVE;
-        String sql = "WITH rep AS (SELECT school_id, COUNT(*) AS n,"
-                + " COUNT(*) FILTER (WHERE status = 'COMPLETED') AS done,"
-                + " COUNT(*) FILTER (WHERE result = 'REPAIRED') AS repaired,"
-                + " COUNT(*) FILTER (WHERE result = 'UNREPAIRABLE') AS unrepairable,"
-                + " COALESCE(SUM(cost_estimated), 0) AS est, COALESCE(SUM(cost_actual), 0) AS act"
-                + " FROM repair_orders v WHERE work_kind = 'REPAIR' AND" + live
-                + " AND request_date BETWEEN ?::date AND ?::date" + campusVoucher("repair_orders", "v", p)
-                + " GROUP BY school_id),"
-                + " war AS (SELECT school_id, COUNT(*) AS n, COALESCE(SUM(cost), 0) AS cost FROM warranty_claims v"
-                + " WHERE" + live + " AND request_date BETWEEN ?::date AND ?::date"
-                + campusVoucher("warranty_claims", "v", p) + " GROUP BY school_id),"
-                + " mai AS (SELECT school_id, COUNT(*) AS n, COUNT(*) FILTER (WHERE status = 'COMPLETED') AS done,"
-                + " COALESCE(SUM(cost_actual), 0) AS cost FROM ("
-                + " SELECT school_id, status, cost_actual FROM maintenance_orders v"
-                + " WHERE" + live + " AND maintenance_date BETWEEN ?::date AND ?::date"
-                + campusVoucher("maintenance_orders", "v", p)
-                + " UNION ALL SELECT school_id, status, cost_actual FROM repair_orders v"
-                + " WHERE work_kind = 'MAINTENANCE' AND" + live + " AND request_date BETWEEN ?::date AND ?::date"
-                + campusVoucher("repair_orders", "v", p)
-                + ") m GROUP BY school_id)"
-                + " SELECT " + d.select() + ","
-                + " COALESCE(SUM(rep.n), 0) AS repairs, COALESCE(SUM(rep.done), 0) AS repairs_done,"
-                + " COALESCE(SUM(rep.repaired), 0) AS repaired, COALESCE(SUM(rep.unrepairable), 0) AS unrepairable,"
-                + " COALESCE(SUM(rep.est), 0) AS cost_estimated, COALESCE(SUM(rep.act), 0) AS cost_actual,"
-                + " COALESCE(SUM(war.n), 0) AS warranty, COALESCE(SUM(mai.n), 0) AS maintenance,"
-                + " COALESCE(SUM(mai.done), 0) AS maintenance_done,"
-                + " COALESCE(SUM(rep.act), 0) + COALESCE(SUM(war.cost), 0) + COALESCE(SUM(mai.cost), 0) AS total_cost"
-                + " FROM schools s LEFT JOIN rep ON rep.school_id = s.id LEFT JOIN war ON war.school_id = s.id"
-                + " LEFT JOIN mai ON mai.school_id = s.id" + d.joins()
-                + " WHERE (rep.n IS NOT NULL OR war.n IS NOT NULL OR mai.n IS NOT NULL)" + scope("s.id", p)
-                + " GROUP BY " + d.groupBy() + " ORDER BY repairs DESC, name";
-        String f = from.toString();
-        String t = to.toString();
-        List<Map<String, Object>> rows = jdbc.queryForList(sql, f, t, f, t, f, t, f, t);
-        List<Column> columns = leadColumns(d);
-        columns.addAll(List.of(col("repairs", "Phiếu sửa chữa", "number"), col("repairs_done", "Đã xong", "number"),
-                col("repaired", "Sửa được", "number"), col("unrepairable", "Không sửa được", "number"),
-                col("cost_estimated", "Chi phí sửa dự kiến (đ)", "money"),
-                col("cost_actual", "Chi phí sửa thực tế (đ)", "money"), col("warranty", "Phiếu bảo hành", "number"),
-                col("maintenance", "Phiếu bảo trì", "number"), col("maintenance_done", "Bảo trì xong", "number"),
-                col("total_cost", "Tổng chi phí thực tế (đ)", "money")));
-        return new Report("maintenance", "Bảo trì, sửa chữa " + groupTitle(group), subtitle(p, period), columns,
-                rows);
-    }
-
     private Report movements(Params p, LocalDate from, LocalDate to, String period) {
         List<Map<String, Object>> raw = jdbc.queryForList("""
                 SELECT TO_CHAR(DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'MM/YYYY') AS month,
@@ -866,46 +747,6 @@ public class ReportService {
                         col("level", "Cấp học", "text"), col("norms", "Số định mức", "number"),
                         col("met", "Đã đạt", "number"), col("unknown", "Chưa tính được", "number"),
                         col("shortage", "Tổng số thiết bị thiếu", "number"), col("percent", "Tỷ lệ đạt (%)", "number")),
-                rows);
-    }
-
-    private Report overdueLoans(Params p) {
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT l.id AS loan_id, l.code, s.name AS school, st.name AS borrower, l.loan_date, l.due_date,
-                       (CURRENT_DATE - l.due_date) AS days_late,
-                       (SELECT COUNT(*) FROM equipment_loan_lines x WHERE x.loan_id = l.id AND x.returned_date IS NULL) AS items
-                FROM equipment_loans l
-                JOIN schools s ON s.id = l.school_id
-                LEFT JOIN staff st ON st.id = l.borrower_id
-                WHERE l.status = 'APPROVED' AND l.due_date < CURRENT_DATE\
-                """ + scope("l.school_id", p) + campusVoucher("equipment_loans", "l", p) + " ORDER BY l.due_date");
-        return new Report("overdue-loans", "Thiết bị mượn quá hạn",
-                subtitle(p, "tính đến " + vn(LocalDate.now())),
-                List.of(col("code", "Số phiếu", "text"), col("school", "Trường", "text"),
-                        col("borrower", "Người mượn", "text"), col("loan_date", "Ngày mượn", "date"),
-                        col("due_date", "Hạn trả", "date"), col("days_late", "Quá hạn (ngày)", "number"),
-                        col("items", "Số thiết bị chưa trả", "number")),
-                rows);
-    }
-
-    private Report disposals(Params p, LocalDate from, LocalDate to, String period) {
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT d.id AS disposal_id, d.code, s.name AS school,
-                       CASE d.kind WHEN 'LIQUIDATION' THEN 'Thanh lý' WHEN 'DESTRUCTION' THEN 'Tiêu huỷ' ELSE 'Ghi giảm do mất' END AS kind,
-                       COALESCE(d.executed_date, d.completed_at::date) AS done_date, d.decision_no,
-                       (SELECT COUNT(*) FROM disposal_lines x WHERE x.disposal_id = d.id) AS items,
-                       (SELECT COALESCE(SUM(x.original_value), 0) FROM disposal_lines x WHERE x.disposal_id = d.id) AS original_value,
-                       COALESCE(d.recovered_value, 0) AS recovered_value, COALESCE(d.disposal_cost, 0) AS disposal_cost
-                FROM disposals d JOIN schools s ON s.id = d.school_id
-                WHERE d.status = 'COMPLETED'
-                  AND COALESCE(d.executed_date, d.completed_at::date) BETWEEN ?::date AND ?::date\
-                """ + scope("d.school_id", p) + campusVoucher("disposals", "d", p) + " ORDER BY 4",
-                from.toString(), to.toString());
-        return new Report("disposals", "Thiết bị ghi giảm", subtitle(p, period),
-                List.of(col("code", "Số phiếu", "text"), col("school", "Trường", "text"), col("kind", "Hình thức", "text"),
-                        col("done_date", "Ngày thực hiện", "date"), col("decision_no", "Số quyết định", "text"),
-                        col("items", "Số thiết bị", "number"), col("original_value", "Nguyên giá (đ)", "money"),
-                        col("recovered_value", "Thu về (đ)", "money"), col("disposal_cost", "Chi phí (đ)", "money")),
                 rows);
     }
 
@@ -1057,94 +898,9 @@ public class ReportService {
                 rows);
     }
 
-    /**
-     * Lịch sử điều chuyển: mọi lần tài sản đổi phòng hoặc đổi trường trong kỳ, đọc từ lịch sử tài sản (mỗi phiếu
-     * cấp phát, thu hồi, chuyển phòng, điều chuyển ghi một dòng "từ … đến …"). Điều chuyển giữa hai trường thì cả
-     * trường chuyển lẫn trường nhận đều thấy — tài sản đã sang trường nhận nên phải xét cả trường trên phiếu.
-     */
-    private Report transfers(Params p, LocalDate from, LocalDate to, String period) {
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT (h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS moved_date,
-                       CASE WHEN h.action = 'CAP_PHAT' THEN 'Cấp phát' WHEN h.action = 'THU_HOI' THEN 'Thu hồi'
-                            WHEN h.field = 'school' THEN 'Điều chuyển giữa trường' ELSE 'Chuyển phòng' END AS kind,
-                       h.voucher_code, h.voucher_resource, h.voucher_id, e.id AS equipment_id,
-                       COALESCE(src.name, s.name) AS school, e.code, e.name,
-                       CASE h.field WHEN 'school' THEN 'Trường' ELSE 'Phòng' END AS field,
-                       h.from_value, h.to_value, h.actor_name
-                FROM equipment_history h
-                JOIN equipment e ON e.id = h.equipment_id
-                JOIN schools s ON s.id = e.school_id
-                LEFT JOIN equipment_transfers t ON h.voucher_resource = 'equipment_transfers' AND t.id = h.voucher_id
-                LEFT JOIN schools src ON src.id = t.school_id
-                WHERE h.action IN ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN') AND h.field IN ('room', 'school')
-                  -- Điều chuyển giữa trường ghi hai dòng (đổi trường, rồi phòng ở trường nhận): giữ dòng đổi trường.
-                  AND NOT (h.voucher_resource = 'equipment_transfers' AND h.field = 'room')
-                  AND h.created_at >= ?::date AND h.created_at < (?::date + 1)\
-                """ + " AND ((TRUE" + scope("e.school_id", p) + campusRoom("e.room_id", "e.school_id", p)
-                + ") OR (t.id IS NOT NULL" + scope("t.school_id", p) + campusVoucher("equipment_transfers", "t", p)
-                + ")) ORDER BY h.created_at DESC, e.code LIMIT " + LIST_LIMIT, from.toString(), to.toString());
-        return new Report("transfers", "Lịch sử điều chuyển thiết bị", subtitle(p, period),
-                List.of(col("moved_date", "Ngày", "date"), col("kind", "Hình thức", "text"),
-                        col("voucher_code", "Số phiếu", "text"), col("school", "Trường", "text"),
-                        col("code", "Mã thiết bị", "text"), col("name", "Tên thiết bị", "text"),
-                        col("field", "Đổi", "text"), col("from_value", "Từ", "text"), col("to_value", "Đến", "text"),
-                        col("actor_name", "Người thực hiện", "text")),
-                rows);
-    }
-
     /** Lịch sử cho thấy tài sản ĐƯỢC DÙNG — cấp phát, mượn, trả, chuyển, sửa, bảo trì, báo hỏng, tiêu hao. */
     static final String USAGE_ACTIONS = " ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN', 'MUON', 'TRA', 'BAO_HONG',"
             + " 'SUA_CHUA', 'BAO_HANH', 'BAO_TRI', 'TIEU_HAO') ";
-
-    /**
-     * Hiệu quả khai thác trong kỳ: tỷ lệ tài sản đang dùng (kể cả đang cho mượn), lượt mượn thiết bị và số tài
-     * sản được mượn, lượt mượn phòng, và tài sản NẰM KHO KHÔNG PHÁT SINH SỬ DỤNG — đang trong kho, đã có từ trước
-     * kỳ, và cả kỳ không có lần cấp phát, mượn, sửa, bảo trì nào. Mượn phòng gắn với trường, không với loại thiết
-     * bị, nên gộp theo loại thì không có cột đó.
-     */
-    private Report utilization(Params p, String group, LocalDate from, LocalDate to, String period) {
-        Dim d = dim(group);
-        String f = from.toString();
-        String t = to.toString();
-        String idle = "e.status = 'IN_STOCK' AND COALESCE(e.received_date, e.created_at::date) < ?::date"
-                + " AND NOT EXISTS (SELECT 1 FROM equipment_history h WHERE h.equipment_id = e.id"
-                + " AND h.action IN" + USAGE_ACTIONS + " AND h.created_at >= ?::date AND h.created_at < (?::date + 1))";
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT " + d.select()
-                + ", COUNT(DISTINCT e.school_id) AS schools, COUNT(e.id) AS total,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('IN_USE', 'BORROWED')) AS in_use,"
-                + " ROUND(100.0 * COUNT(e.id) FILTER (WHERE e.status IN ('IN_USE', 'BORROWED'))"
-                + " / NULLIF(COUNT(e.id), 0), 1) AS use_rate,"
-                + " COALESCE(SUM(lc.n), 0) AS loans, COUNT(lc.equipment_id) AS loaned,"
-                + " COUNT(e.id) FILTER (WHERE " + idle + ") AS idle"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id" + d.joins()
-                + " LEFT JOIN (SELECT ll.equipment_id, COUNT(*) AS n FROM equipment_loan_lines ll"
-                + " JOIN equipment_loans l ON l.id = ll.loan_id WHERE l.status NOT IN" + NOT_LIVE
-                + " AND l.loan_date BETWEEN ?::date AND ?::date GROUP BY ll.equipment_id) lc ON lc.equipment_id = e.id"
-                + " WHERE e.status NOT IN" + OFF_BOOK + scope("e.school_id", p)
-                + campusRoom("e.room_id", "e.school_id", p)
-                + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name", f, f, t, f, t);
-        boolean rooms = !"type".equals(group);
-        if (rooms) {
-            Map<String, Object> bookings = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT " + d.select() + ", COUNT(b.id) AS n FROM room_bookings b"
-                    + " JOIN schools s ON s.id = b.school_id" + d.joins()
-                    + " WHERE b.status NOT IN" + NOT_LIVE + " AND b.booking_date BETWEEN ?::date AND ?::date"
-                    + scope("b.school_id", p) + campusVoucher("room_bookings", "b", p) + " GROUP BY " + d.groupBy(), f, t)
-                    .forEach(r -> bookings.put(r.get("name") + "|" + r.get("code"), r.get("n")));
-            rows.forEach(r -> r.put("bookings", bookings.getOrDefault(r.get("name") + "|" + r.get("code"), 0L)));
-        }
-        List<Column> columns = leadColumns(d);
-        schoolsColumn(d, columns);
-        columns.addAll(List.of(col("total", "Thiết bị trong hệ thống", "number"),
-                col("in_use", "Đang dùng, cho mượn", "number"), col("use_rate", "Tỷ lệ đang dùng (%)", "number"),
-                col("loans", "Lượt mượn thiết bị", "number"), col("loaned", "Thiết bị được mượn", "number")));
-        if (rooms) {
-            columns.add(col("bookings", "Lượt mượn theo phòng", "number"));
-        }
-        columns.add(col("idle", "Nằm kho, không phát sinh", "number"));
-        return new Report("utilization", "Hiệu quả khai thác thiết bị " + groupTitle(group), subtitle(p, period),
-                columns, rows);
-    }
 
     /**
      * Chất lượng dữ liệu: mỗi trường còn bao nhiêu hồ sơ tài sản chưa chuẩn và thiếu gì. Năm điều kiện của hồ sơ
@@ -1241,11 +997,6 @@ public class ReportService {
     /** Như trên, với cơ sở đã xác định (bảng điều khiển: cơ sở của tài khoản bị giới hạn). */
     String campusVoucher(String table, String alias, Long campusId) {
         return campus.voucher(table, alias, campusId);
-    }
-
-    /** Vế lọc cơ sở cho kế hoạch bảo trì (bí danh {@code alias}). */
-    String campusPlan(String alias, Long campusId) {
-        return campus.maintenancePlan(alias, campusId);
     }
 
     /** Tên dòng gộp thiết bị ngoài danh mục ở báo cáo nhiều trường. */

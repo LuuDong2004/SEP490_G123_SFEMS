@@ -490,7 +490,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
               // Màu cảnh báo (trưởng nhóm 14/11/2026): duyệt rồi là không sửa được — kiểm tra kỹ trước khi trình.
               <div className="bg-warning-subtle border-warning/30 space-y-1 rounded-xl border px-4 py-3.5">
                 <p className="text-warning-text flex items-center gap-1.5 text-sm font-semibold"><TriangleAlert className="size-4 shrink-0" />Kiểm tra kỹ trước khi trình</p>
-                <p className="text-sm leading-relaxed">Phiếu được duyệt sẽ không sửa được nữa. Hệ thống tự cấp số phiếu và tạo {outcome}.</p>
+                <p className="text-sm leading-relaxed">Phiếu được duyệt sẽ không sửa được nữa. Hệ thống cấp số phiếu khi trình và tạo {outcome} khi phiếu được duyệt.</p>
               </div>
             ) : null}
           </aside>

@@ -53,7 +53,7 @@ export const ACTION_TO_PERMISSION: Record<string, PermissionAction> = {
   delete: "delete",
   approve: "approve",
   export: "export",
-  /** Khai cấu hình của một nghiệp vụ (vd. tiêu chí minh chứng — `evidence:configure`). */
+  /** Khai cấu hình của một nghiệp vụ (`<tài nguyên>:configure`). */
   configure: "configure",
   /** Bổ nhiệm / thôi giữ chức vụ lãnh đạo trên hồ sơ nhân viên (`staff:assign_leadership`). */
   assign_leadership: "assign_leadership",
@@ -87,11 +87,10 @@ const UNGUARDED_RESOURCES = new Set([
 
 /**
  * Màn hình không có tài nguyên riêng mà làm việc trên dữ liệu của tài nguyên
- * khác — in tem và tra cứu đọc thiết bị. Chúng mượn mã quyền của tài nguyên đó
- * thay vì bịa ra `equipment_labels:read` mà không migration nào cấp.
+ * khác — tra cứu theo mã đọc thiết bị, phòng. Chúng mượn mã quyền của tài nguyên đó
+ * thay vì bịa ra `equipment_lookup:read` mà không migration nào cấp.
  */
 const PERMISSION_ALIASES: Record<string, string> = {
-  equipment_labels: "equipment",
   equipment_lookup: "equipment",
   facility_lookup: "rooms",
   // Bảng Chi tiết của màn Thiết bị (và "Thiết bị trong phòng" của hồ sơ phòng) — máy chủ gác bằng `equipment:read`.

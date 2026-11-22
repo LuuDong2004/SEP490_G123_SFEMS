@@ -8,14 +8,6 @@ export const CONDITION_LABELS: Record<string, string> = {
   HU_HONG_NANG: "Hư hỏng nặng",
 };
 
-/** Loại việc làm trên một công trình (sổ sửa chữa, cải tạo — `facility_works`). */
-export const FACILITY_WORK_TYPE_LABELS: Record<string, string> = {
-  REPAIR: "Sửa chữa",
-  RENOVATION: "Cải tạo",
-  UPGRADE: "Nâng cấp",
-  MAINTENANCE: "Bảo trì",
-};
-
 /** Kết cấu công trình theo mẫu CSDL HCM (201) — khác Hiện trạng (chất lượng). */
 export const STRUCTURE_LABELS: Record<string, string> = {
   KIEN_CO: "Kiên cố",

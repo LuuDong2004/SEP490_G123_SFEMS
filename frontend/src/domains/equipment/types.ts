@@ -198,16 +198,6 @@ export function historyEntryTitle(actions: string[]): string {
 /** Đường dẫn màn phiếu theo tên tài nguyên — để lịch sử và thông báo mở được phiếu gốc. */
 export const VOUCHER_ROUTES: Record<string, string> = {
   equipment_intakes: "/equipment-intakes",
-  equipment_allocations: "/equipment-allocations",
-  equipment_transfers: "/equipment-transfers",
-  equipment_loans: "/equipment-loans",
-  damage_reports: "/damage-reports",
   inventory_sessions: "/inventory-sessions",
-  disposals: "/disposals",
   purchase_proposals: "/purchase-proposals",
-  repair_orders: "/repair-orders",
-  warranty_claims: "/warranty-claims",
-  maintenance_orders: "/maintenance-orders",
-  consumption_records: "/consumption-records",
-  room_bookings: "/room-bookings",
 };

@@ -49,17 +49,16 @@ class DbRowSecurityTest {
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
-        Long school = jdbc.queryForObject("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id WHERE u.username = 'thcs.canbo'", Long.class);
+        // Thiếu tài khoản demo thì bỏ qua (queryForObject ném lỗi trước khi kịp bỏ qua).
+        Long school = jdbc.queryForList("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id WHERE u.username = 'thcs.canbo'", Long.class)
+                .stream().findFirst().orElse(null);
         Assumptions.assumeTrue(school != null, "Thiếu tài khoản demo thcs.canbo");
         own = school;
-        // Trường khác có tài sản, không phải đối tác điều chuyển của trường mình.
+        // Trường khác có tài sản.
         Long found = jdbc.query("""
-                SELECT e.school_id FROM equipment e
-                WHERE e.school_id <> ? AND e.school_id NOT IN (
-                    SELECT target_school_id FROM equipment_transfers WHERE school_id = ?
-                    UNION SELECT school_id FROM equipment_transfers WHERE target_school_id = ?)
+                SELECT e.school_id FROM equipment e WHERE e.school_id <> ?
                 GROUP BY e.school_id ORDER BY count(*) DESC LIMIT 1""",
-                rs -> rs.next() ? rs.getLong(1) : null, own, own, own);
+                rs -> rs.next() ? rs.getLong(1) : null, own);
         Assumptions.assumeTrue(found != null, "Không có trường thứ hai có tài sản");
         other = found;
     }
@@ -77,30 +76,22 @@ class DbRowSecurityTest {
         // Ngoài giao dịch (JdbcTemplate autocommit) cũng bị chặn.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM equipment WHERE school_id = ?", Long.class, other))
                 .isZero();
-        // Không lọc gì: chỉ ra trường mình (và trường đối tác điều chuyển).
+        // Không lọc gì: chỉ ra trường mình.
         assertThat(inTx(() -> jdbc.queryForObject(
                 "SELECT count(*) FROM rooms WHERE school_id <> ? AND school_id = ?", Long.class, own, other)))
                 .isZero();
-        assertThat(inTx(() -> jdbc.queryForObject("SELECT count(*) FROM disposals WHERE school_id <> ?",
+        assertThat(inTx(() -> jdbc.queryForObject("SELECT count(*) FROM inventory_sessions WHERE school_id <> ?",
                 Long.class, own))).isZero();
         // Đã hạ vai: superuser thì RLS không áp.
         assertThat(jdbc.queryForObject("SELECT current_user", String.class)).isEqualTo(RowSecurityDataSource.APP_ROLE);
     }
 
     @Test
-    void transferPartnerStaysReadableButNotWritable() {
-        Long partner = jdbc.query("SELECT target_school_id FROM equipment_transfers WHERE school_id = ?"
-                + " AND status <> 'DRAFT' LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null, own);
-        Assumptions.assumeTrue(partner != null, "Trường demo chưa có phiếu điều chuyển");
+    void noTransferPartnersAnyMore() {
+        // Không còn phiếu điều chuyển (285): vế "trường đối tác" của chính sách đọc luôn rỗng, đọc = trường mình.
         signIn("thcs.canbo");
-        // Trường nhận / trường chuyển còn mở lại được phiếu cũ: phòng, cán bộ của trường bên kia đọc được.
-        assertThat(inTx(() -> jdbc.queryForObject("SELECT count(*) FROM rooms WHERE school_id = ?", Long.class,
-                partner))).isPositive();
-        // Nhưng không sửa được phòng, không thấy phiếu riêng (thanh lý) của trường bên kia.
-        assertThat(rolledBack(() -> jdbc.update("UPDATE rooms SET note = note WHERE school_id = ?", partner)))
-                .isZero();
-        assertThat(inTx(() -> jdbc.queryForObject("SELECT count(*) FROM disposals WHERE school_id = ?", Long.class,
-                partner))).isZero();
+        assertThat(inTx(() -> jdbc.queryForObject("SELECT cardinality(public.rls_linked_school_ids())",
+                Integer.class))).isZero();
     }
 
     @Test

@@ -56,17 +56,8 @@ const SOURCES: {
   { resource: "equipment_catalogs", heading: "Danh mục thiết bị", icon: <ClipboardList />, title: (r) => r.name, sub: (r) => r.code },
   { resource: "equipment_intakes", heading: "Phiếu ghi tăng", icon: <FileInput />, title: (r) => r.code ?? "Phiếu nháp", sub: (r) => [r.school?.name, r.intakeDate].filter(Boolean).join(" · ") },
   { resource: "departments_of_education", heading: "Cơ quan quản lý", icon: <Building2 />, title: (r) => r.name, sub: (r) => r.code },
-  // Số phiếu (E2E-31): gõ "TL-2026-00023" hay "00023" ra đúng phiếu.
-  { resource: "equipment_allocations", heading: "Phiếu cấp phát", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "equipment_transfers", heading: "Phiếu điều chuyển", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "equipment_loans", heading: "Phiếu mượn - trả", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "room_bookings", heading: "Phiếu mượn phòng", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "consumption_records", heading: "Phiếu tiêu hao", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "damage_reports", heading: "Phiếu báo hỏng", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "repair_orders", heading: "Phiếu sửa chữa, bảo trì", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "warranty_claims", heading: "Phiếu bảo hành", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
+  // Số phiếu (E2E-31): gõ "KK-2026-00023" hay "00023" ra đúng phiếu.
   { resource: "inventory_sessions", heading: "Phiếu kiểm kê", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
-  { resource: "disposals", heading: "Đề nghị ghi giảm", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
   { resource: "purchase_proposals", heading: "Đề xuất mua sắm", icon: <FileText />, title: (r) => r.code ?? "Phiếu nháp", sub: voucherSub, codeOnly: true },
 ];
 const PER_SOURCE = 5;

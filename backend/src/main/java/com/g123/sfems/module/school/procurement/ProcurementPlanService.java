@@ -614,7 +614,7 @@ public class ProcurementPlanService {
             body = requested;
         }
         if (body == null) {
-            throw new FieldValidationException("managingBody", "Chỉ Sở hoặc UBND mới lập được kế hoạch mua sắm");
+            throw new FieldValidationException("managingBody", "Chỉ tài khoản thuộc Sở mới lập được kế hoạch mua sắm");
         }
         Long bodyId = body;
         return rowLevel.asSystem("procurement_plans.body", () -> bodies.get(bodyId));

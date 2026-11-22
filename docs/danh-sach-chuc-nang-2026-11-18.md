@@ -5,6 +5,10 @@ menu và route ở `frontend/src/app/resources`, `features/catalogs/registry.ts`
 bảng cổng `PortalRoutes.java`; test ở `backend/src/test`, `frontend/e2e`. Đối chiếu 42 UC
 (`SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx`), ma trận `ma-tran-truy-vet-uc.md` và mục "Ngoài phạm vi" của `AGENTS.md`.
 
+> Cập nhật 22/11/2026: phạm vi nay là 46 UC. Bốn UC đề xuất ở mục "71 chức năng không phải 71 UC" đã thêm thành
+> HT-07 (cấp tài khoản cho nhân sự trường), HT-08 (luồng phê duyệt), TC-03 (nhân sự), TC-04 (đánh giá CSVC theo chuẩn).
+> Danh mục học kỳ và 38 bảng của chức năng ngoài phạm vi đã xoá ở changelog 285. Số liệu còn lại là của ngày 18/11.
+
 ## Cách đọc
 
 | Ký hiệu | Nghĩa |
@@ -41,7 +45,7 @@ Cột **UC**: mã trong 42 UC; `—` = chưa UC nào nhận.
 | # | Chức năng | Màn hình | UC | Đánh giá | Ghi chú |
 |---|---|---|---|---|---|
 | 2.1 | Danh mục tổ chức và CSVC: Phường/Xã, Khối CSVC, Loại CSVC | `/wards`, `/facility-groups`, `/room-types` | DM-01 | **Có** | Test gián tiếp `FieldRuleTest` |
-| 2.2 | Năm học và môn học: Năm học, Học kỳ, Khối lớp, Tổ chuyên môn, Môn học, Cấp học | `/school-years`, `/semesters`, `/grades`, `/subject-groups`, `/subjects`, `/education-levels` | DM-01 | **Có** | |
+| 2.2 | Năm học và môn học: Năm học, Khối lớp, Tổ chuyên môn, Môn học, Cấp học (học kỳ đã bỏ ở changelog 285) | `/school-years`, `/grades`, `/subject-groups`, `/subjects`, `/education-levels` | DM-01 | **Có** | |
 | 2.3 | Tài chính: Nguồn hình thành, Hình thức mua sắm, Lý do biến động | `/origin-sources`, `/acquisition-methods`, `/movement-reasons` | DM-01 | **Có** | |
 | 2.4 | Danh mục cố định (chỉ đọc): Loại tài sản, Mục đích sử dụng, Nguồn kinh phí, Chức vụ cán bộ… | `/asset-categories`, `/usage-purposes`, `/funding-sources`, `/staff-positions`… | DM-01 | **Có** | Phần lớn chỉ là lựa chọn trong ô chọn |
 | 2.5 | Danh mục thiết bị, Loại thiết bị, Đơn vị tính, Bộ thông số kỹ thuật | `/equipment-catalogs`, `/equipment-types`, `/units`, `/equipment-configs` | DM-02 | **Đạt** | Test `CatalogNamesTest`; ~1.700 mục, 3 cấp học |

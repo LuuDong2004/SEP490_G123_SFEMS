@@ -334,15 +334,6 @@
       "show": "Chi tiết hình thức mua sắm"
     }
   },
-  "semesters": {
-    "semesters": "Học kỳ",
-    "titles": {
-      "list": "Học kỳ",
-      "create": "Thêm học kỳ",
-      "edit": "Sửa học kỳ",
-      "show": "Chi tiết học kỳ"
-    }
-  },
   "wards": {
     "wards": "Phường/Xã",
     "titles": {
@@ -556,15 +547,6 @@
       "show": "Chi tiết lớp học"
     }
   },
-  "facility_works": {
-    "facility_works": "Sửa chữa, cải tạo",
-    "titles": {
-      "list": "Sửa chữa, cải tạo công trình",
-      "create": "Ghi sửa chữa, cải tạo",
-      "edit": "Sửa thông tin sửa chữa, cải tạo",
-      "show": "Chi tiết sửa chữa, cải tạo"
-    }
-  },
   "subject_teams": {
     "subject_teams": "Tổ bộ môn",
     "titles": {
@@ -640,57 +622,6 @@
       "list": "Tra cứu thiết bị"
     }
   },
-  "equipment_labels": {
-    "equipment_labels": "In tem QR",
-    "titles": {
-      "list": "In tem QR"
-    }
-  },
-  "equipment_allocations": {
-    "equipment_allocations": "Cấp phát - điều chuyển nội bộ",
-    "titles": {
-      "list": "Phiếu cấp phát",
-      "create": "Lập phiếu cấp phát",
-      "edit": "Sửa phiếu cấp phát",
-      "show": "Chi tiết phiếu cấp phát"
-    }
-  },
-  "equipment_transfers": {
-    "equipment_transfers": "Điều chuyển giữa trường",
-    "titles": {
-      "list": "Phiếu điều chuyển",
-      "create": "Lập phiếu điều chuyển",
-      "edit": "Sửa phiếu điều chuyển",
-      "show": "Chi tiết phiếu điều chuyển"
-    }
-  },
-  "equipment_loans": {
-    "equipment_loans": "Mượn - trả",
-    "titles": {
-      "list": "Phiếu mượn - trả",
-      "create": "Lập phiếu mượn",
-      "edit": "Sửa phiếu mượn",
-      "show": "Chi tiết phiếu mượn"
-    }
-  },
-  "damage_reports": {
-    "damage_reports": "Báo hỏng - sửa chữa",
-    "titles": {
-      "list": "Phiếu báo hỏng - sửa chữa",
-      "create": "Lập phiếu báo hỏng",
-      "edit": "Sửa phiếu báo hỏng",
-      "show": "Chi tiết phiếu báo hỏng"
-    }
-  },
-  "maintenance_plans": {
-    "maintenance_plans": "Kế hoạch bảo trì",
-    "titles": {
-      "list": "Kế hoạch bảo trì",
-      "create": "Thêm kế hoạch bảo trì",
-      "edit": "Sửa kế hoạch bảo trì",
-      "show": "Chi tiết kế hoạch bảo trì"
-    }
-  },
   "inventory_sessions": {
     "inventory_sessions": "Kiểm kê",
     "titles": {
@@ -707,15 +638,6 @@
       "create": "Phát động đợt kiểm kê",
       "edit": "Sửa đợt kiểm kê",
       "show": "Tiến độ đợt kiểm kê"
-    }
-  },
-  "disposals": {
-    "disposals": "Ghi giảm",
-    "titles": {
-      "list": "Đề nghị ghi giảm",
-      "create": "Lập đề nghị ghi giảm",
-      "edit": "Sửa đề nghị ghi giảm",
-      "show": "Chi tiết đề nghị ghi giảm"
     }
   },
   "purchase_proposals": {
@@ -742,18 +664,6 @@
       "list": "Đối chiếu danh mục thiết bị tối thiểu"
     }
   },
-  "standard_adjustments": {
-    "standard_adjustments": "Đề nghị điều chỉnh chuẩn",
-    "titles": {
-      "list": "Đề nghị điều chỉnh chuẩn"
-    }
-  },
-  "standard_adjustment_rules": {
-    "standard_adjustment_rules": "Cấu hình điều chỉnh chuẩn",
-    "titles": {
-      "list": "Cấu hình điều chỉnh chuẩn tối thiểu"
-    }
-  },
   "equipment_adequacy": {
     "equipment_adequacy": "Định mức & nhu cầu",
     "titles": {
@@ -771,12 +681,6 @@
     "titles": {
       "list": "Nhập dữ liệu đầu vào",
       "show": "Nhập dữ liệu đầu vào"
-    }
-  },
-  "api_clients": {
-    "api_clients": "Khoá API tích hợp",
-    "titles": {
-      "list": "Khoá API tích hợp"
     }
   },
   "ai_settings": {
@@ -797,60 +701,6 @@
       "list": "Tình trạng hệ thống"
     }
   },
-  "repair_orders": {
-    "repair_orders": "Sửa chữa, bảo trì",
-    "titles": {
-      "list": "Phiếu sửa chữa, bảo trì",
-      "create": "Lập phiếu sửa chữa, bảo trì",
-      "edit": "Sửa phiếu sửa chữa, bảo trì",
-      "show": "Phiếu sửa chữa, bảo trì"
-    }
-  },
-  "warranty_claims": {
-    "warranty_claims": "Bảo hành",
-    "titles": {
-      "list": "Phiếu bảo hành",
-      "create": "Lập phiếu bảo hành",
-      "edit": "Sửa phiếu bảo hành",
-      "show": "Phiếu bảo hành"
-    }
-  },
-  "maintenance_orders": {
-    "maintenance_orders": "Bảo dưỡng",
-    "titles": {
-      "list": "Phiếu bảo dưỡng",
-      "create": "Lập phiếu bảo dưỡng",
-      "edit": "Sửa phiếu bảo dưỡng",
-      "show": "Phiếu bảo dưỡng"
-    }
-  },
-  "depreciation_orders": {
-    "depreciation_orders": "Hao mòn",
-    "titles": {
-      "list": "Bảng tính hao mòn",
-      "create": "Lập bảng tính hao mòn",
-      "edit": "Sửa bảng tính hao mòn",
-      "show": "Bảng tính hao mòn"
-    }
-  },
-  "consumption_records": {
-    "consumption_records": "Tiêu hao",
-    "titles": {
-      "list": "Phiếu tiêu hao",
-      "create": "Ghi tiêu hao",
-      "edit": "Sửa phiếu tiêu hao",
-      "show": "Phiếu tiêu hao"
-    }
-  },
-  "room_bookings": {
-    "room_bookings": "Mượn phòng",
-    "titles": {
-      "list": "Phiếu mượn phòng",
-      "create": "Lập phiếu mượn phòng",
-      "edit": "Sửa phiếu mượn phòng",
-      "show": "Chi tiết phiếu mượn phòng"
-    }
-  },
   "operations": {
     "operations": "Nghiệp vụ"
   },
@@ -859,9 +709,6 @@
   },
   "ops_distribution": {
     "ops_distribution": "Phân phối & sử dụng"
-  },
-  "ops_maintenance": {
-    "ops_maintenance": "Vận hành"
   },
   "ops_periodic": {
     "ops_periodic": "Kiểm soát định kỳ"
@@ -899,18 +746,6 @@
       "list": "Mức đáp ứng danh mục thiết bị tối thiểu"
     }
   },
-  "report_overdue_loans": {
-    "report_overdue_loans": "Mượn quá hạn",
-    "titles": {
-      "list": "Thiết bị mượn quá hạn"
-    }
-  },
-  "report_disposals": {
-    "report_disposals": "Thiết bị ghi giảm",
-    "titles": {
-      "list": "Thiết bị ghi giảm"
-    }
-  },
   "report_purchase": {
     "report_purchase": "Nhu cầu mua sắm",
     "titles": {
@@ -935,12 +770,6 @@
       "list": "Kết quả kiểm kê"
     }
   },
-  "report_maintenance": {
-    "report_maintenance": "Bảo trì, sửa chữa",
-    "titles": {
-      "list": "Bảo trì, sửa chữa"
-    }
-  },
   "report_equipment_by_status": {
     "report_equipment_by_status": "Theo trạng thái sử dụng",
     "titles": {
@@ -957,18 +786,6 @@
     "report_equipment_list": "Danh sách theo trạng thái",
     "titles": {
       "list": "Danh sách thiết bị theo trạng thái"
-    }
-  },
-  "report_transfers": {
-    "report_transfers": "Lịch sử điều chuyển",
-    "titles": {
-      "list": "Lịch sử điều chuyển thiết bị"
-    }
-  },
-  "report_utilization": {
-    "report_utilization": "Hiệu quả khai thác",
-    "titles": {
-      "list": "Hiệu quả khai thác thiết bị"
     }
   },
   "report_data_quality": {
@@ -995,12 +812,6 @@
       "list": "Đánh giá mức độ chuẩn CSVC"
     }
   },
-  "report_room_usage": {
-    "report_room_usage": "Sử dụng phòng",
-    "titles": {
-      "list": "Sử dụng phòng bộ môn, phòng chức năng"
-    }
-  },
   "report_room_standard": {
     "report_room_standard": "Chuẩn phòng bộ môn",
     "titles": {
@@ -1013,12 +824,6 @@
       "list": "Hoá chất, vật tư hết hạn"
     }
   },
-  "report_supply_consumption": {
-    "report_supply_consumption": "Tiêu hao vật tư",
-    "titles": {
-      "list": "Tiêu hao vật tư"
-    }
-  },
   "report_unused_equipment": {
     "report_unused_equipment": "Không còn sử dụng",
     "titles": {
@@ -1029,18 +834,6 @@
     "report_idle_equipment": "Nằm kho kéo dài",
     "titles": {
       "list": "Thiết bị nằm kho kéo dài"
-    }
-  },
-  "report_damage_trends": {
-    "report_damage_trends": "Xu hướng hư hỏng",
-    "titles": {
-      "list": "Xu hướng hư hỏng"
-    }
-  },
-  "report_loans": {
-    "report_loans": "Thống kê mượn trả",
-    "titles": {
-      "list": "Thống kê mượn trả"
     }
   },
   "report_data_anomalies": {
@@ -1067,23 +860,11 @@
       "list": "Lịch sử thay đổi dữ liệu"
     }
   },
-  "integrations": {
-    "integrations": "Kết nối hệ thống ngoài",
-    "titles": {
-      "list": "Kết nối hệ thống ngoài"
-    }
-  },
   "report_snapshots": {
     "report_snapshots": "Báo cáo đã lưu",
     "titles": {
       "list": "Báo cáo đã lưu",
       "show": "Bản báo cáo đã lưu"
-    }
-  },
-  "evidence": {
-    "evidence": "Minh chứng hằng năm",
-    "titles": {
-      "list": "Minh chứng hoạt động hằng năm"
     }
   }
 }

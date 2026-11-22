@@ -3,8 +3,8 @@ import { ASSET_STATUS_GROUP_VARIANTS } from "@/shared/lib/status-variants";
 import { AssetCode } from "@/shared/components/asset-code";
 import { useNavigation, type CrudFilter } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
-import { createColumnHelper, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { useEffect, useMemo, useRef } from "react";
 
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { CampusName, CampusTableFilter } from "@/shared/components/campus/campus";
@@ -21,8 +21,6 @@ import { ExpiryBadge, daysToExpiry } from "./expiry";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
-import { Checkbox } from "@/shared/ui/checkbox";
-import { EquipmentRowMenu } from "./equipment-row-menu";
 import { ASSET_STATUS_GROUP_LABELS, ASSET_STATUS_GROUP_OF, ASSET_STATUS_LABELS, EQUIPMENT_CONDITION_LABELS, OFF_BOOK_STATUSES as OFF_BOOK } from "@/domains/equipment/types";
 import { autoVisible, useColumnsKey } from "@/shared/components/data-table/column-prefs";
 
@@ -77,27 +75,10 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
   const { show } = useNavigation();
   const extras = useToolbarExtras();
   const offset = useRef(0);
-  // Chuột phải một dòng: hiện cột ô tích (chọn nhiều, bấm dòng là tích) và menu nghiệp vụ tại con trỏ, áp cho mọi
-  // dòng đang tích. Lựa chọn giữ qua các trang (khoá theo id); `seen` nhớ dữ liệu của dòng đã tích ở trang khác.
-  const [selecting, setSelecting] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  const seen = useRef(new Map<string, ItemRow>());
   const permanent = filters;
   const columns = useMemo(() => {
     const h = createColumnHelper<ItemRow>();
     return [
-      h.display({
-        id: "select", size: 40, minSize: 40, enableResizing: false,
-        header: ({ table }) => (
-          <Checkbox aria-label="Chọn cả trang"
-            checked={table.getIsAllPageRowsSelected() ? true : table.getIsSomePageRowsSelected() ? "indeterminate" : false}
-            onCheckedChange={(v) => table.toggleAllPageRowsSelected(v === true)} />
-        ),
-        cell: ({ row }) => (
-          <Checkbox aria-label="Chọn dòng" checked={row.getIsSelected()} onCheckedChange={(v) => row.toggleSelected(v === true)} />
-        ),
-      }),
       h.display({
         id: "stt", header: "STT", size: 56, minSize: 48, enableResizing: false,
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
@@ -219,13 +200,10 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
     columnResizeMode: "onChange",
     defaultColumn: RESIZABLE_COLUMN_DEFAULTS,
     // Hạn sử dụng chỉ lô vật tư, hoá chất có — mặc định ẩn, bật lại ở "Cột hiển thị" (lựa chọn được nhớ).
-    enableRowSelection: true,
     getRowId: (r: ItemRow) => String(r.id),
-    state: { rowSelection },
-    onRowSelectionChange: setRowSelection,
     initialState: {
       columnPinning: { right: ["actions"] },
-      columnVisibility: { select: false, expiryDate: false, serialNumber: false, originSource: false, inUseYear: false },
+      columnVisibility: { expiryDate: false, serialNumber: false, originSource: false, inUseYear: false },
     },
     meta: { exportResource: "equipment_items" },
     refineCoreProps: {
@@ -237,37 +215,6 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
     },
   });
   offset.current = (table.refineCore.currentPage - 1) * table.refineCore.pageSize;
-
-  for (const r of table.reactTable.getRowModel().rows) seen.current.set(r.id, r.original);
-  const picked = Object.keys(rowSelection).filter((k) => rowSelection[k]).flatMap((k) => seen.current.get(k) ?? []);
-  useEffect(() => {
-    table.reactTable.getColumn("select")?.toggleVisibility(selecting);
-  }, [selecting, table.reactTable]);
-  // Bỏ tích hết thì thôi chế độ chọn — cột ô tích tắt.
-  useEffect(() => {
-    if (selecting && !menuAt && picked.length === 0) setSelecting(false);
-  }, [selecting, menuAt, picked.length]);
-  const stopSelecting = () => {
-    setSelecting(false);
-    setRowSelection({});
-    setMenuAt(null);
-  };
-  // Bấm ra ngoài bảng là thôi chọn — không có chip "Đã chọn" nào phải tự tắt. Bấm trong bảng (tích thêm
-  // dòng) và trong menu thì giữ.
-  const tableBox = useRef<HTMLDivElement>(null);
-  const menuOpen = useRef(false);
-  menuOpen.current = !!menuAt;
-  useEffect(() => {
-    if (!selecting) return;
-    const away = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      // Bấm trong bảng (tích thêm dòng), trong menu, hoặc chỉ để đóng menu đang mở thì GIỮ lựa chọn.
-      if (tableBox.current?.contains(t) || t.closest("[role=menu]") || menuOpen.current) return;
-      stopSelecting();
-    };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
-  }, [selecting]);
 
   // Đổi bộ lọc bên trái / chip "Đang xem" thì về trang 1.
   const key = JSON.stringify(permanent);
@@ -299,19 +246,13 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
   // Thiết bị đã ra khỏi hệ thống: lọc bằng nhóm "Đã ra khỏi hệ thống" trong Bộ lọc.
   return (
     <ToolbarExtrasProvider {...extras}>
-      <div ref={tableBox} className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
+      <div className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
       <DataTable
         table={table as any}
         empty={{ title: "Chưa có thiết bị nào", ...emptyWhenFiltered(permanent, table.refineCore.filters) }}
         fill={fill || undefined}
         externallyFiltered={externallyFiltered}
         onRowDoubleClick={(r: any) => show("equipment", r.equipmentId)}
-        rowClickSelects={selecting}
-        onRowContextMenu={(_r: any, e, row) => {
-          setSelecting(true);
-          if (!row.getIsSelected()) row.toggleSelected(true);
-          setMenuAt({ x: e.clientX, y: e.clientY });
-        }}
         toolbar={
           <ListToolbar
             table={table as any}
@@ -322,7 +263,6 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
         }
       />
       </div>
-      <EquipmentRowMenu at={menuAt && picked.length ? menuAt : null} assets={picked} onClose={() => setMenuAt(null)} />
     </ToolbarExtrasProvider>
   );
 }

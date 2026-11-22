@@ -1,12 +1,15 @@
 import JsBarcode from "jsbarcode";
-import { Printer, QrCode } from "lucide-react";
+import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef } from "react";
-import { Link } from "react-router";
 
 import { Button } from "@/shared/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
-import { lookupUrl } from "./labels";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
+
+/** Đường dẫn mà mã QR trỏ tới: quét bằng điện thoại là mở thẳng màn tra cứu của tài sản đó. */
+export function lookupUrl(code: string) {
+  return `${window.location.origin}/equipment-lookup?code=${encodeURIComponent(code)}`;
+}
 
 /** Mã vạch Code 128 của mã tài sản — đọc được bằng mọi máy quét cầm tay, kể cả loại không đọc QR. */
 function Barcode({ value }: { value: string }) {
@@ -25,10 +28,10 @@ function Barcode({ value }: { value: string }) {
 
 /**
  * Mã QR và mã vạch của MỘT tài sản trên hồ sơ thiết bị: nút "Mã QR & mã vạch" ngang tầm tên thiết bị, bấm mở
- * hộp có QR lớn, mã vạch và nút In tem. Cùng nội dung với tem in: QR trỏ về màn tra cứu của hệ thống, mã vạch mang mã
+ * hộp có QR lớn và mã vạch. QR trỏ về màn tra cứu của hệ thống, mã vạch mang mã
  * tài sản. Nút không chiếm chỗ của thẻ đầu — một thẻ riêng hay một cột mã cạnh tên đều để lại khoảng trống.
  */
-export function AssetCodes({ id, code, name, iconOnly }: { id: number; code: string; name: string; iconOnly?: boolean }) {
+export function AssetCodes({ code, name, iconOnly }: { code: string; name: string; iconOnly?: boolean }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -61,11 +64,6 @@ export function AssetCodes({ id, code, name, iconOnly }: { id: number; code: str
             <span className="text-muted-foreground text-xs">Mã vạch Code 128</span>
           </div>
         </div>
-        <DialogFooter>
-          <Button asChild>
-            <Link to={`/equipment-labels?equipment=${id}`}><Printer />In tem</Link>
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

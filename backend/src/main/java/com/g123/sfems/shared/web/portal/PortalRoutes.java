@@ -99,7 +99,7 @@ public final class PortalRoutes {
         // Danh mục, chuẩn: Sở ghi, mọi cổng nghiệp vụ đọc.
         put(BUSINESS, EnumSet.of(SO), "acquisition_methods", "equipment_catalogs", "equipment_configs",
                 "equipment_norms", "equipment_standards", "equipment_types", "facility_groups",
-                "facility_standard_rules", "grades", "legal_documents", "movement_reasons", "room_types", "school_years", "semesters",
+                "facility_standard_rules", "grades", "legal_documents", "movement_reasons", "room_types", "school_years",
                 "subject_groups", "subjects", "units");
         put(BUSINESS, NONE, "origin_sources", "voucher_forms");
         // Dữ liệu của trường: trường ghi, Sở xem toàn ngành.
@@ -120,7 +120,7 @@ public final class PortalRoutes {
         // Chỉ xem.
         // Đánh giá CSVC theo chuẩn của một trường: trường xem trường mình, Sở xem toàn ngành.
         put(BUSINESS, NONE, "facility-standard");
-        put(BUSINESS, NONE, "school_overview", "voucher_events", "voucher_holds", "voucher_links");
+        put(BUSINESS, NONE, "school_overview", "voucher_events", "voucher_links");
         // Riêng trường — lối của lãnh đạo trường trên CHÍNH trường mình (trường lấy từ người gọi); quản trị không gắn
         // trường nên không mở ở cổng Admin (tài khoản do màn Người dùng quản lý).
         own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "school_code_rules", "school_profile");

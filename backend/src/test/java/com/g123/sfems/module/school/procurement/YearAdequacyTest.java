@@ -63,12 +63,8 @@ class YearAdequacyTest {
     void brokenCountsButPendingDisposalDoesNot() {
         Row before = total(compute());
         long broken = equipment("BROKEN", null);
-        long onDisposal = equipment("IN_USE", null);
-        Long disposal = jdbc.queryForObject("""
-                INSERT INTO disposals (school_id, kind, proposal_date, status, submitted_at, created_at)
-                VALUES (?, 'LIQUIDATION', CURRENT_DATE, 'PENDING', now(), now()) RETURNING id""", Long.class, school);
-        jdbc.update("INSERT INTO disposal_lines (disposal_id, line_no, equipment_id) VALUES (?, 1, ?)", disposal,
-                onDisposal);
+        // Chờ ghi giảm theo trạng thái thiết bị (không còn phiếu ghi giảm từ 285).
+        equipment("PENDING_LIQUIDATION", null);
         Row after = total(compute());
         assertThat(after.current()).isEqualTo(before.current() + 1);
         assertThat(after.broken()).isEqualTo(before.broken() + 1);

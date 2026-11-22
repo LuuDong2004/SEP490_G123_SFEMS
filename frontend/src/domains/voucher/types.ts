@@ -122,21 +122,8 @@ export type AttachmentInfo = {
   coverCrop?: string | null;
 };
 
-/**
- * `APPROVED` nói theo loại phiếu: phiếu không có bước duyệt (mượn, sửa tại chỗ, bảo hành, bảo dưỡng)
- * vẫn đi qua trạng thái này lúc đang thực hiện — "Đã duyệt" trên một phiếu không ai duyệt là sai.
- */
-export const APPROVED_LABEL_BY_RESOURCE: Record<string, string> = {
-  equipment_loans: "Đang mượn",
-  repair_orders: "Đang sửa chữa, bảo trì",
-  warranty_claims: "Đang bảo hành",
-  maintenance_orders: "Đang bảo dưỡng",
-  room_bookings: "Đã xác nhận",
-};
-
 /** "Chờ lãnh đạo trường duyệt", "Hoàn tất"... — một câu cho badge. */
-export function voucherStatusText(status: VoucherStatus, step: ApprovalStep | null, returned?: boolean, resource?: string): string {
-  if (status === "APPROVED" && resource && APPROVED_LABEL_BY_RESOURCE[resource]) return APPROVED_LABEL_BY_RESOURCE[resource];
+export function voucherStatusText(status: VoucherStatus, step: ApprovalStep | null, returned?: boolean): string {
   if (status === "PENDING" && step) return `Chờ ${APPROVAL_STEP_LABELS[step]} duyệt`;
   // Phiếu bị người duyệt trả lại nằm ở trạng thái nháp để sửa được, nhưng với người lập nó KHÔNG phải
   // một phiếu nháp bình thường: có việc phải làm trước khi trình lại.
@@ -185,39 +172,3 @@ export type EquipmentLine = {
   details?: Details;
 };
 
-/**
- * Mục đích mượn — chung cho phiếu mượn phòng và phiếu mượn thiết bị. Danh sách CỐ ĐỊNH, cùng thứ tự với
- * `UsagePurpose` ở backend: báo cáo đếm theo đúng các giá trị này (tỷ lệ tiết thực hành theo môn).
- */
-export type UsagePurpose = "THEORY" | "PRACTICE" | "EXTRACURRICULAR" | "PROFESSIONAL" | "TRAINING" | "OTHER";
-
-export const USAGE_PURPOSE_LABELS: Record<UsagePurpose, string> = {
-  THEORY: "Tiết học lý thuyết",
-  PRACTICE: "Tiết thực hành",
-  EXTRACURRICULAR: "Hoạt động ngoại khoá, CLB",
-  PROFESSIONAL: "Sinh hoạt chuyên môn",
-  TRAINING: "Bồi dưỡng, tập huấn",
-  OTHER: "Khác (ghi rõ)",
-};
-
-/**
- * Mục đích là một TIẾT HỌC thì phải ghi môn — cùng luật `UsagePurpose.isLesson()` ở backend. Báo cáo tỷ lệ tiết
- * thực hành theo môn chỉ đếm các mục này; mục đích khác (ngoại khoá, tập huấn…) thường không thuộc môn nào.
- */
-export const isLessonPurpose = (p: unknown): boolean => p === "THEORY" || p === "PRACTICE";
-
-/** Khối "mượn để làm gì" trên phiếu: mục đích và môn để thống kê, nội dung bài dạy để đọc. */
-export type VoucherUsage = {
-  purposeType: UsagePurpose | null;
-  /** Ghi rõ khi mục đích là "Khác". */
-  purposeNote: string | null;
-  subject: { id: number; code: string; name: string } | null;
-  lessonContent: string | null;
-};
-
-/** Mục đích viết ra chữ cho màn xem; phiếu lập trước khi có ô mục đích thì chưa có. */
-export function usagePurposeText(u: Pick<VoucherUsage, "purposeType" | "purposeNote">): string {
-  if (!u.purposeType) return "Chưa phân loại";
-  if (u.purposeType === "OTHER") return u.purposeNote ? `Khác: ${u.purposeNote}` : "Khác";
-  return USAGE_PURPOSE_LABELS[u.purposeType];
-}

@@ -8,7 +8,6 @@ import {
   FilePen,
   History,
   PackageCheck,
-  QrCode,
   XCircle,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode, Fragment } from "react";
@@ -105,7 +104,7 @@ function assetsLink(record: { id: number; code?: string | null }) {
   return `/equipment?drill=intake.id:${record.id}&drillLabel=${encodeURIComponent(`phiếu ${record.code ?? "ghi tăng"}`)}`;
 }
 
-/** Nút "⋯" của hồ sơ phiếu: xem tài sản đã sinh, in tem, tải lại — như menu ⋯ của hồ sơ thiết bị. */
+/** Nút "⋯" của hồ sơ phiếu: xem tài sản đã sinh, tải lại — như menu ⋯ của hồ sơ thiết bị. */
 function IntakeMoreMenu({ record, onTimeline, onAction, onPrint }: {
   /** In phiếu: bản in là tờ ở dạng Văn bản, nên màn chuyển sang dạng đó rồi mới in. */
   onPrint: () => void;
@@ -119,17 +118,11 @@ function IntakeMoreMenu({ record, onTimeline, onAction, onPrint }: {
   return (
     <VoucherMoreMenu resource="equipment_intakes" record={record} onTimeline={onTimeline} onAction={onAction} onPrint={onPrint}>
       {generated > 0 && record ? (
-        <>
-          <DropdownMenuItem onSelect={() => navigate(assetsLink(record))}>
-            <CheckCircle2 />
-            Xem thiết bị đã ghi tăng
-            <span className="text-muted-foreground ms-auto text-xs tabular-nums">{generated}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => navigate(`/equipment-labels?intake=${record.id}`)}>
-            <QrCode />
-            In tem QR
-          </DropdownMenuItem>
-        </>
+        <DropdownMenuItem onSelect={() => navigate(assetsLink(record))}>
+          <CheckCircle2 />
+          Xem thiết bị đã ghi tăng
+          <span className="text-muted-foreground ms-auto text-xs tabular-nums">{generated}</span>
+        </DropdownMenuItem>
       ) : null}
     </VoucherMoreMenu>
   );
@@ -390,7 +383,7 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
  * Hồ sơ phiếu nhập — CÙNG BỐ CỤC hai cột với form Lập / Sửa: trái là bảng hàng nhận gọn (bấm dòng
  * xem chi tiết, chứng từ, hoá đơn của dòng), Biên bản giao nhận, tệp đính kèm; phải là thẻ tóm tắt
  * dính khi cuộn — thông tin phiếu, tổng tiền, và với phiếu nháp là "cần hoàn thiện". Thao tác phụ
- * (xem tài sản, in tem, tải lại) nằm trong nút ⚙ trên đầu trang.
+ * (xem tài sản, tải lại) nằm trong nút ⚙ trên đầu trang.
  *
  * <p>Lần duyệt cuối là thời điểm ghi tăng — nên nút "Duyệt" nói rõ hệ quả: tài sản ra đời và
  * phiếu khoá lại.
@@ -634,7 +627,7 @@ export const EquipmentIntakeShow = () => {
         }
       >
         <SideFact label="Số phiếu">
-          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi duyệt</span>}
+          {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi trình</span>}
         </SideFact>
         <SideFact label="Người lập">{record?.createdBy?.name}</SideFact>
         <SideFact label="Trường">{record?.school?.name}</SideFact>
@@ -679,17 +672,11 @@ export const EquipmentIntakeShow = () => {
           {completed ? ` · đã sinh ${record?.generatedCount ?? 0} hồ sơ` : ""}
         </p>
         {completed && (record?.generatedCount ?? 0) > 0 && record ? (
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <Button asChild variant="outline" size="sm">
+          <div className="pt-1">
+            <Button asChild variant="outline" size="sm" className="w-full">
               <Link to={assetsLink(record)}>
                 <CheckCircle2 />
                 Xem thiết bị
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/equipment-labels?intake=${record.id}`}>
-                <QrCode />
-                In tem QR
               </Link>
             </Button>
           </div>

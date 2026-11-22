@@ -50,7 +50,7 @@ class DataChangeRecorder implements PostUpdateEventListener, PostInsertEventList
 
     /** Bảng ngoài danh mục dùng chung mà một lần sửa đáng để lại vết. */
     private static final Set<String> TABLES = Set.of("schools", "departments_of_education", "staff", "rooms",
-            "buildings", "campuses", "school_classes", "subject_teams", "users", "facility_works",
+            "buildings", "campuses", "school_classes", "subject_teams", "users",
             "school_code_rules", "approval_flows");
 
     /**

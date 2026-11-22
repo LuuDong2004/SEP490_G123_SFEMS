@@ -43,13 +43,6 @@ export const FACILITY_CONDITION_VARIANTS: Record<string, BadgeVariant> = {
   HU_HONG_NANG: "destructive",
 };
 
-/** Duyệt kế hoạch bảo trì: chờ là thông tin, trả lại là cảnh báo, đã duyệt là xanh. */
-export const PLAN_APPROVAL_VARIANTS: Record<string, BadgeVariant> = {
-  PENDING: "info",
-  APPROVED: "success",
-  RETURNED: "warning",
-};
-
 /** Tình trạng sử dụng phòng: đang dùng là xanh; bỏ trống / ngừng là trung tính; đang sửa là cảnh báo. */
 export const ROOM_USAGE_VARIANTS: Record<string, BadgeVariant> = {
   DANG_SU_DUNG: "success",
@@ -104,20 +97,6 @@ export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   LIQUIDATED: "neutral",
   DESTROYED: "neutral",
   USED_UP: "neutral",
-};
-
-/** Tình hình phiếu mượn: đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
-export const LOAN_PHASE_VARIANTS: Record<"BORROWED" | "PARTIAL" | "RETURNED", BadgeVariant> = {
-  BORROWED: "info",
-  PARTIAL: "warning",
-  RETURNED: "success",
-};
-
-/** Kết quả kiểm nhận điều chuyển: nhận xanh, trả lại (hỏng / sai) cảnh báo, không thấy đỏ. */
-export const RECEIPT_RESULT_VARIANTS: Record<"RECEIVED" | "DAMAGED" | "MISSING", BadgeVariant> = {
-  RECEIVED: "success",
-  DAMAGED: "warning",
-  MISSING: "destructive",
 };
 
 /** Kết quả chấm chuẩn CSVC (203): đạt xanh, chưa đạt đỏ nhạt, chưa có quy tắc trung tính. */

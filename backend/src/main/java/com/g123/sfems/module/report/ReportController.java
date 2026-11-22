@@ -78,21 +78,6 @@ public class ReportController {
                 typeId, status, condition, campusId));
     }
 
-    /** Các phiếu của một dòng báo cáo "Thống kê mượn trả": {@code key} = khoá nhóm của dòng. */
-    @GetMapping("/loans/rows")
-    @PreAuthorize("hasAuthority('reports:read')")
-    public ReportService.Report loanRows(@RequestParam String key,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long bodyId,
-            @RequestParam(required = false) Long levelId,
-            @RequestParam(required = false) Long schoolId,
-            @RequestParam(required = false) String group,
-            @RequestParam(required = false) Long campusId) {
-        return reports.loanRows(new ReportService.Params(from, to, null, bodyId, levelId, schoolId, group, null,
-                null, null, null, campusId), key);
-    }
-
     @GetMapping("/{name}/export")
     @PreAuthorize("hasAuthority('reports:export')")
     public ResponseEntity<byte[]> export(@PathVariable String name,

@@ -59,7 +59,8 @@ nhận lại" (vẫn được tính, phải xác nhận hết mới chốt đư�
    nhận thông báo chọn lại.
 
 **Ngày cắt** = `end_date` + 1 của năm học (năm hiện tại: lúc này). Trạng thái thiết bị tại ngày cắt = `from_value` của
-lần đổi trạng thái đầu tiên sau ngày cắt; trường tại ngày cắt = trường chuyển của lần điều chuyển đầu tiên sau ngày cắt.
+lần đổi trạng thái đầu tiên sau ngày cắt. Trường tại ngày cắt là trường đang giữ thiết bị (không có điều chuyển, bảng
+`equipment_transfers` đã xoá ở changelog 285).
 
 ## 4. Bảng, API, màn
 
@@ -76,7 +77,7 @@ lần đổi trạng thái đầu tiên sau ngày cắt; trường tại ngày c
 ## 5. Chỗ khác thiết kế gốc, có lý do
 
 - Không có cấp UBND: Sở là cơ quan quản lý mọi trường, nên Sở mở lại năm học đã chốt.
-- Không có phiếu cấp phát nội bộ: bước 5 không lập phiếu điều chuyển, chỉ gợi ý điểm trường thừa.
+- Không có phiếu cấp phát, điều chuyển (bảng đã xoá ở changelog 285): bước 5 chỉ gợi ý điểm trường thừa.
 - Bốn tài nguyên mới là SQL thuần: phạm vi qua `VisibleSchools` + `CampusScope` + RLS PostgreSQL (`rls_school`).
 - Điểm trường của thiết bị theo phòng hiện tại; danh mục của năm cũ = dòng có ngày hiệu lực giao năm học đó.
 - Năm cũ: giáo viên = người có phân công năm đó (kể cả đã nghỉ); năm hiện tại chỉ người đang làm việc.

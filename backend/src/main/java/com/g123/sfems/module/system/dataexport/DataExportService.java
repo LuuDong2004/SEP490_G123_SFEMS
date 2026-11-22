@@ -50,11 +50,8 @@ public class DataExportService {
 
     /** Bảng có cột {@code school_id}. */
     private static final List<String> SCHOOL_TABLES = List.of(
-            "campuses", "buildings", "rooms", "staff", "equipment", "equipment_stock", "maintenance_plans",
-            "equipment_intakes", "equipment_allocations", "equipment_transfers", "equipment_loans",
-            "damage_reports", "inventory_sessions", "disposals", "purchase_proposals", "repair_orders",
-            "warranty_claims", "maintenance_orders", "stock_issues", "storage_orders", "depreciation_orders",
-            "consumption_records", "room_bookings");
+            "campuses", "buildings", "rooms", "staff", "equipment", "equipment_intakes", "inventory_sessions",
+            "purchase_proposals");
 
     /** Bảng dòng: bảng → (cột khoá ngoại, bảng cha). */
     private static final Map<String, String[]> LINE_TABLES = new LinkedHashMap<>();
@@ -67,40 +64,13 @@ public class DataExportService {
             Map.entry("rooms", "Phòng"),
             Map.entry("staff", "Cán bộ giáo viên"),
             Map.entry("equipment", "Thiết bị"),
-            Map.entry("equipment_stock", "Tồn kho thiết bị"),
-            Map.entry("maintenance_plans", "Kế hoạch bảo trì"),
             Map.entry("equipment_intakes", "Phiếu ghi tăng"),
-            Map.entry("equipment_allocations", "Phiếu cấp phát"),
-            Map.entry("equipment_transfers", "Phiếu điều chuyển"),
-            Map.entry("equipment_loans", "Phiếu mượn"),
-            Map.entry("damage_reports", "Phiếu báo hỏng"),
             Map.entry("inventory_sessions", "Phiếu kiểm kê"),
-            Map.entry("disposals", "Phiếu ghi giảm"),
             Map.entry("purchase_proposals", "Đề xuất mua sắm"),
-            Map.entry("repair_orders", "Phiếu sửa chữa"),
-            Map.entry("warranty_claims", "Phiếu bảo hành"),
-            Map.entry("maintenance_orders", "Phiếu bảo trì"),
-            Map.entry("stock_issues", "Phiếu xuất kho"),
-            Map.entry("storage_orders", "Phiếu nhập kho"),
-            Map.entry("depreciation_orders", "Phiếu hao mòn"),
-            Map.entry("consumption_records", "Phiếu tiêu hao"),
-            Map.entry("room_bookings", "Phiếu đặt phòng"),
             Map.entry("equipment_intake_lines", "Chi tiết phiếu ghi tăng"),
-            Map.entry("equipment_allocation_lines", "Chi tiết phiếu cấp phát"),
-            Map.entry("equipment_transfer_lines", "Chi tiết phiếu điều chuyển"),
-            Map.entry("equipment_loan_lines", "Chi tiết phiếu mượn"),
-            Map.entry("damage_report_lines", "Chi tiết phiếu báo hỏng"),
             Map.entry("inventory_lines", "Chi tiết phiếu kiểm kê"),
             Map.entry("inventory_surplus", "Thiết bị kiểm kê thừa"),
-            Map.entry("disposal_lines", "Chi tiết phiếu ghi giảm"),
             Map.entry("purchase_proposal_lines", "Chi tiết đề xuất mua sắm"),
-            Map.entry("repair_order_lines", "Chi tiết phiếu sửa chữa"),
-            Map.entry("warranty_claim_lines", "Chi tiết phiếu bảo hành"),
-            Map.entry("maintenance_order_lines", "Chi tiết phiếu bảo trì"),
-            Map.entry("stock_issue_lines", "Chi tiết phiếu xuất kho"),
-            Map.entry("storage_order_lines", "Chi tiết phiếu nhập kho"),
-            Map.entry("depreciation_order_lines", "Chi tiết phiếu hao mòn"),
-            Map.entry("room_booking_lines", "Chi tiết phiếu đặt phòng"),
             Map.entry("equipment_history", "Lịch sử thiết bị"),
             Map.entry("equipment_catalogs", "Danh mục thiết bị"),
             Map.entry("equipment_types", "Loại thiết bị"),
@@ -109,21 +79,9 @@ public class DataExportService {
 
     static {
         LINE_TABLES.put("equipment_intake_lines", new String[] {"intake_id", "equipment_intakes"});
-        LINE_TABLES.put("equipment_allocation_lines", new String[] {"allocation_id", "equipment_allocations"});
-        LINE_TABLES.put("equipment_transfer_lines", new String[] {"transfer_id", "equipment_transfers"});
-        LINE_TABLES.put("equipment_loan_lines", new String[] {"loan_id", "equipment_loans"});
-        LINE_TABLES.put("damage_report_lines", new String[] {"report_id", "damage_reports"});
         LINE_TABLES.put("inventory_lines", new String[] {"session_id", "inventory_sessions"});
         LINE_TABLES.put("inventory_surplus", new String[] {"session_id", "inventory_sessions"});
-        LINE_TABLES.put("disposal_lines", new String[] {"disposal_id", "disposals"});
         LINE_TABLES.put("purchase_proposal_lines", new String[] {"proposal_id", "purchase_proposals"});
-        LINE_TABLES.put("repair_order_lines", new String[] {"order_id", "repair_orders"});
-        LINE_TABLES.put("warranty_claim_lines", new String[] {"claim_id", "warranty_claims"});
-        LINE_TABLES.put("maintenance_order_lines", new String[] {"order_id", "maintenance_orders"});
-        LINE_TABLES.put("stock_issue_lines", new String[] {"issue_id", "stock_issues"});
-        LINE_TABLES.put("storage_order_lines", new String[] {"order_id", "storage_orders"});
-        LINE_TABLES.put("depreciation_order_lines", new String[] {"order_id", "depreciation_orders"});
-        LINE_TABLES.put("room_booking_lines", new String[] {"booking_id", "room_bookings"});
     }
 
     /** Số dòng mỗi lần pgjdbc kéo về từ con trỏ. */

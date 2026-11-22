@@ -13,13 +13,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>Phiếu kiểm kê chụp sổ lúc lập; từ đó tới lúc biên bản được duyệt (nháp — kể cả bị trả về — và chờ duyệt), mọi
  * phiếu làm đổi tài sản trong phạm vi của nó bị từ chối ở bước trình và bước duyệt. Không khoá thì tổ kiểm kê đếm
- * theo một bản sổ đã cũ: một tài sản vừa cấp phát sang phòng khác hiện thành "sai vị trí", một tài sản vừa thanh lý
- * hiện thành "thiếu".
+ * theo một bản sổ đã cũ: thiết bị vừa ghi tăng vào phòng đang kiểm không có trong danh sách đã chụp.
  *
  * <p>Phạm vi: phiếu kiểm kê cả trường khoá mọi tài sản của trường; phiếu một phòng khoá tài sản đang ở phòng đó và mọi
- * phiếu đưa tài sản VÀO phòng đó (cấp phát, ghi tăng, nhận điều chuyển). Kiểm tra gọi từ {@link VoucherWorkflow},
- * nên mọi loại phiếu đi qua vòng duyệt chung dùng cùng một luật. Bản thân phiếu kiểm kê, mượn phòng, hao mòn không
- * nằm trong danh sách: chúng không làm đổi tài sản.
+ * phiếu đưa tài sản VÀO phòng đó (phiếu ghi tăng). Kiểm tra gọi từ {@link VoucherWorkflow}, nên mọi loại phiếu đi qua
+ * vòng duyệt chung dùng cùng một luật. Phiếu kiểm kê, đề xuất mua sắm không nằm trong danh sách: chúng không làm đổi
+ * tài sản.
  */
 @Component
 public class InventoryFreeze {
@@ -27,39 +26,14 @@ public class InventoryFreeze {
     /** Trạng thái của phiếu kiểm kê đang kiểm: đã lập, chưa duyệt xong. */
     public static final List<String> COUNTING = List.of("DRAFT", "PENDING");
 
-    private static String byLines(String lineTable, String fk) {
-        return "SELECT e.school_id, e.room_id FROM %s l JOIN equipment e ON e.id = l.equipment_id WHERE l.%s = ?"
-                .formatted(lineTable, fk);
-    }
-
     /**
      * Loại phiếu → các câu SQL trả về (trường, phòng) mà phiếu {@code id} động tới. Mỗi câu nhận đúng một tham số là id
      * phiếu. Phòng trống chỉ khớp phiếu kiểm kê cả trường.
      */
-    private static final Map<String, List<String>> TOUCHES = Map.ofEntries(
-            Map.entry("equipment_allocations", List.of(
-                    byLines("equipment_allocation_lines", "allocation_id"),
-                    "SELECT v.school_id, v.room_id FROM equipment_allocations v WHERE v.id = ? AND v.room_id IS NOT NULL")),
-            Map.entry("equipment_transfers", List.of(
-                    byLines("equipment_transfer_lines", "transfer_id"),
-                    "SELECT v.target_school_id, v.received_room_id FROM equipment_transfers v WHERE v.id = ?")),
-            Map.entry("equipment_loans", List.of(byLines("equipment_loan_lines", "loan_id"))),
-            Map.entry("damage_reports", List.of(byLines("damage_report_lines", "report_id"))),
-            Map.entry("repair_orders", List.of(byLines("repair_order_lines", "order_id"))),
-            Map.entry("warranty_claims", List.of(byLines("warranty_claim_lines", "claim_id"))),
-            Map.entry("maintenance_orders", List.of(byLines("maintenance_order_lines", "order_id"))),
-            Map.entry("disposals", List.of(byLines("disposal_lines", "disposal_id"))),
-            Map.entry("storage_orders", List.of(
-                    byLines("storage_order_lines", "order_id"),
-                    "SELECT v.school_id, v.storage_room_id FROM storage_orders v WHERE v.id = ? AND v.storage_room_id IS NOT NULL")),
-            Map.entry("equipment_intakes", List.of(
+    private static final Map<String, List<String>> TOUCHES = Map.of(
+            "equipment_intakes", List.of(
                     "SELECT v.school_id, l.room_id FROM equipment_intake_lines l"
-                            + " JOIN equipment_intakes v ON v.id = l.intake_id WHERE v.id = ?")),
-            Map.entry("stock_issues", List.of(
-                    "SELECT v.school_id, l.room_id FROM stock_issue_lines l"
-                            + " JOIN stock_issues v ON v.id = l.issue_id WHERE v.id = ?")),
-            Map.entry("consumption_records", List.of(
-                    "SELECT v.school_id, v.room_id FROM consumption_records v WHERE v.id = ?")));
+                            + " JOIN equipment_intakes v ON v.id = l.intake_id WHERE v.id = ?"));
 
     private final JdbcTemplate jdbc;
 

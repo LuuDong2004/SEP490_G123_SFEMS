@@ -3,12 +3,11 @@ import { FormHint } from "@/shared/components/form/help-hint";
 import { LengthCounter, TextareaField } from "@/shared/components/form/simple-fields";
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, QrCode, ScanLine, Sparkles } from "lucide-react";
+import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, ScanLine, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 import { EquipmentDetail, EquipmentEditBelow, EquipmentStats } from "./equipment-detail";
-import { AfterRepairWarrantyValue } from "@/features/organization/vouchers/after-repair-warranty";
 import { EquipmentPhoto } from "./equipment-photo";
 import { ExpiryValue } from "./expiry";
 import { RoomPickerField } from "./room-picker";
@@ -686,7 +685,7 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
           <div className="form-flow">
             <CreateRoomPicker control={control} />
             <SameSchoolRef control={control} record={record} name="manager" resource="staff" label="Người quản lý" current={record?.manager}
-              hint="Người giữ thiết bị, thuộc cùng trường. Sau này muốn đổi thì lập phiếu cấp phát hoặc điều chuyển." />
+              hint="Người giữ thiết bị, thuộc cùng trường." />
             <EnumSelect control={control} name="condition" label="Tình trạng" options={EQUIPMENT_CONDITION_LABELS} />
           </div>
           <p className="text-muted-foreground text-xs">
@@ -807,7 +806,7 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
               <div className="flex flex-wrap gap-1.5">
                 {record.status ? <Badge variant={ASSET_STATUS_VARIANTS[record.status] ?? "neutral"}>{ASSET_STATUS_LABELS[record.status]}</Badge> : null}
                 <Badge variant={record.condition === "HONG" ? "destructive" : record.condition === "KEM" ? "warning" : "info"}
-                  title="Đổi qua phiếu báo hỏng, sửa chữa, kiểm kê">
+                  title="Đổi qua các phiếu nghiệp vụ">
                   Tình trạng: {EQUIPMENT_CONDITION_LABELS[record.condition] ?? "Chưa đánh giá"}
                 </Badge>
               </div>
@@ -863,9 +862,9 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
 }
 
 /**
- * Tra cứu và in tem là hai việc làm TRÊN danh sách thiết bị, nên mở từ đây thay vì
- * đứng thành hai mục menu riêng. Hai màn vẫn có đường dẫn của mình: tem QR đã in
- * trỏ thẳng về `/equipment-lookup`.
+ * Tra cứu theo mã là việc làm TRÊN danh sách thiết bị, nên mở từ đây thay vì đứng
+ * thành mục menu riêng. Màn vẫn có đường dẫn của mình: mã QR trỏ thẳng về
+ * `/equipment-lookup`.
  */
 function EquipmentListActions() {
   const canIntake = useCan({ resource: "equipment_intakes", action: "create" }).data?.can ?? false;
@@ -897,9 +896,6 @@ function EquipmentListMenu() {
     <>
       <DropdownMenuItem asChild>
         <Link to="/equipment-lookup"><ScanLine />Tra cứu / quét mã</Link>
-      </DropdownMenuItem>
-      <DropdownMenuItem asChild>
-        <Link to="/equipment-labels"><QrCode />In tem QR</Link>
       </DropdownMenuItem>
       {mayOpening ? (
         // Số dư đầu kỳ là NHẬP DỮ LIỆU ĐẦU VÀO từ tệp Excel (tải mẫu, sửa trên lưới, cập nhật) — không gõ từng cái.
@@ -1088,8 +1084,6 @@ export const EQUIPMENT_EXTRA = {
     ...(r?.expiryDate || r?.assetCategory === "SUPPLY" || r?.assetCategory === "CHEMICAL"
       ? [{ label: "Hạn sử dụng", value: <ExpiryValue date={r?.expiryDate} /> }]
       : []),
-    // Bảo hành của BÊN SỬA, theo lần sửa gần nhất — đứng cạnh hạn của hãng, không đè lên nó.
-    { label: "Bảo hành sau sửa chữa", value: r?.id ? <AfterRepairWarrantyValue equipmentId={r.id} /> : "—" },
     { label: "Năm sản xuất / sử dụng", value: `${r?.productionYear ?? "—"} / ${r?.usageStartYear ?? "—"}` },
     { label: "Nguyên giá", value: r?.originalValue != null ? `${money.format(r.originalValue)} đ` : "—" },
     { label: "Phòng", value: r?.room?.name ?? "—" },

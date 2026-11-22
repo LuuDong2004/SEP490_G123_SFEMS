@@ -14,8 +14,6 @@ export type Dashboard = {
     missing: number;
     pendingLiquidation: number;
     pendingVouchers: number;
-    overdueLoans: number;
-    maintenanceDue: number;
     /** Tính trên các trường đã nhập thiết bị (`adequacySchools`), không phải mọi trường trong phạm vi. */
     adequacyPercent: number;
     adequacySchools: number;
@@ -98,22 +96,14 @@ export const REPORT_MENU: { name: string; resource: string; label: string; title
   { name: "facilities", resource: "report_facilities", label: "Cơ sở vật chất", title: "Tổng hợp cơ sở vật chất" },
   { name: "csvc-statistics", resource: "report_csvc_statistics", label: "Biểu số liệu CSVC", title: "Biểu số liệu cơ sở vật chất" },
   { name: "equipment-ledger", resource: "report_equipment_ledger", label: "Bảng theo dõi thiết bị", title: "Bảng theo dõi thiết bị" },
-  { name: "room-usage", resource: "report_room_usage", label: "Sử dụng phòng", title: "Sử dụng phòng bộ môn, phòng chức năng" },
   { name: "facility-standard", resource: "report_facility_standard", label: "Mức độ chuẩn CSVC", title: "Đánh giá mức độ chuẩn CSVC" },
   { name: "room-standard", resource: "report_room_standard", label: "Chuẩn phòng bộ môn", title: "Đánh giá chuẩn phòng bộ môn" },
   { name: "broken-equipment", resource: "report_broken_equipment", label: "Hư hỏng, mất, cần thay thế", title: "Thiết bị hư hỏng, mất, cần thay thế" },
   { name: "supply-expiry", resource: "report_supply_expiry", label: "Hoá chất, vật tư hết hạn", title: "Hoá chất, vật tư hết hạn" },
   { name: "unused-equipment", resource: "report_unused_equipment", label: "Không còn sử dụng", title: "Thiết bị không còn sử dụng" },
   { name: "idle-equipment", resource: "report_idle_equipment", label: "Nằm kho kéo dài", title: "Thiết bị nằm kho kéo dài" },
-  { name: "damage-trends", resource: "report_damage_trends", label: "Xu hướng hư hỏng", title: "Xu hướng hư hỏng" },
   { name: "inventory", resource: "report_inventory", label: "Kết quả kiểm kê", title: "Kết quả kiểm kê" },
-  { name: "maintenance", resource: "report_maintenance", label: "Bảo trì, sửa chữa", title: "Bảo trì, sửa chữa" },
   { name: "movements", resource: "report_movements", label: "Tăng, giảm thiết bị", title: "Tăng, giảm thiết bị" },
-  { name: "transfers", resource: "report_transfers", label: "Lịch sử điều chuyển", title: "Lịch sử điều chuyển thiết bị" },
-  { name: "overdue-loans", resource: "report_overdue_loans", label: "Mượn quá hạn", title: "Thiết bị mượn quá hạn" },
-  { name: "loans", resource: "report_loans", label: "Thống kê mượn trả", title: "Thống kê mượn trả" },
-  { name: "utilization", resource: "report_utilization", label: "Hiệu quả khai thác", title: "Hiệu quả khai thác thiết bị" },
-  { name: "supply-consumption", resource: "report_supply_consumption", label: "Tiêu hao vật tư", title: "Tiêu hao vật tư" },
   { name: "purchase", resource: "report_purchase", label: "Nhu cầu mua sắm", title: "Tổng hợp nhu cầu mua sắm" },
   { name: "adequacy", resource: "report_adequacy", label: "Đáp ứng danh mục tối thiểu", title: "Mức đáp ứng danh mục thiết bị tối thiểu" },
   { name: "data-quality", resource: "report_data_quality", label: "Chất lượng dữ liệu", title: "Chất lượng dữ liệu theo trường" },
@@ -121,5 +111,4 @@ export const REPORT_MENU: { name: string; resource: string; label: string; title
   { name: "last-update", resource: "report_last_update", label: "Thời điểm cập nhật", title: "Thời điểm cập nhật dữ liệu của đơn vị" },
   { name: "stale-schools", resource: "report_stale_schools", label: "Đơn vị chưa cập nhật", title: "Đơn vị chưa cập nhật dữ liệu" },
   { name: "vouchers", resource: "report_vouchers", label: "Tình hình xử lý chứng từ", title: "Tình hình xử lý chứng từ" },
-  { name: "disposals", resource: "report_disposals", label: "Thiết bị ghi giảm", title: "Thiết bị ghi giảm" },
 ];

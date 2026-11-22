@@ -10,7 +10,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * Ô chọn của phần chứng từ có mục "Khác" để gõ tay — trừ ô tình trạng tài sản, là mã máy so sánh.
+ * Ô chọn của phần chứng từ có mục "Khác" để gõ tay.
  */
 class VoucherFormsOtherTest {
 
@@ -38,27 +38,21 @@ class VoucherFormsOtherTest {
     }
 
     @Test
-    void enumFieldsAreOpenExceptCondition() {
-        assertThat(field("repair_orders", "repairFunding")).containsEntry("other", true);
-        assertThat(field("disposals", "destructionMethod")).containsEntry("other", true);
-        assertThat(field("equipment_loans", "conditionOnBorrow")).doesNotContainKey("other");
+    void enumFieldsAreOpen() {
+        assertThat(field("inventory_sessions", "inventoryType")).containsEntry("other", true);
+        assertThat(field("inventory_sessions", "proposedAction")).containsEntry("other", true);
     }
 
     @Test
     void openEnumKeepsTypedText() {
-        String json = forms.header("repair_orders", Map.of("repairFunding", "  Quỹ phụ huynh  "), null, 1L, null);
-        assertThat(VoucherForms.read(json)).containsEntry("repairFunding", "Quỹ phụ huynh");
+        String json = forms.header("inventory_sessions", Map.of("inventoryType", "  Kiểm kê đột xuất theo yêu cầu  "),
+                null, 1L, null);
+        assertThat(VoucherForms.read(json)).containsEntry("inventoryType", "Kiểm kê đột xuất theo yêu cầu");
     }
 
     @Test
-    void openEnumStillAcceptsListedCode() {
-        String json = forms.header("repair_orders", Map.of("repairFunding", "STATE_BUDGET"), null, 1L, null);
-        assertThat(VoucherForms.read(json)).containsEntry("repairFunding", "STATE_BUDGET");
-    }
-
-    @Test
-    void conditionRejectsTypedText() {
-        assertThatThrownBy(() -> forms.line("equipment_loans", Map.of("conditionOnBorrow", "Hơi xước"), 1L, 1))
+    void openEnumTextIsBounded() {
+        assertThatThrownBy(() -> forms.line("inventory_sessions", Map.of("proposedAction", "x".repeat(300)), 1L, 1))
                 .isInstanceOf(FieldValidationException.class);
     }
 }

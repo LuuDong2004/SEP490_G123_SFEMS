@@ -9,10 +9,6 @@ import com.g123.sfems.module.school.equipment.EquipmentService;
 import jakarta.persistence.FlushModeType;
 import jakarta.persistence.TypedQuery;
 import java.math.BigDecimal;
-import java.sql.Date;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.Map;
 import java.util.Objects;
 import com.g123.sfems.domain.school.base.SchoolOwnedEntity;
 import java.util.ArrayList;
@@ -92,9 +88,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         this.visibleSchools = visibleSchools;
         this.todo = todo;
     }
-
-    /** Tiết cuối buổi sáng — cùng luật buổi với phiếu mượn phòng (sáng = tiết 1–5, chiều = 6–10). */
-    private static final int MORNING_LAST = 5;
 
     /** Tên phòng có chữ "kho" đứng riêng — cùng quy tắc với ô chọn kho trên form phiếu ghi tăng. */
     private static final Pattern STOREROOM_NAME = Pattern.compile("(^|\\s)kho(\\s|$)", Pattern.CASE_INSENSITIVE);
@@ -297,7 +290,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
                 || old.usage() == RoomUsageStatus.NGUNG_SU_DUNG) {
             requireNameFree(item);
         }
-        requireNoFutureBookings(item, old);
     }
 
     /** Lọc thêm: {@code campus.id}, {@code building.id}, {@code roomType.id}, {@code subject.id}. */
@@ -410,11 +402,11 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
 
     /** Giá trị trước khi sửa của những ô mà luật ghi so sánh. */
     private record Before(RoomType roomType, Long building, String floor, BigDecimal area, Integer capacity,
-            Long subject, RoomUsageStatus usage, boolean loanable, String openDays, String openSessions) {
+            Long subject, RoomUsageStatus usage, boolean loanable) {
 
         static Before of(Room r) {
             return new Before(r.getRoomType(), id(r.getBuilding()), r.getFloor(), r.getArea(), r.getCapacity(),
-                    id(r.getSubject()), r.getUsageStatus(), r.isLoanable(), r.getOpenDays(), r.getOpenSessions());
+                    id(r.getSubject()), r.getUsageStatus(), r.isLoanable());
         }
     }
 
@@ -586,73 +578,8 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /**
-     * Ngừng sử dụng, thôi cho mượn hay thu hẹp lịch mở cửa khi còn lượt mượn sắp tới (chờ duyệt / đã duyệt, từ hôm
-     * nay) thì từ chối, nói số lượt và vài ngày đầu — huỷ hoặc chuyển các lượt đó trước.
-     */
-    private void requireNoFutureBookings(Room item, Before old) {
-        boolean stopping = item.getUsageStatus() == RoomUsageStatus.NGUNG_SU_DUNG
-                && old.usage() != RoomUsageStatus.NGUNG_SU_DUNG;
-        boolean unloan = old.loanable() && !item.isLoanable();
-        boolean hours = !Objects.equals(old.openDays(), item.getOpenDays())
-                || !Objects.equals(old.openSessions(), item.getOpenSessions());
-        if (item.getId() == null || !(stopping || unloan || hours)) {
-            return;
-        }
-        @SuppressWarnings("unchecked")
-        List<Object[]> rows = entityManager().createNativeQuery("""
-                SELECT booking_date, booking_mode, session, period_from, period_to FROM room_bookings
-                WHERE room_id = :room AND booking_date >= CURRENT_DATE AND status IN ('PENDING', 'APPROVED')
-                ORDER BY booking_date""")
-                .setFlushMode(FlushModeType.COMMIT)
-                .setParameter("room", item.getId())
-                .getResultList();
-        List<LocalDate> hit = new ArrayList<>();
-        for (Object[] r : rows) {
-            LocalDate date = r[0] instanceof Date d ? d.toLocalDate() : (LocalDate) r[0];
-            if (stopping || unloan || !openFor(item, date, (String) r[1], (String) r[2], (Number) r[3], (Number) r[4])) {
-                hit.add(date);
-            }
-        }
-        if (hit.isEmpty()) {
-            return;
-        }
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM");
-        List<LocalDate> days = hit.stream().distinct().toList();
-        String dates = String.join(", ", days.stream().limit(3).map(fmt::format).toList()) + (days.size() > 3 ? "…" : "");
-        String field = stopping ? "usageStatus" : unloan ? "loanable" : "openDays";
-        throw new FieldValidationException(field,
-                "Còn " + hit.size() + " lượt mượn sắp tới (" + dates + ") — huỷ hoặc chuyển trước");
-    }
-
-    /** Một lượt mượn còn nằm trong lịch mở cửa mới không — cùng luật buổi với phiếu mượn phòng. */
-    private static boolean openFor(Room item, LocalDate date, String mode, String session, Number from, Number to) {
-        if (!OpeningHours.openOn(item.getOpenDays(), date.getDayOfWeek())) {
-            return false;
-        }
-        List<String> touched = new ArrayList<>();
-        if ("THEO_TIET".equals(mode) && from != null) {
-            int low = from.intValue();
-            int high = to == null ? low : to.intValue();
-            if (low <= MORNING_LAST) {
-                touched.add("SANG");
-            }
-            if (high > MORNING_LAST) {
-                touched.add("CHIEU");
-            }
-        } else if (session != null) {
-            switch (session) {
-                case "SANG" -> touched.add("SANG");
-                case "CHIEU" -> touched.add("CHIEU");
-                case "TOI" -> touched.add("TOI");
-                default -> touched.addAll(List.of("SANG", "CHIEU"));
-            }
-        }
-        return touched.stream().allMatch(s -> OpeningHours.openAt(item.getOpenSessions(), s));
-    }
-
-    /**
-     * Không xoá hạng mục còn thiết bị trên sổ, còn lớp năm học này, còn kế hoạch bảo trì (khoá ngoại sẽ lặng lẽ bỏ
-     * phòng của thiết bị / lớp, xoá kế hoạch); đã có trong phiếu kiểm kê thì giữ lại làm lịch sử.
+     * Không xoá hạng mục còn thiết bị trên sổ, còn lớp năm học này (khoá ngoại sẽ lặng lẽ bỏ
+     * phòng của thiết bị / lớp); đã có trong phiếu kiểm kê thì giữ lại làm lịch sử.
      */
     @Override
     protected void beforeDelete(Room item) {
@@ -661,7 +588,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         long classes = count("""
                 SELECT count(*) FROM school_classes k JOIN school_years y ON y.id = k.school_year_id AND y.is_current
                 WHERE k.room_id = :id AND k.active""", item.getId(), null);
-        long plans = count("SELECT count(*) FROM maintenance_plans WHERE room_id = :id", item.getId(), null);
         List<String> parts = new ArrayList<>();
         if (equipment > 0) {
             parts.add(equipment + " thiết bị");
@@ -669,18 +595,9 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         if (classes > 0) {
             parts.add(classes + " lớp");
         }
-        if (plans > 0) {
-            parts.add(plans + " kế hoạch bảo trì");
-        }
         if (!parts.isEmpty()) {
             throw new FieldValidationException("id",
                     "Hạng mục còn " + String.join(", ", parts) + " — chuyển đi trước khi xoá");
-        }
-        // Sổ sửa chữa, cải tạo là hồ sơ lưu (177) — khoá ngoại RESTRICT sẽ thành lỗi chung; báo rõ ở đây (M2-10).
-        long works = count("SELECT count(*) FROM facility_works WHERE room_id = :id", item.getId(), null);
-        if (works > 0) {
-            throw new FieldValidationException("id",
-                    "Hạng mục đã có " + works + " lần sửa chữa, cải tạo — chuyển sang Ngừng sử dụng thay vì xoá");
         }
         long inventories = count("SELECT count(DISTINCT session_id) FROM inventory_facility_lines WHERE room_id = :id",
                 item.getId(), null);

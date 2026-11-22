@@ -27,7 +27,7 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import type { Report, ReportAssetFilter, ReportDefinition } from "@/domains/report/types";
 import { ReportVisual, type ReportFilter } from "@/features/reports/report-charts";
-import { format, numeric, REPORT_FILTERS, RoomBookingsDialog, rowAction, voucherLink, type RowAction } from "@/features/reports/report-extras";
+import { format, numeric, REPORT_FILTERS, rowAction, voucherLink, type RowAction } from "@/features/reports/report-extras";
 import { FacilityStandardDialog } from "@/features/reports/facility-standard-dialog";
 import { ReportDrillDialog, type ReportDrill } from "@/features/reports/report-drill";
 import { SaveSnapshotDialog } from "@/features/reports/snapshots";
@@ -89,7 +89,6 @@ export const Reports = () => {
   /** Mục vừa bấm trên biểu đồ — mở hộp số liệu chi tiết của riêng mục đó. */
   const [drill, setDrill] = useState<ReportDrill | null>(null);
   const [saving, setSaving] = useState(false);
-  const [bookingsOf, setBookingsOf] = useState<{ id: number; name: string } | null>(null);
   const [standardOf, setStandardOf] = useState<{ id: number; name: string } | null>(null);
   // Số liệu chi tiết mặc định thu gọn — biểu đồ nói trước, bấm "Xem chi tiết" mới mở bảng; nhớ theo từng báo cáo.
   const [detailBy, setDetailBy] = useState<Record<string, boolean>>({});
@@ -198,22 +197,11 @@ export const Reports = () => {
         ? r.rows.reduce((s, row) => s + (Number(row[c.key]) || 0), 0)
         : null,
   );
-  // Các phiếu của một dòng "Thống kê mượn trả": cùng kỳ, cùng phạm vi, cùng chiều gộp với bảng đang xem.
-  const openLoans = async (of: { key: string; name: string }) => {
-    try {
-      const list = await kyInstance.get("reports/loans/rows", { searchParams: { ...params, key: of.key } }).json<Report>();
-      setDrill({ title: of.name || "Các phiếu mượn", summary: `${list.rows.length} phiếu · ${list.subtitle}`, columns: list.columns, rows: list.rows });
-    } catch (error) {
-      notify?.({ type: "error", message: await errorMessage(error) });
-    }
-  };
   // Phụ đề của server: "<phạm vi> · <kỳ>" — mỗi phần một nhãn.
   const [scope, ...periodParts] = (r?.subtitle ?? "").split(" · ");
   // Cột tên (trường, thiết bị, loại phiếu...) đậm; cột mã nhỏ và mờ — mắt tìm theo tên, không theo mã.
   // Bấm dòng: mở hồ sơ / phiếu; Ctrl / Cmd mở tab mới để không mất bộ lọc của báo cáo.
   const openRow = (act: RowAction, newTab: boolean) => {
-    if ("loans" in act) return void openLoans(act.loans);
-    if ("bookings" in act) return setBookingsOf(act.bookings);
     if ("standard" in act) return setStandardOf(act.standard);
     if (newTab) window.open(act.to, "_blank");
     else navigate(act.to);
@@ -506,7 +494,7 @@ export const Reports = () => {
                       description="Đổi kỳ, địa bàn hoặc bộ lọc để xem số liệu khác." />
                   ) : (
                     (r?.rows ?? []).map((row, i) => {
-                      // Bấm dòng: mở hồ sơ tài sản / phiếu / phòng, hoặc xem các lượt mượn của phòng trong kỳ.
+                      // Bấm dòng: mở hồ sơ tài sản / phòng, hoặc xem đánh giá chuẩn CSVC của trường.
                       // Ctrl / Cmd + bấm mở tab mới để không mất bộ lọc của báo cáo.
                       const act = current ? rowAction(current.name, row) : null;
                       const voucher = voucherLink(row);
@@ -562,10 +550,6 @@ export const Reports = () => {
       {current ? <SaveSnapshotDialog name={current.name} params={params} open={saving} onOpenChange={setSaving} /> : null}
       {r && drill ? <ReportDrillDialog report={r} drill={drill} onClose={() => setDrill(null)} onOpenRow={openRow} /> : null}
       {standardOf ? <FacilityStandardDialog school={standardOf} onClose={() => setStandardOf(null)} /> : null}
-      {bookingsOf ? (
-        <RoomBookingsDialog room={bookingsOf} from={current?.period ? from : undefined} to={current?.period ? to : undefined}
-          onClose={() => setBookingsOf(null)} />
-      ) : null}
     </ListView>
   );
 };

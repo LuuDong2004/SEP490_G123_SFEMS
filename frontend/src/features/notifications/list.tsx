@@ -184,7 +184,7 @@ export const NotificationList = () => {
       <ListViewHeader />
       <DataTable
         table={table}
-        empty={{ title: "Chưa có thông báo nào", description: "Phiếu chờ duyệt, việc bảo trì đến hạn, phiếu mượn quá hạn sẽ báo ở đây." }}
+        empty={{ title: "Chưa có thông báo nào", description: "Phiếu chờ duyệt, kết quả duyệt, đợt kiểm kê mới sẽ báo ở đây." }}
         toolbar={
           <>
             <ListToolbar

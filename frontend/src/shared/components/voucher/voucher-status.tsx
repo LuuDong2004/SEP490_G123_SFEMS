@@ -1,5 +1,3 @@
-import { useResourceParams } from "@refinedev/core";
-
 import { Badge } from "@/shared/ui/badge";
 import { VOUCHER_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { voucherStatusText, type ApprovalStep, type VoucherStatus } from "@/domains/voucher/types";
@@ -24,9 +22,8 @@ export function VoucherStatusBadge({
   /** Phiếu đang nháp vì bị người duyệt TRẢ LẠI (có `returnNote`) — hiện "Bị trả về", màu cảnh báo. */
   returned?: boolean;
 }) {
-  const { resource } = useResourceParams();
-  const full = voucherStatusText(status, step ?? null, returned, resource?.name);
-  const text = short ? voucherStatusText(status, null, returned, resource?.name) : full;
+  const full = voucherStatusText(status, step ?? null, returned);
+  const text = short ? voucherStatusText(status, null, returned) : full;
   const variant = status === "DRAFT" && returned ? "warning" : (VOUCHER_STATUS_VARIANTS[status] ?? "neutral");
   return (
     <Badge variant={variant} title={text === full ? undefined : full}>

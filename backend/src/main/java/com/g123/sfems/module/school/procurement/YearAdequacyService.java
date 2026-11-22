@@ -503,8 +503,8 @@ public class YearAdequacyService {
     /**
      * Thiết bị tại ngày cắt: (trường → (cơ sở → (thiết bị → [dùng được, hỏng, mất, chờ ghi giảm]))). Trạng thái tại
      * ngày cắt = {@code from_value} của lần đổi trạng thái ĐẦU TIÊN sau ngày cắt (nhãn → mã), không có thì trạng thái
-     * hiện tại; trường tại ngày cắt = trường chuyển của lần điều chuyển đầu tiên sau ngày cắt. Thiết bị chỉ tính khi
-     * đã ghi tăng trước ngày cắt.
+     * hiện tại. Không còn phiếu điều chuyển, ghi giảm (285) nên trường tại ngày cắt là trường hiện tại và không thiết
+     * bị nào "chờ ghi giảm" theo phiếu. Thiết bị chỉ tính khi đã ghi tăng trước ngày cắt.
      */
     private Map<Long, Map<Long, Map<Long, int[]>>> equipmentAt(String ids, Year year, Timestamp cut) {
         StringBuilder labels = new StringBuilder();
@@ -516,14 +516,12 @@ public class YearAdequacyService {
         String sql = """
                 WITH base AS (
                   SELECT e.id, e.catalog_id, COALESCE(e.quantity, 1) AS qty, e.room_id, e.status,
-                         %s AS school_at,
+                         e.school_id AS school_at,
                          %s AS status_before,
                          %s AS since,
-                         EXISTS (SELECT 1 FROM disposal_lines dl JOIN disposals d ON d.id = dl.disposal_id
-                                 WHERE dl.equipment_id = e.id AND d.status NOT IN ('DRAFT', 'CANCELLED', 'REJECTED')
-                                   AND %s) AS on_disposal
+                         FALSE AS on_disposal
                   FROM equipment e
-                  WHERE e.school_id IN (%s)%s),
+                  WHERE e.school_id IN (%s)),
                 st AS (
                   SELECT b.*, COALESCE(lb.code, b.status) AS status_at FROM base b
                   LEFT JOIN (VALUES %s) lb(label, code) ON lb.label = b.status_before)
@@ -533,29 +531,18 @@ public class YearAdequacyService {
                 WHERE st.school_at IN (%s) AND st.since <= ?
                 GROUP BY 1, 2, 3, 4, 5""".formatted(
                 past ? """
-                        COALESCE((SELECT t.school_id FROM equipment_history h JOIN equipment_transfers t ON t.id = h.voucher_id
-                                  WHERE h.equipment_id = e.id AND h.field = 'school' AND h.voucher_resource = 'equipment_transfers'
-                                    AND h.created_at > ? ORDER BY h.created_at, h.id LIMIT 1), e.school_id)""" : "e.school_id",
-                past ? """
                         (SELECT h.from_value FROM equipment_history h WHERE h.equipment_id = e.id AND h.field = 'status'
                            AND h.created_at > ? ORDER BY h.created_at, h.id LIMIT 1)""" : "NULL::varchar",
                 """
                         LEAST(COALESCE((SELECT min(h.created_at) FROM equipment_history h WHERE h.equipment_id = e.id
                                         AND h.action = 'GHI_TANG'), e.created_at),
                               COALESCE(e.received_date::timestamptz, 'infinity'::timestamptz))""",
-                past ? "d.submitted_at <= ? AND NOT (d.status = 'COMPLETED' AND d.completed_at <= ?)"
-                        : "d.status <> 'COMPLETED'",
                 ids,
-                past ? " OR e.id IN (SELECT h.equipment_id FROM equipment_history h JOIN equipment_transfers t"
-                        + " ON t.id = h.voucher_id WHERE h.field = 'school' AND t.school_id IN (" + ids + "))" : "",
                 labels,
                 FacilityCounting.campusOfRoomSql("st.room_id", "st.school_at"),
                 ids);
         List<Object> args = new ArrayList<>();
         if (past) {
-            args.add(cut);
-            args.add(cut);
-            args.add(cut);
             args.add(cut);
         }
         args.add(cut);

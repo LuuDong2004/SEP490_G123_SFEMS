@@ -15,14 +15,22 @@ Tên biến, tên file, tên resource, mã quyền dùng tiếng Anh theo quy ư
 
 ## 0. Phạm vi đồ án
 
-42 UC trong `docs/SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` (sheet 1). Hai cấp quản lý: **Sở GD&ĐT** và **trường**
-— KHÔNG có UBND. Ba loại tài khoản: quản trị (`SYSTEM`), Sở (`SO`), trường (`SCHOOL`).
+46 UC trong `docs/SFEMS_Danh-sach-UC-pham-vi-do-an.xlsx` (sheet 1), khớp Báo cáo 3 mục I.4.2. Bốn UC thêm sau:
+HT-07 cấp tài khoản cho nhân sự trường, HT-08 cấu hình luồng phê duyệt, TC-03 quản lý nhân sự trường, TC-04 đánh giá
+cơ sở vật chất theo chuẩn. Hai cấp quản lý: **Sở GD&ĐT** và **trường** — KHÔNG có UBND. Ba loại tài khoản: quản trị
+(`SYSTEM`), Sở (`SO`), trường (`SCHOOL`).
 
-Ngoài phạm vi (sheet 3, đã gỡ khỏi code và menu — không làm lại): xác thực hai yếu tố, tài khoản của trường,
-phạm vi dữ liệu của vai trò, nhật ký hoạt động, quản lý cán bộ, tổng quan một trường, cơ sở – điểm trường, khối
-nhà, QR / in tem, nhật ký duyệt; cấp phát – bàn giao, điều chuyển, mượn – trả, báo hỏng – sửa chữa – bảo trì,
-thanh lý – ghi giảm. Cán bộ, lớp, tổ, khối nhà, cơ sở còn ở backend làm DỮ LIỆU NỀN (phòng, thiết bị trỏ tới),
-không có màn quản lý.
+Ngoài phạm vi (sheet 3, đã gỡ khỏi code và menu — không làm lại): xác thực hai yếu tố, phạm vi dữ liệu của vai trò,
+nhật ký hoạt động, tổng quan một trường, cơ sở – điểm trường, khối nhà, in tem QR, danh mục học kỳ. Các nghiệp vụ
+cấp phát – bàn giao, điều chuyển, mượn – trả, mượn phòng, báo hỏng – sửa chữa – bảo hành – bảo trì, thanh lý – ghi
+giảm, tính hao mòn, tồn kho theo lô, xuất kho – lưu kho – tiêu hao vật tư, sửa chữa công trình, điều chỉnh chuẩn
+kiểu cũ, minh chứng kiểm định, kết nối hệ thống ngoài cũng ngoài phạm vi. Bảng CSDL của chúng (39 bảng, gồm `semesters`) đã xoá ở
+changelog 285. Lớp, khối nhà, cơ sở còn ở backend làm DỮ LIỆU NỀN (phòng, thiết bị trỏ tới), không có màn quản lý
+riêng.
+
+Vẫn trong phạm vi: tra cứu theo mã QR (màn Tra cứu / quét mã, nút Quét mã trên phiếu kiểm kê) — chỉ việc in tem QR
+là ngoài phạm vi. Nhật ký duyệt là một phần của luồng duyệt và được giữ: mỗi phiếu ghi ai duyệt / trả lại / từ chối,
+lúc nào, ý kiến gì, hiện ở mục "Quá trình duyệt" trên phiếu.
 
 ---
 
@@ -30,9 +38,9 @@ không có màn quản lý.
 
 | Thành viên | Use case | Frontend (`frontend/src/features/`) | Backend (`com.g123.sfems.module`) |
 |---|---|---|---|
-| DongLV (lead) | HT-01..05, PN-01..03 | `identity`, `administration/{users,roles,permissions,approval-flows}`, `organization/equipment-intakes`, `organization/vouchers` | `security/*`, `school/intake`, `school/voucher`, `system/approvalflow` |
+| DongLV (lead) | HT-01..05, HT-07, HT-08, PN-01..03 | `identity`, `administration/{users,roles,permissions,approval-flows}`, `organization/equipment-intakes`, `organization/vouchers` | `security/*`, `school/intake`, `school/voucher`, `system/approvalflow` |
 | TuTN | DM-01..04, KK-01..07 | `catalogs`, `organization/minimum-standard`, `organization/inventory-campaigns`, `organization/inventory-sessions` | `catalog/*`, `school/inventory` |
-| HoangPND | TC-01..02, NC-01..07 | `organization/schools`, `organization/explorer` (hồ sơ trường, phòng), `organization/departments-of-education`, `organization/purchase-proposals`, `organization/procurement-plans` | `organization/*`, `school/facility`, `school/procurement` |
+| HoangPND | TC-01..04, NC-01..07 | `organization/schools`, `organization/explorer` (hồ sơ trường, phòng), `organization/departments-of-education`, `organization/purchase-proposals`, `organization/procurement-plans` | `organization/*`, `school/facility`, `school/procurement` |
 | NghiaNV | TS-01..07 | `organization/resources` (thiết bị), `organization/equipment-labels` (tra cứu theo mã), `administration/data-imports` | `school/equipment`, `school/coderule`, `system/attachment`, `system/dataimport` |
 | QuangTD | HT-06, BC-01..06 | `dashboard`, `reports`, `notifications` | `report`, `system/notification`, `system/dataexport` |
 

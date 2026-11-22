@@ -4,8 +4,8 @@ Tài liệu này mô tả cách tổ chức mã nguồn của SFEMS (Hệ thốn
 cả **backend (BE)** và **frontend (FE)**: thư mục nào chứa gì, tầng nào được gọi tầng nào, và khi thêm một chức
 năng thì đặt code ở đâu.
 
-Phạm vi đồ án: 42 use case, hai cấp quản lý (Sở GD&ĐT, trường), ba luồng nghiệp vụ chính (mua sắm, nhập thiết bị –
-ghi tăng tài sản, kiểm kê). Quy tắc làm việc của nhóm (ai sửa gì, phạm vi, commit, verify) ở `AGENTS.md`.
+Phạm vi đồ án: 46 use case, hai cấp quản lý (Sở GD&ĐT, trường), ba luồng nghiệp vụ chính (mua sắm, ghi tăng thiết
+bị, kiểm kê). Quy tắc làm việc của nhóm (ai sửa gì, phạm vi, commit, verify) ở `AGENTS.md`.
 
 ---
 
@@ -85,8 +85,8 @@ com.g123.sfems
 │   ├── base/          BaseEntity
 │   ├── catalog/       danh mục dùng chung, danh mục thiết bị, chuẩn tối thiểu, quy tắc mã
 │   ├── organization/  DepartmentOfEducation (Sở), School
-│   ├── school/        phòng, thiết bị, phiếu (voucher), mua sắm, ghi tăng, kiểm kê; dữ liệu nền: cán bộ,
-│   │                  lớp, tổ, khối nhà, cơ sở
+│   ├── school/        phòng, thiết bị, phiếu (voucher), mua sắm, ghi tăng, kiểm kê, nhân sự và tổ chuyên
+│   │                  môn (TC-03). Dữ liệu nền: lớp, khối nhà, cơ sở
 │   ├── security/      User (+ SystemUser / SoUser / SchoolUser), Role, Permission, RowLevelPolicy
 │   └── system/        Notification, Attachment, ApprovalFlow…
 └── module/            mỗi chức năng một lát (slice)
@@ -134,14 +134,19 @@ Truy vấn gộp viết SQL thuần (báo cáo, bảng điều khiển) lọc qu
 Đề xuất mua sắm, phiếu ghi tăng, biên bản kiểm kê dùng chung khung `school/voucher`: entity kế thừa
 `SchoolVoucher`, service kế thừa `VoucherService`. Khung lo số phiếu, trình / duyệt từng cấp / trả lại / từ chối
 / huỷ / hoàn tất, nhật ký duyệt (`voucher_events`), các nút `_actions` cho màn hình. Luồng duyệt mặc định của
-từng loại ở `ApprovalFlowType`, Sở cấu hình lại được ở màn Luồng phê duyệt.
+từng loại ở `ApprovalFlowType`, quản trị viên cấu hình lại được ở màn Luồng phê duyệt (HT-08).
 
 ### 2.5 CSDL và Liquibase
 
 `ddl-auto=validate`: schema do Liquibase giữ, entity lệch bảng thì app không khởi động. Mỗi thay đổi là một file
 `db/changelog/changes/NNN-<slug>.sql` khai cuối `db.changelog-master.yaml`; không sửa changeset đã chạy. Seed
-nối theo khoá tự nhiên. Dải số mỗi người ở `AGENTS.md` mục 4. Bảng của các chức năng ngoài phạm vi còn trong CSDL
-nhưng không còn code đọc / ghi (changelog 252, 253 gỡ UBND và quyền của chúng).
+nối theo khoá tự nhiên. Dải số mỗi người ở `AGENTS.md` mục 4. Changelog 252, 253 gỡ UBND và quyền của các chức năng
+ngoài phạm vi. Changelog 285 xoá 39 bảng của các chức năng đó (cấp phát, điều chuyển, mượn – trả, mượn phòng, báo
+hỏng, sửa chữa, bảo hành, bảo trì, thanh lý, hao mòn, kho vật tư, sửa chữa công trình, điều chỉnh chuẩn kiểu cũ,
+minh chứng, kết nối ngoài) cùng danh mục học kỳ (`semesters`). CSDL còn 101 bảng: 99 bảng ứng dụng và 2 bảng của
+Liquibase. Vài cột cũ ở bảng giữ lại vẫn còn vì entity còn ánh xạ (`rooms.loanable`, `open_days`, `open_sessions`,
+`room_types.loanable`, cột hao mòn của `equipment_catalogs`, `school_year_closing_lines.pending_disposal`). Hàm
+`rls_linked_school_ids()` nay trả mảng rỗng (không còn điều chuyển), nên chính sách đọc "linked" bằng "own".
 
 ---
 

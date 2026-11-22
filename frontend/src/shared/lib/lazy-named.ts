@@ -3,7 +3,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { reloadForStaleChunk } from "./stale-chunk";
 
 /**
- * `React.lazy` cho một export CÓ TÊN: `lazyNamed(() => import("./disposals"), "DisposalList")`.
+ * `React.lazy` cho một export CÓ TÊN: `lazyNamed(() => import("./users/list"), "UserList")`.
  *
  * Màn hình của các feature đi qua đây ở `index.ts` của feature, nên `app/` vẫn chỉ import
  * `@/features/<tên>` mà mỗi thư mục màn thành một chunk riêng, chỉ tải khi mở tới — gói đầu

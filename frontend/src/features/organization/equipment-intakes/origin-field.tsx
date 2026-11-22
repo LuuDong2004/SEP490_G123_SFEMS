@@ -1,5 +1,5 @@
-import { useInvalidate, useList, useNotification, useOne } from "@refinedev/core";
-import { Lock, TriangleAlert, X } from "lucide-react";
+import { useInvalidate, useNotification, useOne } from "@refinedev/core";
+import { Lock, X } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { useController, useFormContext, useWatch, type Control } from "react-hook-form";
@@ -25,33 +25,6 @@ const SOURCE_LABELS: Record<string, string> = {
   purchase_proposals: "đề xuất mua sắm",
   inventory_sessions: "biên bản kiểm kê",
 };
-
-/**
- * Nguồn "Được cấp phát, bàn giao" mà trường đang có phiếu điều chuyển CHỜ NHẬN: thiết bị trường khác trên hệ thống
- * chuyển sang thì nhận ở phiếu điều chuyển (giữ mã, lịch sử) — ghi tăng nữa là đếm hai lần. Nhắc và mở thẳng danh sách
- * "Nhận về".
- */
-function PendingTransfersNote() {
-  const { result } = useList({
-    resource: "equipment_transfers",
-    filters: [{ field: "awaitingReceipt", operator: "eq", value: "true" }],
-    pagination: { pageSize: 1 },
-    queryOptions: { retry: false, staleTime: 60_000 },
-    errorNotification: false,
-  });
-  const total = result?.total ?? 0;
-  if (!total) return null;
-  return (
-    <p className="text-warning-text flex flex-wrap items-center gap-x-1.5 text-xs">
-      <TriangleAlert className="size-3.5 shrink-0" />
-      Có {total} phiếu điều chuyển chờ trường nhận — thiết bị trường khác chuyển sang thì nhận ở đó.
-      <Link to="/equipment-transfers" className="font-medium underline-offset-2 hover:underline"
-        onClick={() => { try { localStorage.setItem("list.direction.equipment_transfers", "in"); } catch { /* không lưu được thì mở tab mặc định */ } }}>
-        Xem phiếu
-      </Link>
-    </p>
-  );
-}
 
 /** "đề xuất mua sắm DX-2026-00012" — liên kết tới phiếu nguồn nếu biết đường dẫn của loại phiếu đó. */
 export function IntakeSourceLink({ source }: { source: IntakeSource }) {
@@ -205,7 +178,7 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
               {source
                 ? "Phiếu lập từ phiếu nghiệp vụ khác nên nguồn hình thành theo phiếu đó, không đổi được."
                 : originCode === "PHAN_BO"
-                  ? "Cấp trên giao về theo quyết định: Sở, Phòng, UBND mua sắm tập trung rồi bàn giao; dự án giao về; đơn vị không dùng hệ thống chuyển sang. Trường khác trên hệ thống chuyển sang thì nhận ở phiếu điều chuyển, không ghi tăng."
+                  ? "Cấp trên giao về theo quyết định: Sở, Phòng, UBND mua sắm tập trung rồi bàn giao; dự án giao về; đơn vị không dùng hệ thống chuyển sang."
                   : "Thiết bị trên phiếu này từ đâu ra. Một phiếu một nguồn; hàng từ nguồn khác thì lập phiếu khác."}
             </FormHint>
             {/* "Khác" ghi rõ ngay trong ô — không có ô "Ghi rõ nguồn hình thành" riêng. Giá trị đang có mà danh mục
@@ -245,7 +218,6 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
               </p>
             ) : null}
             {sourceKind ? <IntakeSourceButton kind={sourceKind} onClick={() => setPicking(true)} /> : null}
-            {originCode === "PHAN_BO" && !source && !record?.id ? <PendingTransfersNote /> : null}
             <FormMessage>{noteState.error?.message}</FormMessage>
           </FormItem>
         )}

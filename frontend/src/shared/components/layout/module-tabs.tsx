@@ -274,13 +274,6 @@ const TAB_SHORT: Record<string, string> = {
   data_changes: "Lịch sử dữ liệu",
   // Thiết bị
   equipment: "Thiết bị",
-  // Cấp phát & sử dụng
-  equipment_allocations: "Cấp phát",
-  // Mượn trả
-  equipment_loans: "Mượn thiết bị",
-  // Sửa chữa & bảo trì
-  repair_orders: "Sửa chữa",
-  facility_works: "Sửa chữa công trình",
   // Mua sắm
   equipment_adequacy: "Định mức",
   purchase_proposals: "Đề xuất",

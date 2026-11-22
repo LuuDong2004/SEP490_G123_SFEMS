@@ -12,11 +12,7 @@ import { Button } from "@/shared/ui/button";
  * Loại phiếu bị khoá khi trường đang kiểm kê — cùng danh sách với `InventoryFreeze.TOUCHES` ở máy chủ.
  * Máy chủ là nơi chặn; dải này chỉ nói TRƯỚC để người lập khỏi lập xong cả phiếu rồi mới biết (E2E-02).
  */
-const FROZEN_RESOURCES = new Set([
-  "equipment_allocations", "equipment_transfers", "equipment_loans", "damage_reports", "repair_orders",
-  "warranty_claims", "maintenance_orders", "disposals", "storage_orders", "equipment_intakes", "stock_issues",
-  "consumption_records",
-]);
+const FROZEN_RESOURCES = new Set(["equipment_intakes"]);
 
 type ActiveInventory = {
   id: number;

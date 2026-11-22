@@ -15,7 +15,7 @@ export type ScanResult = {
 
 /**
  * Mã tài sản trong nội dung tem. Tem QR mang đường dẫn tra cứu (`/equipment-lookup?code=<mã>` — xem
- * `equipment-labels/labels.tsx`), mã vạch và máy quét cầm tay thì mang thẳng mã.
+ * `equipment-labels/asset-codes.tsx`), mã vạch và máy quét cầm tay thì mang thẳng mã.
  */
 function codeFromScan(text: string): string {
   const raw = text.trim();

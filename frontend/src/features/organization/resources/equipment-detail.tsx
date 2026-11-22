@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- bản ghi thiết bị đến từ bộ màn danh mục chung, kiểu `any` như `CatalogExtra.show`. */
 import { useQuery } from "@tanstack/react-query";
 import {
-  BookCheck, ChevronRight, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
+  BookCheck, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -21,7 +21,6 @@ import {
 } from "@/domains/equipment/types";
 import { EquipmentHistoryPanel } from "./equipment-history";
 import { EquipmentPhoto } from "./equipment-photo";
-import { useVoucherActions } from "./equipment-row-menu";
 import { EquipmentStandardCard, EquipmentStandardMini, EquipmentStandardSummary } from "./equipment-standard";
 
 type FieldItem = { label: string; value: ReactNode };
@@ -47,7 +46,7 @@ type Tab = "overview" | "history" | "standard" | "files";
 
 /**
  * Hồ sơ một thiết bị (phương án AB-1, trưởng nhóm chọn 13/11/2026), vừa một màn: thẻ trái cố định (ảnh, tên, mã,
- * trạng thái, tình trạng, hồ sơ chuẩn, mã QR, "Nghiệp vụ"), bên phải dải năm ô hay tra và tab Tổng quan / Lịch sử /
+ * trạng thái, tình trạng, hồ sơ chuẩn, mã QR), bên phải dải năm ô hay tra và tab Tổng quan / Lịch sử /
  * Chuẩn tối thiểu / Tệp. Tổng quan: ba cột thông tin, ô chưa khai gom một dòng, rồi ba thẻ Hoạt động gần đây /
  * Chuẩn tối thiểu / Tệp đính kèm lấp phần còn lại.
  */
@@ -175,10 +174,8 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
   );
 }
 
-/** Thẻ trái: ảnh (bấm để thêm / đổi), tên, mã + nút mã QR, chip trạng thái, "Nghiệp vụ". Giờ tạo / sửa xem ở tab Lịch sử. */
+/** Thẻ trái: ảnh (bấm để thêm / đổi), tên, mã + nút mã QR, chip trạng thái. Giờ tạo / sửa xem ở tab Lịch sử. */
 function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; canWrite: boolean }) {
-  const kind = r.assetCategory === "SUPPLY" || r.assetCategory === "CHEMICAL" ? "bulk" as const : "serial" as const;
-  const { actions, why, href } = useVoucherActions([{ equipmentId: r.id, kind, status: r.status, school: r.school }]);
   return (
     <Card className="flex min-h-0 flex-col gap-0 overflow-hidden py-0">
       <div className="scrollbar-fade min-h-0 flex-1 overflow-y-auto">
@@ -189,7 +186,7 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
           <h2 className="mt-3 text-lg leading-snug font-bold tracking-tight break-words">{r.name}</h2>
           <div className="text-muted-foreground mt-0.5 flex items-center gap-1 font-mono text-xs">
             <span className="truncate">{r.code}</span>
-            {r.code ? <AssetCodes id={r.id} code={r.code} name={r.name} iconOnly /> : null}
+            {r.code ? <AssetCodes code={r.code} name={r.name} iconOnly /> : null}
           </div>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {by.get("Trạng thái")?.value}
@@ -201,27 +198,6 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
             ) : <Badge variant="success">Hồ sơ chuẩn</Badge>}
           </div>
         </div>
-
-        {actions.length ? (
-          <div className="mt-3 px-2 pb-2">
-            <div className="text-overline text-muted-foreground px-2 py-1">Nghiệp vụ</div>
-            {actions.map((a) => {
-              const reason = why(a);
-              const row = (
-                <>
-                  <span className="text-primary [&_svg]:size-4">{a.icon}</span>
-                  <span className="flex-1">{a.label}</span>
-                  <ChevronRight className="text-muted-foreground size-4" />
-                </>
-              );
-              return reason ? (
-                <div key={a.key} title={reason} className="text-muted-foreground flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2 py-2 text-sm opacity-50">{row}</div>
-              ) : (
-                <Link key={a.key} to={href(a)} className="hover:bg-accent flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium">{row}</Link>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
     </Card>
   );
@@ -233,16 +209,10 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
  * chọn vào `roomSlot` / `managerSlot` để khai lần đầu.
  */
 export function EquipmentStats({ r, roomSlot, managerSlot }: { r: any; roomSlot?: ReactNode; managerSlot?: ReactNode }) {
-  const canWrite = r?._can?.write !== false;
-  const gone = OFF_BOOK_STATUSES.includes(r?.status);
-  const moveTo = r?.status === "IN_STOCK"
-    ? `/equipment-allocations/create?equipment.id=${r.id}`
-    : `/equipment-allocations/create?kind=RELOCATE&equipment.id=${r?.id}`;
   return (
     <dl className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <Stat icon={<School />} label="Trường">{r.school?.name ?? "—"}</Stat>
-      <Stat icon={<MapPin />} label="Vị trí"
-        action={r.room && canWrite && !gone ? <Link to={moveTo} className="text-primary font-medium hover:underline">Đổi</Link> : null}>
+      <Stat icon={<MapPin />} label="Vị trí">
         {r.room?.name ?? roomSlot ?? <span className="text-muted-foreground font-normal">Chưa xếp chỗ</span>}
       </Stat>
       <Stat icon={<UserRound />} label="Người quản lý">

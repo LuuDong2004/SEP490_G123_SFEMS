@@ -91,7 +91,6 @@ public final class ReportFilters {
             Map.entry("idle-equipment", List.of(TYPE, CONDITION)),
             Map.entry("data-quality", List.of(TYPE, STATUS)),
             Map.entry("data-anomalies", List.of(TYPE)),
-            Map.entry("supply-consumption", List.of(TYPE)),
             Map.entry("supply-expiry", List.of(TYPE)));
 
     private ReportFilters() {
