@@ -1,81 +1,147 @@
 package com.g123.sfems.module.school.procurement;
 
-import com.g123.sfems.module.catalog.norm.office.XlsxWriter;
+import com.g123.sfems.domain.school.procurement.ProcurementPlan;
+import com.g123.sfems.domain.school.procurement.PurchaseProposal;
+import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
+import com.g123.sfems.module.school.procurement.ProcurementPlanService.CatalogTotal;
+import com.g123.sfems.module.school.procurement.ProcurementPlanService.Detail;
+import com.g123.sfems.shared.office.XlsxWriter;
+import com.g123.sfems.shared.office.XlsxWriter.Column;
+import com.g123.sfems.shared.office.XlsxWriter.Sheet;
+import com.g123.sfems.shared.office.XlsxWriter.Tab;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * Xuất Excel một kế hoạch mua sắm (NC-05, NC-06): hai trang — chi tiết theo dòng đề xuất và tổng hợp theo
- * thiết bị. Hai trang này đúng hai bảng trên màn chi tiết kế hoạch, để người duyệt in ra họp.
+ * Tệp Excel của MỘT kế hoạch mua sắm: trang chi tiết theo dòng đề xuất (trường, thiết bị, số đề nghị, số đưa
+ * vào kế hoạch, đơn giá, thành tiền) và trang tổng hợp theo thiết bị. Cùng số với màn hình, vì cùng đọc
+ * {@link ProcurementPlanService#detail}: thành tiền tính theo số đưa vào kế hoạch.
  */
 final class ProcurementPlanExcel {
+
+    private static final Locale VI = Locale.forLanguageTag("vi-VN");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final Map<Integer, String> PRIORITY = Map.of(1, "Cấp thiết", 2, "Cần", 3, "Nên có");
+    private static final Map<ProcurementPlan.Status, String> STATUS = Map.of(
+            ProcurementPlan.Status.DRAFT, "Nháp",
+            ProcurementPlan.Status.PENDING, "Chờ duyệt",
+            ProcurementPlan.Status.APPROVED, "Đã duyệt");
 
     private ProcurementPlanExcel() {
     }
 
-    static byte[] write(ProcurementPlanController.Response plan) {
-        List<XlsxWriter.Column> lineColumns = List.of(
-                new XlsxWriter.Column("proposalCode", "Số đề xuất", "text"),
-                new XlsxWriter.Column("school", "Trường", "text"),
-                new XlsxWriter.Column("lineNo", "Dòng", "number"),
-                new XlsxWriter.Column("catalogCode", "Mã thiết bị", "text"),
-                new XlsxWriter.Column("name", "Tên thiết bị, quy cách", "text"),
-                new XlsxWriter.Column("unitName", "ĐVT", "text"),
-                new XlsxWriter.Column("requestedQuantity", "Trường đề nghị", "number"),
-                new XlsxWriter.Column("plannedQuantity", "Đưa vào kế hoạch", "number"),
-                new XlsxWriter.Column("unitPrice", "Đơn giá (đ)", "money"),
-                new XlsxWriter.Column("amount", "Thành tiền (đ)", "money"),
-                new XlsxWriter.Column("priority", "Ưu tiên", "number"));
-        List<Map<String, Object>> lineRows = new ArrayList<>();
-        for (ProcurementPlanController.PlanLine l : plan.lines() == null ? List.<ProcurementPlanController.PlanLine>of() : plan.lines()) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("proposalCode", l.proposalCode());
-            row.put("school", l.school() == null ? null : l.school().name());
-            row.put("lineNo", l.lineNo());
-            row.put("catalogCode", l.catalog() == null ? null : l.catalog().code());
-            row.put("name", l.specification() == null ? l.name() : l.name() + " — " + l.specification());
-            row.put("unitName", l.unitName());
-            row.put("requestedQuantity", l.requestedQuantity());
-            row.put("plannedQuantity", l.plannedQuantity());
-            row.put("unitPrice", l.unitPrice());
-            row.put("amount", l.amount());
-            row.put("priority", l.priority());
-            lineRows.add(row);
+    static byte[] write(Detail detail) {
+        ProcurementPlan plan = detail.plan();
+        String title = "Kế hoạch mua sắm " + (plan.getCode() == null ? "" : plan.getCode() + " — ")
+                + (plan.getTitle() == null ? "" : plan.getTitle());
+        List<String> facts = new ArrayList<>();
+        facts.add(plan.getManagingBody().getName());
+        if (plan.getSchoolYear() != null) {
+            facts.add("Năm học " + plan.getSchoolYear().getName());
         }
-
-        List<XlsxWriter.Column> totalColumns = List.of(
-                new XlsxWriter.Column("catalogCode", "Mã thiết bị", "text"),
-                new XlsxWriter.Column("catalogName", "Tên thiết bị", "text"),
-                new XlsxWriter.Column("unitName", "ĐVT", "text"),
-                new XlsxWriter.Column("quantity", "Số lượng", "number"),
-                new XlsxWriter.Column("amount", "Thành tiền (đ)", "money"),
-                new XlsxWriter.Column("schools", "Số trường đề nghị", "number"));
-        List<Map<String, Object>> totalRows = new ArrayList<>();
-        for (ProcurementPlanService.CatalogTotal t : plan.totals() == null ? List.<ProcurementPlanService.CatalogTotal>of() : plan.totals()) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("catalogCode", t.catalogCode());
-            row.put("catalogName", t.catalogName());
-            row.put("unitName", t.unitName());
-            row.put("quantity", t.quantity());
-            row.put("amount", t.amount());
-            row.put("schools", t.schools());
-            totalRows.add(row);
+        if (plan.getBudgetYear() != null) {
+            facts.add("Năm ngân sách " + plan.getBudgetYear());
         }
-
-        BigDecimal total = plan.totalAmount() == null ? BigDecimal.ZERO : plan.totalAmount();
-        String subtitle = "%s — %s. Năm ngân sách %s. %d đề xuất, %d dòng, tổng %s đ."
-                .formatted(plan.code(), plan.title(),
-                        plan.budgetYear() == null ? "—" : plan.budgetYear(),
-                        plan.proposalCount() == null ? 0 : plan.proposalCount(),
-                        lineRows.size(), new java.text.DecimalFormat("#,##0").format(total));
-
+        if (plan.getPlanDate() != null) {
+            facts.add("Ngày lập " + plan.getPlanDate().format(DAY));
+        }
+        facts.add(STATUS.get(plan.getStatus()));
+        facts.add(detail.proposals().size() + " đề xuất");
+        facts.add("Tổng " + NumberFormat.getIntegerInstance(VI)
+                .format(detail.totalAmount() == null ? BigDecimal.ZERO : detail.totalAmount()) + " đ");
+        String subtitle = String.join(" · ", facts);
         return XlsxWriter.writeAll(List.of(
-                new XlsxWriter.Tab("Chi tiết theo đề xuất",
-                        new XlsxWriter.Sheet("Chi tiết kế hoạch mua sắm", subtitle, lineColumns, lineRows)),
-                new XlsxWriter.Tab("Tổng hợp theo thiết bị",
-                        new XlsxWriter.Sheet("Tổng hợp thiết bị của kế hoạch", subtitle, totalColumns, totalRows))));
+                new Tab("Chi tiết", new Sheet(title, subtitle, lineColumns(), lineRows(detail))),
+                new Tab("Tổng hợp theo thiết bị", new Sheet(title, subtitle, totalColumns(), totalRows(detail)))));
+    }
+
+    private static List<Column> lineColumns() {
+        return List.of(
+                new Column("proposal", "Số đề xuất", "text"),
+                new Column("school", "Trường", "text"),
+                new Column("catalog_code", "Mã DM thiết bị", "text"),
+                new Column("name", "Thiết bị", "text"),
+                new Column("specification", "Thông số", "text"),
+                new Column("unit", "Đơn vị tính", "text"),
+                new Column("priority", "Mức ưu tiên", "text"),
+                new Column("requested", "Số đề nghị", "number"),
+                new Column("planned", "Số đưa vào kế hoạch", "number"),
+                new Column("unit_price", "Đơn giá (đ)", "money"),
+                new Column("amount", "Thành tiền (đ)", "money"));
+    }
+
+    private static List<Map<String, Object>> lineRows(Detail detail) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int requested = 0;
+        int planned = 0;
+        for (PurchaseProposal p : detail.proposals()) {
+            for (PurchaseProposalLine l : p.getLines()) {
+                int asked = l.getQuantity() == null ? 0 : l.getQuantity();
+                int kept = l.effectiveQuantity();
+                requested += asked;
+                planned += kept;
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("proposal", p.getCode());
+                row.put("school", p.getSchool() == null ? null : p.getSchool().getName());
+                row.put("catalog_code", l.getCatalog() == null ? null : l.getCatalog().getCode());
+                row.put("name", l.getName() != null ? l.getName()
+                        : l.getCatalog() == null ? null : l.getCatalog().getName());
+                row.put("specification", l.getSpecification());
+                row.put("unit", l.getUnitName());
+                row.put("priority", l.getPriority() == null ? null : PRIORITY.get(l.getPriority()));
+                row.put("requested", asked);
+                row.put("planned", kept);
+                row.put("unit_price", l.effectiveUnitPrice());
+                row.put("amount", l.plannedAmount());
+                rows.add(row);
+            }
+        }
+        rows.add(totalRow("proposal", requested, planned, detail.totalAmount()));
+        return rows;
+    }
+
+    private static List<Column> totalColumns() {
+        return List.of(
+                new Column("catalog_code", "Mã DM thiết bị", "text"),
+                new Column("name", "Thiết bị", "text"),
+                new Column("unit", "Đơn vị tính", "text"),
+                new Column("schools", "Số trường", "number"),
+                new Column("planned", "Số đưa vào kế hoạch", "number"),
+                new Column("amount", "Thành tiền (đ)", "money"));
+    }
+
+    private static List<Map<String, Object>> totalRows(Detail detail) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int planned = 0;
+        for (CatalogTotal t : detail.totals()) {
+            planned += t.quantity();
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("catalog_code", t.catalogCode());
+            row.put("name", t.catalogName());
+            row.put("unit", t.unitName());
+            row.put("schools", t.schools());
+            row.put("planned", t.quantity());
+            row.put("amount", t.amount());
+            rows.add(row);
+        }
+        rows.add(totalRow("catalog_code", null, planned, detail.totalAmount()));
+        return rows;
+    }
+
+    private static Map<String, Object> totalRow(String labelKey, Integer requested, int planned, BigDecimal amount) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put(labelKey, "Tổng cộng");
+        if (requested != null) {
+            row.put("requested", requested);
+        }
+        row.put("planned", planned);
+        row.put("amount", amount);
+        return row;
     }
 }
