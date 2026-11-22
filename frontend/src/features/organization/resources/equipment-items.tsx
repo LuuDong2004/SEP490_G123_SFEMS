@@ -1,10 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- dòng của /api/equipment_items là bản đồ tự do từ SQL gộp. */
+import { ASSET_STATUS_GROUP_VARIANTS } from "@/shared/lib/status-variants";
+import { AssetCode } from "@/shared/components/asset-code";
 import { useNavigation, type CrudFilter } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Archive, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { DeleteButton } from "@/shared/components/buttons/delete";
+import { CampusName, CampusTableFilter } from "@/shared/components/campus/campus";
+import { useCampusScope } from "@/shared/components/campus/use-campus";
 import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
 import { CrossLink } from "@/shared/components/cross-link";
@@ -12,31 +16,58 @@ import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-t
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
 import { ROW_ACTIONS_COLUMN, RowActions } from "@/shared/components/data-table/row-actions";
 import { ListToolbar, ToolbarExtrasProvider, useToolbarExtras } from "@/shared/components/views/list-view";
+import { DEFAULT_PAGE_SIZE, formatPlainDate, quantityFormat, readableUnit } from "@/shared/lib/format";
+import { ExpiryBadge, daysToExpiry } from "./expiry";
 import { usePerspective } from "@/shared/hooks/use-perspective";
-import { DEFAULT_PAGE_SIZE, quantityFormat } from "@/shared/lib/format";
-import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
+import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
-import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
-import { ASSET_STATUS_LABELS, CONDITION_LABELS, OFF_BOOK_STATUSES, type Equipment } from "@/domains/equipment/types";
+import { ASSET_STATUS_GROUP_LABELS, ASSET_STATUS_GROUP_OF, ASSET_STATUS_LABELS, EQUIPMENT_CONDITION_LABELS, OFF_BOOK_STATUSES as OFF_BOOK } from "@/domains/equipment/types";
+import { autoVisible, useColumnsKey } from "@/shared/components/data-table/column-prefs";
 
-/** Hồ sơ đã ra khỏi sổ (thanh lý, mất): còn để tra, không sửa; là thứ duy nhất được xoá. */
-export const offBook = (record: Pick<Equipment, "status">) => OFF_BOOK_STATUSES.includes(record.status);
+type ItemRow = {
+  id: number;
+  /** Cách quản lý của mặt hàng: từng cái (mỗi bản ghi một cái) hay theo số lượng (một bản ghi một lô vật tư). */
+  kind: "serial" | "bulk";
+  equipmentId: number;
+  code: string | null;
+  name: string;
+  catalog: { id: number; code: string; name: string };
+  room: { id: number; name: string } | null;
+  school: { id: number; name: string };
+  /** Cơ sở thực (phòng → khối nhà → cơ sở chính). */
+  campus: { id: number; name: string; primary?: boolean; branch?: boolean } | null;
+  quantity: number;
+  unit: string | null;
+  status: string;
+  inStore: boolean;
+  legacyCode: string | null;
+  serialNumber: string | null;
+  originSource: { id: number; name: string } | null;
+  /** Năm đưa vào sử dụng — trên hồ sơ, không có thì năm tiếp nhận. */
+  inUseYear: number | null;
+  /** Hạn sử dụng của lô vật tư, hoá chất. */
+  expiryDate: string | null;
+  intake: { id: number; code?: string } | null;
+  profileComplete?: boolean;
+  missingProfile?: string[];
+  /** Thiết bị ngoài danh mục của Sở (trường tự thêm). */
+  outOfCatalog?: boolean;
+};
+
 
 /**
- * Chế độ Theo tài sản của màn Thiết bị: mỗi dòng một hồ sơ thiết bị, mang mã tài sản, vị trí, trạng thái,
- * tình trạng và hồ sơ đã chuẩn hay chưa.
+ * Bảng CHI TIẾT của màn Thiết bị: mọi bản ghi thiết bị — thiết bị mỗi bản ghi một cái, vật tư tiêu hao
+ * mỗi bản ghi một lô có số lượng; cùng mã chuẩn, cùng hồ sơ, cùng menu Xem / Sửa
+ * trong một danh sách (`/api/equipment_items`), để "trường có những gì, ở đâu" đọc ở một chỗ
+ * thay vì hai tab. Tài sản mang mã, trạng thái, hồ sơ, phiếu nhập và nút Xem / Sửa / Xoá của
+ * `equipment`; lô mang số lượng và tình trạng theo chỗ để (kho → trong kho, phòng → đang
+ * dùng), không có nút sửa — con số lô là hệ quả của phiếu.
  *
- * Liệt kê CẢ hồ sơ đã ra khỏi sổ (thanh lý, mất) vì lịch sử và phiếu còn trỏ tới chúng; chỉ phép ĐẾM (cột
- * trái, bảng tổng hợp) bỏ chúng. Mục "Chỉ xem thiết bị đã ra khỏi sổ" trong menu bánh răng lọc riêng chúng.
- *
- * Không xoá thẳng thiết bị đang trên sổ — ra khỏi sổ phải qua nghiệp vụ ghi giảm. Hồ sơ đã ra khỏi sổ cũng
- * không sửa nữa.
+ * Liệt kê CẢ hồ sơ đã ra khỏi sổ (Mất, Đã thanh lý, Đã tiêu huỷ, Đã dùng hết) — xếp cuối, mang đúng trạng
+ * thái — vì lịch sử và phiếu còn trỏ tới chúng; chỉ phép ĐẾM (cột trái, bảng tổng hợp) bỏ chúng. Mục
+ * "Chỉ xem thiết bị đã ra khỏi sổ" trong menu lọc riêng các hồ sơ đó.
  */
-export function EquipmentItems({
-  filters,
-  fill,
-  externallyFiltered,
-}: {
+export function EquipmentItems({ filters, fill, externallyFiltered }: {
   filters: CrudFilter[];
   fill: boolean;
   externallyFiltered: boolean;
@@ -44,110 +75,104 @@ export function EquipmentItems({
   const { show } = useNavigation();
   const extras = useToolbarExtras();
   const offset = useRef(0);
-  const [onlyOffBook, setOnlyOffBook] = useState(false);
-  const permanent = useMemo<CrudFilter[]>(
-    () =>
-      onlyOffBook ? [...filters, { field: "status", operator: "eq", value: OFF_BOOK_STATUSES.join(",") }] : filters,
-    [filters, onlyOffBook],
-  );
-
+  const permanent = filters;
   const columns = useMemo(() => {
-    const h = createColumnHelper<Equipment>();
+    const h = createColumnHelper<ItemRow>();
     return [
       h.display({
-        id: "stt",
-        header: "STT",
-        size: 56,
-        minSize: 48,
-        enableResizing: false,
+        id: "stt", header: "STT", size: 56, minSize: 48, enableResizing: false,
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code",
-        header: "Mã tài sản",
-        size: 172,
-        enableSorting: true,
-        cell: ({ getValue }) => <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>,
+        id: "code", header: "Mã thiết bị", size: 150, enableSorting: true,
+        cell: ({ row }) => <AssetCode code={row.original.code} />,
       }),
       h.accessor("name", {
-        id: "name",
-        header: "Tên thiết bị",
-        size: 240,
-        enableSorting: true,
-        meta: { fill: true },
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+        id: "name", header: "Thiết bị", size: 200, enableSorting: true, meta: { fill: true },
+        cell: ({ row }) => <span className="block truncate font-medium">{row.original.name}</span>,
       }),
       h.accessor("serialNumber", {
-        id: "serialNumber",
-        header: "Số serial",
-        size: 140,
-        enableSorting: false,
-        cell: ({ getValue }) => (getValue() ? <span className="font-mono text-[0.8125rem]">{getValue()}</span> : null),
+        id: "serialNumber", header: "Số serial", size: 120, enableSorting: true,
+        cell: ({ row }) => row.original.serialNumber
+          ? <span className="font-mono text-[0.8125rem]">{row.original.serialNumber}</span> : null,
+      }),
+      h.accessor((r) => r.room?.name ?? "", {
+        id: "room", header: "Vị trí", size: 110, enableSorting: true,
+        cell: ({ row }) => row.original.room?.name
+          ?? (row.original.kind === "bulk" ? <span className="text-muted-foreground">Kho</span> : (
+            // Xếp chỗ LẦN ĐẦU làm được ngay trên form Sửa của tài sản — đã có chỗ rồi mới phải qua phiếu.
+            <CrossLink to={`/equipment/edit/${row.original.equipmentId}`} resource="equipment" title="Mở hồ sơ để xếp phòng" className="text-warning-text">
+              Chưa xếp phòng
+            </CrossLink>
+          )),
       }),
       h.display({
-        id: "room",
-        header: "Vị trí",
-        size: 150,
-        cell: ({ row }) =>
-          row.original.room ? (
-            <span className="text-sm">{row.original.room.name}</span>
-          ) : (
-            <span className="text-muted-foreground text-sm">Kho</span>
-          ),
+        id: "campus", header: "Cơ sở", size: 150,
+        cell: ({ row }) => <CampusName campus={row.original.campus} />,
       }),
       h.accessor("quantity", {
-        id: "quantity",
-        header: "SL",
-        size: 84,
-        enableSorting: false,
+        // Đủ chỗ cho "1.500 Gam", "9,75 kg" — 72px cắt mất đơn vị thành "200 G..." (trưởng nhóm 15/11/2026).
+        id: "quantity", header: "SL", size: 108, minSize: 96, enableSorting: true,
         cell: ({ row }) => (
-          <span className="tabular-nums">
-            {quantityFormat.format(Number(row.original.quantity ?? 0))}
-            {row.original.unit ? <span className="text-muted-foreground"> {row.original.unit.name}</span> : null}
+          <span className={cn("tabular-nums", row.original.kind === "bulk" && "font-semibold")}>
+            {/* 9.750 gam hiện 9,75 kg — chỉ cách hiện, số lưu vẫn theo gam. */}
+            {quantityFormat.format(row.original.quantity / readableUnit(row.original.quantity, row.original.unit).factor)}
+            {row.original.unit ? <span className="text-muted-foreground font-normal"> {readableUnit(row.original.quantity, row.original.unit).unit}</span> : null}
           </span>
         ),
       }),
       h.accessor("status", {
-        id: "status",
-        header: "Trạng thái",
-        size: 130,
-        enableSorting: false,
-        cell: ({ getValue }) => (
-          <Badge variant={ASSET_STATUS_VARIANTS[getValue()] ?? "secondary"}>{ASSET_STATUS_LABELS[getValue()] ?? getValue()}</Badge>
+        id: "status", header: "Trạng thái", size: 132, enableSorting: true,
+        cell: ({ row }) => (
+          // Chip hiện NHÓM (7 nhóm); trạng thái chi tiết hiện khi rê chuột.
+          <Badge variant={ASSET_STATUS_GROUP_VARIANTS[ASSET_STATUS_GROUP_OF[row.original.status]] ?? "neutral"}
+            title={ASSET_STATUS_LABELS[row.original.status] ?? row.original.status}>
+            {ASSET_STATUS_GROUP_LABELS[ASSET_STATUS_GROUP_OF[row.original.status]] ?? ASSET_STATUS_LABELS[row.original.status] ?? row.original.status}
+          </Badge>
         ),
       }),
-      h.accessor("condition", {
-        id: "condition",
-        header: "Tình trạng",
-        size: 110,
-        enableSorting: false,
-        cell: ({ getValue }) => {
-          const value = getValue();
-          return value ? <span className="text-sm">{CONDITION_LABELS[value]}</span> : <span className="text-muted-foreground">—</span>;
-        },
+      // Hạn sử dụng: chỉ lô vật tư, hoá chất có.
+      h.accessor((r) => r.expiryDate ?? "", {
+        id: "expiryDate", header: "Hạn sử dụng", size: 120, enableSorting: true,
+        // Quá hạn: chỉ nhãn "Hết hạn" (ngày xem khi rê chuột) — đọc lướt cả cột là thấy lô nào phải huỷ.
+        cell: ({ row }) => !row.original.expiryDate ? null : (daysToExpiry(row.original.expiryDate) ?? 0) < 0 ? (
+          <Badge variant="destructive" title={`Hết hạn ngày ${formatPlainDate(row.original.expiryDate)}`}>Hết hạn</Badge>
+        ) : (
+          <span className="flex flex-col items-start gap-0.5">
+            <span className="tabular-nums">{formatPlainDate(row.original.expiryDate)}</span>
+            <ExpiryBadge date={row.original.expiryDate} />
+          </span>
+        ),
       }),
-      h.display({
-        id: "profile",
-        header: "Hồ sơ",
-        size: 100,
+      h.accessor((r) => r.intake?.code ?? "", {
+        id: "intake", header: "Phiếu ghi tăng", size: 140, enableSorting: true,
         cell: ({ row }) =>
-          row.original.missingProfile?.length ? (
-            // Hồ sơ chưa chuẩn thì phiếu nghiệp vụ không nhận — bấm để mở trang Sửa bổ sung.
-            <CrossLink
-              to={`/equipment/edit/${row.original.id}`}
-              resource="equipment"
-              title={`Thiếu: ${row.original.missingProfile.join(", ")}. Mở hồ sơ để bổ sung.`}
-            >
-              <Badge variant="warning">Chưa chuẩn</Badge>
+          row.original.intake ? (
+            <CrossLink to={`/equipment-intakes/show/${row.original.intake.id}`} resource="equipment_intakes" action="list" plain title="Mở phiếu ghi tăng" className="text-primary text-xs tabular-nums">
+              {row.original.intake.code ?? "Phiếu nháp"}
             </CrossLink>
-          ) : (
-            <Badge variant="success">Chuẩn</Badge>
-          ),
+          )
+            : <span className="text-muted-foreground text-xs">khai đầu kỳ</span>,
       }),
       h.display({
-        id: "school",
-        header: "Trường",
-        size: 180,
+        id: "profileComplete", header: "Hồ sơ", size: 100,
+        cell: ({ row }) =>
+          row.original.profileComplete === false ? (
+              <CrossLink to={`/equipment/edit/${row.original.equipmentId}`} resource="equipment" title={`Thiếu: ${(row.original.missingProfile ?? []).join(", ")}. Mở hồ sơ để bổ sung.`}>
+                <Badge variant="warning">Chưa chuẩn</Badge>
+              </CrossLink>
+            ) : <Badge variant="success">Chuẩn</Badge>,
+      }),
+      h.display({
+        id: "originSource", header: "Nguồn hình thành", size: 150,
+        cell: ({ row }) => row.original.originSource?.name ?? null,
+      }),
+      h.accessor((r) => r.inUseYear ?? 0, {
+        id: "inUseYear", header: "Năm sử dụng", size: 116, enableSorting: true,
+        cell: ({ row }) => <span className="tabular-nums">{row.original.inUseYear ?? ""}</span>,
+      }),
+      h.display({
+        id: "school", header: "Trường", size: 150,
         cell: ({ row }) => row.original.school?.name ?? "—",
       }),
       h.display({
@@ -157,12 +182,11 @@ export function EquipmentItems({
         ...ROW_ACTIONS_COLUMN,
         cell: ({ row }) => (
           <RowActions>
-            <ShowButton resource="equipment" recordItemId={row.original.id} iconOnly size="icon-sm" />
-            {offBook(row.original) ? null : (
-              <EditButton resource="equipment" recordItemId={row.original.id} iconOnly size="icon-sm" />
-            )}
-            {offBook(row.original) ? (
-              <DeleteButton resource="equipment" recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
+            <ShowButton resource="equipment" recordItemId={row.original.equipmentId} iconOnly size="icon-sm" />
+            <EditButton resource="equipment" recordItemId={row.original.equipmentId} iconOnly size="icon-sm" />
+            {/* Xoá chỉ có với hồ sơ đã ra khỏi sổ: thanh lý / tiêu huỷ, ghi giảm do mất, vật tư đã dùng hết. */}
+            {OFF_BOOK.includes(row.original.status) ? (
+              <DeleteButton resource="equipment" recordItemId={row.original.equipmentId} record={row.original} iconOnly size="icon-sm" />
             ) : null}
           </RowActions>
         ),
@@ -170,26 +194,29 @@ export function EquipmentItems({
     ];
   }, []);
 
-  const table = useTable<Equipment>({
-    columns,
+  const table = useTable<ItemRow>({
+    columns: columns as any,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     defaultColumn: RESIZABLE_COLUMN_DEFAULTS,
+    // Hạn sử dụng chỉ lô vật tư, hoá chất có — mặc định ẩn, bật lại ở "Cột hiển thị" (lựa chọn được nhớ).
+    getRowId: (r: ItemRow) => String(r.id),
     initialState: {
       columnPinning: { right: ["actions"] },
-      // Số serial ít khi cần khi lướt — bật lại ở "Cột hiển thị".
-      columnVisibility: { serialNumber: false },
+      columnVisibility: { expiryDate: false, serialNumber: false, originSource: false, inUseYear: false },
     },
+    meta: { exportResource: "equipment_items" },
     refineCoreProps: {
-      resource: "equipment",
-      syncWithLocation: true,
+      resource: "equipment_items",
+      // Trang cha (bảng `equipment`, đang tắt) đã giữ URL; bảng này không ghi đè lên nó.
+      syncWithLocation: false,
       pagination: { pageSize: DEFAULT_PAGE_SIZE },
       filters: { permanent },
     },
   });
   offset.current = (table.refineCore.currentPage - 1) * table.refineCore.pageSize;
 
-  // Đổi bộ lọc bên trái / chip "Đang xem" thì về trang 1 — trừ lần dựng đầu, kẻo mất trang khôi phục từ URL.
+  // Đổi bộ lọc bên trái / chip "Đang xem" thì về trang 1.
   const key = JSON.stringify(permanent);
   const first = useRef(true);
   useEffect(() => {
@@ -201,54 +228,70 @@ export function EquipmentItems({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  // Cột Trường chỉ có nghĩa với tài khoản thấy nhiều trường — theo TÀI KHOẢN, không theo các dòng đang hiện.
+  // Cột Trường chỉ có nghĩa khi tài khoản thấy nhiều trường.
+  // Theo TÀI KHOẢN, không theo các dòng đang hiện: Sở / UBND lọc còn một trường thì cột Trường vẫn ở đó.
   const { perspective } = usePerspective();
+  const many = perspective !== "school";
+  // Trừ khi người dùng đã tự tắt cột ở "Cột hiển thị" — lựa chọn đó được nhớ, màn không bật đè lại.
+  const columnsKey = useColumnsKey(table);
   useEffect(() => {
-    table.reactTable.getColumn("school")?.toggleVisibility(perspective !== "school");
-  }, [perspective, table.reactTable]);
+    table.reactTable.getColumn("school")?.toggleVisibility(autoVisible(columnsKey, "school", many));
+  }, [many, table.reactTable, columnsKey]);
+  // Cột Cơ sở: chỉ khi trường có nhiều cơ sở và tài khoản chưa bị giới hạn trong một cơ sở.
+  const campusScope = useCampusScope();
+  useEffect(() => {
+    table.reactTable.getColumn("campus")?.toggleVisibility(autoVisible(columnsKey, "campus", campusScope.show));
+  }, [campusScope.show, table.reactTable, columnsKey]);
 
+  // Thiết bị đã ra khỏi hệ thống: lọc bằng nhóm "Đã ra khỏi hệ thống" trong Bộ lọc.
   return (
-    <ToolbarExtrasProvider
-      {...extras}
-      menu={
-        <>
-          {extras.menu}
-          <DropdownMenuItem onSelect={() => setOnlyOffBook((v) => !v)}>
-            <Archive />
-            {onlyOffBook ? "Xem mọi thiết bị" : "Chỉ xem thiết bị đã ra khỏi sổ"}
-          </DropdownMenuItem>
-        </>
-      }
-    >
+    <ToolbarExtrasProvider {...extras}>
+      <div className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
       <DataTable
-        table={table}
-        fill={fill}
-        externallyFiltered={externallyFiltered || onlyOffBook}
-        onRowDoubleClick={(r) => show("equipment", r.id)}
+        table={table as any}
+        empty={{ title: "Chưa có thiết bị nào", ...emptyWhenFiltered(permanent, table.refineCore.filters) }}
+        fill={fill || undefined}
+        externallyFiltered={externallyFiltered}
+        onRowDoubleClick={(r: any) => show("equipment", r.equipmentId)}
         toolbar={
           <ListToolbar
-            table={table}
-            search={<DataTableQuickFilter table={table} placeholder="Tìm theo mã hoặc tên" />}
+            table={table as any}
+            search={<DataTableQuickFilter table={table as any} />}
+            filters={<CampusTableFilter table={table as any} />}
             searchClassName="sm:max-w-sm"
-            filters={
-              onlyOffBook ? (
-                // Đang xem một tập con thì phải thấy được — chip gỡ được ngay trên hàng công cụ.
-                <Badge variant="info" className="h-8 gap-1.5 px-3 text-sm" title="Đã thanh lý hoặc mất">
-                  <span className="truncate">Đang xem: đã ra khỏi sổ</span>
-                  <button
-                    type="button"
-                    onClick={() => setOnlyOffBook(false)}
-                    aria-label="Xem mọi thiết bị"
-                    className="hover:text-foreground -me-1 shrink-0"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </Badge>
-              ) : null
-            }
           />
         }
       />
+      </div>
     </ToolbarExtrasProvider>
   );
+}
+
+/**
+ * Câu báo khi bảng trống vì đang lọc: nói đúng điều kiện đang bật (từ khoá, trạng thái, tình trạng, danh mục, mục ở
+ * cột trái) thay cho câu chung "không khớp bộ lọc".
+ */
+function emptyWhenFiltered(permanent: CrudFilter[], tableFilters: CrudFilter[] | undefined) {
+  const value = (field: string) => {
+    const f = [...permanent, ...(tableFilters ?? [])].find((x) => "field" in x && x.field === field);
+    return f && "value" in f && f.value != null && f.value !== "" ? String(f.value) : null;
+  };
+  const labels = (raw: string | null, map: Record<string, string>) =>
+    raw ? raw.split(",").map((v) => map[v] ?? v).join(", ") : null;
+  const parts: string[] = [];
+  const q = value("q");
+  if (q) parts.push(`khớp "${q}"`);
+  const status = labels(value("assetStatus"), ASSET_STATUS_LABELS);
+  if (status) parts.push(`ở trạng thái ${status}`);
+  const condition = labels(value("condition"), EQUIPMENT_CONDITION_LABELS);
+  if (condition) parts.push(`có tình trạng ${condition}`);
+  const scope = value("catalogScope");
+  if (scope) parts.push(scope === "out" ? "ngoài danh mục" : "trong danh mục");
+  if (value("catalogType") || value("catalogTree")) parts.push("thuộc loại đang chọn ở cột trái");
+  if (value("subject")) parts.push("thuộc môn đang chọn ở cột trái");
+  if (!parts.length) return {};
+  return {
+    filteredTitle: `Không có thiết bị nào ${parts.join(", ")}`,
+    filteredDescription: "Bỏ bớt điều kiện ở ô tìm, Bộ lọc hoặc cột trái để xem thêm.",
+  };
 }
