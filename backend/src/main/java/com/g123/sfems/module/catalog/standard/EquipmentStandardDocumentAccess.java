@@ -6,10 +6,10 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
 /**
- * Tệp đính kèm của một VĂN BẢN CĂN CỨ của bộ tiêu chuẩn ({@code resource = equipment_standard_documents}) — bản
- * thông tư, văn bản hợp nhất dạng PDF để mở ngay trên màn danh mục tối thiểu (DM-03). Văn bản là dòng con của bộ
- * tiêu chuẩn và không có phạm vi dữ liệu riêng: mã quyền là của bộ ({@code equipment_standards:read} để xem,
- * {@code :write} để thêm / xoá tệp — chỉ Sở và quản trị).
+ * Tệp đính kèm của một VĂN BẢN CĂN CỨ của bộ tiêu chuẩn ({@code resource = equipment_standard_documents})
+ * — bản thông tư, văn bản hợp nhất dạng PDF để mở ngay trên màn danh mục tối thiểu. Văn bản là dòng
+ * con của bộ tiêu chuẩn và không có phạm vi dữ liệu riêng: mã quyền là của bộ
+ * ({@code equipment_standards:read} để xem, {@code :write} để thêm / xoá tệp — chỉ Sở và quản trị).
  */
 @Component
 public class EquipmentStandardDocumentAccess implements RecordAccess {
