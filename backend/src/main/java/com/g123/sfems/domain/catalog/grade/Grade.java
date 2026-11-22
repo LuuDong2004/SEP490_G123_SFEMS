@@ -9,19 +9,38 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-/** Khối lớp (DM-01): Lớp 10, 11, 12 của cấp THPT. Định mức thiết bị (DM-03) tính theo khối lớp. */
+/**
+ * Khối lớp — Lớp 1 tới Lớp 12. Mỗi khối thuộc một cấp học.
+ *
+ * <p>Năm trường chung ở {@link CatalogEntity}; lớp này thêm hai trường riêng.
+ */
 @Entity
 @Table(name = "grades")
 public class Grade extends CatalogEntity {
 
-    /** EAGER vì open-in-view tắt: response luôn trả kèm cấp học, đọc sau khi giao dịch đóng thì lỗi. */
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "education_level_id", nullable = false)
+    /** Mã khối theo chương trình dạy học (ví dụ 6), khác với mã danh mục. */
+    @Column(name = "teaching_code", length = 32)
+    private String teachingCode;
+
+    /**
+     * Cấp học. KHOÁ NGOẠI thật tới danh mục, không phải chuỗi mã như bản Jmix
+     * (ở đó cột này là chuỗi tự do). Cho phép rỗng.
+     *
+     * <p>{@code EAGER}: DTO được ánh xạ trong controller, sau khi transaction
+     * đã đóng ({@code open-in-view=false}), nên {@code LAZY} ở đây là
+     * {@code LazyInitializationException} ngay lần gọi đầu.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "education_level_id")
     private EducationLevel educationLevel;
 
-    /** Số của khối (10, 11, 12) để sắp xếp và so định mức; tên khối thì để người dùng tự đặt. */
-    @Column(name = "grade_number")
-    private Integer gradeNumber;
+    public String getTeachingCode() {
+        return teachingCode;
+    }
+
+    public void setTeachingCode(String teachingCode) {
+        this.teachingCode = teachingCode;
+    }
 
     public EducationLevel getEducationLevel() {
         return educationLevel;
@@ -29,13 +48,5 @@ public class Grade extends CatalogEntity {
 
     public void setEducationLevel(EducationLevel educationLevel) {
         this.educationLevel = educationLevel;
-    }
-
-    public Integer getGradeNumber() {
-        return gradeNumber;
-    }
-
-    public void setGradeNumber(Integer gradeNumber) {
-        this.gradeNumber = gradeNumber;
     }
 }

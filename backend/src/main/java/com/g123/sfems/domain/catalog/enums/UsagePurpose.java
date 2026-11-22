@@ -1,6 +1,6 @@
 package com.g123.sfems.domain.catalog.enums;
 
-/** Mục đích sử dụng thiết bị: giảng dạy, thực hành, thí nghiệm… */
+/** Mục đích sử dụng thiết bị — dùng trên phiếu mượn (BorrowPurpose ở bản Jmix). */
 public enum UsagePurpose implements LabeledEnum {
     TEACHING("GIANG_DAY", "Giảng dạy"),
     PRACTICE("THUC_HANH", "Thực hành"),

@@ -5,8 +5,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 /**
- * Hình thức mua sắm (DM-01): mua sắm tập trung, đấu thầu, chỉ định thầu, mua trực tiếp… Chỉ khai khi
- * nguồn hình thành là Mua sắm; tài sản về trường bằng cách nào là nguồn hình thành.
+ * Hình thức mua sắm — danh mục dùng chung, toàn cục cho mọi trường.
+ *
+ * <p>Toàn bộ hình dạng nằm ở {@link CatalogEntity}; lớp này chỉ gắn tên bảng.
+ * Không mang {@code @RowLevelResource}: không cột nào nói bản ghi thuộc về ai.
  */
 @Entity
 @Table(name = "acquisition_methods")

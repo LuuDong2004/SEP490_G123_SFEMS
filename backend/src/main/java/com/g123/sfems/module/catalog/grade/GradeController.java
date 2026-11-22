@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/grades} — mã quyền {@code grades:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/grades")
 public class GradeController extends CatalogController<Grade, GradeRequest, GradePatchRequest> {

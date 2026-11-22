@@ -6,6 +6,7 @@ import com.g123.sfems.module.catalog.educationlevel.api.dto.EducationLevelReques
 import com.g123.sfems.module.catalog.educationlevel.api.dto.EducationLevelResponse;
 import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.shared.security.Permissions;
 import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.ListResponse;
 import jakarta.validation.Valid;
@@ -26,15 +27,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Năm endpoint của danh mục cấp học (DM-01). Cấp học có service viết riêng (không qua
- * {@code CatalogService}) nên controller cũng viết tay, nhưng giữ đúng hợp đồng của mọi danh mục:
- * danh sách là mảng JSON kèm header {@code X-Total-Count}, mã quyền {@code education_levels:*}.
+ * {@code /api/education_levels} — resource {@code education_levels} của màn
+ * quản trị.
+ *
+ * <p>Đoạn đường dẫn phải trùng đúng tên resource khai trong {@code routes.tsx}
+ * của frontend, vì data provider dựng mọi endpoint thành
+ * {@code {apiURL}/{resource}} — và cũng chính tên đó là nửa đầu của các mã
+ * quyền kiểm ở dưới.
  */
 @RestController
 @RequestMapping("/api/education_levels")
 public class EducationLevelController {
 
     private final EducationLevelService service;
+
     private final RowLevelSecurity rowLevel;
 
     public EducationLevelController(EducationLevelService service, RowLevelSecurity rowLevel) {
@@ -42,50 +48,64 @@ public class EducationLevelController {
         this.rowLevel = rowLevel;
     }
 
-    /** Phục vụ cả {@code getList} lẫn {@code getMany} — chỉ khác ở query string. */
+    /**
+     * Phục vụ cả {@code getList} lẫn {@code getMany}.
+     *
+     * <p>Hai cái chỉ khác nhau ở query string — {@code getMany} gửi
+     * {@code ids[n]} và không có cửa sổ phân trang — nên dùng chung một
+     * endpoint, nhánh tra id trả về không phân trang.
+     */
     @GetMapping
-    @PreAuthorize("hasAuthority('education_levels:read')")
-    public ResponseEntity<List<EducationLevelResponse>> list(@RequestParam MultiValueMap<String, String> query) {
+    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_READ + "')")
+    public ResponseEntity<List<EducationLevelResponse>> list(
+            @RequestParam MultiValueMap<String, String> query) {
         ListParams params = new ListParams(query);
 
         List<Long> ids = params.ids();
         if (!ids.isEmpty()) {
             List<EducationLevelResponse> rows = service.getMany(ids).stream()
-                    .map(level -> EducationLevelResponse.from(level, rowLevel))
+                    .map(row -> EducationLevelResponse.from(row, rowLevel))
                     .toList();
             return ListResponse.of(rows, rows.size());
         }
 
         Page<EducationLevel> page = service.list(params);
         return ListResponse.of(
-                page.map(level -> EducationLevelResponse.from(level, rowLevel)).getContent(),
+                page.map(row -> EducationLevelResponse.from(row, rowLevel)).getContent(),
                 page.getTotalElements());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('education_levels:read')")
+    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_READ + "')")
     public EducationLevelResponse get(@PathVariable Long id) {
         return EducationLevelResponse.from(service.get(id), rowLevel);
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('education_levels:write')")
-    public ResponseEntity<EducationLevelResponse> create(@Valid @RequestBody EducationLevelRequest request) {
+    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_WRITE + "')")
+    public ResponseEntity<EducationLevelResponse> create(
+            @Valid @RequestBody EducationLevelRequest request) {
         EducationLevel created = service.create(request);
         return ResponseEntity
                 .created(URI.create("/api/education_levels/" + created.getId()))
                 .body(EducationLevelResponse.from(created, rowLevel));
     }
 
+    /**
+     * {@code PATCH} là thứ data provider gửi mặc định; {@code PUT} ánh xạ vào
+     * cùng handler để resource này cũng dùng được từ client chỉ nói được thay
+     * thế toàn phần.
+     */
     @RequestMapping(value = "/{id}", method = {RequestMethod.PATCH, RequestMethod.PUT})
-    @PreAuthorize("hasAuthority('education_levels:write')")
-    public EducationLevelResponse update(@PathVariable Long id, @Valid @RequestBody EducationLevelPatchRequest request) {
+    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_WRITE + "')")
+    public EducationLevelResponse update(
+            @PathVariable Long id, @Valid @RequestBody EducationLevelPatchRequest request) {
         return EducationLevelResponse.from(service.update(id, request), rowLevel);
     }
 
     /** Vọng lại bản ghi vừa xoá — data provider có phân tích body trả về. */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('education_levels:delete')")
+    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_DELETE + "')")
     public EducationLevelResponse delete(@PathVariable Long id) {
         return EducationLevelResponse.from(service.delete(id));
     }

@@ -7,6 +7,10 @@ import com.g123.sfems.module.catalog.base.dto.CatalogRequest;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.stereotype.Service;
 
+/**
+ * Hình thức mua sắm. Toàn bộ logic ở {@link CatalogService}; feature khác cần phân
+ * giải một mục thì gọi {@code get(id)} của lớp này.
+ */
 @Service
 public class AcquisitionMethodService extends CatalogService<AcquisitionMethod, CatalogRequest, CatalogPatchRequest> {
 
@@ -14,7 +18,6 @@ public class AcquisitionMethodService extends CatalogService<AcquisitionMethod, 
         super(repository, rowLevel, AcquisitionMethod.class, AcquisitionMethod::new, "Hình thức mua sắm");
     }
 
-    /** Danh mục lựa chọn: hai mục cùng tên thì không phân biệt được trong ô chọn. */
     @Override
     protected boolean uniqueName() {
         return true;
