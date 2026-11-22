@@ -1,18 +1,16 @@
-import { useCan, useNotification } from "@refinedev/core";
+import { useCan, useNotification, useOne } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { kyInstance } from "@/shared/api/data";
 import { getAuthorities } from "@/shared/api/session";
-import { ROW_ACTION_ITEM, RowActions } from "@/shared/components/data-table/row-actions";
-import { AsyncCombobox } from "@/shared/components/form/async-combobox";
+import { FillBox } from "@/shared/components/layout/fill-box";
+import { kyInstance } from "@/shared/api/data";
+import { SchoolPickerField } from "@/shared/components/catalog/school-picker";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { errorMessage } from "@/shared/lib/api-error";
 import { maxLengthOf } from "@/shared/lib/field-rules";
-import { LIFT_ROW } from "@/shared/lib/row-lift";
-import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -21,22 +19,27 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { cn } from "@/shared/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { ROW_ACTION_ITEM, RowActions } from "@/shared/components/data-table/row-actions";
 import type { SchoolCodeRule } from "@/features/organization/resources/school-code";
+import type { School } from "@/domains/school/types";
 
-const pad = (n: number, len: number) => String(n).padStart(len, "0");
-
-/** Quy tắc mã của một trường (`GET /school_code_rules`). */
-function useSchoolCodeRules(schoolId: number) {
+/** Quy tắc mã của trường — dùng chung cho màn quản lý và "Thêm nhanh". */
+export function useSchoolCodeRules(schoolId: number, enabled = true) {
   const mayRead = useCan({ resource: "school_code_rules", action: "list" }).data?.can ?? false;
   const { data, isLoading } = useQuery({
     queryKey: ["school-code-rules", schoolId],
-    enabled: mayRead && schoolId > 0,
+    enabled: enabled && mayRead && schoolId > 0,
     queryFn: () =>
       kyInstance.get("school_code_rules", { searchParams: { "school.id": String(schoolId) } }).json<SchoolCodeRule[]>(),
   });
-  return { rules: data ?? [], isLoading };
+  const byTarget = Object.fromEntries((data ?? []).map((r) => [r.target, r])) as Partial<Record<SchoolCodeRule["target"], SchoolCodeRule>>;
+  return { rules: data ?? [], byTarget, mayRead, isLoading };
 }
+
+const pad = (n: number, len: number) => String(n).padStart(len, "0");
 
 /** Hộp thoại sửa MỘT quy tắc: ba ô, xem trước mã ngay dưới. */
 function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | null; schoolId: number; onClose: () => void }) {
@@ -122,17 +125,22 @@ function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | nu
   );
 }
 
-/** Các loại mã của MỘT trường; bấm dòng hoặc "Sửa" mở hộp thoại. */
+/**
+ * Các loại mã của MỘT trường — bảng cùng khuôn với mọi danh sách khác của hệ thống (khung thẻ, dải tiêu đề cột,
+ * menu "⋯" ở cuối dòng); bấm dòng hoặc "Sửa" mở hộp thoại.
+ */
 function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.ReactNode }) {
   const { rules, isLoading } = useSchoolCodeRules(schoolId);
   const canWrite = useCan({ resource: "school_code_rules", action: "edit" }).data?.can ?? false;
   const [editing, setEditing] = useState<SchoolCodeRule | null>(null);
   return (
     <>
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="border-b px-3 py-3">{toolbar}</div>
+      <FillBox>
+      <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <div className="shrink-0 border-b px-3 py-3">{toolbar}</div>
+        <div className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
         <Table>
-          <TableHeader>
+          <TableHeader sticky>
             <TableRow>
               <TableHead className="w-14 text-center">STT</TableHead>
               <TableHead>Loại mã</TableHead>
@@ -177,16 +185,30 @@ function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.Re
                 ))}
           </TableBody>
         </Table>
-      </Card>
+        </div>
+      </div>
+      </FillBox>
       <EditRuleDialog rule={editing} schoolId={schoolId} onClose={() => setEditing(null)} />
     </>
   );
 }
 
+/** Trường đang xem — một dòng chữ cạnh ô chọn trường, không phải một khối riêng. */
+function SchoolLine({ schoolId }: { schoolId: number }) {
+  const { result: school } = useOne<School>({ resource: "schools", id: schoolId });
+  if (!school) return <Skeleton className="h-5 w-56" />;
+  const meta = [school.code, school.educationLevel?.name, school.departmentOfEducation?.name].filter(Boolean);
+  return (
+    <p className="min-w-0 truncate text-sm">
+      <span className="font-medium">{school.name}</span>
+      {meta.length ? <span className="text-muted-foreground"> · {meta.join(" · ")}</span> : null}
+    </p>
+  );
+}
+
 /**
- * Trang "Mã tự tăng của trường" (DM-04): ký hiệu, độ dài phần số và số bắt đầu của mã phòng và các mã khác do trường
- * tự đặt. Tài khoản trường thấy thẳng trường mình; tài khoản thấy nhiều trường chọn trường trong ô có tìm — trường
- * đã chọn được nhớ trong tab.
+ * Trang "Mã tự tăng của trường" (Quản trị hệ thống). Tài khoản trường thấy thẳng trường mình; tài khoản thấy nhiều
+ * trường chọn trong hộp có ô tìm (hơn nghìn trường) — trường đã chọn được nhớ trong tab.
  */
 export function SchoolCodeRulesPage() {
   const ownSchool = getAuthorities()?.schoolId ?? null;
@@ -195,32 +217,26 @@ export function SchoolCodeRulesPage() {
   const mayRead = useCan({ resource: "school_code_rules", action: "list" }).data?.can ?? false;
 
   const picker = ownSchool ? null : (
-    <div className="w-80 max-w-full">
-      <AsyncCombobox<{ id: number; name: string }>
-        resource="schools"
-        value={picked?.id ?? null}
-        onChange={(id) => { if (id == null) setPicked(null); }}
-        onPick={(school) => setPicked({ id: school.id, name: school.name })}
-        labelOf={(school) => school.name}
-        fallbackLabel={picked?.name}
-        placeholder="Chọn trường"
-        searchPlaceholder="Tìm trường…"
-      />
+    <div className="w-80 max-w-full shrink-0">
+      <SchoolPickerField value={picked} onChange={setPicked} placeholder="Chọn trường" />
     </div>
   );
 
   return (
     <ListView>
-      <ListViewHeader canCreate={false} />
+      <ListViewHeader />
       {!mayRead ? (
         <Card className="text-muted-foreground p-10 text-center text-sm">Bạn không có quyền xem quy tắc mã.</Card>
       ) : schoolId ? (
-        <RulesTable schoolId={schoolId} toolbar={picker ?? <span className="text-muted-foreground text-sm">Quy tắc mã của trường mình</span>} />
+        <RulesTable schoolId={schoolId}
+          toolbar={<div className="flex flex-wrap items-center gap-3">{picker}<SchoolLine schoolId={schoolId} /></div>} />
       ) : (
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="border-b px-3 py-3">{picker}</div>
-          <p className="text-muted-foreground px-3 py-12 text-center text-sm">Chọn một trường để xem quy tắc mã.</p>
-        </Card>
+        <FillBox>
+          <div className="bg-card shadow-e1 min-h-0 flex-1 overflow-hidden rounded-lg border">
+            <div className="border-b px-3 py-3">{picker}</div>
+            <p className="text-muted-foreground px-3 py-12 text-center text-sm">Chọn một trường để xem quy tắc mã.</p>
+          </div>
+        </FillBox>
       )}
     </ListView>
   );
