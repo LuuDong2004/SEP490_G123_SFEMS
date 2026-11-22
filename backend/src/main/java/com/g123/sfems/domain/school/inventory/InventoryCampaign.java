@@ -11,13 +11,12 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 
 /**
- * Đợt kiểm kê do Sở phát động (KK-01, KK-02).
+ * Đợt kiểm kê do cơ quan quản lý phát động: Sở cho toàn thành phố, UBND cho các
+ * trường trên địa bàn.
  *
- * <p>Đợt không chứa kết quả kiểm kê nào — mỗi trường lập phiếu kiểm kê của mình
- * ({@link InventorySession}), gắn vào đợt, và Sở xem tiến độ: trường nào đã nộp, trường nào chưa.
- *
- * <p>Không có {@code @RowLevelResource}: đợt thuộc Sở, không thuộc trường. Trường thấy đợt của cơ quan
- * quản lý mình — service lọc theo {@code school.departmentOfEducation}.
+ * <p>Đợt không chứa kết quả kiểm kê nào — mỗi trường lập phiếu kiểm kê của mình,
+ * gắn vào đợt, và cơ quan phát động xem tiến độ: trường nào đã xong, trường nào
+ * chưa. Kiểm kê là việc của trường; cấp trên không ghi kết quả thay trường.
  */
 @Entity
 @Table(name = "inventory_campaigns")

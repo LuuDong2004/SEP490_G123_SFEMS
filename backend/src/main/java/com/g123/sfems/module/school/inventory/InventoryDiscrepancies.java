@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.inventory.InventoryCampaignService.ProgressRow;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -37,7 +38,6 @@ public class InventoryDiscrepancies {
             String status, Row counts, int surplus) {
     }
 
-    /** Mỗi dòng của biên bản kèm phòng trên sổ, môn của thiết bị và các cờ chênh lệch. */
     private static final String LINES = """
             SELECT l.session_id, l.expected_room_id AS room_id, r.name AS room_name,
                    (r.id IS NULL OR rt.code = 'KHO') AS storeroom,
@@ -63,18 +63,20 @@ public class InventoryDiscrepancies {
 
     private final InventorySessionService sessions;
     private final InventoryCampaignService campaigns;
+    private final VisibleSchools visible;
     private final JdbcTemplate jdbc;
 
     public InventoryDiscrepancies(InventorySessionService sessions, InventoryCampaignService campaigns,
-            JdbcTemplate jdbc) {
+            VisibleSchools visible, JdbcTemplate jdbc) {
         this.sessions = sessions;
         this.campaigns = campaigns;
+        this.visible = visible;
         this.jdbc = jdbc;
     }
 
     /** Chênh lệch của một biên bản theo phòng và theo môn. Đọc biên bản qua phạm vi đọc trước. */
     public SessionBreakdown session(Long id) {
-        sessions.readable(id);
+        sessions.get(id);
         List<Row> rooms = jdbc.query("SELECT room_id, room_name, storeroom, " + COUNTS
                         + " FROM (" + LINES + " WHERE l.session_id = ?) x"
                         + " GROUP BY room_id, room_name, storeroom ORDER BY storeroom DESC, room_name NULLS FIRST",
@@ -92,8 +94,8 @@ public class InventoryDiscrepancies {
     }
 
     /**
-     * Chênh lệch theo trường của một đợt (KK-02). Cùng danh sách trường với bảng tiến độ; số chỉ có ở biên bản người
-     * xem mở được — Sở không xem số của biên bản còn ở bàn hiệu trưởng.
+     * Chênh lệch theo trường của một đợt. Cùng danh sách trường với bảng tiến độ ({@code progress}); số chỉ có ở biên
+     * bản người xem mở được — Sở / UBND không xem số của biên bản còn ở bàn hiệu trưởng.
      */
     public List<SchoolRow> campaign(Long id) {
         List<ProgressRow> schools = campaigns.progress(id).schools();
@@ -103,15 +105,17 @@ public class InventoryDiscrepancies {
         Map<Long, Integer> surplus = new HashMap<>();
         if (!ids.isEmpty()) {
             String in = String.join(",", Collections.nCopies(ids.size(), "?"));
-            jdbc.query("SELECT x.session_id, " + COUNTS + " FROM (" + LINES + " WHERE l.session_id IN (" + in + ")) x"
-                            + " GROUP BY x.session_id",
+            jdbc.query("SELECT x.session_id, " + COUNTS + " FROM (" + LINES
+                            + " JOIN inventory_sessions s ON s.id = l.session_id WHERE l.session_id IN (" + in + ")"
+                            + visible.sqlFilter("s.school_id") + ") x GROUP BY x.session_id",
                     (ResultSet rs) -> {
                         long sessionId = rs.getLong("session_id");
                         counts.put(sessionId, row(rs, sessionId, null, false));
                     },
                     ids.toArray());
-            jdbc.query("SELECT session_id, COALESCE(SUM(quantity), 0) AS n FROM inventory_surplus"
-                            + " WHERE session_id IN (" + in + ") GROUP BY session_id",
+            jdbc.query("SELECT u.session_id, COALESCE(SUM(u.quantity), 0) AS n FROM inventory_surplus u"
+                            + " JOIN inventory_sessions s ON s.id = u.session_id WHERE u.session_id IN (" + in + ")"
+                            + visible.sqlFilter("s.school_id") + " GROUP BY u.session_id",
                     (ResultSet rs) -> {
                         surplus.put(rs.getLong("session_id"), rs.getInt("n"));
                     },

@@ -1,10 +1,12 @@
 package com.g123.sfems.module.school.inventory;
 
+import com.g123.sfems.module.school.voucher.VoucherCampus;
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
 import com.g123.sfems.domain.organization.ManagingBodyType;
 import com.g123.sfems.domain.school.inventory.InventoryCampaign;
 import com.g123.sfems.domain.school.inventory.InventorySession;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
+import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
@@ -12,28 +14,31 @@ import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
+import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Đợt kiểm kê (KK-01) và tiến độ các trường trong đợt (KK-02). Ai thấy đợt nào được quyết định ở đây, không qua phạm vi dòng — đợt không phải
- * dữ liệu của một trường:
+ * Đợt kiểm kê. Ai thấy đợt nào được quyết định ở đây, không qua phạm vi dòng —
+ * đợt không phải dữ liệu của một trường:
  * <ul>
  *   <li>Sở và quản trị viên thấy mọi đợt;</li>
- *   <li>trường thấy đợt của Sở quản lý mình.</li>
+ *   <li>UBND thấy đợt của mình và đợt toàn thành phố của Sở;</li>
+ *   <li>trường thấy đợt của cơ quan quản lý mình và đợt toàn thành phố.</li>
  * </ul>
- * Chỉ cơ quan đã phát động (hoặc quản trị viên) được sửa, xoá, đóng đợt.
+ * Chỉ cơ quan đã phát động được sửa, xoá, đóng đợt.
  */
 @Service
 @Transactional(readOnly = true)
@@ -43,28 +48,50 @@ public class InventoryCampaignService {
     private static final Set<String> SORTABLE = Set.of("id", "title", "cutoffDate", "deadline", "createdAt");
 
     private final InventoryCampaignRepository repository;
-    private final InventorySessionRepository sessions;
     private final RowLevelPrincipalResolver principals;
     private final DepartmentOfEducationService bodies;
+    private final ManagedSchoolsCache managedSchools;
     private final RowLevelSecurity rowLevel;
     private final JdbcTemplate jdbc;
+    private final InventorySessionRepository sessions;
     private final ApplicationEventPublisher publisher;
 
+    private final VoucherCampus campus;
+
     public InventoryCampaignService(InventoryCampaignRepository repository, InventorySessionRepository sessions,
-            RowLevelPrincipalResolver principals, DepartmentOfEducationService bodies, RowLevelSecurity rowLevel,
-            JdbcTemplate jdbc, ApplicationEventPublisher publisher) {
+            RowLevelPrincipalResolver principals,
+            DepartmentOfEducationService bodies, ManagedSchoolsCache managedSchools, RowLevelSecurity rowLevel,
+            JdbcTemplate jdbc, ApplicationEventPublisher publisher, VoucherCampus campus) {
+        this.publisher = publisher;
+        this.campus = campus;
         this.repository = repository;
         this.sessions = sessions;
         this.principals = principals;
         this.bodies = bodies;
+        this.managedSchools = managedSchools;
         this.rowLevel = rowLevel;
         this.jdbc = jdbc;
-        this.publisher = publisher;
     }
 
-    /** Dữ liệu nhập của form phát động / sửa đợt; trường {@code null} là để nguyên. */
     public record Input(Long managingBodyId, String title, LocalDate cutoffDate, LocalDate deadline, String note,
             Boolean closed) {
+    }
+
+    /**
+     * {@code canOpen}: người xem mở được biên bản này — Sở / UBND không đọc biên bản còn ở bàn hiệu trưởng (125),
+     * nên màn tiến độ chỉ gắn đường dẫn khi mở được, thay vì để người bấm gặp "Không tìm thấy".
+     */
+    public record ProgressRow(Long schoolId, String schoolCode, String schoolName, Long sessionId,
+            String sessionCode, String status, boolean canOpen, int facilityChecked, int facilityTotal) {
+
+        ProgressRow withCanOpen(boolean open) {
+            return new ProgressRow(schoolId, schoolCode, schoolName, sessionId, sessionCode, status, open,
+                    facilityChecked, facilityTotal);
+        }
+    }
+
+    public record Progress(int total, int notStarted, int drafting, int pending, int completed,
+            List<ProgressRow> schools) {
     }
 
     public Page<InventoryCampaign> list(ListParams params) {
@@ -88,9 +115,27 @@ public class InventoryCampaignService {
         apply(campaign, input);
         requireNoOpenTwin(campaign);
         InventoryCampaign saved = repository.save(campaign);
-        publisher.publishEvent(new CampaignLaunched(saved.getManagingBody().getId(),
-                saved.getTitle(), saved.getCutoffDate(), saved.getDeadline()));
+        publisher.publishEvent(new CampaignLaunchNotifier.CampaignLaunched(saved.getManagingBody().getId(),
+                saved.getManagingBody().getType() == ManagingBodyType.SO, saved.getTitle(), saved.getCutoffDate(),
+                saved.getDeadline()));
         return saved;
+    }
+
+    /**
+     * Một cơ quan không phát động hai đợt ĐANG MỞ cùng ngày chốt số liệu: trường không biết lập
+     * phiếu theo đợt nào, và tiến độ bị chia đôi. Bấm Lưu hai lần, hay lập lại cho chắc, là cách
+     * danh sách ra mười bốn dòng giống hệt nhau.
+     */
+    private void requireNoOpenTwin(InventoryCampaign campaign) {
+        Integer twins = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM inventory_campaigns
+                WHERE managing_body_id = ? AND cutoff_date = ? AND NOT closed
+                """, Integer.class, campaign.getManagingBody().getId(), campaign.getCutoffDate());
+        if (twins != null && twins > 0) {
+            throw new FieldValidationException("cutoffDate",
+                    "Cơ quan đã có một đợt kiểm kê đang mở chốt số liệu ngày %s — mở đợt đó thay vì lập đợt mới"
+                            .formatted(campaign.getCutoffDate().format(DAY)));
+        }
     }
 
     @Transactional
@@ -113,53 +158,46 @@ public class InventoryCampaignService {
     }
 
     /**
-     * Một trường trong đợt và phiếu kiểm kê mới nhất của nó cho đợt (nếu có). {@code canOpen}: người xem mở được
-     * biên bản — Sở không đọc biên bản còn ở trường (nháp, chờ hiệu trưởng), nên màn tiến độ chỉ gắn đường dẫn khi
-     * mở được, thay vì để người bấm gặp "Không tìm thấy".
-     */
-    public record ProgressRow(Long schoolId, String schoolCode, String schoolName, Long sessionId,
-            String sessionCode, String status, boolean canOpen) {
-
-        ProgressRow withCanOpen(boolean open) {
-            return new ProgressRow(schoolId, schoolCode, schoolName, sessionId, sessionCode, status, open);
-        }
-    }
-
-    public record Progress(int total, int notStarted, int drafting, int pending, int completed,
-            List<ProgressRow> schools) {
-    }
-
-    /**
-     * Tiến độ (KK-02): mỗi trường do cơ quan phát động quản lý, với phiếu kiểm kê mới nhất của nó trong đợt (phiếu
-     * đã huỷ, bị từ chối không tính). Tài khoản trường chỉ thấy dòng của trường mình.
+     * Tiến độ: mỗi trường trong phạm vi đợt, với phiếu kiểm kê mới nhất của nó
+     * trong đợt (nếu có). Chỉ trường mà người xem đọc được — UBND xem tiến độ đợt
+     * toàn thành phố thì chỉ thấy các trường trên địa bàn mình.
      */
     public Progress progress(Long id) {
         InventoryCampaign campaign = get(id);
+        DepartmentOfEducation body = campaign.getManagingBody();
+        boolean cityWide = body.getType() == ManagingBodyType.SO;
         RowLevelPrincipal principal = principals.current().orElseThrow();
-        Long ownSchool = isAdmin(principal) || principal.managingBodyId() != null ? null : principal.schoolId();
+        Set<Long> visibleSchools = visibleSchools(principal);
 
         List<ProgressRow> rows = jdbc.query("""
-                SELECT s.id, s.code, s.name, x.id AS session_id, x.code AS session_code, x.status
+                SELECT s.id, s.code, s.name, x.id AS session_id, x.code AS session_code, x.status,
+                       COALESCE(f.checked, 0), COALESCE(f.total, 0)
                 FROM schools s
                 LEFT JOIN LATERAL (
                     SELECT i.id, i.code, i.status FROM inventory_sessions i
                     WHERE i.school_id = s.id AND i.campaign_id = ? AND i.status NOT IN ('CANCELLED', 'REJECTED')
                     ORDER BY i.id DESC LIMIT 1) x ON TRUE
-                WHERE s.department_of_education_id = ? AND (CAST(? AS bigint) IS NULL OR s.id = ?)
+                LEFT JOIN LATERAL (
+                    -- Hạng mục CSVC đã kiểm / tổng của biên bản.
+                    SELECT COUNT(*) FILTER (WHERE l.checked) AS checked, COUNT(*) AS total
+                    FROM inventory_facility_lines l WHERE l.session_id = x.id) f ON TRUE
+                WHERE (? OR s.department_of_education_id = ?)
                 ORDER BY s.name""",
                 (rs, n) -> new ProgressRow(rs.getLong(1), rs.getString(2), rs.getString(3),
-                        (Long) rs.getObject(4), rs.getString(5), rs.getString(6), false),
-                id, campaign.getManagingBody().getId(), ownSchool, ownSchool);
+                        (Long) rs.getObject(4), rs.getString(5), rs.getString(6), false, rs.getInt(7), rs.getInt(8)),
+                id, cityWide, body.getId());
+        List<ProgressRow> mine = visibleSchools == null ? rows
+                : rows.stream().filter(r -> visibleSchools.contains(r.schoolId())).toList();
         // Hỏi lại đúng phạm vi đọc của phiếu kiểm kê thay vì chép luật của nó sang đây.
-        Set<Long> readable = readableSessions(rows);
-        rows = rows.stream()
+        Set<Long> readable = readableSessions(mine);
+        mine = mine.stream()
                 .map(r -> r.withCanOpen(r.sessionId() != null && readable.contains(r.sessionId())))
                 .toList();
         int notStarted = 0;
         int drafting = 0;
         int pending = 0;
         int completed = 0;
-        for (ProgressRow row : rows) {
+        for (ProgressRow row : mine) {
             if (row.status() == null) {
                 notStarted++;
             } else {
@@ -170,21 +208,21 @@ public class InventoryCampaignService {
                 }
             }
         }
-        return new Progress(rows.size(), notStarted, drafting, pending, completed, rows);
+        return new Progress(mine.size(), notStarted, drafting, pending, completed, mine);
     }
 
-    /** Biên bản trong danh sách mà người xem đọc được, theo phạm vi đọc của phiếu kiểm kê. */
+    /** Biên bản trong danh sách mà người xem đọc được, theo phạm vi đọc của {@code inventory_sessions}. */
     private Set<Long> readableSessions(List<ProgressRow> rows) {
         List<Long> ids = rows.stream().map(ProgressRow::sessionId).filter(Objects::nonNull).toList();
         if (ids.isEmpty()) {
             return Set.of();
         }
         Specification<InventorySession> spec = rowLevel.<InventorySession>scope(InventorySession.class, Action.READ)
+                .and(campus.pinned(InventorySessionService.CAMPUS))
                 .and((root, q, cb) -> root.get("id").in(ids));
         return sessions.findAll(spec).stream().map(InventorySession::getId).collect(Collectors.toSet());
     }
 
-    /** Người đang đăng nhập được sửa, xoá, đóng đợt này không. */
     public boolean canManage(InventoryCampaign campaign) {
         return principals.current()
                 .map(p -> isAdmin(p) || Objects.equals(p.managingBodyId(), campaign.getManagingBody().getId()))
@@ -193,41 +231,35 @@ public class InventoryCampaignService {
 
     // ------------------------------------------------------------------ nội bộ
 
-    /**
-     * Một cơ quan không phát động hai đợt ĐANG MỞ cùng ngày chốt số liệu: trường không biết lập phiếu theo
-     * đợt nào, và tiến độ bị chia đôi. Bấm Lưu hai lần là cách danh sách ra nhiều dòng giống hệt nhau.
-     */
-    private void requireNoOpenTwin(InventoryCampaign campaign) {
-        Integer twins = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM inventory_campaigns
-                WHERE managing_body_id = ? AND cutoff_date = ? AND NOT closed
-                """, Integer.class, campaign.getManagingBody().getId(), campaign.getCutoffDate());
-        if (twins != null && twins > 0) {
-            throw new FieldValidationException("cutoffDate",
-                    "Cơ quan đã có một đợt kiểm kê đang mở chốt số liệu ngày %s — mở đợt đó thay vì lập đợt mới"
-                            .formatted(campaign.getCutoffDate().format(DAY)));
-        }
-    }
-
-    /** Sở và quản trị viên thấy mọi đợt; tài khoản trường thấy đợt của Sở quản lý trường mình. */
     private Specification<InventoryCampaign> visible() {
         RowLevelPrincipal principal = principals.current().orElse(null);
         return (root, q, cb) -> {
             if (principal == null) {
                 return cb.disjunction();
             }
-            if (isAdmin(principal) || principal.managingBodyId() != null) {
+            if (isAdmin(principal) || isCityBody(principal.managingBodyId())) {
                 return cb.conjunction();
             }
-            Long body = principal.schoolId() == null ? null : bodyOfSchool(principal.schoolId());
-            return body == null ? cb.disjunction() : cb.equal(root.get("managingBody").get("id"), body);
+            List<Predicate> any = new ArrayList<>();
+            any.add(cb.equal(root.get("managingBody").get("type"), ManagingBodyType.SO));
+            Long body = principal.managingBodyId() != null ? principal.managingBodyId()
+                    : principal.schoolId() == null ? null : managedSchools.bodyOf(principal.schoolId());
+            if (body != null) {
+                any.add(cb.equal(root.get("managingBody").get("id"), body));
+            }
+            return cb.or(any.toArray(Predicate[]::new));
         };
     }
 
-    private Long bodyOfSchool(Long schoolId) {
-        List<Long> ids = jdbc.queryForList("SELECT department_of_education_id FROM schools WHERE id = ?",
-                Long.class, schoolId);
-        return ids.isEmpty() ? null : ids.get(0);
+    /** Trường mà người xem được thấy trong bảng tiến độ; {@code null} là tất cả. */
+    private Set<Long> visibleSchools(RowLevelPrincipal principal) {
+        if (isAdmin(principal) || isCityBody(principal.managingBodyId())) {
+            return null;
+        }
+        if (principal.managingBodyId() != null) {
+            return managedSchools.schoolsOf(principal.managingBodyId());
+        }
+        return principal.schoolId() == null ? Set.of() : Set.of(principal.schoolId());
     }
 
     private InventoryCampaign owned(Long id) {
@@ -238,29 +270,21 @@ public class InventoryCampaignService {
         return campaign;
     }
 
-    /**
-     * Cơ quan phát động là cơ quan của tài khoản đang đăng nhập. Quản trị viên không thuộc cơ quan nào:
-     * phát động thay cho cơ quan được chọn, không chọn thì là Sở.
-     */
     private DepartmentOfEducation ownBody(Long requested) {
         RowLevelPrincipal principal = principals.current().orElseThrow();
         Long body = principal.managingBodyId();
         if (body == null && isAdmin(principal)) {
-            body = requested != null ? requested : departmentId();
+            body = requested;
         }
         if (body == null) {
-            throw new FieldValidationException("managingBody", "Chỉ Sở mới phát động được đợt kiểm kê");
+            throw new FieldValidationException("managingBody", "Chỉ tài khoản thuộc Sở mới phát động được đợt kiểm kê");
         }
         Long bodyId = body;
         return rowLevel.asSystem("inventory_campaigns.body", () -> bodies.get(bodyId));
     }
 
-    /** Id của Sở GD&ĐT — phạm vi hệ thống chỉ có một Sở. */
-    private Long departmentId() {
-        List<Long> ids = jdbc.queryForList(
-                "SELECT id FROM departments_of_education WHERE type = ? ORDER BY id LIMIT 1",
-                Long.class, ManagingBodyType.SO.name());
-        return ids.isEmpty() ? null : ids.get(0);
+    private boolean isCityBody(Long bodyId) {
+        return managedSchools.isCityBody(bodyId);
     }
 
     private static boolean isAdmin(RowLevelPrincipal principal) {
