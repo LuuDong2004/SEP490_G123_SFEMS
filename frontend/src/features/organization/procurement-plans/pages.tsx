@@ -1,3 +1,5 @@
+import { Landmark } from "lucide-react";
+import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { useInvalidate, useShow } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -9,18 +11,18 @@ import { ShowButton } from "@/shared/components/buttons/show";
 import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-table/data-table";
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
 import { OptionFilter, RefFilter, SortSelect } from "@/shared/components/data-table/ref-filter";
-import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
+import { usePerspective } from "@/shared/hooks/use-perspective";
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/types";
-
 import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
+import { StandardTraceBlock } from "../school-year/standard-trace";
 
 const PLAN_SORTS = [
-  { label: "Năm ngân sách mới nhất", field: "budgetYear", order: "desc" as const },
+  { label: "Năm học mới nhất", field: "budgetYear", order: "desc" as const },
   { label: "Lập gần đây nhất", field: "createdAt", order: "desc" as const },
   { label: "Tên kế hoạch A–Z", field: "title", order: "asc" as const },
   { label: "Theo trạng thái", field: "status", order: "asc" as const },
@@ -30,21 +32,11 @@ export const ProcurementPlanList = () => {
   const columns = useMemo(() => {
     const h = createColumnHelper<ProcurementPlan>();
     return [
-      h.accessor("code", {
-        id: "code",
-        header: "Mã",
-        size: 140,
-        cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
-      }),
+      h.accessor("code", { id: "code", header: "Mã", size: 140, cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span> }),
       h.accessor("title", { id: "title", header: "Kế hoạch", enableSorting: true }),
       h.display({ id: "body", header: "Cơ quan", cell: ({ row }) => row.original.managingBody.name }),
-      h.accessor("budgetYear", { id: "budgetYear", header: "Năm NS", enableSorting: true, size: 90 }),
-      h.accessor("status", {
-        id: "status",
-        header: "Trạng thái",
-        enableSorting: false,
-        cell: ({ getValue }) => <PlanStatusBadge status={getValue()} />,
-      }),
+      h.display({ id: "schoolYear", header: "Năm học", cell: ({ row }) => row.original.schoolYear?.name.replace(/^Năm học\s*/i, "") ?? row.original.budgetYear }),
+      h.accessor("status", { id: "status", header: "Trạng thái", enableSorting: false, cell: ({ getValue }) => <PlanStatusBadge status={getValue()} /> }),
       h.display({
         id: "actions",
         header: () => <span className="sr-only">Thao tác</span>,
@@ -52,15 +44,14 @@ export const ProcurementPlanList = () => {
           <RowActions>
             {row.original._can?.write ? <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" /> : null}
             <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            {row.original._can?.delete ? (
-              <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
-            ) : null}
+            {row.original._can?.delete ? <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" /> : null}
           </RowActions>
         ),
         ...ROW_ACTIONS_COLUMN,
       }),
     ];
   }, []);
+  const { perspective } = usePerspective();
   const table = useTable<ProcurementPlan>({
     columns,
     enableColumnResizing: true,
@@ -79,21 +70,12 @@ export const ProcurementPlanList = () => {
             search={<DataTableQuickFilter table={table} />}
             filters={
               <>
-                {/* Kế hoạch là của Sở; ô lọc cơ quan chỉ có nghĩa khi người xem thấy kế hoạch của nhiều cơ quan. */}
-                <RefFilter
-                  table={table}
-                  field="managingBody.id"
-                  resource="departments_of_education"
-                  all="Mọi cơ quan"
-                  searchPlaceholder="Tìm cơ quan…"
-                />
-                <OptionFilter
-                  table={table}
-                  field="status"
-                  all="Mọi trạng thái"
-                  className="w-40"
-                  options={Object.entries(PLAN_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-                />
+                {/* Cơ quan: chỉ Sở thấy kế hoạch của nhiều cơ quan; UBND chỉ có của mình nên ô này thừa. */}
+                {perspective === "school" ? null : (
+                  <RefFilter table={table} field="managingBody.id" resource="departments_of_education" all="Mọi cơ quan" searchPlaceholder="Tìm cơ quan…" icon={<Landmark />} hint="Lọc theo cơ quan" />
+                )}
+                <OptionFilter table={table} field="status" all="Mọi trạng thái" className="w-40"
+                  options={Object.entries(PLAN_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
                 <SortSelect table={table} options={PLAN_SORTS} />
               </>
             }
@@ -112,8 +94,8 @@ export const ProcurementPlanCreate = () => (
 );
 
 /**
- * Xem và sửa là CÙNG một màn: kế hoạch nháp mà người xem là người lập thì các ô mở để sửa ngay tại đây;
- * còn lại (đã trình, đã duyệt, trường) thì chỉ xem. Đường dẫn `edit` đưa về đúng màn này.
+ * Xem và sửa là CÙNG một màn: kế hoạch nháp mà người xem là cơ quan lập thì các ô mở để sửa ngay tại đây; còn
+ * lại (đã trình, đã duyệt, cơ quan khác, trường) thì chỉ xem. Đường dẫn `edit` đưa về đúng màn này.
  */
 export const ProcurementPlanShow = () => {
   const { result: plan, query } = useShow<ProcurementPlan>({});
@@ -131,7 +113,7 @@ export const ProcurementPlanShow = () => {
           plan ? (
             <>
               <PrintButton />
-              <ExportButton planId={plan.id} code={plan.code} />
+              <ExportButton plan={plan} />
               {actions.has("return") ? <PlanReviewButton plan={plan} step="return" onDone={refresh} /> : null}
               {actions.has("approve") ? <PlanReviewButton plan={plan} step="approve" onDone={refresh} /> : null}
               {actions.has("delete") ? <DeleteButton recordItemId={plan.id} record={plan} /> : null}
@@ -142,6 +124,8 @@ export const ProcurementPlanShow = () => {
       <LoadingOverlay loading={query.isLoading}>
         {/* `key` theo lần sửa: lưu xong, bản ghi mới về thì form dựng lại từ đúng dữ liệu đã lưu. */}
         {plan ? <PlanEditor key={`${plan.id}-${plan.updatedAt}-${plan.status}`} plan={plan} onChanged={refresh} /> : null}
+        {/* Bước 7: dòng kế hoạch truy ngược về điểm trường, chuẩn thông tư, điều chỉnh, căn cứ (đề xuất lập từ chuẩn). */}
+        {plan ? <div className="mt-4"><StandardTraceBlock planId={plan.id} /></div> : null}
       </LoadingOverlay>
     </ShowView>
   );
