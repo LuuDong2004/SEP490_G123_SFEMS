@@ -9,15 +9,15 @@ import { StepTitle } from "@/shared/components/voucher/voucher-layout";
 import { errorMessage } from "@/shared/lib/api-error";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { VOUCHER_ROUTES } from "@/domains/equipment/types";
 
-/** Dự án chỉ có phiếu nhập, nên chỉ có một nhóm chênh lệch lập nhanh được: tài sản thừa. */
 type Kind = "SURPLUS";
 
 /** `GET /inventory_sessions/{id}/follow-ups` — mỗi nhóm chênh lệch: số biên bản ghi, số còn chưa có phiếu. */
 type FollowUpState = { kind: Kind; resource: string; total: number; pending: number };
 
-const TEXT: Record<Kind, { finding: string; action: string; route: string }> = {
-  SURPLUS: { finding: "tài sản thừa", action: "Lập phiếu ghi tăng", route: "/equipment-intakes" },
+const TEXT: Record<Kind, { finding: string; action: string }> = {
+  SURPLUS: { finding: "thiết bị thừa", action: "Lập phiếu ghi tăng" },
 };
 
 function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) {
@@ -27,6 +27,7 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
   const client = useQueryClient();
   const { open } = useNotification();
   const text = TEXT[state.kind];
+  const done = state.total - state.pending;
 
   const create = async () => {
     setBusy(true);
@@ -35,11 +36,13 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
         .post(`inventory_sessions/${sessionId}/follow-ups`, { searchParams: { kind: state.kind } })
         .json<{ resource: string; ids: number[] }>();
       await client.invalidateQueries({ queryKey: ["inventory_follow_ups", sessionId] });
-      // Một phiếu: mở luôn để sửa / bớt dòng rồi trình.
-      if (result.ids.length === 1) {
-        navigate(`${text.route}/edit/${result.ids[0]}`);
+      await client.invalidateQueries({ queryKey: ["voucher_links", "inventory_sessions", sessionId] });
+      const route = VOUCHER_ROUTES[result.resource];
+      if (result.ids.length === 1 && route) {
+        // Một phiếu: mở luôn để sửa / bớt dòng rồi trình.
+        navigate(`${route}/edit/${result.ids[0]}`);
       } else {
-        open?.({ type: "success", message: `Đã lập ${result.ids.length} phiếu nháp` });
+        open?.({ type: "success", message: `Đã lập ${result.ids.length} phiếu nháp — xem ở khối Phiếu liên quan` });
       }
     } catch (error) {
       open?.({ type: "error", message: await errorMessage(error) });
@@ -55,13 +58,18 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
           <span className="tabular-nums">{state.total}</span> {text.finding}
         </div>
         <div className="text-muted-foreground text-xs">
-          {state.pending === 0 ? "Đã có phiếu cho tất cả" : "Chưa lập phiếu nào"}
+          {state.pending === 0
+            ? "Đã có phiếu cho tất cả"
+            : done > 0
+              ? `${done} đã có phiếu, còn ${state.pending} chưa có`
+              : "Chưa lập phiếu nào"}
         </div>
       </div>
       {may && state.pending > 0 ? (
         <Button type="button" size="sm" variant="outline" disabled={busy} onClick={create}>
           {busy ? <Loader2 className="animate-spin" /> : <FilePlus2 />}
           {text.action}
+          {done > 0 && state.kind !== "SURPLUS" ? ` (${state.pending})` : ""}
         </Button>
       ) : null}
     </li>
@@ -69,9 +77,8 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
 }
 
 /**
- * Biên bản kiểm kê chỉ ghi nhận; xử lý chênh lệch là việc của người dùng (KK-06). Khối này giúp LẬP NHANH: bấm là có
- * phiếu nháp mang sẵn các tài sản chưa có phiếu (nguồn = biên bản này). Chỉ hiện khi biên bản đã duyệt và có chênh
- * lệch cần phiếu.
+ * Thiết bị thừa sau kiểm kê: duyệt biên bản đã tự lập phiếu ghi tăng nháp; nếu phiếu đó bị huỷ thì nút ở đây lập lại.
+ * Thiếu, hỏng, sai vị trí không có phiếu — duyệt biên bản ghi thẳng vào hồ sơ thiết bị (KK-06).
  */
 export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number; approved: boolean }) {
   const { data } = useQuery({
@@ -85,8 +92,13 @@ export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number
   return (
     <Card className="gap-3 px-4 py-4">
       <StepTitle
-        title="Nghiệp vụ đề xuất"
-        hint="Biên bản kiểm kê chỉ ghi nhận kết quả, không tự sửa sổ. Bấm nút để lập phiếu ghi tăng nháp có sẵn các tài sản thừa, sửa lại rồi trình."
+        title="Thiết bị thừa"
+        hint={
+          <>
+            Thiếu, hỏng, sai vị trí đã được ghi vào hồ sơ thiết bị khi duyệt biên bản. Thiết bị thừa thì lập phiếu ghi tăng
+            nháp (nguồn "Kiểm kê thừa"), bổ sung thông tin rồi trình.
+          </>
+        }
       />
       <ul className="divide-y rounded-md border text-sm">
         {data.map((state) => <Row key={state.kind} sessionId={sessionId} state={state} />)}
