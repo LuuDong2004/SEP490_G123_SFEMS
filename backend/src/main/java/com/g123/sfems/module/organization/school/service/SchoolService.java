@@ -6,7 +6,6 @@ import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.module.catalog.coderule.CodeGenerator;
 import com.g123.sfems.module.catalog.ward.WardService;
 import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
-import com.g123.sfems.module.catalog.schooltype.SchoolTypeService;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.organization.school.api.dto.SchoolPatchRequest;
 import com.g123.sfems.module.organization.school.api.dto.SchoolRequest;
@@ -48,7 +47,6 @@ public class SchoolService {
     private final DepartmentOfEducationService departments;
     private final EducationLevelService educationLevels;
     private final WardService wards;
-    private final SchoolTypeService schoolTypes;
     private final RowLevelSecurity rowLevel;
     private final ManagedSchoolsCache managedSchools;
     private CodeGenerator codes;
@@ -64,7 +62,6 @@ public class SchoolService {
             DepartmentOfEducationService departments,
             EducationLevelService educationLevels,
             WardService wards,
-            SchoolTypeService schoolTypes,
             RowLevelSecurity rowLevel,
             ManagedSchoolsCache managedSchools) {
         this.repository = repository;
@@ -72,7 +69,6 @@ public class SchoolService {
         this.departments = departments;
         this.educationLevels = educationLevels;
         this.wards = wards;
-        this.schoolTypes = schoolTypes;
         this.rowLevel = rowLevel;
     }
 
@@ -86,6 +82,24 @@ public class SchoolService {
     public School get(Long id) {
         return repository.findOne(rowLevel.byId(School.class, Action.READ, id))
                 .orElseThrow(() -> new ResourceNotFoundException("School", id));
+    }
+
+    /**
+     * Trường tự sửa phần hồ sơ của CHÍNH MÌNH (239): địa chỉ, mã định danh Bộ. Không qua phạm vi ghi của
+     * {@code schools} — bên gọi đã lấy {@code schoolId} từ người gọi, không nhận từ request. Các ô còn lại (tên, mã,
+     * phường, cơ quan quản lý…) quyết định phạm vi dữ liệu và mã tài sản nên vẫn chỉ đi qua {@link #update}.
+     * Ba trạng thái như {@code SchoolPatchRequest}: null là để nguyên, chuỗi rỗng là xoá.
+     */
+    @Transactional
+    public void updateOwnProfile(Long schoolId, String address, String moetCode) {
+        // Đọc qua phạm vi ĐỌC (trường luôn thấy chính mình); không qua phạm vi ghi của `schools` — xem javadoc.
+        School school = get(schoolId);
+        if (address != null) {
+            school.setAddress(trimToNull(address));
+        }
+        if (moetCode != null) {
+            school.setMoetCode(trimToNull(moetCode));
+        }
     }
 
     /** Trường mà người gọi được SỬA — 404 nếu ngoài phạm vi ghi. */
@@ -122,9 +136,6 @@ public class SchoolService {
         if (request.educationLevel() != null && request.educationLevel().id() != null) {
             school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
         }
-        if (request.schoolType() != null && request.schoolType().id() != null) {
-            school.setSchoolType(schoolTypes.get(request.schoolType().id()));
-        }
         String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
         if (shortCode != null) {
             requireShortCodeAvailable(shortCode, null);
@@ -136,8 +147,8 @@ public class SchoolService {
         }
         school.setAddress(trimToNull(request.address()));
         school.setPrimaryColor(trimToNull(request.primaryColor()));
-        school.setClassCount(request.classCount());
-        school.setStudentCount(request.studentCount());
+        school.setLandArea(request.landArea());
+        school.setConstructionArea(request.constructionArea());
         school.setStatus(request.status());
 
         School saved = repository.persist(school);
@@ -189,8 +200,8 @@ public class SchoolService {
         // Ba trạng thái như mọi tham chiếu khác: vắng mặt giữ nguyên,
         // {"id": null} gỡ về chưa xác định, {"id": n} gán.
         if (request.departmentOfEducation() != null) {
-            Long departmentId = request.departmentOfEducation().id();
-            school.setDepartmentOfEducation(departmentId == null ? null : departments.get(departmentId));
+            school.setDepartmentOfEducation(
+                    departments.get(request.departmentOfEducation().id()));
             // Người dùng tự chọn thì chính họ là nguồn, và nó đè lên mọi suy
             // luận trước đó — giữ lại nhãn "gán theo quận cũ" sau khi có người
             // sửa tay sẽ gọi một dữ liệu đã đúng là đáng ngờ.
@@ -203,20 +214,12 @@ public class SchoolService {
             EducationLevel level = levelId == null ? null : educationLevels.get(levelId);
             school.setEducationLevel(level);
         }
-        if (request.schoolType() != null) {
-            Long typeId = request.schoolType().id();
-            school.setSchoolType(typeId == null ? null : schoolTypes.get(typeId));
-        }
         if (request.shortCode() != null) {
             String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
-            // Để trống KHÔNG xoá mã: mã hai ký tự là phần TR của mã tài sản, trường mất nó thì không cấp
-            // được mã thiết bị nữa. Trống = giữ mã đang có; trường chưa có mã thì hệ thống cấp như lúc tạo.
             if (shortCode != null) {
                 requireShortCodeAvailable(shortCode, school.getId());
-                school.setShortCode(shortCode);
-            } else if (school.getShortCode() == null) {
-                school.setShortCode(nextShortCode());
             }
+            school.setShortCode(shortCode);
         }
         if (request.moetCode() != null) {
             school.setMoetCode(trimToNull(request.moetCode()));
@@ -231,11 +234,11 @@ public class SchoolService {
         if (request.primaryColor() != null) {
             school.setPrimaryColor(trimToNull(request.primaryColor()));
         }
-        if (request.classCount() != null) {
-            school.setClassCount(request.classCount());
+        if (request.landArea() != null) {
+            school.setLandArea(request.landArea());
         }
-        if (request.studentCount() != null) {
-            school.setStudentCount(request.studentCount());
+        if (request.constructionArea() != null) {
+            school.setConstructionArea(request.constructionArea());
         }
         if (request.status() != null) {
             school.setStatus(request.status());
