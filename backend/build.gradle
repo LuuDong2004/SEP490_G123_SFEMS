@@ -65,6 +65,20 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+// Mockito nạp làm javaagent ngay khi JVM chạy test, thay vì tự gắn lúc chạy — JDK 21+ cảnh báo (và bản sau sẽ chặn)
+// việc nạp agent động: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+configurations {
+    mockitoAgent
+}
+
+dependencies {
+    mockitoAgent('org.mockito:mockito-core') {
+        transitive = false
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    // -Xshare:off: agent nạp lúc khởi động làm CDS báo "Sharing is only supported for boot loader classes".
+    jvmArgs("-javaagent:${configurations.mockitoAgent.asPath}", '-Xshare:off')
 }
