@@ -22,6 +22,8 @@ export type DetailField = {
   label: string;
   kind: DetailFieldKind;
   max?: number;
+  /** Độ dài tối thiểu khi có khai (vd. họ tên 2–100) — cùng `min` của cấu hình ở máy chủ. */
+  min?: number;
   /** Kiểu chuẩn của ô chữ (`FieldRule` ở máy chủ) — vắng: một dòng SHORT_TEXT, nhiều dòng LONG_TEXT. */
   rule?: string;
   /** `"past"`: ngày của việc đã xảy ra, không sau hôm nay. */
@@ -38,6 +40,10 @@ export type DetailField = {
   resource?: string;
   /** Trường của một giai đoạn sau (vd. "return" — lúc trả), không của form lập phiếu. */
   stage?: string;
+  /** Chữ mờ trong ô — ví dụ giá trị để người nhập hiểu phải ghi gì (vắng: "Nhập" / "Nhập số"). */
+  placeholder?: string;
+  /** Cột của bảng con: bề rộng tương đối (mặc định 1) — cột tên dài cho 2. */
+  grow?: number;
 };
 
 export type DetailSection = {

@@ -11,13 +11,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Phần chung trong DTO của mọi phiếu. Mỗi DTO gắn nó bằng {@code @JsonUnwrapped}, nên trên đường
- * truyền các trường này nằm phẳng cạnh trường riêng của phiếu — đúng hình {@code VoucherBase} mà
- * màn hình đọc ({@code domains/voucher/types.ts}).
- *
- * <pre>{@code
- * public record EquipmentIntakeResponse(@JsonUnwrapped VoucherHeader header, LocalDate intakeDate, ...) {}
- * }</pre>
+ * Phần chung trong DTO của mọi phiếu. Mỗi DTO gắn nó bằng {@code @JsonUnwrapped},
+ * nên trên đường truyền các trường này nằm phẳng cạnh trường riêng của phiếu —
+ * đúng hình {@code VoucherBase} mà màn hình đọc.
  */
 public record VoucherHeader(
         Long id,
@@ -31,6 +27,7 @@ public record VoucherHeader(
         String returnNote,
         String rejectReason,
         String note,
+        java.util.Map<String, Object> details,
         Instant createdAt,
         Instant updatedAt,
         @JsonProperty("_can") Map<String, Boolean> can,
@@ -40,7 +37,7 @@ public record VoucherHeader(
         return new VoucherHeader(voucher.getId(), voucher.getCode(), school(voucher.getSchool()),
                 voucher.getStatus(), voucher.getApprovalStep(), voucher.getSubmittedAt(),
                 voucher.getCompletedAt(), voucher.getCancelReason(), voucher.getReturnNote(),
-                voucher.getRejectReason(), voucher.getNote(),
+                voucher.getRejectReason(), voucher.getNote(), VoucherForms.read(voucher.getDetails()),
                 voucher.getCreatedAt(), voucher.getUpdatedAt(),
                 can, actions);
     }

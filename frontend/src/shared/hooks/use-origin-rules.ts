@@ -22,7 +22,7 @@ export function useOriginRules(enabled = true) {
   });
   const { data } = useQuery({
     queryKey: ["origin_sources", "rules"],
-    queryFn: () => kyInstance.get("origin_sources/rules").json<OriginRule[]>(),
+    queryFn: ({ signal }) => kyInstance.get("origin_sources/rules", { signal }).json<OriginRule[]>(),
     enabled,
     staleTime: 30 * 60_000,
   });

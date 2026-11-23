@@ -3,8 +3,9 @@
 import { useState, type ReactNode } from "react";
 import type { BaseRecord, HttpError } from "@refinedev/core";
 import {
+  useCan,
   useExport,
-  useNotification,
+  useGo,
   useResourceParams,
   useTranslate,
 } from "@refinedev/core";
@@ -21,6 +22,7 @@ import {
   UploadIcon,
 } from "lucide-react";
 
+import { describeFilters, logExport } from "@/shared/api/export-log";
 import { Button } from "@/shared/ui/button";
 import { useColumnsKey, writeColumnPrefs } from "@/shared/components/data-table/column-prefs";
 import {
@@ -41,6 +43,7 @@ import {
   TooltipTrigger,
 } from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
+import { safeDownloadName } from "@/shared/lib/download-filename";
 
 /* --------------------------------------------------------------------------
    Refresh
@@ -118,7 +121,7 @@ export function DataTableColumnToggle<TData extends BaseRecord>({
   const columnsKey = useColumnsKey(table);
   const columns = table.reactTable
     .getAllLeafColumns()
-    .filter((column) => column.getCanHide() && column.id !== "actions");
+    .filter((column) => column.getCanHide() && column.id !== "actions" && column.id !== "select");
 
   if (columns.length === 0) return null;
 
@@ -206,11 +209,20 @@ function toField(value: unknown): string {
   return String(value);
 }
 
+/**
+ * Chặn chèn công thức: ô bắt đầu bằng = + - @ (hoặc tab, xuống dòng) Excel đọc thành công thức —
+ * một tên "=HYPERLINK(…)" ai đó gõ vào sẽ chạy trên máy người mở tệp. Thêm dấu ' phía trước để
+ * nó là chữ. Số âm ("-5", "-1.5") giữ nguyên.
+ */
+function neutralize(field: string): string {
+  return /^[=+\-@\t\r]/.test(field) && !/^-\d+([.,]\d+)?$/.test(field) ? `'${field}` : field;
+}
+
 /** RFC 4180: quote the field and double any quote inside it. */
 function toCsv(rows: string[][]): string {
   return rows
     .map((row) =>
-      row.map((field) => `"${field.replace(/"/g, '""')}"`).join(",")
+      row.map((field) => `"${neutralize(field).replace(/"/g, '""')}"`).join(",")
     )
     .join("\r\n");
 }
@@ -256,6 +268,7 @@ function useTableExport<TData extends BaseRecord>(
   // cả" đi đọc tài nguyên của trang với bộ lọc của bảng kia.
   const override = (table.reactTable.options.meta as { exportResource?: string } | undefined)?.exportResource;
   const name = override ?? identifier ?? resource?.name ?? "export";
+  const filename = safeDownloadName(override === "equipment_items" ? "Danh sách thiết bị" : resource?.meta?.label ?? "Dữ liệu");
   const { filters, sorters } = table.refineCore;
 
   const { triggerExport, isLoading } = useExport<TData>({
@@ -264,7 +277,7 @@ function useTableExport<TData extends BaseRecord>(
     sorters,
     // `download` and `useBom` both default to true, which is what writes the
     // file and what makes Excel read it back as UTF-8.
-    filename: name,
+    filename,
     // `_can` is the row-level flag object the API stamps on each row so the
     // UI knows which buttons to offer. It is plumbing, and in a spreadsheet it
     // is a column of `[object Object]`.
@@ -287,10 +300,20 @@ function useTableExport<TData extends BaseRecord>(
         columns.map((column) => toField(row.getValue(column.id)))
       );
 
-    download(`${name}-page.csv`, toCsv([head, ...body]));
+    download(`${filename} - trang đang xem.csv`, toCsv([head, ...body]));
+    logExport({ resource: name, format: "CSV", rows: body.length, detail: describe("Trang đang xem") });
   };
 
-  return { exportPage, exportAll: () => void triggerExport(), isLoading };
+  // Nhật ký hoạt động: xuất CSV chạy trên trình duyệt, máy chủ không thấy — báo lên kèm bộ lọc và số dòng.
+  const total = table.refineCore.tableQuery.data?.total;
+  const describe = (what: string) => [what, describeFilters(filters)].filter(Boolean).join(" · ");
+  const exportAll = () => {
+    void triggerExport().then(() =>
+      logExport({ resource: name, format: "CSV", rows: total, detail: describe("Mọi dòng khớp bộ lọc") }))
+      .catch(() => undefined);
+  };
+
+  return { exportPage, exportAll, isLoading };
 }
 
 export function DataTableExport<TData extends BaseRecord>({
@@ -359,6 +382,9 @@ export function DataTableExport<TData extends BaseRecord>({
  * Excel. Nhập Excel chưa có nên báo "sắp có", như bản Jmix làm với màn chưa
  * triển khai.
  */
+/** Dữ liệu nhập được qua màn Nhập dữ liệu đầu vào (dữ liệu của trường, danh sách trường, phường/xã). */
+const IMPORTABLE = new Set(["equipment", "rooms", "buildings", "campuses", "staff", "school_classes", "schools", "wards"]);
+
 export function DataTableMoreActions<TData extends BaseRecord>({
   table,
   className,
@@ -370,13 +396,18 @@ export function DataTableMoreActions<TData extends BaseRecord>({
   extraItems?: ReactNode;
 }) {
   const t = useTranslate();
-  const { open: notify } = useNotification();
   const { tableQuery } = table.refineCore;
+  // Nhập Excel đi qua MỘT chỗ — màn Nhập dữ liệu đầu vào (vùng chờ, sửa lỗi rồi mới ghi). Chỉ hiện ở màn có dữ liệu
+  // nhập được qua đó, và khi tài khoản vào được màn đó.
+  const go = useGo();
+  const { resource } = useResourceParams();
+  const mayImport = useCan({ resource: "data_imports", action: "list" }).data?.can ?? false;
+  const importable = mayImport && IMPORTABLE.has(resource?.name ?? "");
   const { exportPage, exportAll, isLoading } = useTableExport(table);
   // Đổi key để trình duyệt chạy lại animation mỗi lần bấm.
   const [spin, setSpin] = useState(0);
   // Chọn cột hiển thị nằm TRONG menu này — không còn là một nút riêng trên hàng công cụ.
-  const columns = table.reactTable.getAllLeafColumns().filter((column) => column.getCanHide() && column.id !== "actions");
+  const columns = table.reactTable.getAllLeafColumns().filter((column) => column.getCanHide() && column.id !== "actions" && column.id !== "select");
   const hidden = columns.filter((column) => !column.getIsVisible()).length;
   const columnsKey = useColumnsKey(table);
 
@@ -448,18 +479,12 @@ export function DataTableMoreActions<TData extends BaseRecord>({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
-        <DropdownMenuItem
-          onSelect={() =>
-            notify?.({
-              type: "success",
-              message: t("buttons.importExcel", "Nhập Excel"),
-              description: t("notifications.comingSoon", "Tính năng đang được phát triển."),
-            })
-          }
-        >
-          <UploadIcon />
-          {t("buttons.importExcel", "Nhập Excel")}
-        </DropdownMenuItem>
+        {importable ? (
+          <DropdownMenuItem onSelect={() => go({ to: "/data-imports" })}>
+            <UploadIcon />
+            {t("buttons.importExcel", "Nhập Excel")}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="gap-2 [&_svg]:size-4 [&_svg]:text-muted-foreground">
             <DatabaseIcon />

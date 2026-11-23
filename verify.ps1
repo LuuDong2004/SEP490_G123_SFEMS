@@ -22,6 +22,7 @@ function Step($name, $dir, [scriptblock]$cmd) {
 Step "Frontend: kiem kieu (tsc)"        "frontend" { npx tsc --noEmit }
 Step "Frontend: lint (eslint)"           "frontend" { npx eslint . --quiet }
 Step "Frontend: luat tang (verify:arch)" "frontend" { npm run --silent verify:arch }
+Step "Frontend: bang cong (verify:portal)" "frontend" { npm run --silent verify:portal }
 Step "Backend: bien dich (gradle)"       "backend"  { .\gradlew.bat compileJava --quiet --console=plain }
 
 Write-Host ""

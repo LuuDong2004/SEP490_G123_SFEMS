@@ -1,0 +1,52 @@
+{
+ "resource": "procurement_plans",
+ "sections": [
+  {
+   "title": "Thông tin kế hoạch",
+   "fields": [
+    {
+     "key": "educationLevel",
+     "label": "Cấp học",
+     "kind": "text",
+     "max": 50
+    }
+   ]
+  },
+  {
+   "title": "Trình duyệt và phê duyệt",
+   "fields": [
+    {
+     "key": "submittedTo",
+     "label": "Cơ quan chủ quản",
+     "kind": "text",
+     "max": 255,
+     "wide": true
+    },
+    {
+     "key": "submittedDate",
+     "label": "Ngày gửi",
+     "kind": "date"
+    },
+    {
+     "key": "approvalLevel",
+     "label": "Cấp phê duyệt",
+     "kind": "text",
+     "max": 100
+    },
+    {
+     "key": "approvalDocNo",
+     "label": "Số văn bản phê duyệt",
+     "kind": "text",
+     "max": 100,
+     "wide": true
+    }
+   ]
+  }
+ ],
+ "line": [],
+ "lineTables": {},
+ "retired": [
+  "schoolYear"
+ ],
+ "enums": {}
+}

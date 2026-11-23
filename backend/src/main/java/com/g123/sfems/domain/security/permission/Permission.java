@@ -2,6 +2,8 @@ package com.g123.sfems.domain.security.permission;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -50,6 +52,11 @@ public class Permission {
     @Column(name = "system_permission", nullable = false)
     private boolean systemPermission;
 
+    /** Loại vai được mang quyền này (changelog 235). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope", nullable = false, length = 16)
+    private PermissionScope scope = PermissionScope.ORGANIZATION;
+
     protected Permission() {
         // for JPA
     }
@@ -79,6 +86,10 @@ public class Permission {
 
     public boolean isSystemPermission() {
         return systemPermission;
+    }
+
+    public PermissionScope getScope() {
+        return scope;
     }
 
     /**

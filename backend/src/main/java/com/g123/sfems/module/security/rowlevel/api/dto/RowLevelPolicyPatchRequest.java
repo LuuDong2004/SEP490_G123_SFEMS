@@ -1,5 +1,7 @@
 package com.g123.sfems.module.security.rowlevel.api.dto;
 
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.Size;
 import tools.jackson.databind.JsonNode;
 
@@ -15,9 +17,9 @@ import tools.jackson.databind.JsonNode;
 public record RowLevelPolicyPatchRequest(
         RoleRef role,
         @Size(max = 16) String action,
-        @Size(max = 160) String name,
+        @Text(value = FieldRule.NAME, label = "Tên", max = 160) String name,
         @Size(max = 64) String policyGroup,
-        @Size(max = 500) String description,
+        @Text(value = FieldRule.NOTE, label = "Mô tả") String description,
         JsonNode scope,
         /**
          * The {@code WITH CHECK} clause, for a {@code write} policy: what the row

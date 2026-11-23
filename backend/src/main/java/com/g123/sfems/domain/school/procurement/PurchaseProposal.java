@@ -1,6 +1,8 @@
 package com.g123.sfems.domain.school.procurement;
 
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
+import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
 import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.CascadeType;
@@ -22,11 +24,12 @@ import java.util.Objects;
 import org.hibernate.annotations.BatchSize;
 
 /**
- * Đề xuất mua sắm của một trường (NC-01..NC-04).
+ * Đề xuất mua sắm của một trường.
  *
- * <p>Hai bước duyệt: lãnh đạo trường, rồi Sở ({@code ApprovalFlowType.PURCHASE_PROPOSALS}). Duyệt xong
- * đề xuất CHƯA có tiền — nó chờ được đưa vào kế hoạch mua sắm của Sở ({@link ProcurementPlan}). Kế hoạch
- * được duyệt thì đề xuất hoàn tất, và từ đó trường lập phiếu nhập khi hàng về.
+ * <p>Hai bước duyệt: lãnh đạo trường, rồi cơ quan quản lý (UBND với Tiểu học,
+ * THCS; Sở với THPT). Duyệt xong đề xuất CHƯA có tiền — nó chờ được đưa vào kế
+ * hoạch mua sắm của cơ quan quản lý. Kế hoạch được duyệt thì đề xuất hoàn tất, và
+ * từ đó trường lập phiếu nhập khi hàng về.
  */
 @RowLevelResource("purchase_proposals")
 @Entity
@@ -60,11 +63,6 @@ public class PurchaseProposal extends SchoolVoucher {
     private List<PurchaseProposalLine> lines = new ArrayList<>();
 
     @Override
-    public String resource() {
-        return "purchase_proposals";
-    }
-
-    @Override
     public String numberPrefix() {
         return "MS";
     }
@@ -73,6 +71,12 @@ public class PurchaseProposal extends SchoolVoucher {
     public LocalDate documentDate() {
         return proposalDate;
     }
+
+    @Override
+    public List<ApprovalStep> approvalChain() {
+        return ApprovalFlowType.PURCHASE_PROPOSALS.defaultSteps();
+    }
+
 
     @Override
     public BigDecimal approvalAmount() {
@@ -138,11 +142,9 @@ public class PurchaseProposal extends SchoolVoucher {
 
     public void replaceLines(List<PurchaseProposalLine> replacement) {
         lines.clear();
-        if (replacement != null) {
-            for (PurchaseProposalLine line : replacement) {
-                line.setProposal(this);
-                lines.add(line);
-            }
+        for (PurchaseProposalLine line : replacement) {
+            line.setProposal(this);
+            lines.add(line);
         }
     }
 }

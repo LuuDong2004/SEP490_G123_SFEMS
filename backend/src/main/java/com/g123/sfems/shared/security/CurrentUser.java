@@ -1,5 +1,6 @@
 package com.g123.sfems.shared.security;
 
+import com.g123.sfems.domain.security.user.UserType;
 import java.util.Optional;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,6 +40,17 @@ public final class CurrentUser {
 
     public static Optional<String> username() {
         return jwt().map(token -> token.getClaimAsString(JwtService.CLAIM_USERNAME));
+    }
+
+    /** Loại tài khoản đọc từ token (claim {@code userType}); token cũ chưa có claim thì rỗng. */
+    public static Optional<UserType> userType() {
+        return jwt().map(token -> token.getClaimAsString(JwtService.CLAIM_USER_TYPE)).map(value -> {
+            try {
+                return UserType.valueOf(value);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        });
     }
 
     /** True when the request carries a specific permission code. */

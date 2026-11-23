@@ -38,4 +38,7 @@ i18n.use(initReactI18next).init({
   returnEmptyString: false,
 });
 
+// `{{resource, lower}}`: tên danh mục viết thường giữa câu — "Đã thêm phòng", không "Đã thêm Phòng" (M2-09).
+i18n.services.formatter?.add("lower", (value) => (typeof value === "string" ? value.toLocaleLowerCase("vi") : value));
+
 export default i18n;

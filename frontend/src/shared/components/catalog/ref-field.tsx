@@ -1,7 +1,9 @@
+import { lowerLabel } from "@/shared/lib/label";
 import { EquipmentCatalogPicker } from "@/shared/components/catalog/equipment-catalog-picker";
 import { StaffPicker, type StaffPrefer, type StaffRow } from "@/shared/components/catalog/staff-picker";
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { FormHint } from "@/shared/components/form/help-hint";
+import { SEARCH_THRESHOLD, SearchSelect } from "@/shared/components/form/search-select";
 import { useCan, useSelect, type CrudFilter } from "@refinedev/core";
 import { useMemo } from "react";
 import type { Control } from "react-hook-form";
@@ -51,6 +53,7 @@ export function RefField({
   label,
   current,
   required,
+  validate,
   filters,
   className,
   hideLabel,
@@ -68,6 +71,8 @@ export function RefField({
   label: string;
   current?: RefValue;
   required?: boolean;
+  /** Luật riêng của ô (vd. khác ô khác); trả chuỗi là câu báo lỗi. */
+  validate?: (value: any, values: any) => true | string;
   filters?: CrudFilter[];
   className?: string;
   /** Nhãn chỉ cho trình đọc màn hình — ô nằm trong một khung đã có tiêu đề riêng. */
@@ -123,7 +128,7 @@ export function RefField({
     <FormField
       control={control}
       name={`${name}.id`}
-      rules={required ? { required: `Chọn ${label.toLowerCase()}` } : undefined}
+      rules={required || validate ? { ...(required ? { required: `Vui lòng chọn ${lowerLabel(label)}` } : {}), ...(validate ? { validate } : {}) } : undefined}
       render={({ field, fieldState }) => (
         <FormItem className={className}>
           <FormLabel className={hideLabel ? "sr-only" : undefined}>
@@ -169,12 +174,30 @@ export function RefField({
               onPick={(row) => onPicked?.(row)}
               labelOf={(s) => s.name}
               fallbackLabel={current?.id === Number(field.value) ? current?.name : null}
-              placeholder={lockedHint ?? placeholder ?? `Vui lòng chọn ${label.toLowerCase()}`}
+              placeholder={lockedHint ?? placeholder ?? `Vui lòng chọn ${lowerLabel(label)}`}
               searchPlaceholder="Gõ tên hoặc mã trường..."
               clearable={!required}
               clearLabel="Bỏ chọn"
               disabled={!!lockedHint}
               invalid={!!fieldState.error}
+            />
+          ) : items.length > SEARCH_THRESHOLD ? (
+            // Danh sách dài (loại CSVC, môn…): ô chọn có ô tìm — cuộn tìm trong vài chục dòng là chậm và dễ sót.
+            <SearchSelect
+              options={items}
+              value={field.value == null ? null : String(field.value)}
+              onChange={(value) => {
+                const id = value == null ? null : Number(value);
+                field.onChange(id);
+                if (onPicked && id != null) {
+                  const rows: any[] = (selectQuery?.data?.data as any[]) ?? [];
+                  onPicked(rows.find((r) => r.id === id) ?? { id });
+                }
+              }}
+              placeholder={lockedHint ?? placeholder ?? `Vui lòng chọn ${lowerLabel(label)}`}
+              disabled={!!lockedHint}
+              invalid={!!fieldState.error}
+              clearLabel={required ? undefined : "Bỏ chọn"}
             />
           ) : (
           <Select
@@ -184,8 +207,11 @@ export function RefField({
               // nào mang value rỗng nên "" không bao giờ là lựa chọn thật; nhận vào là ghi đè giá trị bằng 0.
               if (value === "") return;
               const id = value === NONE ? null : Number(value);
+              // Radix cũng bắn lại đúng giá trị đang có khi danh sách về — không phải người dùng chọn, không gọi onPicked
+              // (form phòng xoá tầng khi đổi khối nhà: bắn nhầm thì mở Sửa là mất tầng).
+              const same = id != null && field.value != null && String(field.value) === String(id);
               field.onChange(id);
-              if (onPicked && id != null) {
+              if (onPicked && id != null && !same) {
                 const rows: any[] = (selectQuery?.data?.data as any[]) ?? [];
                 onPicked(rows.find((r) => r.id === id) ?? { id });
               }
@@ -194,7 +220,7 @@ export function RefField({
           >
             <FormControl>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={lockedHint ?? placeholder ?? `Vui lòng chọn ${label.toLowerCase()}`} />
+                <SelectValue placeholder={lockedHint ?? placeholder ?? `Vui lòng chọn ${lowerLabel(label)}`} />
               </SelectTrigger>
             </FormControl>
             {/* Phải chặn chiều cao bằng tay. `SelectContent` của shadcn dùng

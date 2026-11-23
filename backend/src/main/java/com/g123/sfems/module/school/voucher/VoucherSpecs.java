@@ -8,18 +8,22 @@ import java.time.format.DateTimeParseException;
 import org.springframework.data.jpa.domain.Specification;
 
 /**
- * Các mảnh bộ lọc mọi danh sách phiếu đều cần: chữ, trạng thái, bước duyệt, ngày. Mỗi loại phiếu ghép
- * chúng với các trường riêng của nó trong {@code filters(params)}.
+ * Các mảnh bộ lọc mọi danh sách phiếu đều cần: chữ, trạng thái, bước duyệt,
+ * ngày. Mỗi loại phiếu ghép chúng với các trường riêng của nó.
  *
- * <p>Giá trị không đọc được (một trạng thái lạ, một ngày sai định dạng) là một câu hỏi hợp lệ có câu
- * trả lời rỗng, không phải lỗi 400.
+ * <p>Giá trị không đọc được (một trạng thái lạ, một ngày sai định dạng) là một
+ * câu hỏi hợp lệ có câu trả lời rỗng, không phải lỗi 400: lỗi thì bảng trống
+ * TRẮNG, rỗng thì bảng nói "không có phiếu nào".
  */
 public final class VoucherSpecs {
 
     private VoucherSpecs() {
     }
 
-    /** Bộ lọc chung của mọi phiếu, hoặc {@code null} nếu trường lọc là trường riêng của loại phiếu. */
+    /**
+     * Bộ lọc chung của mọi phiếu, hoặc {@code null} nếu trường lọc không phải
+     * trường chung — để service từng loại phiếu xử lý tiếp.
+     */
     public static <T> Specification<T> common(ListParams.Criterion criterion) {
         return switch (criterion.field()) {
             case "code" -> text("code", criterion);
@@ -33,7 +37,7 @@ public final class VoucherSpecs {
         String value = criterion.value();
         return switch (criterion.operator()) {
             case LIKE -> (root, query, cb) ->
-                    cb.like(cb.lower(root.get(attribute)), ListParams.likePattern(value));
+                    ListParams.foldedLike(cb, root.get(attribute), value);
             case NE -> (root, query, cb) -> cb.notEqual(root.get(attribute), value);
             default -> (root, query, cb) -> cb.equal(root.get(attribute), value);
         };

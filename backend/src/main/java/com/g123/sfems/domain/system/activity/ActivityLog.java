@@ -50,6 +50,17 @@ public class ActivityLog {
     @Column(length = 64)
     private String ip;
 
+    /** Lần xuất: XLSX (máy chủ), PDF hoặc CSV (trình duyệt báo lên). Thao tác khác: trống. */
+    @Column(name = "export_format", length = 10)
+    private String exportFormat;
+
+    @Column(name = "row_count")
+    private Integer rowCount;
+
+    /** Lần xuất: phạm vi / bộ lọc của dữ liệu đã xuất. */
+    @Column(length = 1000)
+    private String detail;
+
     public Long getId() {
         return id;
     }
@@ -92,5 +103,17 @@ public class ActivityLog {
 
     public String getIp() {
         return ip;
+    }
+
+    public String getExportFormat() {
+        return exportFormat;
+    }
+
+    public Integer getRowCount() {
+        return rowCount;
+    }
+
+    public String getDetail() {
+        return detail;
     }
 }

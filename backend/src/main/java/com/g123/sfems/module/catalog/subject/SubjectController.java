@@ -6,9 +6,11 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/subjects} — mã quyền {@code subjects:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/subjects")
-public class SubjectController extends CatalogController<Subject, SubjectRequest, SubjectPatchRequest> {
+public class SubjectController
+        extends CatalogController<Subject, SubjectRequest, SubjectPatchRequest> {
 
     public SubjectController(SubjectService service, RowLevelSecurity rowLevel) {
         super(service, rowLevel);

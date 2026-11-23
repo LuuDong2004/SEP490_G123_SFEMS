@@ -1,13 +1,22 @@
 package com.g123.sfems.module.school.procurement;
 
+import com.g123.sfems.shared.web.HeavyQuery;
+import com.g123.sfems.domain.school.intake.EquipmentIntake;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.module.school.voucher.VoucherController;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.security.CurrentUser;
+import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,28 +26,26 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/purchase_proposals} — đề xuất mua sắm (NC-02..NC-07). Năm endpoint CRUD và các bước duyệt
- * ({@code submit|approve|return|reject|cancel}) lấy từ {@link VoucherController}; ở đây thêm:
- *
+ * {@code /api/purchase_proposals} — đề xuất mua sắm; thêm:
  * <ul>
- *   <li>{@code GET /adequacy?schoolId=} — mức đáp ứng định mức của một trường (NC-01),</li>
- *   <li>{@code GET /adequacy-summary} — tổng hợp mọi trường người xem được thấy,</li>
- *   <li>{@code GET /overlaps} — thiết bị đang được xin ở các đề xuất còn hiệu lực khác của trường,</li>
- *   <li>{@code GET /{id}/intake-lines} và {@code POST /{id}/intake} — hàng về, lập phiếu nhập nháp từ đề
- *       xuất (NC-07, xem ghi chú ở {@link PurchaseProposalService}).</li>
+ *   <li>{@code GET /adequacy?schoolId=} — mức đáp ứng định mức của một trường,</li>
+ *   <li>{@code GET /adequacy-summary} — tổng hợp mọi trường người xem được thấy (theo cấp học, dải tỷ
+ *       lệ, môn, và cân đối thừa - thiếu theo thiết bị); {@code .xlsx} của cả hai,</li>
+ *   <li>{@code GET /adequacy-catalog?catalogId=} — một thiết bị, trường nào thiếu, trường nào thừa,</li>
+ *   <li>{@code POST /{id}/intake} — hàng về, lập phiếu nhập nháp từ đề xuất.</li>
  * </ul>
- *
- * <p>Hai đường dẫn chữ ({@code adequacy}, {@code adequacy-summary}, {@code overlaps}) khai trước
- * {@code /{id}} để thắng biến đường dẫn.
- *
- * <p>Bản gốc gắn {@code @HeavyQuery} cho {@code adequacy-summary} và có thêm ba đường Excel. Repo nhóm
- * chưa có {@code HeavyQuery} lẫn {@code shared/office/XlsxWriter} (đều là {@code shared/**}), nên ở đây
- * bỏ hai thứ đó; phần xuất Excel làm sau khi nhóm có bộ ghi tệp dùng chung.
+ * Hai đường dẫn chữ khai trước {@code /{id}} để thắng biến đường dẫn.
  */
 @RestController
 @RequestMapping("/api/purchase_proposals")
 public class PurchaseProposalController
         extends VoucherController<PurchaseProposal, PurchaseProposalApi.Request, PurchaseProposalApi.Patch> {
+
+    public record IntakeCreated(Long intakeId) {
+    }
+
+    private static final MediaType XLSX = MediaType
+            .parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
     private final PurchaseProposalService proposals;
     private final AdequacyService adequacy;
@@ -50,21 +57,40 @@ public class PurchaseProposalController
         this.adequacy = adequacy;
     }
 
-    // ------------------------------------------------------------------ NC-01: mức đáp ứng định mức
-
     @GetMapping("/adequacy")
-    @PreAuthorize("hasAuthority('purchase_proposals:read')")
-    public AdequacyService.SchoolAdequacy adequacy(@RequestParam(required = false) Long schoolId) {
-        return adequacy.forSchool(resolveSchool(schoolId));
+    public AdequacyService.SchoolAdequacy adequacy(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        require("read");
+        return adequacy.forSchool(resolveSchool(schoolId), campusId);
     }
 
+    @GetMapping("/adequacy.xlsx")
+    public ResponseEntity<byte[]> adequacyExcel(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        require("read");
+        AdequacyService.SchoolAdequacy a = adequacy.forSchool(resolveSchool(schoolId), campusId);
+        return xlsx("Thiết bị tối thiểu - " + a.schoolCode() + ".xlsx", AdequacyExcel.school(a));
+    }
+
+    @HeavyQuery
     @GetMapping("/adequacy-summary")
-    @PreAuthorize("hasAuthority('purchase_proposals:read')")
-    public AdequacyService.Summary adequacySummary() {
-        return adequacy.summary();
+    public AdequacyService.Summary adequacySummary(@RequestParam(required = false) Long campusId) {
+        require("read");
+        return adequacy.summary(campusId);
     }
 
-    // ------------------------------------------------------------------ NC-02..04: đề xuất
+    @GetMapping("/adequacy-summary.xlsx")
+    public ResponseEntity<byte[]> adequacySummaryExcel(@RequestParam(required = false) Long campusId) {
+        require("read");
+        return xlsx("Đáp ứng thiết bị tối thiểu.xlsx", AdequacyExcel.summary(adequacy.summary(campusId)));
+    }
+
+    /** Một thiết bị: trường nào thiếu, trường nào thừa — để cân đối trên địa bàn. */
+    @GetMapping("/adequacy-catalog")
+    public List<AdequacyService.CatalogSchool> adequacyCatalog(@RequestParam Long catalogId) {
+        require("read");
+        return adequacy.catalogSchools(catalogId);
+    }
 
     /**
      * Thiết bị đang được xin ở các đề xuất còn hiệu lực KHÁC của trường (bỏ {@code excludeId} — phiếu đang
@@ -89,16 +115,41 @@ public class PurchaseProposalController
         return visible.iterator().next();
     }
 
-    // ------------------------------------------------------------------ DTO
+    private static ResponseEntity<byte[]> xlsx(String filename, byte[] body) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build().toString())
+                .contentType(XLSX)
+                .body(body);
+    }
 
-    /** Chi tiết kèm mảng dòng; danh sách chỉ kèm các con số tổng. */
-    @Override
-    protected Object toResponse(PurchaseProposal voucher, Map<String, Boolean> can, Set<String> actions) {
-        return PurchaseProposalApi.Response.from(voucher, can, actions);
+    /**
+     * Lập phiếu ghi tăng nháp từ đề xuất. Việc này TẠO một phiếu ghi tăng, nên ngoài quyền ghi đề xuất còn
+     * phải có quyền ghi phiếu ghi tăng — không thì ai chỉ được lập đề xuất cũng lập được phiếu ghi tăng.
+     */
+    @PostMapping("/{id}/intake")
+    public IntakeCreated createIntake(@PathVariable Long id, @Valid @RequestBody(required = false) IntakeRequest request) {
+        require("write");
+        if (!CurrentUser.has("equipment_intakes:write")) {
+            throw new AccessDeniedException("equipment_intakes:write");
+        }
+        EquipmentIntake intake = proposals.createIntake(id, request == null ? null : request.lines());
+        return new IntakeCreated(intake.getId());
+    }
+
+    /** Dòng và số nhập đợt này; vắng {@code lines} là nhập hết phần còn lại. */
+    public record IntakeRequest(@Valid List<PurchaseProposalService.IntakePick> lines) {
+    }
+
+    /** Các dòng của đề xuất với số đã nhập / còn phải nhập — hộp chọn thiết bị khi lập phiếu ghi tăng. */
+    @GetMapping("/{id}/intake-lines")
+    public List<PurchaseProposalService.IntakeLine> intakeLines(@PathVariable Long id) {
+        require("read");
+        return proposals.intakeLines(id);
     }
 
     @Override
-    protected Object toListResponse(PurchaseProposal voucher, Map<String, Boolean> can, Set<String> actions) {
-        return PurchaseProposalApi.Response.summary(voucher, can, actions);
+    protected Object toResponse(PurchaseProposal voucher, Map<String, Boolean> can, Set<String> actions) {
+        return PurchaseProposalApi.Response.from(voucher, can, actions);
     }
 }

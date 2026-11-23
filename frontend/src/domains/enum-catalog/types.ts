@@ -9,5 +9,3 @@ export const ENUM_CATALOG_RESOURCES = [
   "funding_sources",
   "staff_positions",
 ] as const;
-
-export type EnumCatalogResource = (typeof ENUM_CATALOG_RESOURCES)[number];

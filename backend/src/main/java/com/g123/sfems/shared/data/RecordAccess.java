@@ -23,6 +23,19 @@ public interface RecordAccess {
         return resource();
     }
 
+    /**
+     * Đuôi tệp nhận được, chặt hơn danh sách chung của tệp đính kèm — {@code null} = theo danh sách chung. Cán bộ
+     * chỉ có ảnh đại diện nên chỉ nhận ảnh.
+     */
+    default java.util.Set<String> allowedExtensions() {
+        return null;
+    }
+
+    /** Trần dung lượng một tệp (byte), nhỏ hơn trần chung — 0 = theo trần chung. */
+    default long maxBytes() {
+        return 0;
+    }
+
     /** Ném {@code ResourceNotFoundException} nếu bản ghi không nằm trong phạm vi ĐỌC. */
     void checkReadable(Long id);
 

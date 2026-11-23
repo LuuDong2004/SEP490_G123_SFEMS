@@ -6,17 +6,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { kyInstance } from "@/shared/api/data";
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { EditButton } from "@/shared/components/buttons/edit";
-import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
-import { errorMessage } from "@/shared/lib/api-error";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
+import { maxLengthOf, textError } from "@/shared/lib/field-rules";
+import { errorMessage } from "@/shared/lib/api-error";
 import type { VoucherAction, VoucherBase } from "@/domains/voucher/types";
 
 type WorkflowAction = "submit" | "approve" | "return" | "reject" | "cancel" | "complete";
 
-export type ActionText = {
+type ActionText = {
   label: string;
   title: string;
   description: ReactNode;
@@ -56,7 +57,7 @@ const DEFAULT_TEXT: Record<WorkflowAction, ActionText> = {
   reject: {
     label: "Từ chối",
     title: "Từ chối phiếu?",
-    description: "Phiếu dừng hẳn, không trình lại được. Dữ liệu vẫn như trước khi lập phiếu.",
+    description: "Phiếu dừng hẳn, không trình lại được. Thiết bị vẫn như trước khi lập phiếu.",
     confirm: "Từ chối",
     done: "Đã từ chối phiếu",
     note: "required",
@@ -64,7 +65,7 @@ const DEFAULT_TEXT: Record<WorkflowAction, ActionText> = {
   },
   cancel: {
     label: "Huỷ phiếu",
-    title: "Huỷ phiếu nháp?",
+    title: "Huỷ phiếu này?",
     description: 'Phiếu không bị xoá, vẫn nằm trong danh sách với trạng thái "Đã huỷ".',
     confirm: "Huỷ phiếu",
     done: "Đã huỷ phiếu",
@@ -74,7 +75,7 @@ const DEFAULT_TEXT: Record<WorkflowAction, ActionText> = {
   complete: {
     label: "Hoàn tất",
     title: "Hoàn tất phiếu?",
-    description: "Sau đó phiếu không sửa được nữa.",
+    description: "Hệ thống sẽ cập nhật thiết bị theo phiếu. Sau đó phiếu không sửa được nữa.",
     confirm: "Hoàn tất",
     done: "Đã hoàn tất phiếu",
     note: "optional",
@@ -82,7 +83,10 @@ const DEFAULT_TEXT: Record<WorkflowAction, ActionText> = {
   },
 };
 
-/** Chữ của nút "trình" khi phiếu KHÔNG qua cấp duyệt nào (`submit_direct`): bấm là hệ thống ghi nhận và khoá phiếu. */
+/**
+ * Chữ của nút "trình" khi phiếu KHÔNG qua cấp duyệt nào (`submit_direct`): không ai chờ duyệt, bấm là hệ
+ * thống ghi nhận và khoá phiếu — gọi là "Duyệt", cùng chữ với nút trên form lập phiếu.
+ */
 const DIRECT_SUBMIT_TEXT: ActionText = {
   label: "Duyệt",
   title: "Duyệt phiếu?",
@@ -101,19 +105,24 @@ const ICONS: Record<WorkflowAction, ReactNode> = {
 };
 
 /** Việc của phiếu mà màn có menu ⚙ đưa vào menu thay vì để thành nút. */
-export type TuckedAction = "cancel" | "delete";
+export type TuckedAction = "cancel" | "delete" | "reject";
 
 /**
  * Cụm nút của vòng duyệt, dùng chung cho mọi loại phiếu.
  *
- * Nút nào hiện là do SERVER nói (`_actions`), không phải màn hình tự suy ra từ trạng thái: chỉ server
- * biết người đang xem có đúng là người thuộc cấp đang chờ duyệt không.
+ * <p>Nút nào hiện là do SERVER nói ({@code _actions}), không phải màn hình tự
+ * suy ra từ trạng thái: chỉ server biết người đang xem có đúng là người thuộc cấp
+ * đang chờ duyệt không. Tự suy ra ở đây thì một lãnh đạo trường khác sẽ thấy nút
+ * "Duyệt" và bấm vào một lỗi 422.
  *
- * @param text        thay câu chữ cho loại phiếu cụ thể — vd. approve: { label: "Duyệt và ghi tăng" }
- * @param invalidates tài nguyên khác cần làm mới sau khi phiếu đổi trạng thái (thiết bị...)
- * @param tucked      màn có menu ⚙ thì Huỷ phiếu và Xoá nằm trong menu đó; menu báo việc được chọn qua
- *                    `request` và cụm này mở đúng hộp hỏi lại như khi bấm nút.
+ * @param text      thay câu chữ cho loại phiếu cụ thể — vd. "Duyệt và ghi tăng"
+ * @param invalidates tài nguyên khác cần làm mới sau khi phiếu đổi trạng thái
+ *                  (thiết bị, tồn kho...)
+ * @param tucked    màn có menu ⚙ thì đưa hai việc ÍT DÙNG và nguy hiểm — Huỷ phiếu, Xoá — vào menu đó:
+ *                  ở đây không vẽ nút của chúng, menu báo việc được chọn qua `request` và cụm này mở đúng
+ *                  hộp hỏi lại như khi bấm nút. Hàng nút chỉ còn việc chính (Sửa, Trình / Duyệt…).
  */
+
 export function VoucherActions({
   resource,
   record,
@@ -141,9 +150,9 @@ export function VoucherActions({
   const clearRequest = tucked?.clear;
   useEffect(() => {
     if (!request) return;
-    if (request === "cancel") {
+    if (request === "cancel" || request === "reject") {
       setNote("");
-      setPending("cancel");
+      setPending(request);
     } else {
       // Nút Xoá vẫn là `DeleteButton` (quyền, hộp hỏi lại, điều hướng sau khi xoá đều của nó) — chỉ ẩn đi.
       deleteButton.current?.click();
@@ -165,6 +174,12 @@ export function VoucherActions({
     const t = texts(action);
     if (t.note === "required" && !note.trim()) {
       open?.({ type: "error", message: `Hãy ghi ${t.noteLabel?.toLowerCase() ?? "lời nhắn"}` });
+      return;
+    }
+    // `VoucherController.NoteRequest`: NOTE, tối đa 500.
+    const noteProblem = textError("NOTE", t.noteLabel ?? "Ghi chú", note);
+    if (noteProblem) {
+      open?.({ type: "error", message: noteProblem });
       return;
     }
     setBusy(true);
@@ -217,7 +232,8 @@ export function VoucherActions({
         />
       ) : null}
       {button("submit", "default")}
-      {button("reject")}
+      {/* Có menu ⚙ thì Từ chối vào đó: lúc chờ duyệt hàng nút chỉ còn Trả lại · Duyệt. */}
+      {tucked ? null : button("reject")}
       {button("return")}
       {button("approve", "default")}
       {button("complete", "default")}
@@ -242,7 +258,10 @@ export function VoucherActions({
                 {current.noteLabel}
                 {current.note === "required" ? <span className="text-destructive"> *</span> : null}
               </Label>
-              <Textarea id="voucher-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+              <Textarea id="voucher-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={maxLengthOf("NOTE")} />
+              {textError("NOTE", current.noteLabel ?? "Ghi chú", note) ? (
+                <p className="text-destructive text-sm">{textError("NOTE", current.noteLabel ?? "Ghi chú", note)}</p>
+              ) : null}
             </div>
           ) : null}
         </ConfirmContent>

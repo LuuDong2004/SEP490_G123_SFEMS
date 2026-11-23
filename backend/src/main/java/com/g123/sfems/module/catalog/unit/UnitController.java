@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/units} — mã quyền {@code units:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/units")
 public class UnitController extends CatalogController<Unit, UnitRequest, UnitPatchRequest> {

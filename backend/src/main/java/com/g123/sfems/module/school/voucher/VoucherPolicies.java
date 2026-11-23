@@ -13,14 +13,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Một chính sách trên bảng phiếu được phép nói gì: {@code school} là ranh giới bảo mật, {@code status}
- * và {@code reachedStep} để viết được phạm vi theo trạng thái ("Sở chỉ thấy phiếu đã trình tới Sở").
+ * Một chính sách trên bảng phiếu được phép nói gì: {@code school} là ranh giới
+ * bảo mật, {@code status} để viết được phạm vi theo trạng thái.
  *
- * <p>Lớp con chỉ khai tên resource và kiểu entity, như {@code SchoolOwnedPolicies}.
- *
- * <p>{@code NONE}: vai trò không có phạm vi thì không thấy phiếu nào — một phạm vi bị quên hiện ra
- * thành một màn trống ai cũng báo, không phải một lỗ hổng. Phạm vi của 5 vai trò cho ba loại phiếu
- * seed ở changelog 010.
+ * <p>{@code NONE}: vai trò không có phạm vi thì không thấy phiếu nào — một phạm
+ * vi bị quên hiện ra thành một màn trống ai cũng báo, không phải một lỗ hổng.
  */
 public abstract class VoucherPolicies<V extends SchoolVoucher> implements RowLevelPolicySet<V> {
 
@@ -35,8 +32,13 @@ public abstract class VoucherPolicies<V extends SchoolVoucher> implements RowLev
                 FieldDescriptor.id("id"),
                 FieldDescriptor.reference("school", School.class),
                 FieldDescriptor.column("status", VoucherStatus.class, false),
+                // Lời nhắn lúc TRẢ LẠI: có giá trị nghĩa là phiếu đã từng được trình. Phiếu trả lại quay về
+                // DRAFT, nên chỉ `status` thì không tách được nó khỏi phiếu nháp chưa ai thấy (117).
                 FieldDescriptor.column("returnNote", String.class, true),
+                // Cấp cao nhất phiếu từng lên tới: Sở / UBND chỉ thấy phiếu đã trình tới bàn mình (125).
                 FieldDescriptor.column("reachedStep", ApprovalStep.class, true),
+                // Người lập: để một vai vừa bị ẩn phiếu nháp của người khác vừa tự lập phiếu (giáo viên
+                // đặt phòng) vẫn thấy phiếu nháp của CHÍNH MÌNH.
                 FieldDescriptor.column("createdById", Long.class, true),
                 FieldDescriptor.column("createdAt", Instant.class, false)));
         fields.addAll(extraFields());

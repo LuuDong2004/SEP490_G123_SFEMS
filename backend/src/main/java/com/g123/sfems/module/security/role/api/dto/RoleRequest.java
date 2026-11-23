@@ -1,5 +1,8 @@
 package com.g123.sfems.module.security.role.api.dto;
 
+import com.g123.sfems.domain.security.user.UserType;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -24,11 +27,14 @@ public record RoleRequest(
         String code,
 
         @NotBlank(message = "Tên là bắt buộc")
-        @Size(max = 255, message = "Tên tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên vai trò")
         String name,
 
-        @Size(max = 500, message = "Mô tả tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Mô tả")
         String description,
+
+        @NotNull(message = "Chọn loại tài khoản dùng vai")
+        UserType roleType,
 
         @NotNull(message = "Thiếu danh sách quyền")
         @Valid

@@ -1,29 +1,43 @@
-import { useMemo } from "react";
-import { useShow } from "@refinedev/core";
+import { useMemo, useState } from "react";
+import { useCan, useShow } from "@refinedev/core";
 
 import { FormPanel } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
 import { ReadField } from "@/shared/components/form/read-field";
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
-import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
-import { Badge } from "@/shared/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import {
-  ACTION_VARIANTS,
-  PERMISSION_ACTIONS,
-  actionLabel,
+  ShowView,
+  ShowViewHeader,
+} from "@/shared/components/views/show-view";
+import { Badge } from "@/shared/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/shared/components/tabs/tabs";
+import { RoleDataScopes } from "@/features/administration/roles/data-scopes";
+import {
   humanizeResource,
   splitPermissionCode,
   type PermissionSummary,
   type Role,
 } from "@/domains/role/types";
+import { USER_TYPE_LABELS } from "@/domains/user/types";
 
-/** Chi tiết vai trò (HT-05): thông tin và các quyền đã cấp, xếp theo từng chức năng. */
 export const RoleShow = () => {
   const { result: record, query } = useShow<Role>({});
   const { isLoading } = query;
 
-  // Gom theo chức năng giống cách ma trận gom, để đọc ở đây và sửa ở kia khớp nhau.
+  // Grouped the same way the picker groups them, so what you read here and what
+  // you edit there line up.
   const groups = useMemo(() => {
     const byResource = new Map<string, PermissionSummary[]>();
     for (const permission of record?.permissions ?? []) {
@@ -32,19 +46,19 @@ export const RoleShow = () => {
       if (bucket) bucket.push(permission);
       else byResource.set(resource, [permission]);
     }
-    // Trong một nhóm, xếp theo thứ tự thao tác (đọc, ghi, xoá, duyệt...) như cột của ma trận,
-    // không theo mã, vì mã xếp "delete" lên trước "read".
-    const rank = (code: string) => {
-      const index = (PERMISSION_ACTIONS as readonly string[]).indexOf(splitPermissionCode(code).action);
-      return index === -1 ? PERMISSION_ACTIONS.length : index;
-    };
-    for (const bucket of byResource.values()) {
-      bucket.sort((a, b) => rank(a.code) - rank(b.code));
-    }
-    return [...byResource.entries()].sort(([a], [b]) =>
-      humanizeResource(a).localeCompare(humanizeResource(b), "vi"),
-    );
+    return [...byResource.entries()];
   }, [record?.permissions]);
+
+  // `row_level_policies:*` is seeded to ADMIN alone. Somebody who may read a
+  // role is not necessarily somebody who may read its data scopes, so the tab
+  // is not offered rather than offered and then refused.
+  const { data: canReadScopes } = useCan({
+    resource: "row_level_policies",
+    action: "list",
+  });
+  const mayReadScopes = canReadScopes?.can ?? false;
+
+  const [tab, setTab] = useState("permissions");
 
   return (
     <ShowView>
@@ -52,73 +66,102 @@ export const RoleShow = () => {
       <LoadingOverlay loading={isLoading}>
         <FormPanel contentClassName="@container space-y-6">
           <FormSection title="Thông tin vai trò" compact>
-            <div className="grid items-start gap-x-4 gap-y-5 @md:grid-cols-2 @3xl:grid-cols-4">
+            <div className="grid items-start gap-5 @md:grid-cols-2 @3xl:grid-cols-4">
               <ReadField label="Mã">
                 <span className="font-mono">{record?.code}</span>
               </ReadField>
-              <ReadField label="Tên" className="@3xl:col-span-2">
-                {record?.name}
-              </ReadField>
+              <ReadField label="Tên">{record?.name}</ReadField>
+              <ReadField label="Dùng cho">{record?.roleType ? USER_TYPE_LABELS[record.roleType] : null}</ReadField>
               <ReadField label="Loại">
                 {record ? (
-                  record.systemRole ? (
-                    <Badge variant="secondary">Hệ thống</Badge>
-                  ) : (
-                    <Badge variant="outline">Tuỳ biến</Badge>
-                  )
+                  record.systemRole ? <Badge variant="secondary">Hệ thống</Badge> : <Badge variant="outline">Tuỳ biến</Badge>
                 ) : null}
               </ReadField>
-              <ReadField label="Mô tả" className="@md:col-span-2 @3xl:col-span-4">
-                {record?.description || null}
-              </ReadField>
+              <ReadField label="Mô tả" className="@md:col-span-2 @3xl:col-span-4">{record?.description || null}</ReadField>
             </div>
           </FormSection>
         </FormPanel>
       </LoadingOverlay>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Vai trò này được làm gì
-            <Badge variant="secondary" className="tabular-nums">
+      {/*
+        The same two tabs as the edit screen, in the same order, so that reading
+        a role and changing one are the same shape. Both halves of what a role
+        grants are here: what it may do, and which rows it may do it to.
+      */}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="permissions">
+            Quyền
+            <Badge variant="secondary" className="ml-2 tabular-nums">
               {record?.permissions?.length ?? 0}
             </Badge>
-          </CardTitle>
-          <CardDescription>Các quyền đã cấp, xếp theo từng chức năng.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LoadingOverlay loading={isLoading}>
-            {groups.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Vai trò này chưa được cấp quyền nào.</p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {groups.map(([resource, permissions]) => (
-                  <div key={resource} className="flex flex-col gap-2 rounded-lg border p-3">
-                    <span className="flex flex-col">
-                      <span className="text-sm font-semibold">{humanizeResource(resource)}</span>
-                      <span className="text-muted-foreground font-mono text-[11px]">{resource}</span>
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {permissions.map((permission) => {
-                        const { action } = splitPermissionCode(permission.code);
-                        return (
-                          <Badge
-                            key={permission.id}
-                            variant={ACTION_VARIANTS[action] ?? "outline"}
-                            title={permission.code}
-                          >
-                            {actionLabel(action)}
-                          </Badge>
-                        );
-                      })}
-                    </div>
+          </TabsTrigger>
+          {mayReadScopes && (
+            <TabsTrigger value="scopes">Phạm vi dữ liệu</TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="permissions">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vai trò này được làm gì</CardTitle>
+              <CardDescription>
+                Các quyền đã cấp, xếp theo từng chức năng.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LoadingOverlay loading={isLoading}>
+                {groups.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">
+                    Vai trò này chưa được cấp quyền nào.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {groups.map(([resource, permissions]) => (
+                      <div key={resource} className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold">
+                          {humanizeResource(resource)}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {permissions.map((permission) => (
+                            <Badge
+                              key={permission.id}
+                              variant="outline"
+                              className="font-mono text-[0.6875rem]"
+                            >
+                              {permission.code}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </LoadingOverlay>
-        </CardContent>
-      </Card>
+                )}
+              </LoadingOverlay>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {mayReadScopes && (
+          <TabsContent value="scopes">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dữ liệu vai trò này được xem / sửa</CardTitle>
+                <CardDescription>
+                  Ở đây chỉ xem. Muốn thêm hoặc đổi thì mở màn sửa vai trò.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RoleDataScopes
+                  roleId={record?.id}
+                  roleCode={record?.code}
+                  readOnly
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </ShowView>
   );
 };

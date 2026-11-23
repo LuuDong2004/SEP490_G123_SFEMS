@@ -21,7 +21,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <ul>
  *   <li><b>Ghi</b>: đẩy đối tượng lên TRƯỚC rồi mới lưu dòng; giao dịch lùi lại thì
  *       {@link #putInTransaction} xoá đối tượng vừa đẩy. Làm ngược lại thì có lúc database
- *       trỏ vào một đối tượng không tồn tại — tệp "có trong danh sách mà không tải được".</li>
+ *       trỏ vào một đối tượng không tồn tại — tệp "có trong danh sách mà không tải được".
+ *       Tệp lớn thì đẩy NGOÀI giao dịch ({@link #put}) để không giữ kết nối CSDL trong lúc truyền,
+ *       rồi lưu dòng trong một giao dịch ngắn và {@link #discard} nếu bước đó hỏng
+ *       ({@code AttachmentController.upload}).</li>
  *   <li><b>Xoá</b>: xoá dòng trước, xoá đối tượng SAU khi giao dịch commit
  *       ({@link #deleteAfterCommit}). Lùi lại thì đối tượng còn nguyên cho dòng còn nguyên.</li>
  * </ul>
@@ -78,6 +81,16 @@ public class ObjectStorage {
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * Gỡ một đối tượng ngay, lỗi chỉ ghi log — bù trừ cho người gọi đã {@link #put} ngoài giao dịch
+     * rồi không lưu được dòng trỏ tới nó.
+     */
+    public void discard(String key) {
+        if (key != null) {
+            deleteQuietly(key);
         }
     }
 

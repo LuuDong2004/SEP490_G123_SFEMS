@@ -19,6 +19,8 @@ import java.util.Set;
  *                       hoặc null. Đây là thứ làm cho "UBND chỉ thấy trường
  *                       trên địa bàn mình" viết ra được: chính sách so nó với
  *                       {@code schools.departmentOfEducation.id}
+ * @param campusId       phạm vi cơ sở của tài khoản trường (270), hoặc null = cả trường.
+ *                       {@code CampusScope} đọc nó để thu hẹp dữ liệu CSVC, thiết bị
  * @param roleCodes      role codes, for a policy that wants to name one
  * @param roleIds        role ids, which is what a {@code SCOPE} is keyed by
  */
@@ -26,6 +28,7 @@ public record RowLevelPrincipal(
         long userId,
         Long schoolId,
         Long managingBodyId,
+        Long campusId,
         Set<String> roleCodes,
         Set<Long> roleIds) {
 

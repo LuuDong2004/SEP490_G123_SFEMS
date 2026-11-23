@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Môi trường đang chạy, theo tên STACK của {@code deploy/docker-compose.yml} (compose truyền vào qua
- * {@code APP_STACK}): {@code sfems_dev} (dev server), {@code sfems_main} (chính thức).
+ * {@code APP_STACK}): {@code qltb_dongdev} (dev server), {@code qltb-uat}, {@code qltb_main} (chính thức).
  * Trống là máy dev chạy {@code bootRun}.
  *
  * <p>Những thứ tiện cho thử nghiệm nhưng nguy hiểm ở bản chính thức — tài khoản demo, khoá JWT mặc định,
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeployStack {
 
-    public static final String PRODUCTION = "sfems_main";
+    public static final String PRODUCTION = "qltb_main";
 
     private final String stack;
 

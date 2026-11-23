@@ -36,12 +36,13 @@ public class ActivityLogController {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public record ActivityLogResponse(Long id, Instant createdAt, Long actorId, String actorName, String method,
-            String path, String resource, Long recordId, String action, Integer statusCode, String ip) {
+            String path, String resource, Long recordId, String action, Integer statusCode, String ip,
+            String exportFormat, Integer rowCount, String detail) {
 
         static ActivityLogResponse from(ActivityLog row) {
             return new ActivityLogResponse(row.getId(), row.getCreatedAt(), row.getActorId(), row.getActorName(),
                     row.getMethod(), row.getPath(), row.getResource(), row.getRecordId(), row.getAction(),
-                    row.getStatusCode(), row.getIp());
+                    row.getStatusCode(), row.getIp(), row.getExportFormat(), row.getRowCount(), row.getDetail());
         }
     }
 
@@ -65,9 +66,9 @@ public class ActivityLogController {
         for (ListParams.Criterion c : params.filters()) {
             Specification<ActivityLog> spec = switch (c.field()) {
                 case "actorName" -> (root, q, cb) ->
-                        cb.like(cb.lower(root.get("actorName")), ListParams.likePattern(c.value()));
+                        ListParams.foldedLike(cb, root.get("actorName"), c.value());
                 case "resource", "action", "method" -> (root, q, cb) -> cb.equal(root.get(c.field()), c.value());
-                // Lịch sử đăng nhập của MỘT tài khoản (QLTB-242) — lần đăng nhập thành công mang id người làm.
+                // Lịch sử đăng nhập của MỘT tài khoản — lần đăng nhập thành công mang id người làm.
                 case "actorId" -> actorIdSpec(c.value());
                 case "statusCode" -> statusSpec(c);
                 case "createdAt" -> dateSpec(c);
@@ -78,8 +79,8 @@ public class ActivityLogController {
             }
         }
         params.search().ifPresent(term -> specs.add((root, q, cb) -> cb.or(
-                cb.like(cb.lower(root.get("path")), ListParams.likePattern(term)),
-                cb.like(cb.lower(root.get("actorName")), ListParams.likePattern(term)))));
+                ListParams.foldedLike(cb, root.get("path"), term),
+                ListParams.foldedLike(cb, root.get("actorName"), term))));
         return Specification.allOf(specs);
     }
 

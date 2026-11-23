@@ -1,5 +1,7 @@
 package com.g123.sfems.module.security.role.api.dto;
 
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -20,10 +22,11 @@ public record RolePatchRequest(
                 message = "Mã chỉ gồm chữ in hoa không dấu, chữ số và dấu gạch dưới, bắt đầu bằng chữ")
         String code,
 
-        @Size(min = 1, max = 255, message = "Tên phải từ 1 đến 255 ký tự")
+        @Size(min = 1, message = "Tên vai trò là bắt buộc")
+        @Text(value = FieldRule.NAME, label = "Tên vai trò")
         String name,
 
-        @Size(max = 500, message = "Mô tả tối đa 500 ký tự")
+        @Text(value = FieldRule.NOTE, label = "Mô tả")
         String description,
 
         @Valid

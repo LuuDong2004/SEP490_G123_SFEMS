@@ -6,7 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 /**
- * Cấp học: Mầm non, Tiểu học, THCS, THPT.
+ * Cấp học: Tiểu học, THCS, THPT.
  *
  * <p>Đây là danh mục được viết đầu tiên, trước khi {@link CatalogEntity} tồn
  * tại, nên nó từng chép lại cả năm trường của lớp cơ sở. Giờ nó kế thừa như

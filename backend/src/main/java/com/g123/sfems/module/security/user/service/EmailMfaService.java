@@ -4,13 +4,16 @@ import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.mail.MailContent;
 import com.g123.sfems.shared.mail.MailService;
+import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.Hashes;
 import com.g123.sfems.shared.security.MfaRequiredException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Xác thực hai lớp QUA EMAIL (QLTB-509): mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
+ * Xác thực hai lớp QUA EMAIL: mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
  * người dùng nhập mã đó mới vào được. Tài khoản tự bật / tắt ở trang Hồ sơ (phải nhập lại mật khẩu).
  *
  * <p>Mã chỉ lưu băm SHA-256 (gắn với id tài khoản), hết hạn sau {@code CODE_TTL}, dùng một lần. Nhập sai đếm
@@ -40,10 +43,12 @@ public class EmailMfaService {
     private final MailService mail;
     private final PasswordEncoder passwordEncoder;
     private final TransactionTemplate tx;
+    private final ApplicationEventPublisher events;
 
     public EmailMfaService(UserRepository repository, MailService mail, PasswordEncoder passwordEncoder,
-                           PlatformTransactionManager transactionManager) {
+                           PlatformTransactionManager transactionManager, ApplicationEventPublisher events) {
         this.tx = new TransactionTemplate(transactionManager);
+        this.events = events;
         this.repository = repository;
         this.mail = mail;
         this.passwordEncoder = passwordEncoder;
@@ -63,6 +68,8 @@ public class EmailMfaService {
         user.setEmailCodeHash(null);
         user.setEmailCodeExpiresAt(null);
         repository.save(user);
+        // Bộ nhớ đệm quyền giữ cờ "đã có lớp thứ hai" — cổng Admin đọc nó ở mỗi yêu cầu.
+        events.publishEvent(new AuthoritiesChanged.ForUser(userId));
         return enabled;
     }
 
@@ -78,10 +85,13 @@ public class EmailMfaService {
         Outgoing outgoing = tx.execute(status -> issueCode(userId, now));
         if (outgoing.code() != null) {
             try {
-                mail.send(outgoing.email(), "Mã đăng nhập hệ thống quản lý CSVC & thiết bị",
-                        "Mã đăng nhập của tài khoản " + outgoing.username() + " là: " + outgoing.code() + "\n\n"
-                                + "Mã có hiệu lực " + CODE_TTL.toMinutes() + " phút và chỉ dùng một lần. "
-                                + "Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay.");
+                mail.send(outgoing.email(), "Mã đăng nhập " + outgoing.code(), MailContent.titled("Mã đăng nhập")
+                        .label("Tài khoản " + outgoing.username())
+                        .paragraph("Nhập mã dưới đây ở màn đăng nhập để hoàn tất đăng nhập. Mã có hiệu lực "
+                                + CODE_TTL.toMinutes() + " phút và chỉ dùng được một lần.")
+                        .code(outgoing.code())
+                        .note("Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay — ai đó đã biết mật khẩu"
+                                + " của bạn."));
             } catch (RuntimeException e) {
                 tx.executeWithoutResult(status -> repository.findById(userId).ifPresent(user -> {
                     user.setEmailCodeHash(null);

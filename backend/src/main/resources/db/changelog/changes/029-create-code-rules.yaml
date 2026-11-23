@@ -1,0 +1,122 @@
+# Quy tắc sinh mã tự động (Tùy chỉnh mã tự động của bản Jmix).
+#
+# Năm cột chung của CatalogEntity + danh mục đích và định dạng mã. Mỗi danh mục
+# đích có tối đa một quy tắc (uq_code_rules_target).
+#
+# KHÔNG seed quy tắc nào: bản Jmix cũng để trống, quản trị viên tự tạo. Danh mục
+# hiện có mang mã ngữ nghĩa (TOAN, LOP_10...) chứ không phải mã nhảy số.
+databaseChangeLog:
+  - changeSet:
+      id: 029-create-code-rules
+      author: dth
+      changes:
+        - createTable:
+            tableName: code_rules
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_code_rules
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_code_rules_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: target
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_code_rules_target
+              - column:
+                  name: prefix
+                  type: varchar(20)
+              - column:
+                  name: suffix
+                  type: varchar(20)
+              - column:
+                  name: number_length
+                  type: integer
+                  defaultValueNumeric: 4
+                  constraints:
+                    nullable: false
+              - column:
+                  name: current_number
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: code_rules
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_code_rules_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: code_rules
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_code_rules_updated_by
+            onDelete: SET NULL
+        - sql:
+            sql: >-
+              ALTER TABLE code_rules
+                ADD CONSTRAINT ck_code_rules_number_length CHECK (number_length BETWEEN 1 AND 10),
+                ADD CONSTRAINT ck_code_rules_current_number CHECK (current_number >= 0)
+        - sql:
+            sql: >-
+              INSERT INTO permissions (code, name, description, system_permission) VALUES
+                ('code_rules:read',   'Xem quy tắc sinh mã', 'Xem danh sách và chi tiết quy tắc sinh mã', TRUE),
+                ('code_rules:write',  'Sửa quy tắc sinh mã', 'Thêm và sửa quy tắc sinh mã, kể cả bộ đếm', TRUE),
+                ('code_rules:delete', 'Xoá quy tắc sinh mã', 'Xoá vĩnh viễn một quy tắc sinh mã', TRUE)
+        - sql:
+            sql: >-
+              INSERT INTO role_permissions (role_id, permission_id)
+              SELECT r.id, p.id FROM roles r
+              JOIN permissions p ON p.code IN ('code_rules:read', 'code_rules:write', 'code_rules:delete')
+              WHERE r.code = 'ADMIN'
+        - sql:
+            sql: >-
+              INSERT INTO role_permissions (role_id, permission_id)
+              SELECT r.id, p.id FROM roles r
+              JOIN permissions p ON p.code IN ('code_rules:read', 'code_rules:write')
+              WHERE r.code = 'MANAGER'

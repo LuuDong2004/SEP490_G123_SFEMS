@@ -8,6 +8,21 @@
  * any role granting it, a role's grants do not exist without the catalogue.
  */
 
+/** Phạm vi của quyền (docs/kien-truc/11 §11) — `PermissionScope` của máy chủ. */
+export type PermissionScope = "SYSTEM" | "ORGANIZATION" | "COMMON";
+
+export const SCOPE_LABELS: Record<PermissionScope, string> = {
+  SYSTEM: "Quản trị hệ thống",
+  ORGANIZATION: "Nghiệp vụ đơn vị",
+  COMMON: "Dùng chung",
+};
+
+/** Vai loại `roleType` có được mang quyền phạm vi `scope` không — như `PermissionScope.fits`. */
+export function scopeFits(scope: PermissionScope, roleType: string): boolean {
+  // Quản trị mang được mọi quyền (dùng được toàn bộ chức năng); vai Sở / UBND / trường không mang quyền quản trị.
+  return scope !== "SYSTEM" || roleType === "SYSTEM";
+}
+
 export type Permission = {
   id: number;
   code: string;
@@ -20,20 +35,12 @@ export type Permission = {
    * because the catalogue is read-only over the API in the first place.
    */
   systemPermission: boolean;
+  /** Loại vai được mang quyền: quản trị / nghiệp vụ đơn vị / dùng chung. */
+  scope: PermissionScope;
 };
 
-/**
- * Sáu động từ của mã quyền `{resource}:{action}` (ARCHITECTURE.md mục 2.3), theo thứ tự hiện
- * cột trong ma trận quyền. Thao tác lạ ngoài danh sách vẫn được hiện, nối vào cuối.
- */
-export const PERMISSION_ACTIONS = [
-  "read",
-  "write",
-  "delete",
-  "approve",
-  "export",
-  "configure",
-] as const;
+/** The three actions every `resource:action` code ends in. */
+export const PERMISSION_ACTIONS = ["read", "write", "delete"] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -49,9 +56,6 @@ export const ACTION_VARIANTS: Record<
   read: "outline",
   write: "secondary",
   delete: "destructive",
-  approve: "secondary",
-  export: "outline",
-  configure: "secondary",
 };
 
 /**
@@ -64,7 +68,6 @@ export const ACTION_LABELS: Record<string, string> = {
   delete: "Xoá",
   approve: "Duyệt",
   export: "Xuất",
-  configure: "Cấu hình",
 };
 
 /**
@@ -73,54 +76,54 @@ export const ACTION_LABELS: Record<string, string> = {
  * phải đọc được chứ không được mất.
  */
 const RESOURCE_LABELS: Record<string, string> = {
-  // Hệ thống (HT)
-  dashboard: "Bảng điều khiển",
+  dashboard: "Tổng hợp",
   users: "Người dùng",
   roles: "Vai trò",
   permissions: "Quyền",
   notifications: "Thông báo",
-  row_level_policies: "Phạm vi dữ liệu",
-  activity_logs: "Nhật ký hoạt động",
-  // Danh mục dùng chung (DM)
-  wards: "Phường/xã",
-  school_years: "Năm học",
-  grades: "Khối lớp",
-  semesters: "Học kỳ",
-  subject_groups: "Tổ chuyên môn",
-  subjects: "Môn học",
-  room_types: "Loại phòng",
-  school_types: "Loại hình trường",
-  equipment_configs: "Bộ thông số kỹ thuật",
-  equipment_types: "Loại thiết bị",
-  units: "Đơn vị tính",
-  origin_sources: "Nguồn hình thành",
-  acquisition_methods: "Phương thức hình thành",
-  movement_reasons: "Lý do biến động",
-  education_levels: "Cấp học",
-  equipment_catalogs: "Danh mục thiết bị",
-  equipment_standards: "Danh mục thiết bị tối thiểu",
-  equipment_norms: "Định mức thiết bị",
-  code_rules: "Quy tắc sinh mã",
-  // Tổ chức và cơ sở vật chất (TC)
+  row_level_policies: "Phân quyền dòng dữ liệu",
   departments_of_education: "Cơ quan quản lý",
   schools: "Trường học",
-  rooms: "Phòng",
-  // Hồ sơ thiết bị (TS)
+  education_levels: "Cấp học",
+  tasks: "Công việc",
+  acquisition_methods: "Hình thức mua sắm",
+  activity_logs: "Nhật ký hoạt động",
+  buildings: "Khối nhà",
+  campuses: "Cơ sở",
+  code_rules: "Quy tắc sinh mã của danh mục chung",
+  data_transfer: "Nhập / xuất dữ liệu",
   equipment: "Thiết bị",
-  attachments: "Tệp đính kèm",
-  school_code_rules: "Bộ đếm mã tài sản của trường",
-  data_imports: "Nhập dữ liệu từ tệp",
-  // Mua sắm (NC)
-  purchase_proposals: "Đề xuất mua sắm",
-  procurement_plans: "Kế hoạch mua sắm",
-  // Nhập thiết bị (PN)
+  equipment_catalogs: "Danh mục thiết bị",
+  equipment_configs: "Bộ thông số kỹ thuật",
   equipment_intakes: "Phiếu ghi tăng",
-  // Kiểm kê (KK)
+  equipment_norms: "Định mức thiết bị",
+  equipment_standards: "Bộ tiêu chuẩn",
+  equipment_types: "Loại thiết bị",
+  grades: "Khối lớp",
   inventory_campaigns: "Đợt kiểm kê",
   inventory_sessions: "Phiếu kiểm kê",
-  // Báo cáo (BC)
+  movement_reasons: "Lý do biến động",
+  origin_sources: "Nguồn hình thành",
+  procurement_plans: "Kế hoạch mua sắm",
+  purchase_proposals: "Đề xuất mua sắm",
   reports: "Báo cáo",
-  data_exports: "Xuất dữ liệu",
+  room_types: "Loại CSVC",
+  facility_groups: "Khối CSVC",
+  facility_standard_rules: "Chuẩn CSVC",
+  rooms: "Phòng",
+  school_classes: "Lớp học",
+  school_code_rules: "Mã tự tăng của trường",
+  school_users: "Tài khoản của trường",
+  school_years: "Năm học",
+  staff: "Cán bộ",
+  staff_accounts: "Tài khoản cán bộ",
+  subject_groups: "Tổ chuyên môn",
+  subject_teams: "Tổ bộ môn",
+  subjects: "Môn học",
+  ai_settings: "Cấu hình AI",
+  system_status: "Tình trạng hệ thống",
+  units: "Đơn vị tính",
+  wards: "Phường/xã",
 };
 
 /**

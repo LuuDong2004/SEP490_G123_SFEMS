@@ -14,11 +14,9 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -27,22 +25,28 @@ import org.springframework.stereotype.Service;
  * Bộ thông số kỹ thuật. Quy tắc riêng:
  *
  * <ul>
- *   <li>mã thông số không trùng nhau trong một bộ;</li>
- *   <li>thông số kiểu "chọn từ danh sách" phải có ít nhất một lựa chọn;</li>
- *   <li>hai bộ mặc định đang hoạt động không được trùng loại thiết bị, nếu không "bộ chọn sẵn cho
- *       thiết bị mới" có hai đáp án. Bộ không giới hạn loại (phạm vi rỗng) coi như trùng với mọi bộ.</li>
+ *   <li>mã thông số không trùng nhau trong một bộ</li>
+ *   <li>thông số kiểu "chọn từ danh sách" phải có ít nhất một lựa chọn</li>
+ *   <li>hai bộ MẶC ĐỊNH đang hoạt động không được trùng loại thiết bị — nếu
+ *       trùng thì "bộ chọn sẵn cho thiết bị mới" có hai đáp án. Bộ không giới
+ *       hạn loại (phạm vi rỗng) coi như trùng với mọi bộ.</li>
  * </ul>
  */
 @Service
-public class EquipmentConfigService extends CatalogService<EquipmentConfig, EquipmentConfigRequest, EquipmentConfigPatchRequest> {
+public class EquipmentConfigService extends CatalogService<
+        EquipmentConfig, EquipmentConfigRequest, EquipmentConfigPatchRequest> {
 
     private final EquipmentConfigRepository repository;
     private final EquipmentTypeService equipmentTypes;
     private final SchoolYearService schoolYears;
 
-    public EquipmentConfigService(EquipmentConfigRepository repository, RowLevelSecurity rowLevel,
-            EquipmentTypeService equipmentTypes, SchoolYearService schoolYears) {
-        super(repository, rowLevel, EquipmentConfig.class, EquipmentConfig::new, "Bộ thông số kỹ thuật");
+    public EquipmentConfigService(
+            EquipmentConfigRepository repository,
+            RowLevelSecurity rowLevel,
+            EquipmentTypeService equipmentTypes,
+            SchoolYearService schoolYears) {
+        super(repository, rowLevel, EquipmentConfig.class, EquipmentConfig::new,
+                "Bộ thông số kỹ thuật");
         this.repository = repository;
         this.equipmentTypes = equipmentTypes;
         this.schoolYears = schoolYears;
@@ -104,10 +108,10 @@ public class EquipmentConfigService extends CatalogService<EquipmentConfig, Equi
 
     private void syncScopeTypes(EquipmentConfig item, List<IdRef> refs) {
         Set<Long> ids = refs.stream()
-                .filter(ref -> ref != null && ref.id() != null)
+                .filter(r -> r != null && r.id() != null)
                 .map(IdRef::id)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        item.getScopeTypes().removeIf(type -> !ids.contains(type.getId()));
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        item.getScopeTypes().removeIf(t -> !ids.contains(t.getId()));
         Set<Long> have = item.getScopeTypes().stream().map(EquipmentType::getId).collect(Collectors.toSet());
         for (Long id : ids) {
             if (!have.contains(id)) {
@@ -120,42 +124,38 @@ public class EquipmentConfigService extends CatalogService<EquipmentConfig, Equi
         Set<String> codes = new HashSet<>();
         for (ConfigAttributeInput input : inputs) {
             if (!codes.add(input.code().trim().toLowerCase(Locale.ROOT))) {
-                throw new FieldValidationException("attributes", "Mã thông số " + input.code().trim() + " bị trùng");
+                throw new FieldValidationException(
+                        "attributes", "Mã thông số " + input.code().trim() + " bị trùng");
             }
         }
 
-        Map<Long, EquipmentConfigAttribute> existingById = new HashMap<>();
-        Map<String, EquipmentConfigAttribute> existingByCode = new HashMap<>();
-        for (EquipmentConfigAttribute attribute : item.getAttributes()) {
-            existingById.put(attribute.getId(), attribute);
-            existingByCode.put(attribute.getCode().toLowerCase(Locale.ROOT), attribute);
+        Map<Long, EquipmentConfigAttribute> existing = new HashMap<>();
+        for (EquipmentConfigAttribute attr : item.getAttributes()) {
+            existing.put(attr.getId(), attr);
         }
 
         List<EquipmentConfigAttribute> keep = new ArrayList<>();
         int order = 1;
         for (ConfigAttributeInput input : inputs) {
-            // Không gửi id mà trùng mã thông số cũ thì vẫn là sửa thông số đó, không thêm dòng trùng mã.
-            EquipmentConfigAttribute attribute = input.id() != null
-                    ? existingById.get(input.id())
-                    : existingByCode.get(input.code().trim().toLowerCase(Locale.ROOT));
-            if (attribute == null) {
-                attribute = new EquipmentConfigAttribute(item);
-                item.getAttributes().add(attribute);
+            EquipmentConfigAttribute attr = input.id() == null ? null : existing.get(input.id());
+            if (attr == null) {
+                attr = new EquipmentConfigAttribute(item);
+                item.getAttributes().add(attr);
             }
-            attribute.setCode(input.code().trim());
-            attribute.setName(input.name().trim());
-            attribute.setDataType(input.dataType());
-            attribute.setMeasureUnit(blankToNull(input.measureUnit()));
-            attribute.setRequired(input.required());
-            attribute.setOptionList(attribute.getDataType() == AttributeDataType.ENUM ? input.options() : List.of());
-            if (attribute.getDataType() == AttributeDataType.ENUM && attribute.getOptionList().isEmpty()) {
+            attr.setCode(input.code().trim());
+            attr.setName(input.name().trim());
+            attr.setDataType(input.dataType());
+            attr.setMeasureUnit(blankToNull(input.measureUnit()));
+            attr.setRequired(input.required());
+            attr.setOptionList(attr.getDataType() == AttributeDataType.ENUM ? input.options() : List.of());
+            if (attr.getDataType() == AttributeDataType.ENUM && attr.getOptionList().isEmpty()) {
                 throw new FieldValidationException("attributes",
-                        "Thông số " + attribute.getName() + " cần ít nhất một lựa chọn");
+                        "Thông số " + attr.getName() + " cần ít nhất một lựa chọn");
             }
-            attribute.setSortOrder(order++);
-            keep.add(attribute);
+            attr.setSortOrder(order++);
+            keep.add(attr);
         }
-        // Sửa trên chính tập Hibernate đang theo dõi, không gán tập mới (orphanRemoval cần điều này).
+        // Sửa trên CHÍNH tập Hibernate đang theo dõi, không gán tập mới.
         item.getAttributes().retainAll(keep);
     }
 
@@ -163,18 +163,21 @@ public class EquipmentConfigService extends CatalogService<EquipmentConfig, Equi
         SchoolYear start = item.getStartSchoolYear();
         SchoolYear end = item.getEndSchoolYear();
         if (start != null && end != null && end.getStartDate().isBefore(start.getStartDate())) {
-            throw new FieldValidationException("endSchoolYear", "Năm học kết thúc phải từ năm học bắt đầu trở đi");
+            throw new FieldValidationException(
+                    "endSchoolYear", "Năm học kết thúc phải từ năm học bắt đầu trở đi");
         }
         if (!Boolean.TRUE.equals(item.getDefaultConfig()) || !Boolean.TRUE.equals(item.getActive())) {
             return;
         }
         Set<Long> mine = item.getScopeTypes().stream().map(EquipmentType::getId).collect(Collectors.toSet());
         for (EquipmentConfig other : repository.findActiveDefaults()) {
-            if (other.getId() == null || Objects.equals(other.getId(), item.getId())) {
+            if (other.getId() == null || other.getId().equals(item.getId())) {
                 continue;
             }
-            Set<Long> theirs = other.getScopeTypes().stream().map(EquipmentType::getId).collect(Collectors.toSet());
-            boolean overlap = mine.isEmpty() || theirs.isEmpty() || theirs.stream().anyMatch(mine::contains);
+            Set<Long> theirs = other.getScopeTypes().stream()
+                    .map(EquipmentType::getId).collect(Collectors.toSet());
+            boolean overlap = mine.isEmpty() || theirs.isEmpty()
+                    || theirs.stream().anyMatch(mine::contains);
             if (overlap) {
                 throw new FieldValidationException("defaultConfig",
                         "Bộ " + other.getCode() + " đã là bộ mặc định cho cùng loại thiết bị");

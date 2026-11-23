@@ -1,0 +1,192 @@
+# Phase 2 danh mục: Khối lớp và Loại phòng. Cùng khuôn CatalogEntity (chép từ
+# 018), thêm một cột văn bản riêng và khoá ngoại tới cấp học.
+#
+# Bản Jmix lưu cấp học ở đây là chuỗi mã tự do; ở đây là khoá ngoại thật, để
+# database không cho trỏ vào một cấp học không tồn tại.
+databaseChangeLog:
+  - changeSet:
+      id: 022-create-grades-room-types
+      author: dth
+      changes:
+        - createTable:
+            tableName: grades
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_grades
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_grades_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: teaching_code
+                  type: varchar(32)
+              - column:
+                  name: education_level_id
+                  type: bigint
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: grades
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_grades_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: grades
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_grades_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: grades
+            indexName: idx_grades_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        # RESTRICT: một cấp học còn grades trỏ vào thì không xoá được — thao
+        # tác đúng là ngưng dùng cấp học đó bằng cờ active.
+        - addForeignKeyConstraint:
+            baseTableName: grades
+            baseColumnNames: education_level_id
+            referencedTableName: education_levels
+            referencedColumnNames: id
+            constraintName: fk_grades_education_level
+            onDelete: RESTRICT
+        - createIndex:
+            tableName: grades
+            indexName: idx_grades_education_level
+            columns:
+              - column:
+                  name: education_level_id
+        - createTable:
+            tableName: room_types
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_room_types
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_room_types_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: room_group
+                  type: varchar(64)
+              - column:
+                  name: education_level_id
+                  type: bigint
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: room_types
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_room_types_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: room_types
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_room_types_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: room_types
+            indexName: idx_room_types_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        # RESTRICT: một cấp học còn room_types trỏ vào thì không xoá được — thao
+        # tác đúng là ngưng dùng cấp học đó bằng cờ active.
+        - addForeignKeyConstraint:
+            baseTableName: room_types
+            baseColumnNames: education_level_id
+            referencedTableName: education_levels
+            referencedColumnNames: id
+            constraintName: fk_room_types_education_level
+            onDelete: RESTRICT
+        - createIndex:
+            tableName: room_types
+            indexName: idx_room_types_education_level
+            columns:
+              - column:
+                  name: education_level_id

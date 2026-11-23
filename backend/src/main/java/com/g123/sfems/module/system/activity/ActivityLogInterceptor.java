@@ -24,6 +24,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * thao tác xuất, vì nó mang dữ liệu RA khỏi hệ thống. Không ghi đọc thường: một
  * dòng cho mỗi lần mở danh sách là nhật ký không ai đọc nổi.
  *
+ * <p>Xuất là: đường dẫn có {@code /export}, hoặc {@code GET} một tệp {@code .xlsx} (bảng định mức, tổng hợp
+ * đề xuất mua sắm...) — kèm định dạng (theo {@code Content-Type} của response) và chuỗi truy vấn làm phạm vi /
+ * bộ lọc. In PDF và xuất CSV chạy trên trình duyệt nên màn hình báo lên qua {@link ExportLogController}: nó đặt
+ * một {@link ExportEvent} lên request và dòng nhật ký của chính request đó mang nội dung lần xuất.
+ *
  * <p>Chạy ở {@code afterCompletion}, tức là sau khi response đã xong, nên biết
  * mã trạng thái thật (thao tác bị từ chối cũng được ghi — đó thường là dòng
  * đáng đọc nhất). Lỗi khi ghi nhật ký chỉ được log, không bao giờ ném ra: nhật
@@ -39,6 +44,16 @@ public class ActivityLogInterceptor implements HandlerInterceptor {
     /** Làm mới phiên chạy mỗi 15 phút trên mọi tab: ồn, và không nói lên điều gì. */
     private static final Set<String> SKIPPED = Set.of("/api/auth/refresh");
 
+    /** Thuộc tính request mang lần xuất do màn hình báo lên ({@link ExportEvent}). */
+    static final String EXPORT = "activity.export";
+
+    /**
+     * Một lần xuất trên trình duyệt: tài nguyên, định dạng, số dòng, phạm vi / bộ lọc, màn hình đã xuất. Người xuất
+     * KHÔNG nằm ở đây — lấy từ phiên của request như mọi dòng nhật ký khác.
+     */
+    record ExportEvent(String resource, String format, Integer rows, String detail, String path) {
+    }
+
     private final JdbcTemplate jdbc;
     private final ActorNames actors;
 
@@ -52,7 +67,9 @@ public class ActivityLogInterceptor implements HandlerInterceptor {
             Exception ex) {
         String method = request.getMethod().toUpperCase(Locale.ROOT);
         String path = request.getRequestURI();
-        boolean export = path.contains("/export");
+        ExportEvent reported = request.getAttribute(EXPORT) instanceof ExportEvent e ? e : null;
+        boolean file = "GET".equals(method) && path.endsWith(".xlsx");
+        boolean export = reported != null || file || path.contains("/export");
         if ((!WRITES.contains(method) && !export) || SKIPPED.contains(path)) {
             return;
         }
@@ -61,15 +78,32 @@ public class ActivityLogInterceptor implements HandlerInterceptor {
             String resource = segments.length > 0 && !segments[0].isBlank() ? segments[0] : null;
             Long recordId = segments.length > 1 ? parseLong(segments[1]) : null;
             String action = action(method, segments, recordId, export);
+            String format = null;
+            Integer rows = null;
+            String detail = null;
+            String logged = path;
+            if (reported != null) {
+                resource = reported.resource();
+                recordId = null;
+                format = reported.format();
+                rows = reported.rows();
+                detail = reported.detail();
+                logged = reported.path() == null || reported.path().isBlank() ? path : reported.path();
+            } else if (export) {
+                format = formatOf(response.getContentType());
+                detail = request.getQueryString();
+            }
             // Đăng nhập / đăng xuất chưa có phiên: endpoint xác thực để lại người thao tác trên request.
             Long actorId = CurrentUser.id().orElse(request.getAttribute(ActivityActor.ID) instanceof Long id ? id : null);
             String actorName = actorId != null ? actors.of(actorId)
                     : request.getAttribute(ActivityActor.NAME) instanceof String name ? name : null;
             jdbc.update("INSERT INTO activity_logs (created_at, actor_id, actor_name, method, path, resource,"
-                            + " record_id, action, status_code, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            + " record_id, action, status_code, ip, export_format, row_count, detail)"
+                            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     Timestamp.from(Instant.now()), actorId, actorName, method,
-                    truncate(path, 500), truncate(resource, 60), recordId, truncate(action, 40),
-                    response.getStatus(), truncate(clientIp(request), 64));
+                    truncate(logged, 500), truncate(resource, 60), recordId, truncate(action, 40),
+                    response.getStatus(), truncate(clientIp(request), 64), truncate(format, 10), rows,
+                    truncate(detail, 1000));
         } catch (RuntimeException e) {
             log.warn("Không ghi được nhật ký hoạt động cho {} {}", method, path, e);
         }
@@ -96,11 +130,29 @@ public class ActivityLogInterceptor implements HandlerInterceptor {
         };
     }
 
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+    /** Định dạng tệp đã xuất, theo {@code Content-Type} của response. */
+    private static String formatOf(String contentType) {
+        if (contentType == null) {
+            return null;
         }
+        String type = contentType.toLowerCase(Locale.ROOT);
+        if (type.contains("spreadsheetml")) {
+            return "XLSX";
+        }
+        if (type.contains("zip")) {
+            return "ZIP";
+        }
+        if (type.contains("csv")) {
+            return "CSV";
+        }
+        if (type.contains("pdf")) {
+            return "PDF";
+        }
+        return null;
+    }
+
+    /** IP thật sau proxy (server.forward-headers-strategy) — không đọc X-Forwarded-For client tự khai. */
+    private static String clientIp(HttpServletRequest request) {
         return request.getRemoteAddr();
     }
 

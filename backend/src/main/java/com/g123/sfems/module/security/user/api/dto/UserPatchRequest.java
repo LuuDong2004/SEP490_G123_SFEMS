@@ -1,9 +1,9 @@
 package com.g123.sfems.module.security.user.api.dto;
 
 import com.g123.sfems.domain.security.user.UserStatus;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -17,16 +17,15 @@ import java.util.List;
  * ({@code POST /users/{id}/password}) rather than hiding inside a form save.
  */
 public record UserPatchRequest(
-        @Size(min = 3, max = 100, message = "Tên đăng nhập phải từ 3 đến 100 ký tự")
-        @Pattern(regexp = "^[a-zA-Z0-9._-]+$",
-                message = "Tên đăng nhập chỉ gồm chữ không dấu, chữ số, dấu chấm, gạch dưới và gạch nối")
+        @Size(min = 3, message = "Tên đăng nhập tối thiểu 3 ký tự")
+        @Text(value = FieldRule.USERNAME, label = "Tên đăng nhập", max = 100)
         String username,
 
-        @Email(message = "Email không đúng định dạng")
-        @Size(max = 255, message = "Email tối đa 255 ký tự")
+        @Text(value = FieldRule.EMAIL, label = "Email")
         String email,
 
-        @Size(min = 1, max = 255, message = "Họ tên phải từ 1 đến 255 ký tự")
+        @Size(min = 1, message = "Họ tên là bắt buộc")
+        @Text(value = FieldRule.NAME, label = "Họ tên")
         String fullName,
 
         UserStatus status,
@@ -51,5 +50,9 @@ public record UserPatchRequest(
         // is what that is for.
         @Size(min = 1, message = "Chọn ít nhất một vai trò")
         @Valid
-        List<RoleRef> roles) {
+        List<RoleRef> roles,
+
+        /** Phần riêng theo loại tài khoản — tuỳ chọn. */
+        @Valid
+        UserProfileRequest profile) {
 }

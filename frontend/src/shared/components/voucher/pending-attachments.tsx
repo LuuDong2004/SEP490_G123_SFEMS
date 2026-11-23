@@ -9,6 +9,7 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { FilePreviewDialog, type PreviewSource } from "@/shared/components/voucher/file-preview";
+import { FileDrop, FileTypeIcon } from "@/shared/components/voucher/file-drop";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -48,9 +49,17 @@ export function usePendingAttachments(resource: string) {
 }
 
 /** Khung "Tệp đính kèm" của form lập phiếu: nút Thêm tệp và danh sách tệp đang chờ lưu. */
-export function PendingAttachments({ files, onChange, className, title = "Tệp đính kèm", required }: {
+export function PendingAttachments({ files, onChange, onAdded, className, title = "Tệp đính kèm", required, field, hint, compact }: {
+  /** Gọi với các tệp vừa nhận (sau khi lọc trùng, quá cỡ) — vd. tệp XML hoá đơn điện tử thì đọc luôn. */
+  onAdded?: (files: File[]) => void;
   files: File[];
   onChange: (files: File[]) => void;
+  /** Vẽ như một trường form (nhãn + vùng kéo thả, `FileDrop`) thay cho thẻ có tiêu đề. */
+  field?: boolean;
+  /** Dòng phụ trong vùng kéo thả khi chưa có tệp (chỉ khi `field`). */
+  hint?: string;
+  /** Vùng kéo thả một dòng (chỉ khi `field`). */
+  compact?: boolean;
   /** Tiêu đề khung, vd. "Tệp quyết định" khi loại phiếu cần đúng một loại giấy tờ. */
   title?: string;
   /** Bắt buộc có ít nhất một tệp lúc trình — tiêu đề có dấu * như ô bắt buộc. */
@@ -66,8 +75,33 @@ export function PendingAttachments({ files, onChange, className, title = "Tệp 
     const tooBig = list.filter((f) => f.size > MAX_BYTES);
     if (tooBig.length) open?.({ type: "error", message: `${tooBig.map((f) => f.name).join(", ")} vượt quá 10 MB`, description: "Không thêm được tệp" });
     const ok = list.filter((f) => f.size <= MAX_BYTES && !files.some((x) => x.name === f.name && x.size === f.size));
-    if (ok.length) onChange([...files, ...ok]);
+    if (ok.length) {
+      onChange([...files, ...ok]);
+      onAdded?.(ok);
+    }
   };
+
+  if (field) {
+    return (
+      <>
+        <FileDrop label={title} required={required} hint={hint ?? "Tệp được tải lên khi lưu phiếu"} onAdd={add} compact={compact}
+          items={files.map((file) => ({
+            key: `${file.name}-${file.size}`,
+            name: file.name,
+            meta: `${size(file.size)} · tải lên khi lưu`,
+            icon: <FileTypeIcon name={file.name} type={file.type} />,
+            // Bấm vào tệp là xem trước ngay, không phải lưu phiếu rồi mới xem được.
+            onOpen: () => setPreview({ name: file.name, type: file.type, blob: file }),
+            actions: (
+              <Button type="button" variant="ghost" size="icon" className="size-8" title="Bỏ tệp này" onClick={() => onChange(files.filter((f) => f !== file))}>
+                <X />
+              </Button>
+            ),
+          }))} />
+        <FilePreviewDialog source={preview} onClose={() => setPreview(null)} />
+      </>
+    );
+  }
 
   return (
     <Card className={cn("gap-3 py-4", className)}>

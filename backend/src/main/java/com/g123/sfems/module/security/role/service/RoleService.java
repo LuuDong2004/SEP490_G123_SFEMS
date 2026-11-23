@@ -2,6 +2,7 @@ package com.g123.sfems.module.security.role.service;
 
 import com.g123.sfems.domain.security.permission.Permission;
 import com.g123.sfems.domain.security.role.Role;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.module.security.permission.service.PermissionService;
 import com.g123.sfems.module.security.role.api.dto.PermissionRef;
 import com.g123.sfems.module.security.role.api.dto.RolePatchRequest;
@@ -9,11 +10,13 @@ import com.g123.sfems.module.security.role.api.dto.RoleRequest;
 import com.g123.sfems.module.security.role.repo.RoleRepository;
 import com.g123.sfems.module.security.role.repo.RoleSpecifications;
 import com.g123.sfems.shared.exception.ConflictException;
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.web.ListParams;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -26,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoleService {
 
     /** Sort properties the list endpoint accepts; anything else is ignored. */
-    private static final Set<String> SORTABLE = Set.of("id", "code", "name", "systemRole");
+    private static final Set<String> SORTABLE = Set.of("id", "code", "name", "systemRole", "roleType");
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Order.asc("code"));
 
@@ -64,7 +67,7 @@ public class RoleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
     }
 
-    /** Vai trò theo mã (TEACHER, SCHOOL_STAFF…) — cho các lối cấp tài khoản có vai cố định. */
+    /** Vai trò theo mã (SCHOOL_STAFF, SCHOOL_LEADER…) — cho các lối cấp tài khoản có vai cố định. */
     public Role getByCode(String code) {
         return repository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", code));
@@ -99,8 +102,9 @@ public class RoleService {
         String code = request.code().trim();
         requireCodeAvailable(code, null);
 
-        Role role = new Role(code, request.name().trim(), trimToNull(request.description()), false);
-        role.setPermissions(resolvePermissions(request.permissions()));
+        Role role = new Role(code, request.name().trim(), trimToNull(request.description()), false,
+                request.roleType());
+        role.setPermissions(resolvePermissions(request.permissions(), role.getRoleType()));
         return repository.save(role);
     }
 
@@ -128,7 +132,7 @@ public class RoleService {
         // null means "leave the grants alone"; an empty list means "revoke all
         // of them", which is a legitimate thing to ask for.
         if (request.permissions() != null) {
-            role.setPermissions(resolvePermissions(request.permissions()));
+            role.setPermissions(resolvePermissions(request.permissions(), role.getRoleType()));
             events.publishEvent(new AuthoritiesChanged.ForEveryone());
         }
         return repository.save(role);
@@ -160,9 +164,28 @@ public class RoleService {
         return role;
     }
 
-    private Set<Permission> resolvePermissions(List<PermissionRef> refs) {
+    /** Quyền khác phạm vi của loại vai bị từ chối — vai quản trị không mang quyền nghiệp vụ và ngược lại. */
+    private Set<Permission> resolvePermissions(List<PermissionRef> refs, UserType roleType) {
         List<Long> ids = refs.stream().map(PermissionRef::id).toList();
-        return new LinkedHashSet<>(permissionService.resolveAll(ids));
+        Set<Permission> permissions = new LinkedHashSet<>(permissionService.resolveAll(ids));
+        for (Permission permission : permissions) {
+            if (!permission.getScope().fits(roleType)) {
+                throw new FieldValidationException("permissions", "Quyền %s (%s) không dùng cho vai %s".formatted(
+                        permission.getCode(), permission.getScope().label().toLowerCase(Locale.ROOT),
+                        roleType.label()));
+            }
+        }
+        return permissions;
+    }
+
+    /** Vai loại {@code type} theo mã — lối cấp tài khoản có vai cố định chỉ nhận vai đúng loại. */
+    public Role getByCode(String code, UserType type) {
+        Role role = getByCode(code);
+        if (role.getRoleType() != type) {
+            throw new FieldValidationException("role", "Vai \"%s\" không dùng cho tài khoản %s".formatted(
+                    role.getName(), type.label()));
+        }
+        return role;
     }
 
     /** Rejects a duplicate code with a message about the field, not the index. */

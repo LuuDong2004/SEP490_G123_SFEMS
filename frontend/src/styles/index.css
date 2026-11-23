@@ -249,9 +249,9 @@
    it is a utility, a new screen that needs a group label gets the right one
    by name instead of inventing an eleventh size. */
 @utility text-overline {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -579,34 +579,6 @@
   }
 }
 
-@page reports {
-  size: A4 landscape;
-  margin: 13mm 12mm;
-}
-
-@media print {
-  .report-print-sheet {
-    page: reports;
-    break-inside: auto !important;
-  }
-
-  .report-print-table {
-    break-inside: auto !important;
-  }
-
-  .report-print-table tr {
-    break-inside: avoid !important;
-  }
-
-  .report-print-table thead {
-    display: table-header-group;
-  }
-
-  .report-print-signatures {
-    break-inside: avoid;
-  }
-}
-
 /* Đường nối của trang Quy trình: nét đứt chạy dọc đường theo hướng luồng. */
 @keyframes flow-dash {
   to {
@@ -794,7 +766,6 @@
   animation: none;
 }
 
-
 /* --------------------------------------------------------------------------
    Khu ô đầu phiếu ("Thông tin phiếu"): ô XẾP NỐI TIẾP, rộng theo loại ô — không phải lưới cột cố định, nơi một ô ngày
    ngắn để lại cả khoảng trống bên cạnh. Ô thường 14rem (bốn ô một hàng), ô ngày 10rem, ô nhiều dòng (ghi chú, lý do) và ô đánh dấu
@@ -826,6 +797,12 @@
 .form-flow > .contents > *:has(textarea) {
   width: calc(28rem + var(--spacing) * 4);
 }
+/* Ô nhiều dòng (ghi chú, kết luận) lấp NỐT phần còn lại của hàng: rớt xuống một hàng riêng thì không để trống cả
+   khoảng bên phải (13/11/2026); hai ô cùng hàng thì chia đều. */
+.form-flow > *:has(textarea),
+.form-flow > .contents > *:has(textarea) {
+  flex-grow: 1;
+}
 .form-flow > p,
 .form-flow > [class*="col-span-full"] {
   width: 100%;
@@ -837,6 +814,52 @@
   .form-flow > *,
   .form-flow > .contents > * {
     width: 100% !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Form thêm / sửa DANH MỤC DÙNG CHUNG (`CatalogFields`, lớp `catalog-form`): mọi danh mục cùng một lưới cột ĐỀU NHAU thay vì
+   ô xếp nối tiếp rộng theo loại (ô tên 28rem, ô bật/tắt lúc nửa lúc cả hàng — 20/11/2026). Trong hộp thoại: 2 cột, mỗi ô một
+   cột (mã | tên, ngày bắt đầu | ngày kết thúc, hai ô bật/tắt cạnh nhau). Ghi chú, khối danh sách (`col-span-*`) và dòng chữ
+   chiếm trọn hàng. Khung rộng (trang, ≥ 48rem): 4 cột. Màn hẹp: 1 cột.
+   -------------------------------------------------------------------------- */
+.catalog-form .form-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.catalog-form .form-flow > *,
+.catalog-form .form-flow > .contents > * {
+  width: auto !important;
+}
+.catalog-form .form-flow > .contents {
+  display: contents;
+}
+.catalog-form .form-flow > *:has(textarea),
+.catalog-form .form-flow > .contents > *:has(textarea),
+.catalog-form .form-flow > :is([class^="col-span-"], [class*=" col-span-"], [class*="@md:col-span-"]):not(:has([data-slot="switch"])),
+.catalog-form .form-flow > .contents > :is([class^="col-span-"], [class*=" col-span-"], [class*="@md:col-span-"]):not(:has([data-slot="switch"])),
+.catalog-form .form-flow > p {
+  grid-column: 1 / -1;
+}
+.catalog-form .form-flow > *:has([data-slot="switch"]),
+.catalog-form .form-flow > .contents > *:has([data-slot="switch"]) {
+  grid-column: auto;
+}
+@container (min-width: 48rem) {
+  .catalog-form .form-flow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .catalog-form .form-flow > *:has([data-slot="switch"]),
+  .catalog-form .form-flow > .contents > *:has([data-slot="switch"]) {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 40rem) {
+  .catalog-form .form-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .catalog-form .form-flow > *:has([data-slot="switch"]) {
+    grid-column: auto;
   }
 }
 

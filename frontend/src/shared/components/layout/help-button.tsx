@@ -25,7 +25,7 @@ const COMMON_TIPS = [
 ];
 
 /**
- * Nút "?" trên thanh đầu trang (QLTB-513): mở bảng trợ giúp của màn đang xem — đọc `meta.help` của resource hiện tại
+ * Nút "?" trên thanh đầu trang: mở bảng trợ giúp của màn đang xem — đọc `meta.help` của resource hiện tại
  * (nội dung khai ở `app/resources`, các màn nghiệp vụ lấy từ chính các bước Quy trình của phân hệ). Màn chưa có trợ
  * giúp riêng thì hiện các mẹo chung.
  */

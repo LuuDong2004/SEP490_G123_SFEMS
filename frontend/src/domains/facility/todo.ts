@@ -3,8 +3,8 @@
 /** ERROR: thiếu dữ liệu làm sai số liệu. WARNING: số đáng ngờ, vẫn lưu được. */
 export type FacilityTodoSeverity = "ERROR" | "WARNING";
 
-/** Nơi sửa: danh sách lớp, hạng mục, khối nhà, diện tích đất (hồ sơ trường), hoặc xác nhận hiện trạng. */
-export type FacilityTodoActionKind = "classes" | "rooms" | "buildings" | "landArea" | "confirm";
+/** Nơi sửa: danh sách lớp, hạng mục, khối nhà, diện tích đất (hồ sơ trường). */
+export type FacilityTodoActionKind = "classes" | "rooms" | "buildings" | "landArea";
 
 export type FacilityTodoItem = {
   key: string;
@@ -24,5 +24,4 @@ export const FACILITY_TODO_ACTION_LABELS: Record<FacilityTodoActionKind, string>
   rooms: "Xem",
   buildings: "Xem",
   landArea: "Khai",
-  confirm: "Xác nhận",
 };

@@ -1,200 +1,79 @@
-import type { AssetCategory, FundingSource } from "@/domains/equipment-intake/types";
+/** Thiết bị của trường: nhãn các giá trị cố định (mã giữ như backend). */
 
-/**
- * Hồ sơ thiết bị (TS-01). Khớp với `EquipmentResponse` ở backend (`module/school/equipment`).
- */
-
-export type PhysicalDigitalType = "PHYSICAL" | "DIGITAL" | "LEARNING_SUPPORT";
-
-export type AssetStatus =
-  | "IN_STOCK"
-  | "IN_USE"
-  | "BROKEN"
-  | "REPAIRING"
-  | "MISSING"
-  | "PENDING_LIQUIDATION"
-  | "LIQUIDATED"
-  | "LOST";
-
-export type EquipmentCondition = "TOT" | "KHA" | "TRUNG_BINH" | "KEM" | "HONG" | "KHONG_SU_DUNG";
-
-/** Tham chiếu gọn: id và tên để hiển thị. */
-export type EquipmentRef = { id: number; name: string };
-
-export type Equipment = {
-  id: number;
-  code: string;
-  name: string;
-  sortOrder: number | null;
-  active: boolean;
-  note: string | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-  school: EquipmentRef | null;
-  catalog: EquipmentRef | null;
-  physicalOrDigital: PhysicalDigitalType;
-  assetCategory: AssetCategory | null;
-  legacyCode: string | null;
-  serialNumber: string | null;
-  model: string | null;
-  manufacturer: string | null;
-  unit: EquipmentRef | null;
-  quantity: number;
-  originSource: EquipmentRef | null;
-  acquisitionMethod: EquipmentRef | null;
-  fundingSource: FundingSource | null;
-  originNote: string | null;
-  fundingNote: string | null;
-  acquisitionNote: string | null;
-  productionYear: number | null;
-  usageStartYear: number | null;
-  receivedDate: string | null;
-  purchaseDate: string | null;
-  originalValue: number | null;
-  remainingValue: number | null;
-  warrantyExpiry: string | null;
-  room: EquipmentRef | null;
-  status: AssetStatus;
-  condition: EquipmentCondition | null;
-  intakeLineId: number | null;
-  specs: Record<string, string>;
-  /** Hồ sơ còn thiếu gì — tính ở máy chủ. Rỗng là hồ sơ chuẩn. */
-  missingProfile: string[];
-  _can?: { write?: boolean; delete?: boolean };
-};
-
-/** Một dòng lịch sử (TS-04), mới nhất trước. */
-export type EquipmentHistoryRow = {
-  id: number;
-  action: EquipmentHistoryAction;
-  field: string | null;
-  fromValue: string | null;
-  toValue: string | null;
-  voucherResource: string | null;
-  voucherId: number | null;
-  voucherCode: string | null;
-  note: string | null;
-  actorName: string | null;
-  createdAt: string;
-};
-
-export type EquipmentHistoryAction =
-  | "GHI_TANG"
-  | "CAP_NHAT"
-  | "DIEU_CHUYEN"
-  | "KIEM_KE"
-  | "BAO_HONG"
-  | "SUA_CHUA"
-  | "THANH_LY"
-  | "MAT";
-
-export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
-  IN_STOCK: "Trong kho",
-  IN_USE: "Đang sử dụng",
-  BROKEN: "Hỏng, chờ xử lý",
-  REPAIRING: "Đang sửa chữa",
-  MISSING: "Chờ ghi giảm do mất",
-  PENDING_LIQUIDATION: "Chờ thanh lý",
-  LIQUIDATED: "Đã thanh lý",
-  LOST: "Mất",
-};
-
-export const ASSET_STATUS_OPTIONS = (Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((value) => ({
-  value,
-  label: ASSET_STATUS_LABELS[value],
-}));
-
-export const CONDITION_LABELS: Record<EquipmentCondition, string> = {
-  TOT: "Tốt",
-  KHA: "Khá",
-  TRUNG_BINH: "Trung bình",
-  KEM: "Kém",
-  HONG: "Hỏng",
-  KHONG_SU_DUNG: "Không sử dụng được",
-};
-
-export const CONDITION_OPTIONS = (Object.keys(CONDITION_LABELS) as EquipmentCondition[]).map((value) => ({
-  value,
-  label: CONDITION_LABELS[value],
-}));
-
-export const PHYSICAL_DIGITAL_LABELS: Record<PhysicalDigitalType, string> = {
-  PHYSICAL: "Vật lý",
-  DIGITAL: "Phần mềm",
+export const PHYSICAL_TYPE_LABELS: Record<string, string> = {
+  PHYSICAL: "Thiết bị vật lý",
+  DIGITAL: "Thiết bị số / phần mềm",
   LEARNING_SUPPORT: "Hệ thống hỗ trợ học tập",
 };
 
-export const PHYSICAL_DIGITAL_OPTIONS = (Object.keys(PHYSICAL_DIGITAL_LABELS) as PhysicalDigitalType[]).map(
-  (value) => ({ value, label: PHYSICAL_DIGITAL_LABELS[value] }),
-);
-
-/** Trạng thái đã ra khỏi sổ: chỉ những trạng thái này được xoá hồ sơ (khớp `EquipmentService.OFF_BOOK`). */
-export const OFF_BOOK_STATUSES: AssetStatus[] = ["LIQUIDATED", "LOST"];
-
-export const HISTORY_ACTION_LABELS: Record<EquipmentHistoryAction, string> = {
-  GHI_TANG: "Ghi tăng",
-  CAP_NHAT: "Cập nhật",
-  DIEU_CHUYEN: "Điều chuyển",
-  KIEM_KE: "Kiểm kê",
-  BAO_HONG: "Báo hỏng",
-  SUA_CHUA: "Sửa chữa",
-  THANH_LY: "Thanh lý",
-  MAT: "Mất",
+export const EQUIPMENT_CONDITION_LABELS: Record<string, string> = {
+  TOT: "Tốt",
+  TRUNG_BINH: "Trung bình",
+  KEM: "Kém",
+  HONG: "Hỏng",
 };
 
-/** Tên trường trong dòng lịch sử, theo tên trường ở backend. */
-export const HISTORY_FIELD_LABELS: Record<string, string> = {
-  status: "Trạng thái",
-  condition: "Tình trạng",
-  serialNumber: "Số serial",
-  model: "Model",
-  manufacturer: "Hãng sản xuất",
-  legacyCode: "Mã cũ",
-  originalValue: "Nguyên giá",
-  warrantyExpiry: "Hết bảo hành",
+export const ASSET_STATUS_LABELS: Record<string, string> = {
+  IN_STOCK: "Trong kho",
+  IN_USE: "Đang sử dụng",
+  BORROWED: "Đang cho mượn",
+  BROKEN: "Hỏng, chờ xử lý",
+  UNREPAIRABLE: "Hỏng, không sửa được",
+  REPAIRING: "Đang sửa chữa",
+  WARRANTY: "Đang bảo hành",
+  MAINTAINING: "Đang bảo trì",
+  TRANSFERRING: "Đang điều chuyển",
+  PENDING_LIQUIDATION: "Chờ thanh lý",
+  LIQUIDATED: "Đã thanh lý",
+  PENDING_DESTRUCTION: "Chờ tiêu huỷ",
+  DESTROYED: "Đã tiêu huỷ",
+  MISSING: "Chờ ghi giảm do mất",
+  LOST: "Mất",
+  NOT_DELIVERED: "Thiếu khi điều chuyển",
+  USED_UP: "Đã dùng hết",
 };
 
 /**
- * Một dòng của `/api/equipment/summary` — một nhóm thiết bị (hoặc một nhóm thiết bị trong một kho/phòng)
- * với số lượng tách theo trạng thái. Chỉ đếm tài sản còn trên sổ. Cột đếm rỗng là 0.
+ * Trạng thái gộp thành 7 nhóm để HIỆN trên danh sách (chip): 17 trạng thái chi tiết vẫn lưu và vẫn quyết định
+ * phiếu nào chọn được thiết bị nào; nhãn chi tiết hiện khi rê chuột và ở trang thiết bị.
  */
-export type EquipmentSummaryRow = {
-  catalog_id: number;
-  code: string;
-  name: string;
-  tracking_type: "SERIAL" | "BULK";
-  minimum_required: boolean | null;
-  unit: string | null;
-  subject_id: number | null;
-  subject: string | null;
-  type_id: number | null;
-  type: string | null;
-  /** Chỉ có ở chế độ Theo kho/phòng; `room_id` rỗng là kho (chưa xếp phòng). */
-  school_id?: number;
-  school?: string;
-  room_id?: number | null;
-  room?: string;
-  schools: number;
-  total: number | null;
-  /** Số HỒ SƠ thiết bị — cộng được qua các nhóm khác đơn vị tính, khác với `total` là số lượng. */
-  records: number;
-  usable: number | null;
-  in_use: number | null;
-  in_stock: number | null;
-  broken: number | null;
-  pending: number | null;
+export const ASSET_STATUS_GROUP_OF: Record<string, string> = {
+  IN_STOCK: "stock",
+  IN_USE: "use",
+  BORROWED: "moving",
+  TRANSFERRING: "moving",
+  REPAIRING: "repair",
+  WARRANTY: "repair",
+  MAINTAINING: "repair",
+  BROKEN: "broken",
+  UNREPAIRABLE: "broken",
+  PENDING_LIQUIDATION: "leaving",
+  PENDING_DESTRUCTION: "leaving",
+  MISSING: "leaving",
+  LIQUIDATED: "gone",
+  DESTROYED: "gone",
+  LOST: "gone",
+  NOT_DELIVERED: "gone",
+  USED_UP: "gone",
 };
 
-export type EquipmentSummaryResponse = {
-  rows: EquipmentSummaryRow[];
-  maxSchools: number;
-  /** Theo kho/phòng: tổng số cặp trường × kho/phòng (phân trang ở máy chủ). */
-  total?: number;
-  /** Theo kho/phòng: số kho/phòng và số hồ sơ của mỗi trường, đếm trên cả danh sách. */
-  schoolTotals?: { schoolId: number; school: string | null; rooms: number; records: number }[];
+export const ASSET_STATUS_GROUP_LABELS: Record<string, string> = {
+  stock: "Trong kho",
+  use: "Đang sử dụng",
+  moving: "Mượn, điều chuyển",
+  repair: "Đang sửa chữa",
+  broken: "Hỏng",
+  leaving: "Chờ ghi giảm",
+  gone: "Đã ghi giảm",
 };
 
-/** Loại tài sản — nhãn theo mã (cùng nhãn với danh mục thiết bị). */
+/**
+ * Trạng thái của hồ sơ ĐÃ RA KHỎI SỔ: thanh lý / tiêu huỷ, ghi giảm do mất, vật tư đã dùng hết. Mọi
+ * con số "thiết bị của trường" (cột trái, bảng tổng hợp, bảng Chi tiết, huy hiệu ở hồ sơ trường)
+ * đều bỏ các hồ sơ này — cùng danh sách với `OFF_BOOK` ở máy chủ.
+ */
+export const OFF_BOOK_STATUSES = ["LIQUIDATED", "DESTROYED", "LOST", "USED_UP", "NOT_DELIVERED"];
+
 export const ASSET_CATEGORY_LABELS: Record<string, string> = {
   FIXED_ASSET: "Tài sản cố định (TSCĐ)",
   DURABLE_TOOL: "Đồ dùng / Dụng cụ lâu bền (CCDC)",
@@ -203,8 +82,8 @@ export const ASSET_CATEGORY_LABELS: Record<string, string> = {
 };
 
 /**
- * Nguồn kinh phí — đúng các giá trị của `FundingSource` ở máy chủ. "Chưa xác định nguồn" chỉ do hệ thống ghi,
- * không phải một lựa chọn.
+ * Nguồn kinh phí — đúng các giá trị của `FundingSource` ở máy chủ. Năm nguồn chuẩn do nghiệp vụ chốt
+ * (changelog 109); "Chưa xác định nguồn" chỉ do hệ thống ghi, không phải một lựa chọn.
  */
 export const FUNDING_LABELS: Record<string, string> = {
   STATE_BUDGET: "Ngân sách",
@@ -223,8 +102,9 @@ export const FUNDING_OPTIONS = ["STATE_BUDGET", "TUITION", "REVENUE", "DEVELOPME
 export const OTHER_ACQUISITION_CODE = "KHAC";
 
 /**
- * Luật của một NGUỒN HÌNH THÀNH (`GET /origin_sources/rules`): nguồn kinh phí nào chọn được, khi nào bắt buộc,
- * có phải ghi rõ không, có hình thức mua sắm không. Màn hình chỉ đọc, không chép lại bảng luật.
+ * Luật của một NGUỒN HÌNH THÀNH (`GET /origin_sources/rules`): nguồn kinh phí nào chọn được, khi nào
+ * bắt buộc, có phải ghi rõ không, có hình thức mua sắm không. Bảng luật nằm ở máy chủ (`OriginRule`) —
+ * màn hình chỉ ĐỌC, không chép lại, để ô chọn và câu từ chối không lệch nhau.
  */
 export type OriginRule = {
   /** Mã của dòng danh mục `origin_sources` mà luật này áp cho. */
@@ -234,6 +114,8 @@ export type OriginRule = {
   fundingRequired: "ALWAYS" | "WHEN_COST" | "NEVER";
   noteRequired: boolean;
   acquisitionMethod: boolean;
+  /** Mã hình thức mua sắm không đi với nguồn này (trường tự mua: không "Mua sắm tập trung"). */
+  excludedAcquisitionMethods?: string[];
 };
 
 /** Nguồn kinh phí này có đi với nguồn hình thành này không — cùng phép với `OriginRule.allows` ở máy chủ. */
@@ -249,11 +131,73 @@ export function fundingRequired(rule: OriginRule | undefined, unitPrice: unknown
   return rule.fundingRequired === "WHEN_COST" && Number(unitPrice ?? 0) > 0;
 }
 
-/** Đường dẫn màn phiếu theo tên tài nguyên — để lịch sử, phiếu liên quan mở được phiếu gốc. */
+/** Một dòng lịch sử tài sản (`GET /equipment/{id}/history`). */
+export type EquipmentHistoryRow = {
+  id: number;
+  action: string;
+  field: string | null;
+  fromValue: string | null;
+  toValue: string | null;
+  voucherResource: string | null;
+  voucherId: number | null;
+  voucherCode: string | null;
+  note: string | null;
+  actorName: string | null;
+  createdAt: string;
+};
+
+export const EQUIPMENT_HISTORY_ACTION_LABELS: Record<string, string> = {
+  GHI_TANG: "Ghi tăng",
+  CAP_NHAT: "Cập nhật hồ sơ",
+  CAP_PHAT: "Cấp phát",
+  THU_HOI: "Thu hồi",
+  DIEU_CHUYEN: "Điều chuyển",
+  MUON: "Cho mượn",
+  TRA: "Trả",
+  BAO_HONG: "Báo hỏng",
+  SUA_CHUA: "Sửa chữa",
+  BAO_HANH: "Bảo hành",
+  BAO_TRI: "Bảo trì",
+  KIEM_KE: "Kiểm kê",
+  CHO_THANH_LY: "Chờ thanh lý",
+  THANH_LY: "Thanh lý",
+  CHO_TIEU_HUY: "Chờ tiêu huỷ",
+  TIEU_HUY: "Tiêu huỷ",
+  MAT: "Mất",
+  KHAU_HAO: "Tính hao mòn",
+  LUU_KHO: "Lưu kho",
+  XUAT_KHO: "Xuất kho",
+  TIEU_HAO: "Tiêu hao",
+  DAT_PHONG: "Dùng theo mượn phòng",
+};
+
+export const EQUIPMENT_HISTORY_FIELD_LABELS: Record<string, string> = {
+  room: "Phòng",
+  manager: "Người quản lý",
+  status: "Trạng thái",
+  condition: "Tình trạng",
+  school: "Trường",
+  code: "Mã thiết bị",
+  remainingValue: "Giá trị còn lại",
+};
+
+/**
+ * Tiêu đề một mục lịch sử đã gộp theo phiếu: nói việc của CẢ phiếu, không nói bước cuối — "Ghi giảm do mất"
+ * chứ không phải "Mất", "Mượn – trả" chứ không phải "Trả". `actions` là hành động của các dòng trong mục, cũ trước.
+ */
+export function historyEntryTitle(actions: string[]): string {
+  const has = (...codes: string[]) => codes.some((c) => actions.includes(c));
+  if (has("MUON", "TRA")) return has("TRA") ? "Mượn – trả" : "Mượn – trả (đang mượn)";
+  if (has("MAT")) return "Ghi giảm do mất";
+  if (has("THANH_LY", "CHO_THANH_LY")) return "Thanh lý";
+  if (has("TIEU_HUY", "CHO_TIEU_HUY")) return "Tiêu huỷ";
+  const last = actions[actions.length - 1];
+  return EQUIPMENT_HISTORY_ACTION_LABELS[last] ?? last;
+}
+
+/** Đường dẫn màn phiếu theo tên tài nguyên — để lịch sử và thông báo mở được phiếu gốc. */
 export const VOUCHER_ROUTES: Record<string, string> = {
   equipment_intakes: "/equipment-intakes",
-  purchase_proposals: "/purchase-proposals",
-  procurement_plans: "/procurement-plans",
   inventory_sessions: "/inventory-sessions",
-  inventory_campaigns: "/inventory-campaigns",
+  purchase_proposals: "/purchase-proposals",
 };

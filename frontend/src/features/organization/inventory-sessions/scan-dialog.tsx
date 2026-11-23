@@ -14,8 +14,8 @@ export type ScanResult = {
 };
 
 /**
- * Mã tài sản trong nội dung tem. Tem QR có thể mang đường dẫn tra cứu có tham số `code`; mã vạch và máy quét cầm
- * tay thì mang thẳng mã.
+ * Mã tài sản trong nội dung tem. Tem QR mang đường dẫn tra cứu (`/equipment-lookup?code=<mã>` — xem
+ * `equipment-labels/asset-codes.tsx`), mã vạch và máy quét cầm tay thì mang thẳng mã.
  */
 function codeFromScan(text: string): string {
   const raw = text.trim();
@@ -164,10 +164,10 @@ export function ScanDialog({ open, onOpenChange, onScan }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_auto_minmax(0,1fr)] sm:max-w-md">
+      <DialogContent size="auto" className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_auto_minmax(0,1fr)] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Quét mã tài sản</DialogTitle>
-          <DialogDescription>Đưa tem QR vào khung. Tài sản trên phiếu được đánh dấu “Có”.</DialogDescription>
+          <DialogTitle>Quét mã thiết bị</DialogTitle>
+          <DialogDescription>Đưa tem QR vào khung. Thiết bị trên phiếu được đánh dấu “Có”.</DialogDescription>
         </DialogHeader>
 
         <div className="bg-muted relative aspect-[4/3] overflow-hidden rounded-lg">
@@ -198,8 +198,8 @@ export function ScanDialog({ open, onOpenChange, onScan }: {
             ref={input}
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Gõ hoặc dán mã tài sản"
-            aria-label="Mã tài sản"
+            placeholder="Gõ hoặc dán mã thiết bị"
+            aria-label="Mã thiết bị"
             className="font-mono"
           />
           <Button type="submit" disabled={!term.trim()}>Ghi nhận</Button>
@@ -225,7 +225,7 @@ export function ScanDialog({ open, onOpenChange, onScan }: {
                       className="h-7 shrink-0"
                       onClick={() => {
                         entry.action?.run();
-                        setLog((prev) => prev.map((x) => (x.key === entry.key ? { ...x, action: undefined, text: `${x.text} — đã thêm vào tài sản thừa` } : x)));
+                        setLog((prev) => prev.map((x) => (x.key === entry.key ? { ...x, action: undefined, text: `${x.text} — đã thêm vào thiết bị thừa` } : x)));
                       }}
                     >
                       {entry.action.label}

@@ -10,6 +10,9 @@ import {
   RESIZABLE_COLUMN_DEFAULTS,
 } from "@/shared/components/data-table/data-table";
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
+import { FilterField, FilterPopover, OptionChoices } from "@/shared/components/data-table/filter-popover";
+import { RefFilter, SchoolFilter } from "@/shared/components/data-table/ref-filter";
+import { CircleDot, ShieldCheck } from "lucide-react";
 import {
   ListToolbar,
   ListView,
@@ -31,6 +34,7 @@ export const UserList = () => {
     return [
       columnHelper.accessor("username", {
         id: "username",
+        size: 150,
         enableResizing: true,
         header: "Tên đăng nhập",
         enableSorting: true,
@@ -39,17 +43,18 @@ export const UserList = () => {
       }),
       columnHelper.accessor("fullName", {
         id: "fullName",
+        size: 220,
+        meta: { fill: true },
         enableResizing: true,
         header: "Họ tên",
         enableSorting: true,
       }),
-      columnHelper.display({
-        id: "school",
+      columnHelper.accessor((row) => row.school?.name ?? null, {
+        // Trường nằm ở bảng con user_schools (docs/kien-truc/11) — không sắp theo cột này.
+        id: "school.name",
+        size: 220,
         enableResizing: true,
         header: "Trường công tác",
-        // Không sắp xếp được: `_sort=school` không phải thuộc tính API nhận, và
-        // để header bấm được sẽ cho một phép sắp lặng lẽ không làm gì. Dùng ô
-        // lọc theo trường thay vào đó.
         enableSorting: false,
         cell: ({ row }) => {
           const school = row.original.school;
@@ -66,6 +71,7 @@ export const UserList = () => {
       }),
       columnHelper.accessor("status", {
         id: "status",
+        size: 130,
         header: "Trạng thái",
         enableSorting: true,
         cell: ({ getValue }) => {
@@ -79,6 +85,7 @@ export const UserList = () => {
       }),
       columnHelper.display({
         id: "roles",
+        size: 200,
         header: "Vai trò",
         // Not sortable: the value is a collection, and sorting a row by "its
         // roles" has no meaning the API could implement.
@@ -95,6 +102,7 @@ export const UserList = () => {
       }),
       columnHelper.accessor("lastLoginAt", {
         id: "lastLoginAt",
+        size: 140,
         header: "Đăng nhập lần cuối",
         enableSorting: true,
         cell: ({ getValue }) => (
@@ -146,6 +154,10 @@ export const UserList = () => {
     },
   });
 
+  // Ô nào trong hộp "Bộ lọc" đang lọc — để tô viền.
+  const filterOn = (field: string) => (table.reactTable.getState().columnFilters as unknown as { id: string; value: unknown }[])
+    .some((e) => e.id === field && e.value != null && e.value !== "");
+
   return (
     <ListView>
       <ListViewHeader />
@@ -156,6 +168,20 @@ export const UserList = () => {
             <ListToolbar
               table={table}
               search={<DataTableQuickFilter table={table} />}
+              filters={
+                <>
+                  <SchoolFilter table={table} />
+                  <FilterPopover table={table} fields={["roles.id", "status"]}>
+                    <FilterField label="Vai trò" icon={ShieldCheck} active={filterOn("roles.id")}>
+                      <RefFilter table={table} field="roles.id" resource="roles" all="Mọi vai trò" searchPlaceholder="Tìm vai trò…" className="w-full" />
+                    </FilterField>
+                    <FilterField label="Trạng thái" icon={CircleDot} active={filterOn("status")}>
+                      <OptionChoices table={table} field="status"
+                        options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
+                    </FilterField>
+                  </FilterPopover>
+                </>
+              }
             />
           </>
         }

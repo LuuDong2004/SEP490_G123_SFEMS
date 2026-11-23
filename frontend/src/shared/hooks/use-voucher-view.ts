@@ -1,11 +1,12 @@
-import { usePersistentState } from "@/shared/hooks/use-persistent-state";
+import { useState } from "react";
 
 export type VoucherView = "work" | "document";
 
 /**
- * Dạng xem của màn chi tiết một loại phiếu, nhớ theo người dùng (ai quen đọc phiếu như tờ giấy thì lần sau
- * mở ra vẫn là tờ giấy). `name` là tên ngắn của loại phiếu ("intake", "inventory") — mỗi loại nhớ riêng.
+ * Dạng xem của màn chi tiết một loại phiếu. Mở ra LUÔN là dạng "Làm việc" (trưởng nhóm 13/11/2026) — dạng
+ * "Văn bản" chỉ bật khi người dùng chọn, và không nhớ sang lần mở sau. `name` giữ cho chỗ gọi không đổi.
  */
-export function useVoucherView(name: string) {
-  return usePersistentState<VoucherView>(`${name}.show.view`, "work", "local");
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function useVoucherView(_name: string) {
+  return useState<VoucherView>("work");
 }

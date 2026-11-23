@@ -13,7 +13,7 @@ import { FormPanel } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
 import { ReadField } from "@/shared/components/form/read-field";
 import type { User } from "@/domains/user/types";
-import { STATUS_LABELS } from "@/domains/user/types";
+import { STATUS_LABELS, USER_TYPE_LABELS, positionLabel } from "@/domains/user/types";
 import { USER_STATUS_VARIANTS as STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { formatDateTime, formatEditedAt } from "@/shared/lib/format";
 import { SessionsCard } from "@/shared/components/security/sessions-card";
@@ -55,6 +55,25 @@ export const UserShow = () => {
 
           <FormSection title="Nơi công tác" compact>
             <div className={GRID}>
+              <ReadField label="Loại tài khoản">{record ? USER_TYPE_LABELS[record.userType] : null}</ReadField>
+              {record && record.userType !== "SYSTEM" ? (
+                <ReadField label="Chức vụ">{positionLabel(record.userType, record.profile?.position) ?? "—"}</ReadField>
+              ) : null}
+              <ReadField label="Chức danh">{record?.profile?.jobTitle || "—"}</ReadField>
+              {record?.userType === "SO" ? (
+                <ReadField label="Điện thoại cơ quan">{record.profile?.workPhone || "—"}</ReadField>
+              ) : null}
+              {record?.userType === "SYSTEM" ? (
+                <>
+                  <ReadField label="Quản trị cấp cao">{record.profile?.superAdmin ? "Có" : "Không"}</ReadField>
+                  <ReadField label="IP được đăng nhập" className="@md:col-span-2">
+                    {record.profile?.allowedIps || "Theo danh sách chung"}
+                  </ReadField>
+                  {record.profile?.note ? (
+                    <ReadField label="Ghi chú" className="@md:col-span-2">{record.profile.note}</ReadField>
+                  ) : null}
+                </>
+              ) : null}
               <ReadField label="Cơ quan quản lý" className="@md:col-span-2">
                 {record?.managingBody ? (
                   <Link to={`/departments_of_education/show/${record.managingBody.id}`} className="hover:underline">
@@ -85,7 +104,7 @@ export const UserShow = () => {
                   record.roles.map((role) => (
                     <Badge key={role.id} variant="outline">
                       {role.name}
-                      <span className="text-muted-foreground ml-1 font-mono text-[10px]">{role.code}</span>
+                      <span className="text-muted-foreground ml-1 font-mono text-[0.625rem]">{role.code}</span>
                     </Badge>
                   ))
                 ) : (
@@ -100,7 +119,7 @@ export const UserShow = () => {
             <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
           </p>
         </FormPanel>
-        {/* Phiên đang mở và lịch sử đăng nhập của tài khoản (QLTB-242). */}
+        {/* Phiên đang mở và lịch sử đăng nhập của tài khoản. */}
         {record?.id ? (
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <SessionsCard source={`users/${record.id}/sessions`} endPath={(sid) => `users/${record.id}/sessions/${sid}`}

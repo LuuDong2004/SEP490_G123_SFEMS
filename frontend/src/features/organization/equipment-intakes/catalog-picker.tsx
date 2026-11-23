@@ -4,11 +4,12 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { HelpHint } from "@/shared/components/form/help-hint";
-import { IconFilter } from "@/shared/components/data-table/icon-filter";
+import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-table/filter-popover";
 import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -34,15 +35,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/ui/table";
-import { TRACKING_LABELS } from "@/domains/equipment-intake/types";
 import { ASSET_CATEGORY_LABELS } from "@/domains/equipment/types";
-import { CATALOG_ORIGIN_LABELS } from "@/domains/equipment-catalog/types";
+import { CATALOG_ORIGIN_LABELS, TRACKING_TYPE_LABELS } from "@/domains/equipment-catalog/types";
 import { SchoolItemDialog } from "@/shared/components/catalog/school-item-dialog";
 import type { PickedCatalog } from "@/domains/equipment-catalog/types";
 import { errorMessage } from "@/shared/lib/api-error";
 import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -53,7 +54,7 @@ const PAGE_SIZE = 20;
 
 /**
  * Chọn NHIỀU thiết bị một lượt. Mọi dòng thêm vào đều nhận về kho thiết bị của trường —
- * ghi tăng không chọn nơi nhận (QLTB-382); đưa về phòng là việc của phiếu cấp phát.
+ * ghi tăng không chọn nơi nhận; đưa về phòng là việc của phiếu cấp phát.
  *
  * <p>Hộp này chọn MẶT HÀNG trong danh mục, khác hộp chọn tài sản của các phiếu
  * cấp phát / điều chuyển: lúc ghi tăng thì tài sản chưa tồn tại, đó chính là
@@ -66,11 +67,14 @@ export function CatalogPickerDialog({
   exclude,
   onPick,
   mode = "multi",
-  title = "Chọn thiết bị từ danh mục",
+  title = "Chọn thiết bị trong danh mục",
   description = "Chọn thiết bị trong danh mục để thêm vào phiếu ghi tăng.",
   header,
   body,
+  size = "picker",
 }: {
+  /** Cỡ hộp: `wide` khi thân thay thế là một bảng nhiều cột (bảng định mức của đề xuất mua sắm). */
+  size?: "picker" | "wide";
   title?: string;
   description?: string;
   /** Dải trên đầu hộp, dưới tiêu đề (vd. tab "Theo định mức" / "Toàn bộ danh mục" của đề xuất mua sắm). */
@@ -105,7 +109,7 @@ export function CatalogPickerDialog({
   const schoolLevel = school?.educationLevel?.id ? String(school.educationLevel.id) : null;
   const [levelPick, setLevelPick] = useState<string | null>(null);
   const levelId = schoolLevel ?? levelPick ?? ALL;
-  // Hàng ghi tăng luôn về KHO THIẾT BỊ của trường (QLTB-382: mỗi trường một kho; đưa về phòng là việc của
+  // Hàng ghi tăng luôn về KHO THIẾT BỊ của trường (mỗi trường một kho; đưa về phòng là việc của
   // phiếu cấp phát) — không có ô "Nhận vào" để chọn. Không tìm thấy kho thì để trống: máy chủ coi là trong kho.
   const [roomId, setRoomId] = useState<string>("");
   const [selected, setSelected] = useState<Map<number, PickedCatalog>>(new Map());
@@ -175,7 +179,9 @@ export function CatalogPickerDialog({
       ...(applied ? [{ field: "q", operator: "eq" as const, value: applied }] : []),
       ...(typeId !== ALL ? [{ field: "equipmentType.id", operator: "eq" as const, value: typeId }] : []),
       ...(subjectId !== ALL ? [{ field: "subject.id", operator: "eq" as const, value: subjectId }] : []),
-      ...(levelId !== ALL ? [{ field: "educationLevel.id", operator: "eq" as const, value: levelId }] : []),
+      // Trường đã có cấp học: KHÔNG gửi lọc cấp — máy chủ tự giới hạn đúng cấp của trường (`levelScope`) mà vẫn giữ
+      // thiết bị không gắn cấp và thiết bị ngoài danh mục của trường; so bằng cấp ở đây làm mất hai loại đó (B02).
+      ...(!schoolLevel && levelId !== ALL ? [{ field: "educationLevel.id", operator: "eq" as const, value: levelId }] : []),
     ],
     pagination: { pageSize: PAGE_SIZE },
     sorters: [{ field: "name", order: "asc" }],
@@ -217,7 +223,7 @@ export function CatalogPickerDialog({
         onOpenChange(o);
       }}
     >
-      <DialogContent size="picker">
+      <DialogContent size={size}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {/* Giữ cho trình đọc màn hình (Radix cần một mô tả), ẩn khỏi mắt: bốn dòng chữ giải thích
@@ -228,7 +234,7 @@ export function CatalogPickerDialog({
         {body ?? (
         <>
 
-        {/* Một hàng lọc: ô tìm (gõ là lọc), hai ô chọn loại / môn; "Thêm mới" đứng cuối hàng vì
+        {/* Một hàng lọc: ô tìm (gõ là lọc), hai ô chọn loại / môn; nút thêm thiết bị đứng cuối hàng vì
             người ta chỉ cần nó đúng lúc tìm không ra.
             Ô tìm là <div> chứ không phải <form>: hộp này mở TRONG form phiếu
             nhập, và một form lồng trong form thì Enter ở đây submit cả phiếu. */}
@@ -245,7 +251,7 @@ export function CatalogPickerDialog({
                   setApplied(term.trim());
                 }
               }}
-              placeholder="Mã hoặc tên thiết bị…"
+              placeholder="Tên hoặc mã DM thiết bị…"
               className="rounded-full pl-8"
               aria-label="Tìm thiết bị"
             />
@@ -253,21 +259,42 @@ export function CatalogPickerDialog({
           {/* Trường đã có cấp học thì KHÔNG có ô chọn cấp: thiết bị của cấp khác không ghi tăng được cho
               trường này (máy chủ cũng không trả về và từ chối khi lưu). Ô chọn chỉ còn với trường chưa
               khai cấp học. */}
-          {schoolLevel ? null : (
-            <IconFilter icon={<GraduationCap />} label="cấp học" allLabel="Mọi cấp học" value={levelId === ALL ? null : levelId}
-              onChange={(v) => setLevelPick(v ?? ALL)}
-              groups={[{ items: (levels?.data ?? []).map((l: any) => ({ key: String(l.id), label: l.name })) }]} />
-          )}
-          <IconFilter icon={<Boxes />} label="loại thiết bị" allLabel="Tất cả loại" value={typeId === ALL ? null : typeId}
-            onChange={(v) => setTypeId(v ?? ALL)}
-            groups={[{ items: (types?.data ?? []).map((t: any) => ({ key: String(t.id), label: t.name })) }]} />
-          <IconFilter icon={<BookOpen />} label="môn học" allLabel="Tất cả môn" value={subjectId === ALL ? null : subjectId}
-            onChange={(v) => setSubjectId(v ?? ALL)}
-            groups={[{ items: (subjects?.data ?? []).map((x: any) => ({ key: String(x.id), label: x.name })) }]} />
+          {/* Một nút "Bộ lọc" gom cấp học, loại, môn (trưởng nhóm 13/11/2026) — ba nút biểu tượng không ai đoán ra. */}
+          {/* Hai cột thay vì ba danh sách chồng nhau (trưởng nhóm 13/11/2026: "dài ngoằng"): trái là cấp học + loại
+              thiết bị, phải là môn học — danh sách dài nhất, cao bằng cột trái và cuộn bên trong. */}
+          <FilterButton modal count={[schoolLevel ? ALL : levelId, typeId, subjectId].filter((v) => v !== ALL).length}
+            contentClassName="w-[38rem]"
+            onClear={() => {
+              if (!schoolLevel) setLevelPick(ALL);
+              setTypeId(ALL);
+              setSubjectId(ALL);
+            }}>
+            <div className="grid grid-cols-2 items-start gap-x-6">
+              <div className="grid gap-4">
+                {schoolLevel ? null : (
+                  <FilterField label="Cấp học" icon={GraduationCap} active={levelId !== ALL}>
+                    <ChoiceList value={levelId === ALL ? null : levelId} onChange={(v) => setLevelPick(v ?? ALL)} columns={1}
+                      options={(levels?.data ?? []).map((l: any) => ({ value: String(l.id), label: l.name }))} />
+                  </FilterField>
+                )}
+                <FilterField label="Loại thiết bị" icon={Boxes} active={typeId !== ALL}>
+                  {/* Loại thiết bị chỉ khoảng mười mục: hiện đủ, không cuộn lưng chừng. */}
+                  <ChoiceList value={typeId === ALL ? null : typeId} onChange={(v) => setTypeId(v ?? ALL)} columns={1}
+                    className="max-h-none"
+                    options={(types?.data ?? []).map((t: any) => ({ value: String(t.id), label: t.name }))} />
+                </FilterField>
+              </div>
+              <FilterField label="Môn học" icon={BookOpen} active={subjectId !== ALL}>
+                <ChoiceList value={subjectId === ALL ? null : subjectId} onChange={(v) => setSubjectId(v ?? ALL)} columns={1}
+                  className={schoolLevel ? "max-h-[19.5rem]" : "max-h-[27rem]"}
+                  options={(subjects?.data ?? []).map((x: any) => ({ value: String(x.id), label: x.name }))} />
+              </FilterField>
+            </div>
+          </FilterButton>
           {mayCreate ? (
             <Button type="button" variant="outline" className="ms-auto" onClick={() => setCreating(true)}>
               <Plus />
-              Thêm mới
+              Thêm vào danh mục
             </Button>
           ) : (
             // Trường không ghi danh mục của Sở, nhưng thêm được thiết bị NGOÀI danh mục của riêng mình.
@@ -276,7 +303,7 @@ export function CatalogPickerDialog({
             <span className="ms-auto flex items-center gap-1.5">
               <Button type="button" variant="outline" onClick={() => setAddingOwn(true)}>
                 <Plus />
-                Ngoài danh mục
+                Thêm ngoài danh mục
               </Button>
               <HelpHint>
                 Dùng khi thiết bị không có trong danh mục của Sở.
@@ -285,9 +312,10 @@ export function CatalogPickerDialog({
           )}
         </div>
 
-        {/* Chiều cao CỐ ĐỊNH, không max-h: lọc ra ít dòng thì bảng chừa trống chứ hộp không co lại. */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
-          <Table>
+        {/* Chiều cao CỐ ĐỊNH, không max-h: lọc ra ít dòng thì bảng chừa trống chứ hộp không co lại.
+            Cột cố định (`table-fixed`), tên dài thì cắt bớt — không cuộn ngang (trưởng nhóm 14/11/2026). */}
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
@@ -306,34 +334,33 @@ export function CatalogPickerDialog({
                     }
                   />
                 </TableHead>
-                <TableHead>Mã thiết bị</TableHead>
+                <TableHead className="w-36">Mã DM thiết bị</TableHead>
                 <TableHead>Thiết bị</TableHead>
                 {/* Không có cột Loại thiết bị và Môn học: hai ô lọc ngay trên bảng đã là hai cột đó,
                     và chúng đẩy cột Thiết bị — thứ người ta thực sự đọc để chọn — bị cắt mất chữ. */}
-                <TableHead className="w-20">ĐVT</TableHead>
+                <TableHead className="w-24">ĐVT</TableHead>
                 <TableHead className="w-28">Quản lý</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {query.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
-                    Đang tải…
-                  </TableCell>
-                </TableRow>
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
-                    Không có thiết bị nào phù hợp.
-                  </TableCell>
-                </TableRow>
+              {rows.length === 0 ? (
+                // Tìm không ra: mời thêm ngay làm thiết bị ngoài danh mục (tên điền sẵn từ khoá vừa gõ) — nút đứng giữa
+                // khung trống, chỗ mắt người dùng đang nhìn, không phải một dòng chữ nhỏ dưới bảng.
+                <TableEmpty colSpan={5} loading={query.isLoading} filtered={!!applied}
+                  title={applied ? <>Không có “{applied}” trong danh mục</> : <>Không có thiết bị nào phù hợp.</>}
+                  action={mayCreate ? undefined : (
+                    <Button type="button" variant="outline" onClick={() => setAddingOwn(true)}>
+                      <Plus />
+                      Thêm ngoài danh mục
+                    </Button>
+                  )} />
               ) : (
                 rows.map((row) => {
                   const already = exclude.has(row.id);
-                  return (
+                  const tr = (
                     <TableRow
                       key={row.id}
-                      className={cn("group/row", LIFT_ROW, already ? "text-muted-foreground" : "cursor-pointer")}
+                      className={cn("group/row", LIFT_ROW, already ? "text-warning-text" : "cursor-pointer")}
                       onClick={() => toggle(row)}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -343,29 +370,35 @@ export function CatalogPickerDialog({
                           onCheckedChange={() => toggle(row)}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">{row.code}</TableCell>
+                      <TableCell className="truncate font-mono text-xs" title={row.code}>{row.code}</TableCell>
                       <TableCell>
-                        {row.name}
-                        {row.ownerSchool ? (
-                          <Badge variant="warning" className="ms-2" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
-                            Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin as keyof typeof CATALOG_ORIGIN_LABELS] ?? row.origin}` : ""}
-                          </Badge>
-                        ) : null}
-                        {already ? (
-                          <div className="text-xs">Phiếu đã có dòng cho thiết bị này</div>
-                        ) : null}
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate" title={row.name}>{row.name}</span>
+                          {row.ownerSchool ? (
+                            <Badge variant="warning" className="shrink-0" title={`Thiết bị riêng của ${row.ownerSchool.name}`}>
+                              Ngoài danh mục{row.origin ? ` · ${CATALOG_ORIGIN_LABELS[row.origin] ?? row.origin}` : ""}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell>{row.unit?.name ?? "—"}</TableCell>
+                      <TableCell className="truncate" title={row.unit?.name}>{row.unit?.name ?? "—"}</TableCell>
                       <TableCell>
                         {row.trackingType ? (
-                          <Badge variant={row.trackingType === "BULK" ? "info" : "neutral"}>
-                            {TRACKING_LABELS[row.trackingType] ?? row.trackingType}
+                          <Badge variant={already ? "warning" : row.trackingType === "bulk" ? "info" : "neutral"}>
+                            {TRACKING_TYPE_LABELS[row.trackingType] ?? row.trackingType}
                           </Badge>
                         ) : (
                           "—"
                         )}
                       </TableCell>
                     </TableRow>
+                  );
+                  if (!already) return tr;
+                  return (
+                    <Tooltip key={row.id}>
+                      <TooltipTrigger asChild>{tr}</TooltipTrigger>
+                      <TooltipContent side="top">Thiết bị này đã có trong phiếu. Vui lòng tăng số lượng ở đơn giá tương ứng.</TooltipContent>
+                    </Tooltip>
                   );
                 })
               )}
@@ -377,17 +410,6 @@ export function CatalogPickerDialog({
             </div>
           ) : null}
         </div>
-
-        {/* Tìm KHÔNG RA thì chỉ ngay lối thêm thiết bị ngoài danh mục, tên điền sẵn từ khoá vừa gõ —
-            hiện thường trực thì thành một dòng chữ không ai đọc. */}
-        {mayCreate || !applied || rows.length > 0 || query.isFetching ? null : (
-          <p className="text-muted-foreground -mt-1 flex flex-wrap items-center gap-x-2 text-xs">
-            Không có “{applied}” trong danh mục. Bạn có thể
-            <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setAddingOwn(true)}>
-              thêm làm thiết bị ngoài danh mục
-            </Button>
-          </p>
-        )}
 
         {/* Một thanh dưới: số đã tải bên trái; số đã chọn và hai nút bên phải. */}
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">
@@ -403,7 +425,7 @@ export function CatalogPickerDialog({
               </span>
             )}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Đóng
+              Huỷ
             </Button>
             {single ? null : (
               <Button
@@ -415,7 +437,7 @@ export function CatalogPickerDialog({
                   reset();
                 }}
               >
-                Thêm {selected.size > 0 ? selected.size : ""} dòng
+                Thêm {selected.size > 0 ? selected.size : ""} thiết bị
               </Button>
             )}
           </div>
@@ -480,7 +502,7 @@ function NewCatalogDialog({
   const [name, setName] = useState("");
   const [unitId, setUnitId] = useState<string>("");
   const [typeId, setTypeId] = useState<string>(ALL);
-  const [tracking, setTracking] = useState("SERIAL");
+  const [tracking, setTracking] = useState("serial");
   const [category, setCategory] = useState<string>(ALL);
   const [error, setError] = useState<string | null>(null);
 
@@ -492,12 +514,12 @@ function NewCatalogDialog({
     queryOptions: { enabled: open },
   });
 
-  const codeError = textError("CODE", "Mã", code);
+  const codeError = textError("CODE", "Mã DM thiết bị", code);
   const nameError = textError("NAME", "Tên", name);
 
   const reset = () => {
     setCode(""); setName(""); setUnitId(""); setTypeId(ALL);
-    setTracking("SERIAL"); setCategory(ALL); setError(null);
+    setTracking("serial"); setCategory(ALL); setError(null);
   };
 
   async function submit() {
@@ -540,7 +562,7 @@ function NewCatalogDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent size="form">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Thêm thiết bị vào danh mục</DialogTitle>
           <DialogDescription>
@@ -550,7 +572,7 @@ function NewCatalogDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Mã <span className="text-destructive">*</span></Label>
+            <Label>Mã DM thiết bị <span className="text-destructive">*</span></Label>
             <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="VD: TB-MAYCHIEU" maxLength={maxLengthOf("CODE")} />
             {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
           </div>
@@ -587,16 +609,16 @@ function NewCatalogDialog({
             <Select value={tracking} onValueChange={setTracking}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-64">
-                {Object.entries(TRACKING_LABELS).map(([v, l]) => (
+                {Object.entries(TRACKING_TYPE_LABELS).map(([v, l]) => (
                   <SelectItem key={v} value={v}>{l}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Loại tài sản</Label>
+            <Label>Phân loại kế toán</Label>
             <Select value={category === ALL ? "" : category} onValueChange={setCategory}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn loại tài sản" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Vui lòng chọn phân loại kế toán" /></SelectTrigger>
               <SelectContent className="max-h-64">
                 {category === ALL ? null : <SelectItem value={ALL} className="text-muted-foreground">Bỏ chọn</SelectItem>}
                 {Object.entries(ASSET_CATEGORY_LABELS).map(([v, l]) => (
@@ -619,7 +641,7 @@ function NewCatalogDialog({
             disabled={busy || !code.trim() || !name.trim() || !unitId || !!codeError || !!nameError}
             onClick={submit}
           >
-            Tạo và chọn
+            Lưu và chọn
           </Button>
         </DialogFooter>
       </DialogContent>

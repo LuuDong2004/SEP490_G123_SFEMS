@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useCustomMutation, useNotification } from "@refinedev/core";
-import { KeyRoundIcon } from "lucide-react";
+import { KeyRoundIcon, MailIcon } from "lucide-react";
 
 import { API_URL } from "@/shared/api/constants";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
+import { Separator } from "@/shared/ui/separator";
 import { InputPassword } from "@/shared/components/form/input-password";
 import {
   Card,
@@ -16,21 +17,30 @@ import {
 import { PasswordRules } from "@/shared/components/form/password-rules";
 import { passwordOk } from "@/shared/lib/password-policy";
 
+/** Email giả máy đặt cho tài khoản chưa có email (`PasswordResetService.PLACEHOLDER_DOMAIN`) — không gửi thư tới đó. */
+const PLACEHOLDER_DOMAIN = "@qltb.local";
+
+function hasRealEmail(email: string | null | undefined): email is string {
+  return !!email && email.includes("@") && !email.endsWith(PLACEHOLDER_DOMAIN);
+}
+
 /**
- * Setting a user's password on their behalf.
+ * Đặt lại mật khẩu thay người dùng — hai cách:
  *
- * Kept out of the edit form on purpose. Saving a profile and revoking somebody's
- * sessions are different intentions, and folding the second into the first
- * would make a corrected surname sign that person out of their laptop.
+ * - **Gửi link qua email** (`POST /users/{id}/password-reset-link`): mật khẩu cũ mất hiệu lực, mọi phiên bị đăng
+ *   xuất, người dùng nhận thư mang link tự đặt mật khẩu mới. Không ai ngoài họ biết mật khẩu mới.
+ * - **Đặt mật khẩu trực tiếp** (`POST /users/{id}/password`): khi tài khoản chưa có email, người quản trị tự trao
+ *   mật khẩu cho người dùng.
  *
- * `useCustomMutation` rather than `useUpdate`, because the endpoint is
- * `POST /users/{id}/password` and returns the user rather than a patched
- * record — outside the shape the data provider's `update` speaks.
+ * Tách khỏi form sửa thông tin: lưu hồ sơ và đăng xuất người khác là hai ý định khác nhau.
+ * `useCustomMutation` thay cho `useUpdate` vì hai endpoint không theo dạng `update` của data provider.
  */
-export function ResetPasswordCard({ userId }: { userId: number | string }) {
+export function ResetPasswordCard({ userId, email }: { userId: number | string; email?: string | null }) {
   const [password, setPassword] = useState("");
   const { open } = useNotification();
   const { mutate, mutation } = useCustomMutation();
+  const { mutate: sendLink, mutation: linkMutation } = useCustomMutation<{ sentTo: string }>();
+  const canMail = hasRealEmail(email);
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -62,6 +72,27 @@ export function ResetPasswordCard({ userId }: { userId: number | string }) {
     );
   };
 
+  const mailLink = () => {
+    sendLink(
+      {
+        url: `${API_URL}/users/${userId}/password-reset-link`,
+        method: "post",
+        values: {},
+        config: { headers: { "Content-Type": "application/json" } },
+        successNotification: false,
+      },
+      {
+        onSuccess: (res) => {
+          open?.({
+            type: "success",
+            message: "Đã gửi link đặt lại mật khẩu",
+            description: `Thư đã gửi tới ${res.data.sentTo}. Mật khẩu cũ không còn dùng được, tài khoản đã bị đăng xuất ở mọi thiết bị.`,
+          });
+        },
+      }
+    );
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -70,14 +101,35 @@ export function ResetPasswordCard({ userId }: { userId: number | string }) {
           Đặt lại mật khẩu
         </CardTitle>
         <CardDescription>
-          Đặt mật khẩu mới cho tài khoản này. Đổi xong, tài khoản bị đăng xuất
-          ở mọi nơi.
+          Gửi link để người dùng tự đặt mật khẩu mới qua email, hoặc đặt mật khẩu trực tiếp. Cách nào cũng làm mật
+          khẩu cũ mất hiệu lực và đăng xuất tài khoản ở mọi nơi.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canMail || linkMutation.isPending}
+              onClick={mailLink}
+            >
+              <MailIcon />
+              {linkMutation.isPending ? "Đang gửi..." : "Gửi link đặt lại qua email"}
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            {canMail
+              ? `Thư gửi tới ${email}. Link có hiệu lực 3 ngày và chỉ dùng được một lần.`
+              : "Tài khoản chưa có email — nhập email ở form trên và lưu, hoặc đặt mật khẩu trực tiếp bên dưới."}
+          </p>
+        </div>
+
+        <Separator />
+
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="new-password">Mật khẩu mới</Label>
+            <Label htmlFor="new-password">Hoặc đặt mật khẩu trực tiếp</Label>
             <InputPassword
               id="new-password"
               autoComplete="new-password"
@@ -92,7 +144,7 @@ export function ResetPasswordCard({ userId }: { userId: number | string }) {
           <div>
             <Button
               type="submit"
-              variant="secondary"
+              variant="outline"
               disabled={mutation.isPending || !passwordOk(password)}
             >
               {mutation.isPending ? "Đang cập nhật..." : "Đặt mật khẩu"}

@@ -2,8 +2,8 @@ import type { Details } from "@/domains/voucher/form-types";
 import type { ApprovalStep, VoucherBase, VoucherStatus } from "@/domains/voucher/types";
 
 /**
- * Một thiết bị đang được xin ở một đề xuất CÒN HIỆU LỰC khác của trường (`GET /purchase_proposals/overlaps`,
- * QLTB-495) — nháp, chờ duyệt, đã duyệt, hoặc đã vào kế hoạch mà hàng chưa về. `code` trống với nháp chưa trình.
+ * Một thiết bị đang được xin ở một đề xuất CÒN HIỆU LỰC khác của trường (`GET /purchase_proposals/overlaps`)
+ * — nháp, chờ duyệt, đã duyệt, hoặc đã vào kế hoạch mà hàng chưa về. `code` trống với nháp chưa trình.
  */
 export type ProposalOverlap = {
   catalogId: number;
@@ -108,7 +108,10 @@ export type PlanLine = {
   unitName: string | null;
   requestedQuantity: number;
   plannedQuantity: number;
+  /** Đơn giá kế hoạch: cơ quan đặt trên kế hoạch, không thì giá trường ghi. */
   unitPrice: number | null;
+  /** Đơn giá trường ghi trên đề xuất — không bắt buộc, có thể trống. */
+  proposedUnitPrice: number | null;
   amount: number;
   priority: number;
 };

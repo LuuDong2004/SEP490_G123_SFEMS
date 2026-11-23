@@ -1,6 +1,6 @@
 "use client";
 
-import type { PropsWithChildren, ReactNode } from "react";
+import type { ComponentProps, PropsWithChildren, ReactNode } from "react";
 import { useGo, useListButton } from "@refinedev/core";
 
 import {
@@ -24,8 +24,10 @@ type RouteDialogProps = PropsWithChildren<{
   description: ReactNode;
   /** Action row pinned below the scrollable body. */
   footer?: ReactNode;
-  /** Extra classes for the dialog surface (e.g. a wider `sm:max-w-*`). */
+  /** Extra classes for the dialog surface. */
   className?: string;
+  /** Cỡ hộp thoại (`DialogContent`): form nhiều cột dùng `wideFit` / `wide` — không tự đặt `max-w-*`. */
+  size?: ComponentProps<typeof DialogContent>["size"];
   /** Extra classes for the scrollable body. */
   bodyClassName?: string;
 }>;
@@ -56,6 +58,7 @@ export function RouteDialog({
   description,
   footer,
   className,
+  size,
   bodyClassName,
   children,
 }: RouteDialogProps) {
@@ -73,9 +76,9 @@ export function RouteDialog({
       }}
     >
       <DialogContent
+        size={size}
         className={cn(
-          "flex flex-col gap-0 overflow-hidden p-0",
-          "max-h-[85dvh] sm:max-w-2xl",
+          "gap-0 overflow-hidden p-0",
           className
         )}
       >

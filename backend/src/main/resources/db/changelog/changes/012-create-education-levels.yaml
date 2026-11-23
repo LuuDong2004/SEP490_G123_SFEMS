@@ -1,0 +1,99 @@
+# Cấp học — danh mục dùng chung ĐẦU TIÊN, và là khuôn cho khoảng hai chục
+# danh mục còn lại mang từ bản Jmix sang.
+#
+# Bốn cột audit (created_at, updated_at, created_by_id, updated_by_id) đến từ
+# `domain/base/BaseEntity`. Hai cột *_by_id có khoá ngoại thật tới `users` với
+# ON DELETE SET NULL: ai tạo bản ghi là thứ đáng giữ, nhưng không đáng để từ
+# chối xoá một tài khoản đã nghỉ việc — cùng lựa chọn mà `tasks.created_by_id`
+# đã làm.
+databaseChangeLog:
+  - changeSet:
+      id: 012-create-education-levels
+      author: dth
+      changes:
+        - createTable:
+            tableName: education_levels
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_education_levels
+              # Mã ổn định người ta trích dẫn, khác với id không ai nhớ được.
+              # Duy nhất, và service kiểm không phân biệt hoa thường để `thpt`
+              # với `THPT` không cùng tồn tại.
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_education_levels_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: short_name
+                  type: varchar(64)
+              # Cấp học có trật tự tự nhiên mà tên không nói lên được: xếp theo
+              # tên thì "THCS" đứng trước "Tiểu học". Trật tự đó phải được lưu.
+              - column:
+                  name: sort_order
+                  type: integer
+              # Cờ chứ không phải enum trạng thái: chỉ có hai trạng thái và
+              # không có quy trình nào giữa chúng. Ngưng dùng một mục thì nó
+              # biến mất khỏi ô chọn nhưng bản ghi cũ trỏ vào nó vẫn đọc được.
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+
+        - addForeignKeyConstraint:
+            baseTableName: education_levels
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_education_levels_created_by
+            onDelete: SET NULL
+
+        - addForeignKeyConstraint:
+            baseTableName: education_levels
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_education_levels_updated_by
+            onDelete: SET NULL
+
+        # Thứ tự mặc định của danh sách là (sort_order, name, id). Không có
+        # index này thì mỗi lần mở màn danh mục là một lần sort trong bộ nhớ.
+        - createIndex:
+            tableName: education_levels
+            indexName: idx_education_levels_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name

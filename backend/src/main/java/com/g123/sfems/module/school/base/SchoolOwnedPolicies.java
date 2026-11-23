@@ -10,20 +10,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Chính sách phân quyền dòng chung cho dữ liệu thuộc trường. Lớp con chỉ khai tên resource và kiểu
- * entity:
+ * Chính sách phân quyền dòng chung cho dữ liệu thuộc trường. Lớp con chỉ khai
+ * tên resource và kiểu entity.
  *
- * <pre>{@code
- * @Component
- * class RoomPolicies extends SchoolOwnedPolicies<Room> {
- *     public String resource() { return "rooms"; }
- *     public Class<Room> entityClass() { return Room.class; }
- * }
- * }</pre>
- *
- * <p>{@code NONE}: vai trò chưa có phạm vi thì KHÔNG thấy gì — quên chính sách là một màn hình trống,
- * không phải dữ liệu rò sang trường khác. Phạm vi của từng vai trò seed ở changelog 010 cho các
- * resource đã biết; resource mới thì người phụ trách thêm dòng seed trong changelog của mình.
+ * <p>{@code NONE} như {@code schools}: vai trò chưa có phạm vi thì KHÔNG thấy
+ * gì — quên chính sách là một màn hình trống, không phải dữ liệu rò sang
+ * trường khác. Phạm vi của từng vai trò seed ở changelog.
  */
 public abstract class SchoolOwnedPolicies<T extends SchoolOwnedEntity> implements RowLevelPolicySet<T> {
 

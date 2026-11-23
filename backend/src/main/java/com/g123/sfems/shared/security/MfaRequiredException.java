@@ -15,7 +15,7 @@ public class MfaRequiredException extends BadCredentialsException {
      */
     public static final String PROMPTED = MfaRequiredException.class.getName() + ".prompted";
 
-    /** {@code app} — mã từ ứng dụng xác thực (TOTP); {@code email} — mã vừa gửi tới email (QLTB-509). */
+    /** {@code app} — mã từ ứng dụng xác thực (TOTP); {@code email} — mã vừa gửi tới email. */
     private final String method;
 
     public MfaRequiredException() {

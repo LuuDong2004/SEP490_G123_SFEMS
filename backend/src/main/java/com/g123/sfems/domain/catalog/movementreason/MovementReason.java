@@ -8,22 +8,25 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 /**
- * Lý do biến động tài sản (DM-01): mua mới, được cấp, tài sản thừa khi kiểm kê… Mỗi dòng phiếu nhập
- * phải có một lý do TĂNG (DR-21).
+ * Lý do biến động tài sản — "Mua sắm mới", "Điều chuyển đi đơn vị khác",
+ * "Thanh lý"... Các phiếu ghi tăng/ghi giảm thiết bị sau này chọn lý do từ đây.
+ *
+ * <p>Bắt buộc có loại: một phiếu ghi tăng chỉ được chọn lý do loại ghi tăng, và
+ * một lý do không có loại thì không lọc vào đâu được.
  */
 @Entity
 @Table(name = "movement_reasons")
 public class MovementReason extends CatalogEntity {
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private MovementDirection direction = MovementDirection.INCREASE;
+    @Column(name = "reason_type", nullable = false, length = 32)
+    private ReasonType reasonType;
 
-    public MovementDirection getDirection() {
-        return direction;
+    public ReasonType getReasonType() {
+        return reasonType;
     }
 
-    public void setDirection(MovementDirection direction) {
-        this.direction = direction;
+    public void setReasonType(ReasonType reasonType) {
+        this.reasonType = reasonType;
     }
 }

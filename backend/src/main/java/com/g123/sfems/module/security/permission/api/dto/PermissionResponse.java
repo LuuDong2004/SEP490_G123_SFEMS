@@ -1,10 +1,11 @@
 package com.g123.sfems.module.security.permission.api.dto;
 
+import com.g123.sfems.domain.security.permission.PermissionScope;
 import com.g123.sfems.domain.security.permission.Permission;
 
 /** Wire shape of a permission. */
 public record PermissionResponse(
-        Long id, String code, String name, String description, boolean systemPermission) {
+        Long id, String code, String name, String description, boolean systemPermission, PermissionScope scope) {
 
     public static PermissionResponse from(Permission permission) {
         return new PermissionResponse(
@@ -12,6 +13,7 @@ public record PermissionResponse(
                 permission.getCode(),
                 permission.getName(),
                 permission.getDescription(),
-                permission.isSystemPermission());
+                permission.isSystemPermission(),
+                permission.getScope());
     }
 }

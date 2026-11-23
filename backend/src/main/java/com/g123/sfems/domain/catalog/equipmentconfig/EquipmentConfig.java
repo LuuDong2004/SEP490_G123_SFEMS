@@ -20,12 +20,17 @@ import java.util.Set;
 import org.hibernate.annotations.BatchSize;
 
 /**
- * Bộ thông số kỹ thuật (DM-01): danh sách thông số mà một loại thiết bị phải khai (công suất, kích
- * thước…). Bộ chỉ giữ ĐỊNH NGHĨA thông số ({@link EquipmentConfigAttribute}); giá trị theo từng thiết bị
- * nằm ở sổ tài sản.
+ * Bộ thông số kỹ thuật — "Bộ thông số kỹ thuật" (EquipmentConfig) của bản Jmix:
+ * danh sách thông số mà một loại thiết bị phải khai (công suất, kích thước...).
  *
- * <p>{@link #scopeTypes} rỗng là dùng được cho mọi loại thiết bị. {@link #defaultConfig} là bộ được chọn
- * sẵn khi tạo thiết bị mới; service chặn hai bộ mặc định trùng loại thiết bị.
+ * <p>Bản Jmix dựng trên add-on thuộc tính động (dynattr) với script Groovy,
+ * điều kiện hiển thị... Ở đây giữ phần cốt lõi: bộ = danh sách định nghĩa
+ * thông số ({@link EquipmentConfigAttribute}). Giá trị theo từng thiết bị làm
+ * cùng module thiết bị.
+ *
+ * <p>{@link #scopeTypes} rỗng = dùng được cho mọi loại thiết bị.
+ * {@link #defaultConfig} = bộ được chọn sẵn khi tạo thiết bị mới; service chặn
+ * hai bộ mặc định trùng loại thiết bị.
  */
 @Entity
 @Table(name = "equipment_configs")
@@ -45,7 +50,7 @@ public class EquipmentConfig extends CatalogEntity {
     @BatchSize(size = 100)
     private Set<EquipmentType> scopeTypes = new LinkedHashSet<>();
 
-    /** Căn cứ pháp lý: thông tư, quyết định ban hành danh mục thiết bị. */
+    /** Căn cứ pháp lý: thông tư / quyết định ban hành danh mục thiết bị. */
     @Column(name = "document_no", length = 100)
     private String documentNo;
 
@@ -63,7 +68,8 @@ public class EquipmentConfig extends CatalogEntity {
     @JoinColumn(name = "end_school_year_id")
     private SchoolYear endSchoolYear;
 
-    @OneToMany(mappedBy = "config", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "config", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.EAGER)
     @OrderBy("sortOrder ASC, id ASC")
     @BatchSize(size = 100)
     private Set<EquipmentConfigAttribute> attributes = new LinkedHashSet<>();

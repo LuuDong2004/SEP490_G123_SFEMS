@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 export type SignInSchool = { id: number; name: string; area?: string | null; prefix: string };
 
 const STORAGE_KEY = "signin.school";
-/** Cùng số dòng một lần tải với máy chủ (`SignInSchoolLookup.PAGE`). */
+/** Cùng số dòng một lần tải với máy chủ (`SchoolSignInLookupController.PAGE`). */
 const PAGE = 30;
 
 /** Trường đã chọn lần trước trên máy này — người của một trường đăng nhập lại thì khỏi chọn lại. */
@@ -118,7 +118,7 @@ export function SignInSchoolPicker({ value, onChange }: { value: SignInSchool | 
           <CommandList className="max-h-80">
             <CommandGroup>
               <CommandItem value="__none__" onSelect={() => pick(null)} className="py-2">
-                {row(!value, <Landmark />, "Sở, UBND hoặc quản trị", "Không thuộc trường — gõ đủ tên đăng nhập")}
+                {row(!value, <Landmark />, "Sở hoặc quản trị", "Không thuộc trường — gõ đủ tên đăng nhập")}
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading={term.trim() ? "Kết quả" : "Trường học"}>

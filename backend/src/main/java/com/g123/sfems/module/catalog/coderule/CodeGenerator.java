@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>{@link #reserve} là MỘT lệnh {@code UPDATE ... RETURNING}: database khoá
  * dòng quy tắc trong lúc tăng, nên hai người lưu cùng lúc nhận hai số khác
- * nhau mà không cần optimistic lock rồi thử lại. Lệnh chạy trong
+ * nhau mà không cần optimistic lock + thử lại như bản Jmix. Lệnh chạy trong
  * transaction của người gọi — lưu thất bại thì bộ đếm cũng lùi lại.
  *
  * <p>Bộ đếm BỎ QUA mã đã có trong bảng: ai đó gõ tay DVT005 thì tới lượt số 5 máy cấp DVT006 thay vì

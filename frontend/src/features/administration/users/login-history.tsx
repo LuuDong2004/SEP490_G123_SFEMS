@@ -13,7 +13,7 @@ const PAGE_SIZE = 10;
 type LogRow = { id: number; createdAt: string; action: string; statusCode: number; ip: string | null; path: string };
 
 /**
- * Lịch sử đăng nhập / đăng xuất của MỘT tài khoản (QLTB-242), phân trang ở máy chủ, đọc từ nhật ký hoạt động
+ * Lịch sử đăng nhập / đăng xuất của MỘT tài khoản, phân trang ở máy chủ, đọc từ nhật ký hoạt động
  * (`activity_logs?resource=auth&actorId=`). Lần nhập sai mật khẩu chưa biết là tài khoản nào nên không mang id;
  * chúng vẫn tra được ở Nhật ký hoạt động theo tên đăng nhập đã gõ. Cần `activity_logs:read`.
  */

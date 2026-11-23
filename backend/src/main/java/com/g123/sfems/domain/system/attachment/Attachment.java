@@ -1,19 +1,22 @@
 package com.g123.sfems.domain.system.attachment;
 
 import com.g123.sfems.domain.base.BaseEntity;
+import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Table;
 
 /**
- * Tệp đính kèm (TS-03): một tệp gắn vào một bản ghi — ảnh thiết bị, hoá đơn của phiếu nhập, biên bản
- * kiểm kê đã ký.
+ * Một tệp gắn vào một bản ghi — hoá đơn của phiếu nhập, biên bản bàn giao, quyết
+ * định điều chuyển, ảnh thiết bị hỏng.
  *
- * <p>Gắn bằng cặp {@code (resource, recordId)}, không bằng khoá ngoại: cùng một bảng phục vụ mọi loại
- * phiếu và cả hồ sơ thiết bị. Ai đọc, ai sửa được tệp do chính bản ghi gốc quyết định
- * ({@code RecordAccess}), không phải bảng này.
+ * <p>Gắn bằng cặp {@code (resource, recordId)}, không bằng khoá ngoại: cùng một
+ * bảng phục vụ mọi loại phiếu và cả hồ sơ thiết bị. Ai đọc, ai sửa được tệp do
+ * chính bản ghi gốc quyết định ({@code RecordAccess}), không phải bảng này.
  *
- * <p>Nội dung tệp nằm trong MinIO ({@link #storageKey}); database chỉ giữ tên, loại, dung lượng.
+ * <p>{@link #data} là LAZY và danh sách tệp không bao giờ chạm tới nó — danh sách
+ * đọc bằng projection, nội dung chỉ đọc khi tải về.
  */
 @Entity
 @Table(name = "attachments")
@@ -34,8 +37,12 @@ public class Attachment extends BaseEntity {
     @Column(name = "size_bytes", nullable = false)
     private Long sizeBytes;
 
-    /** Khoá đối tượng trong bucket tệp đính kèm. */
-    @Column(name = "storage_key", nullable = false, length = 300)
+    /** Nội dung cũ, trước khi chuyển sang MinIO. Dòng mới để NULL — xem {@link #storageKey}. */
+    @Basic(fetch = FetchType.LAZY)
+    private byte[] data;
+
+    /** Khoá đối tượng trong bucket tệp đính kèm (MinIO). */
+    @Column(name = "storage_key", length = 300)
     private String storageKey;
 
     @Column(length = 255)
@@ -48,6 +55,30 @@ public class Attachment extends BaseEntity {
     /** Cách đóng khung vuông của ảnh đại diện: "x,y,zoom" (tâm theo %, zoom >= 1). Ảnh gốc giữ nguyên. */
     @Column(name = "cover_crop", length = 100)
     private String coverCrop;
+
+    public String getStorageKey() {
+        return storageKey;
+    }
+
+    public void setStorageKey(String storageKey) {
+        this.storageKey = storageKey;
+    }
+
+    public boolean isCover() {
+        return cover;
+    }
+
+    public void setCover(boolean cover) {
+        this.cover = cover;
+    }
+
+    public String getCoverCrop() {
+        return coverCrop;
+    }
+
+    public void setCoverCrop(String coverCrop) {
+        this.coverCrop = coverCrop;
+    }
 
     public String getResource() {
         return resource;
@@ -89,12 +120,12 @@ public class Attachment extends BaseEntity {
         this.sizeBytes = sizeBytes;
     }
 
-    public String getStorageKey() {
-        return storageKey;
+    public byte[] getData() {
+        return data;
     }
 
-    public void setStorageKey(String storageKey) {
-        this.storageKey = storageKey;
+    public void setData(byte[] data) {
+        this.data = data;
     }
 
     public String getNote() {
@@ -103,21 +134,5 @@ public class Attachment extends BaseEntity {
 
     public void setNote(String note) {
         this.note = note;
-    }
-
-    public boolean isCover() {
-        return cover;
-    }
-
-    public void setCover(boolean cover) {
-        this.cover = cover;
-    }
-
-    public String getCoverCrop() {
-        return coverCrop;
-    }
-
-    public void setCoverCrop(String coverCrop) {
-        this.coverCrop = coverCrop;
     }
 }

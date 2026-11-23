@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** {@code /api/subject_groups} — mã quyền {@code subject_groups:*} suy ra từ {@link #resource()}. */
 @RestController
 @RequestMapping("/api/subject_groups")
 public class SubjectGroupController
