@@ -78,6 +78,7 @@ import {
   DataImportBatch,
   NotificationSettingsPage,
   ApprovalFlowsPage,
+  MailConfigPage,
 } from "@/features/administration";
 import { AdminMfaSetup, Profile } from "@/features/identity";
 import { ErrorComponent } from "@/shared/components/layout/error-component";
@@ -458,6 +459,18 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
               fallback={<Forbidden resource="notification_type_settings" />}
             >
               <NotificationSettingsPage />
+            </CanAccess>
+          }
+        />
+        <Route
+          path="/mail-config"
+          element={
+            <CanAccess
+              resource="mail_config"
+              action="list"
+              fallback={<Forbidden resource="mail_config" />}
+            >
+              <MailConfigPage />
             </CanAccess>
           }
         />

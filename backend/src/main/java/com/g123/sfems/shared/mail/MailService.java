@@ -1,5 +1,6 @@
 package com.g123.sfems.shared.mail;
 
+import com.g123.sfems.module.system.mail.MailConfigService;
 import com.g123.sfems.shared.security.DeployStack;
 import com.g123.sfems.shared.security.PersonalData;
 import jakarta.mail.MessagingException;
@@ -31,23 +32,34 @@ public class MailService {
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
 
     private final ObjectProvider<JavaMailSender> sender;
+    private final MailConfigService dbConfig;
     private final String from;
     private final String subjectPrefix;
     private final DeployStack stack;
 
     public MailService(ObjectProvider<JavaMailSender> sender,
+                       MailConfigService dbConfig,
                        @Value("${app.mail.from:SFEMS <no-reply@sfems.local>}") String from,
                        @Value("${app.mail.subject-prefix:[SFEMS] }") String subjectPrefix,
                        DeployStack stack) {
         this.sender = sender;
+        this.dbConfig = dbConfig;
         this.from = from;
         this.subjectPrefix = subjectPrefix;
         this.stack = stack;
     }
 
-    /** Đã khai máy chủ thư chưa ({@code spring.mail.host}). */
+    /** Đã khai máy chủ thư chưa (DB hoặc {@code spring.mail.host}). */
     public boolean configured() {
-        return sender.getIfAvailable() != null;
+        return dbConfig.hasDbConfig() || sender.getIfAvailable() != null;
+    }
+
+    private JavaMailSender activeSender() {
+        if (dbConfig.hasDbConfig()) {
+            JavaMailSender s = dbConfig.buildSender();
+            if (s != null) return s;
+        }
+        return sender.getIfAvailable();
     }
 
     /**
@@ -68,7 +80,7 @@ public class MailService {
     public boolean deliver(String to, String subject, MailContent content) {
         String fullSubject = subjectPrefix + subject.replaceAll("[\\r\\n]+", " ");
         String text = MailTemplate.text(content);
-        JavaMailSender mail = sender.getIfAvailable();
+        JavaMailSender mail = activeSender();
         if (mail == null) {
             if (!stack.production()) {
                 log.warn("Chưa cấu hình máy chủ thư (spring.mail.host) — thư KHÔNG được gửi.\nTới: {}\nTiêu đề: {}\n{}",

@@ -43,6 +43,7 @@ import {
   Workflow,
   UserCog,
   MonitorCog,
+  Mail,
 } from "lucide-react";
 import { CATALOGS as SHARED_CATALOGS } from "@/features/catalogs";
 import { ENUM_CATALOGS } from "@/features/catalogs";
@@ -543,6 +544,12 @@ export const resources: ResourceProps[] = withHelp(withModules([
     name: "notification_type_settings",
     list: "/notification-settings",
     meta: { icon: <BellRing className="h-4 w-4" />, parent: "admin_config" },
+  },
+  // Cấu hình máy chủ thư SMTP — chỉ quản trị.
+  {
+    name: "mail_config",
+    list: "/mail-config",
+    meta: { icon: <Mail className="h-4 w-4" />, parent: "admin_config" },
   },
   {
     name: "notifications",

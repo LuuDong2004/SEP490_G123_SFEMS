@@ -63,6 +63,9 @@ public final class Permissions {
     public static final String NOTIFICATION_SETTINGS_READ = "notification_type_settings:read";
     public static final String NOTIFICATION_SETTINGS_WRITE = "notification_type_settings:write";
 
+    public static final String MAIL_CONFIG_READ  = "mail_config:read";
+    public static final String MAIL_CONFIG_WRITE = "mail_config:write";
+
     private Permissions() {
     }
 }

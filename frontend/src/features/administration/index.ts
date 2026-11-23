@@ -19,3 +19,4 @@ export const NotificationSettingsPage = lazyNamed(
   "NotificationSettingsPage",
 );
 export const ApprovalFlowsPage = lazyNamed(() => import("./approval-flows/page"), "ApprovalFlowsPage");
+export const MailConfigPage = lazyNamed(() => import("./mail-config/page"), "MailConfigPage");
