@@ -17,11 +17,22 @@ export type Dashboard = {
     /** Tính trên các trường đã nhập thiết bị (`adequacySchools`), không phải mọi trường trong phạm vi. */
     adequacyPercent: number;
     adequacySchools: number;
+    /** % trường đạt chuẩn CSVC từ mức tối thiểu trở lên, trên số trường đã khai phòng (`facilitySchools`). */
+    facilityPercent: number;
+    facilitySchools: number;
   };
   statuses: { key: string; label: string; count: number }[];
   pending: { key: string; label: string; count: number }[];
   months: { month: string; intake: number; allocation: number; damage: number; disposal: number }[];
-  attention: { id: number; name: string; equipment: number; broken: number; missing: number; pending: number }[];
+  /** Trường cần đôn đốc (10 trường đầu): chưa nhập thiết bị, chưa khai phòng, chưa có biên bản kiểm kê của đợt đang mở. */
+  attention: { id: number; name: string; equipment: number; rooms: number; inventoryDue: boolean;
+    /** Đã khai thiết bị mà chưa đáp ứng danh mục tối thiểu. */
+    equipmentShort: boolean;
+    /** Đã khai phòng mà chưa đạt chuẩn CSVC mức tối thiểu. */
+    facilityShort: boolean }[];
+  attentionTotal: number;
+  /** Năm học đang xem là năm hiện tại — biểu đồ ghi tăng là 12 tháng gần nhất thay vì 12 tháng của năm học. */
+  yearCurrent: boolean;
   /** Kỳ của ô "tình trạng xử lý phiếu": month | quarter | year | all. */
   period: string;
   /** Số phiếu lập trong kỳ, theo trạng thái. */
@@ -42,7 +53,6 @@ export type Dashboard = {
 export const ASSET_STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
   { key: "use", label: "Đang sử dụng", statuses: ["IN_USE"] },
   { key: "stock", label: "Trong kho", statuses: ["IN_STOCK"] },
-  { key: "broken", label: "Hỏng, chờ xử lý", statuses: ["BROKEN", "UNREPAIRABLE", "REPAIRING", "WARRANTY"] },
 ];
 
 export type ReportDefinition = {

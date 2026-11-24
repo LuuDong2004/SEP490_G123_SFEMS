@@ -130,11 +130,11 @@ class DbRowSecurityTest {
     }
 
     @Test
-    void adminSeesNoBusinessRows() {
-        // Quản trị hệ thống chỉ quản trị (docs/kien-truc/11 §8): token người (có phiên) không thấy dòng nghiệp vụ.
+    void adminSeesEverySchool() {
+        // Quản trị viên xem được dữ liệu nghiệp vụ của mọi trường để hỗ trợ (Báo cáo 3 mục 4.4), ghi thì cổng chặn.
         signIn("admin", "test-session");
-        assertThat(countEquipment(own)).isZero();
-        assertThat(countEquipment(other)).isZero();
+        assertThat(countEquipment(own)).isPositive();
+        assertThat(countEquipment(other)).isPositive();
     }
 
     @Test

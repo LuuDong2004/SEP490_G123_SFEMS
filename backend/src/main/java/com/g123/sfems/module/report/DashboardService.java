@@ -2,6 +2,7 @@ package com.g123.sfems.module.report;
 
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.CampusScope;
+import com.g123.sfems.module.school.facilitystandard.FacilityStandardService;
 import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.shared.cache.SharedCache;
 import com.g123.sfems.shared.security.Hashes;
@@ -48,7 +49,9 @@ public class DashboardService {
     public record Kpis(long schools, long equipment, java.math.BigDecimal originalValue, long inUse, long broken,
             // Tên trường JSON cũ được giữ để các màn đang dùng API không bị gãy; gồm cả chờ tiêu huỷ.
             long missing, long pendingLiquidation, long pendingVouchers,
-            int adequacyPercent, int adequacySchools) {
+            int adequacyPercent, int adequacySchools,
+            /* Đánh giá CSVC theo chuẩn (TC-04): % trường đạt từ mức tối thiểu trở lên, trên số trường đã khai phòng. */
+            int facilityPercent, int facilitySchools) {
     }
 
     public record Count(String key, String label, long count) {
@@ -57,7 +60,12 @@ public class DashboardService {
     public record Month(String month, long intake, long allocation, long damage, long disposal) {
     }
 
-    public record SchoolRow(Long id, String name, long equipment, long broken, long missing, long pending) {
+    /**
+     * Trường cần Sở đôn đốc. Thiết bị và CSVC mỗi thứ một trong hai việc: chưa khai, hoặc đã khai mà chưa đáp ứng
+     * (thiết bị dạy học tối thiểu, chuẩn CSVC mức tối thiểu). Kiểm kê: chưa có biên bản được duyệt cho đợt đang mở.
+     */
+    public record SchoolRow(Long id, String name, long equipment, long rooms, boolean inventoryDue,
+            boolean equipmentShort, boolean facilityShort) {
     }
 
     /** Một ngày: số phiếu lập ra và số phiếu hoàn tất trong ngày đó. */
@@ -66,7 +74,11 @@ public class DashboardService {
 
     public record Dashboard(String level, String scope, Kpis kpis, List<Count> statuses, List<Count> pending,
             List<Month> months, List<SchoolRow> attention, String period, List<Count> vouchers, int days,
-            List<Day> daily, List<Count> conditions, List<Count> waitingAt) {
+            List<Day> daily, List<Count> conditions, List<Count> waitingAt,
+            /* Tổng số trường cần đôn đốc ({@code attention} đủ danh sách, cho biểu đồ và hộp danh sách). */
+            int attentionTotal,
+            /* Năm học đang xem là năm hiện tại (biểu đồ ghi tăng là 12 tháng gần nhất thay vì 12 tháng của năm học). */
+            boolean yearCurrent) {
     }
 
     /** Kỳ của ô "tình trạng xử lý phiếu": tháng này, quý này, năm nay, hoặc mọi lúc. */
@@ -118,9 +130,12 @@ public class DashboardService {
 
     private final SharedCache shared;
     private final CampusScope campuses;
+    private final FacilityStandardService facilityStandards;
 
     public DashboardService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy,
-            ReportService reports, SharedCache shared, CampusScope campuses) {
+            ReportService reports, SharedCache shared, CampusScope campuses,
+            FacilityStandardService facilityStandards) {
+        this.facilityStandards = facilityStandards;
         this.shared = shared;
         this.campuses = campuses;
         this.jdbc = jdbc;
@@ -134,13 +149,21 @@ public class DashboardService {
     }
 
     public Dashboard build(String period, int days) {
+        return build(period, days, null);
+    }
+
+    /**
+     * {@code yearId}: năm học đang xem (null = năm hiện tại) — chỉ biểu đồ ghi tăng theo 12 tháng của năm học đó, các
+     * số khác luôn là số liệu hiện tại.
+     */
+    public Dashboard build(String period, int days, Long yearId) {
         String kind = PERIODS.containsKey(period) ? period : "month";
         int span = days == 30 ? 30 : 7;
         Set<Long> schools = visible.current();
         // Tài khoản một cơ sở chỉ thấy số của cơ sở mình — khoá đệm mang cơ sở.
         Long campus = campuses.pinnedCampusId();
         String key = visible.level() + "|" + (schools == null ? "*" : new TreeSet<>(schools).toString()) + "|"
-                + kind + "|" + span + (campus == null ? "" : "|c" + campus);
+                + kind + "|" + span + (campus == null ? "" : "|c" + campus) + (yearId == null ? "" : "|y" + yearId);
         while (true) {
             CompletableFuture<Cached> current = cache.get(key);
             if (current != null && current.isDone() && !current.isCompletedExceptionally()
@@ -165,7 +188,7 @@ public class DashboardService {
                 String sharedKey = "dashboard:" + Hashes.sha256(key);
                 Dashboard fresh = shared.<Dashboard>get(sharedKey, shared.type(Dashboard.class)).orElse(null);
                 if (fresh == null) {
-                    fresh = compute(kind, span, campus);
+                    fresh = compute(kind, span, campus, yearId);
                     shared.put(sharedKey, fresh, Duration.ofMillis(TTL_MS));
                 }
                 mine.complete(new Cached(fresh, System.currentTimeMillis()));
@@ -182,7 +205,17 @@ public class DashboardService {
         }
     }
 
-    private Dashboard compute(String kind, int span, Long campus) {
+    private Dashboard compute(String kind, int span, Long campus, Long yearId) {
+        // Năm học đang xem chỉ đổi biểu đồ ghi tăng (12 tháng của năm học đó). Các số khác là số liệu HIỆN TẠI: sổ
+        // thiết bị cộng dồn, không có bản chụp theo năm (nhập từ tệp không có ngày vào sổ).
+        Map<String, Object> year = jdbc.queryForList("""
+                SELECT y.start_date, y.end_date, y.is_current FROM school_years y
+                WHERE (CAST(? AS BIGINT) IS NULL AND y.is_current) OR y.id = ?
+                ORDER BY y.is_current DESC LIMIT 1""", yearId, yearId).stream().findFirst().orElse(Map.of());
+        boolean yearCurrent = year.isEmpty() || Boolean.TRUE.equals(year.get("is_current"));
+        String monthStart = year.get("start_date") == null || yearCurrent
+                ? "DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months'"
+                : "DATE_TRUNC('month', DATE '" + year.get("start_date") + "')";
         String since = PERIODS.get(kind);
         String eq = visible.sqlFilter("e.school_id") + ReportCampus.room("e.room_id", "e.school_id", campus);
         Map<String, Object> e = jdbc.queryForMap("""
@@ -242,12 +275,11 @@ public class DashboardService {
                 SELECT e.status, COUNT(*) FROM equipment e WHERE TRUE""" + eq + " GROUP BY 1 ORDER BY 2 DESC",
                 (rs, i) -> new Count(rs.getString(1), rs.getString(1), rs.getLong(2)));
 
-        // Chỉ đọc lịch sử của 12 tháng đang vẽ (chỉ mục created_at, 171), không gộp cả bảng rồi mới bỏ bớt. Lùi
+        // 12 tháng gần nhất, màn hình chọn xem 3 / 6 / 12 tháng. Chỉ đọc lịch sử của các tháng đang vẽ (chỉ mục created_at, 171), không gộp cả bảng rồi mới bỏ bớt. Lùi
         // thêm một ngày vì mốc so ở UTC còn tháng thì tính theo giờ Việt Nam; dòng lọt sang tháng trước không
         // khớp tháng nào của m nên tự rơi ra.
-        List<Month> months = jdbc.query("""
-                WITH m AS (SELECT generate_series(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months',
-                                                  DATE_TRUNC('month', CURRENT_DATE), INTERVAL '1 month') AS m)
+        List<Month> months = jdbc.query(("""
+                WITH m AS (SELECT generate_series(MONTH_START, MONTH_START + INTERVAL '11 months', INTERVAL '1 month') AS m)
                 SELECT TO_CHAR(m.m, 'MM/YYYY'),
                        COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'GHI_TANG'),
                        COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN')),
@@ -255,35 +287,26 @@ public class DashboardService {
                        COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('THANH_LY', 'TIEU_HUY', 'MAT'))
                 FROM m
                 LEFT JOIN (SELECT h.* FROM equipment_history h JOIN equipment e ON e.id = h.equipment_id
-                           WHERE h.created_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months'
-                                                 - INTERVAL '1 day'""" + eq + """
+                           WHERE h.created_at >= MONTH_START - INTERVAL '1 day'""" + eq + """
                 ) h ON DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') = m.m
-                GROUP BY m.m ORDER BY m.m""",
+                GROUP BY m.m ORDER BY m.m""").replace("MONTH_START", monthStart),
                 (rs, i) -> new Month(rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)));
 
         List<SchoolRow> attention = List.of();
+        int attentionTotal = 0;
         if (!"SCHOOL".equals(visible.level())) {
-            // "Chờ duyệt" của một trường đếm trên MỌI loại phiếu — cùng phép đếm với thẻ "Phiếu chờ duyệt"
-            // và danh sách bên cạnh. Trước đây chỉ cộng thanh lý, điều chuyển, đề xuất mua sắm, nên một
-            // trường có ba phiếu mượn chờ duyệt hiện 0 ngay dưới một thẻ ghi 3.
-            String pendingOfSchool = ReportService.voucherTables().keySet().stream()
-                    .map(t -> "(SELECT COUNT(*) FROM %s v WHERE v.school_id = s.id AND v.status = 'PENDING')"
-                            .formatted(t))
-                    .collect(java.util.stream.Collectors.joining(" + "));
-            attention = jdbc.query("""
+            List<SchoolRow> due = jdbc.query("""
                     SELECT s.id, s.name,
-                           COUNT(e.id) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')),
-                           COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')),
-                           COUNT(e.id) FILTER (WHERE e.status = 'MISSING'),
-                           """ + pendingOfSchool + """
-
-                    FROM schools s JOIN equipment e ON e.school_id = s.id
-                    WHERE TRUE""" + visible.sqlFilter("s.id") + """
-                     GROUP BY s.id, s.name
-                    HAVING COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY', 'MISSING')) > 0
-                    ORDER BY COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY', 'MISSING')) DESC LIMIT 10""",
+                           (SELECT COUNT(*) FROM equipment e WHERE e.school_id = s.id),
+                           (SELECT COUNT(*) FROM rooms r WHERE r.school_id = s.id),
+                           EXISTS (SELECT 1 FROM inventory_campaigns c
+                                   WHERE NOT c.closed AND c.managing_body_id = s.department_of_education_id
+                                     AND NOT EXISTS (SELECT 1 FROM inventory_sessions x WHERE x.campaign_id = c.id
+                                                     AND x.school_id = s.id AND x.status = 'COMPLETED'))
+                    FROM schools s WHERE s.status = 'ACTIVE'""" + visible.sqlFilter("s.id") + " ORDER BY s.name",
                     (rs, i) -> new SchoolRow(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getLong(4),
-                            rs.getLong(5), rs.getLong(6)));
+                            rs.getBoolean(5), false, false));
+            attention = due;
         }
 
         // Tình trạng xử lý phiếu trong kỳ — lập trong kỳ, đang ở trạng thái nào.
@@ -336,12 +359,47 @@ public class DashboardService {
             }
         }
         int adequacyPercent = norms == 0 ? 0 : Math.round(met * 100f / norms);
+        java.util.Set<Long> equipmentShort = new java.util.HashSet<>();
+        for (AdequacyService.SchoolSummary row : adequacy.summary(campus).rows()) {
+            if (row.hasEquipment() && row.met() < row.norms()) {
+                equipmentShort.add(row.schoolId());
+            }
+        }
+
+        // Chuẩn CSVC: như đáp ứng tối thiểu, chỉ tính trường ĐÃ khai phòng — trường chưa khai thì "chưa đạt" là thiếu
+        // dữ liệu, không phải thiếu phòng.
+        java.util.Set<Long> withRooms = new java.util.HashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT r.school_id FROM rooms r WHERE TRUE" + visible.sqlFilter("r.school_id"), Long.class));
+        int facilityReached = 0;
+        java.util.Set<Long> facilityShort = new java.util.HashSet<>();
+        for (FacilityStandardService.Summary s : facilityStandards.summaries(visible.sqlFilter("s.id"), campus)) {
+            if (s.reached() != null && withRooms.contains(s.school().id())) {
+                facilityReached++;
+            } else if (s.reached() == null && withRooms.contains(s.school().id())) {
+                facilityShort.add(s.school().id());
+            }
+        }
+        int facilityPercent = withRooms.isEmpty() ? 0 : Math.round(facilityReached * 100f / withRooms.size());
+
+        // Trường cần đôn đốc: gắn hai cờ "đã khai mà chưa đáp ứng", giữ trường còn ít nhất một việc, thiếu nhiều lên đầu.
+        List<SchoolRow> gaps = new ArrayList<>();
+        for (SchoolRow s : attention) {
+            SchoolRow r = new SchoolRow(s.id(), s.name(), s.equipment(), s.rooms(), s.inventoryDue(),
+                    equipmentShort.contains(s.id()), facilityShort.contains(s.id()));
+            if (r.equipment() == 0 || r.rooms() == 0 || r.inventoryDue() || r.equipmentShort() || r.facilityShort()) {
+                gaps.add(r);
+            }
+        }
+        gaps.sort(java.util.Comparator.comparingInt((SchoolRow s) -> -((s.equipment() == 0 || s.equipmentShort() ? 1 : 0)
+                + (s.rooms() == 0 || s.facilityShort() ? 1 : 0) + (s.inventoryDue() ? 1 : 0))));
+        attention = gaps;
+        attentionTotal = gaps.size();
 
         Kpis kpis = new Kpis(schools, num(e.get("total")), (java.math.BigDecimal) e.get("value"), num(e.get("in_use")),
                 num(e.get("broken")), num(e.get("missing")), num(e.get("pending_liq")), pendingTotal,
-                adequacyPercent, entered);
+                adequacyPercent, entered, facilityPercent, withRooms.size());
         return new Dashboard(visible.level(), reports.scopeLabel(), kpis, statuses, pending, months, attention,
-                kind, vouchers, span, daily, conditions, waitingAt);
+                kind, vouchers, span, daily, conditions, waitingAt, attentionTotal, yearCurrent);
     }
 
     private static long num(Object value) {

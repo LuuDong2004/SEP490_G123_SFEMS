@@ -37,7 +37,8 @@ export function foldOther<T extends { key: string; label: string; count: number 
   return [...head, { key: "__other", label: "Khác", count: rest } as T];
 }
 
-export const count = new Intl.NumberFormat("vi-VN");
+/** Số đếm (thiết bị, trường, phiếu) viết liền, không dấu chấm nghìn: "5.609" dễ đọc nhầm thành số thập phân. */
+export const count = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 export const compactMoney = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
 
 const oneDecimal = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });

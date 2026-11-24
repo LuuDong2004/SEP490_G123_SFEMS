@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX, Wrench } from "lucide-react";
+import { Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX, Wrench } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -9,6 +9,7 @@ import { Kpi, TONE, type Tone } from "@/features/dashboard/kpi";
 import { ManagementOverview } from "@/features/dashboard/management-overview";
 import { kyInstance } from "@/shared/api/data";
 import { usePerspective } from "@/shared/hooks/use-perspective";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import {
   ChartCard,
   DonutBreakdown,
@@ -21,11 +22,9 @@ import { cn } from "@/shared/lib/utils";
 import { count } from "@/shared/lib/chart-palette";
 
 import { Badge } from "@/shared/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { VOUCHER_ROUTES } from "@/domains/equipment/types";
 import { ASSET_STATUS_GROUPS, type Dashboard as DashboardData } from "@/domains/report/types";
 import { WithUnit } from "@/shared/components/charts/with-unit";
-import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { LoadingText } from "@/shared/components/spinner";
 import { PinnedCampusBadge } from "@/shared/components/campus/campus";
 
@@ -53,13 +52,15 @@ export const Dashboard = () => {
   const can = useCan({ resource: "reports", action: "list" });
   const mayRead = can.data?.can ?? false;
   const [period, setPeriod] = useState("month");
+  // Năm học trên đầu trang: sổ thiết bị tính đến hết năm đó, biểu đồ ghi tăng là 12 tháng của năm đó.
+  const { id: yearId } = useSchoolYear();
   const { data, isError, refetch, isFetching } = useQuery({
-    queryKey: ["reports", "dashboard", period],
+    queryKey: ["reports", "dashboard", period, yearId],
     enabled: mayRead,
     // Cả cụm câu gộp; quay về trang chủ trong một phút không tính lại.
     staleTime: 60_000,
     placeholderData: keepPreviousData,
-    queryFn: ({ signal }) => kyInstance.get("reports/dashboard", { signal,  searchParams: { period } }).json<DashboardData>(),
+    queryFn: ({ signal }) => kyInstance.get("reports/dashboard", { signal,  searchParams: { period, ...(yearId != null ? { yearId: String(yearId) } : {}) } }).json<DashboardData>(),
   });
   const d = data && "kpis" in data ? data : undefined;
 
@@ -173,7 +174,7 @@ export const Dashboard = () => {
               <HelpHint>Số thiết bị được ghi tăng (phiếu ghi tăng đã duyệt) trong từng tháng.</HelpHint>
             </span>
           }>
-          <GroupedBars height="h-64" data={d?.months ?? []} xKey="month" xFormatter={(m) => m.slice(0, 2) + "/" + m.slice(5)} series={[
+          <GroupedBars height="h-64" data={(d?.months ?? []).slice(-12)} xKey="month" xFormatter={(m) => m.slice(0, 2) + "/" + m.slice(5)} series={[
             { key: "intake", label: "Ghi tăng" },
           ]} />
         </ChartCard>
@@ -200,36 +201,6 @@ export const Dashboard = () => {
         </ChartCard>
       </div>
 
-      {d && d.level !== "SCHOOL" ? (
-        <ChartCard title={<span className="flex items-center gap-2"><AlertTriangle className="text-warning-text size-4" />Trường cần chú ý</span>}>
-          {d.attention.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Không có trường nào có thiết bị hỏng hoặc mất.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Trường</TableHead>
-                  <TableHead className="text-right">Thiết bị</TableHead>
-                  <TableHead className="text-right">Hỏng</TableHead>
-                  <TableHead className="text-right">Mất</TableHead>
-                  <TableHead className="text-right">Phiếu chờ duyệt</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {d.attention.map((s) => (
-                  <TableRow key={s.id} className={cn("group/row", LIFT_ROW)}>
-                    <TableCell>{s.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{count.format(s.equipment)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{count.format(s.broken)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{count.format(s.missing)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{count.format(s.pending)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </ChartCard>
-      ) : null}
     </div>
   );
 };

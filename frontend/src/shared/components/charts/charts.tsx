@@ -300,6 +300,7 @@ export function GroupedBars({
   height = "h-64",
   stacked,
   onPick,
+  legend = true,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -310,6 +311,8 @@ export function GroupedBars({
   onPick?: (row: Record<string, any>) => void;
   /** Xếp chồng (cơ cấu trong một cột) thay vì đặt cạnh nhau. */
   stacked?: boolean;
+  /** Hiện chú thích màu dưới biểu đồ (mặc định có khi nhiều hơn một loạt). */
+  legend?: boolean;
 }) {
   const config: ChartConfig = Object.fromEntries(
     series.map((s, i) => [s.key, { label: s.label, color: seriesColor(i) }]),
@@ -325,7 +328,7 @@ export function GroupedBars({
         <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} fontSize={11} />
         <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }}
           content={<ChartTooltipContent labelFormatter={(v) => (xFormatter ? xFormatter(String(v)) : String(v))} />} />
-        {series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
+        {legend && series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
         {series.map((s, i) => (
           <Bar
             key={s.key}

@@ -49,8 +49,9 @@ public class ReportController {
     @PreAuthorize("hasAuthority('reports:read')")
     public DashboardService.Dashboard dashboard(
             @RequestParam(defaultValue = "month") String period,
-            @RequestParam(defaultValue = "7") int days) {
-        return dashboard.build(period, days);
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(required = false) Long yearId) {
+        return dashboard.build(period, days, yearId);
     }
 
     @GetMapping
