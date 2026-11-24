@@ -28,7 +28,6 @@ export type RoomTypeRecord = {
   kind: FacilityKind;
   levels: string[];
   standard: boolean;
-  loanable: boolean;
   functional: boolean;
   schoolId?: number | null;
 };

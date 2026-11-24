@@ -46,7 +46,7 @@ class VoucherFormsOtherTest {
     @Test
     void openEnumKeepsTypedText() {
         String json = forms.header("inventory_sessions", Map.of("inventoryType", "  Kiểm kê đột xuất theo yêu cầu  "),
-                null, 1L, null);
+                null, 1L);
         assertThat(VoucherForms.read(json)).containsEntry("inventoryType", "Kiểm kê đột xuất theo yêu cầu");
     }
 

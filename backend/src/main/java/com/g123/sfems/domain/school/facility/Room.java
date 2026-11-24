@@ -77,10 +77,6 @@ public class Room extends SchoolOwnedEntity {
     @Column(name = "managing_unit", length = 255)
     private String managingUnit;
 
-    /** Cho mượn được không (phiếu mượn phòng chỉ nhận phòng cho mượn). */
-    @Column(nullable = false)
-    private boolean loanable = true;
-
     /** Kết cấu (Kiên cố / Bán kiên cố / Tạm / Nhờ, mượn, thuê) — 201. */
     @Enumerated(EnumType.STRING)
     @Column(name = "structure", length = 20)
@@ -103,14 +99,6 @@ public class Room extends SchoolOwnedEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "params", columnDefinition = "jsonb", nullable = false)
     private Map<String, String> params = new LinkedHashMap<>();
-
-    public boolean isLoanable() {
-        return loanable;
-    }
-
-    public void setLoanable(boolean loanable) {
-        this.loanable = loanable;
-    }
 
     public Campus getCampus() {
         return campus;

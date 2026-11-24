@@ -38,7 +38,7 @@ export function CatalogPreviewBar({ kind, preview, editable, busy, onToggle }: {
     ...preview.deactivate.map((d) => ({ code: d.code, name: d.name, what: "Ngừng", note: "Không có trong tệp" })),
     ...preview.kept.map((k) => ({ code: k.code, name: k.name, what: "Giữ", note: k.note ?? "" })),
   ];
-  const n = (v: number) => v.toLocaleString("vi-VN");
+  const n = (v: number) => v.toLocaleString("vi-VN", { useGrouping: false });
   return (
     <div className="grid gap-2">
       {/* Một hàng chip gọn, không thẻ kéo ngang màn; rê chuột vào chip để biết con số đó là gì. */}

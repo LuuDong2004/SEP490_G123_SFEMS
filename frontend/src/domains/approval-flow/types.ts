@@ -13,10 +13,6 @@ export type ApprovalFlow = {
   amountLabel: string | null;
   amountThreshold: number | null;
   stepsAbove: ApprovalStep[] | null;
-  /** Chỉ phiếu hai trường (điều chuyển) mới có bước cơ quan của trường nhận. */
-  receivingSupported: boolean;
-  /** Luật miễn duyệt theo nội dung phiếu — cấu hình không đổi được. */
-  exemptNote: string | null;
   customized: boolean;
   note: string | null;
   updatedAt: string | null;
@@ -24,18 +20,16 @@ export type ApprovalFlow = {
 };
 
 /** Các bước theo đúng thứ tự cấp — cũng là thứ tự máy chủ lưu. */
-export const APPROVAL_STEP_ORDER: ApprovalStep[] = ["SCHOOL", "MANAGING_BODY", "RECEIVING_BODY"];
+export const APPROVAL_STEP_ORDER: ApprovalStep[] = ["SCHOOL", "MANAGING_BODY"];
 
 /** Tên bước trên màn cấu hình: nói CẤP nào duyệt, kèm ai là người của cấp đó. */
 export const APPROVAL_STEP_TITLES: Record<ApprovalStep, { title: string; who: string }> = {
   SCHOOL: { title: "Trường duyệt", who: "Lãnh đạo trường của phiếu" },
   MANAGING_BODY: { title: "Cơ quan quản lý duyệt", who: "Sở GD&ĐT" },
-  RECEIVING_BODY: { title: "Cơ quan của trường nhận duyệt", who: "Chỉ khi trường nhận thuộc cơ quan quản lý khác" },
 };
 
 /** Tên ngắn trên chip. */
 export const APPROVAL_STEP_SHORT: Record<ApprovalStep, string> = {
   SCHOOL: "Trường",
   MANAGING_BODY: "Cơ quan quản lý",
-  RECEIVING_BODY: "Cơ quan trường nhận",
 };

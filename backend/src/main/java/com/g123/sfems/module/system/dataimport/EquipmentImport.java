@@ -40,14 +40,12 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
 
     private static final Map<EquipmentCondition, String> CONDITION = Map.of(
             EquipmentCondition.TOT, "Tốt", EquipmentCondition.TRUNG_BINH, "Trung bình",
-            EquipmentCondition.KEM, "Kém", EquipmentCondition.HONG, "Hỏng");
+            EquipmentCondition.KEM, "Kém");
 
     private static final Map<AssetStatus, String> STATUS = Map.of(
-            AssetStatus.IN_STOCK, "Trong kho", AssetStatus.IN_USE, "Đang sử dụng", AssetStatus.BROKEN, "Hỏng",
-            AssetStatus.PENDING_LIQUIDATION, "Chờ thanh lý",
-            AssetStatus.PENDING_DESTRUCTION, "Chờ tiêu huỷ");
+            AssetStatus.IN_STOCK, "Trong kho", AssetStatus.IN_USE, "Đang sử dụng");
 
-    /** Trạng thái được phép khi nhập: các trạng thái "đang mượn", "đang sửa"... phải sinh ra từ phiếu. */
+    /** Trạng thái được phép khi nhập: "Mất" chỉ do duyệt kiểm kê đặt. */
     private static final Set<AssetStatus> IMPORTABLE = STATUS.keySet();
 
     private final JdbcTemplate jdbc;
@@ -96,7 +94,7 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
                 new Column("fundingSource", "Nguồn kinh phí", true,
                         "Ngân sách, Học phí, Nguồn thu sự nghiệp, Quỹ phát triển sự nghiệp, Tài trợ, Chưa xác định nguồn"),
                 new Column("condition", "Tình trạng", false, "Tốt, Khá, Trung bình, Kém, Hỏng"),
-                new Column("status", "Trạng thái", false, "Trong kho, Đang sử dụng, Hỏng, Chờ thanh lý, Chờ tiêu huỷ"),
+                new Column("status", "Trạng thái", false, "Trong kho, Đang sử dụng, Hỏng"),
                 new Column("note", "Ghi chú", false, ""));
     }
 
@@ -180,7 +178,7 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
         AssetStatus status = v.choice("status", "Trạng thái", AssetStatus.class, STATUS::get);
         if (status != null && !IMPORTABLE.contains(status)) {
             errors.add("Trạng thái \"" + STATUS.getOrDefault(status, status.name())
-                    + "\" không nhập được — chỉ sinh ra từ phiếu");
+                    + "\" không nhập được — chỉ kiểm kê mới đặt được");
             status = null;
         }
         if (status == null) {

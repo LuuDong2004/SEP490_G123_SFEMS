@@ -9,6 +9,7 @@ import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Payload tạo quy tắc chuẩn CSVC. {@code code}, {@code name} bỏ qua — máy chủ sinh từ loại, cấp, mức. Các điều kiện
@@ -32,12 +33,18 @@ public record FacilityStandardRuleRequest(
         @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Diện tích mỗi phòng") BigDecimal minRoomArea,
         @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Diện tích mỗi học sinh") BigDecimal areaPerStudent,
         @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Tổng diện tích") BigDecimal minTotalArea,
-        @Text(value = FieldRule.SHORT_TEXT, label = "Văn bản căn cứ")
+        @Num(value = NumberRule.COUNT, label = "Trường lớn hơn số lớp") Integer largeClassFrom,
+        @Num(value = NumberRule.COUNT, label = "Số phòng của trường lớn") Integer largeMinCount,
+        @Num(value = NumberRule.PERCENT, label = "Phần trăm học sinh") BigDecimal studentPercent,
+        Boolean onlyIfPresent,
+        List<IdRef> legalDocuments,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Điều, khoản")
         String legalBasis) implements CatalogInput {
 
     /** Bản sao với mã, tên, thứ tự do máy chủ sinh. */
     FacilityStandardRuleRequest derived(String derivedCode, String derivedName, Integer order) {
         return new FacilityStandardRuleRequest(derivedCode, derivedName, order, active, note, roomType, levelCode,
-                tier, minCount, countPerClass, minRoomArea, areaPerStudent, minTotalArea, legalBasis);
+                tier, minCount, countPerClass, minRoomArea, areaPerStudent, minTotalArea, largeClassFrom,
+                largeMinCount, studentPercent, onlyIfPresent, legalDocuments, legalBasis);
     }
 }

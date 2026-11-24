@@ -148,7 +148,7 @@ public class EquipmentIntakeService implements RecordAccess {
 
     public Page<EquipmentIntake> list(ListParams params) {
         Specification<EquipmentIntake> awaiting = VoucherSpecs.awaitingMe(params)
-                ? workflow.awaitingMe(null) : Specification.unrestricted();
+                ? workflow.awaitingMe() : Specification.unrestricted();
         Page<EquipmentIntake> page = repository.findAll(
                 rowLevel.<EquipmentIntake>scope(EquipmentIntake.class, Action.READ)
                         .and(campus.pinned(CAMPUS))
@@ -252,7 +252,7 @@ public class EquipmentIntakeService implements RecordAccess {
         }
         intake.replaceLines(buildLines(intake, request.lines()));
         syncHeadDocument(intake);
-        intake.setDetails(forms.header(RESOURCE, request.details(), null, intake.getSchool().getId(), null));
+        intake.setDetails(forms.header(RESOURCE, request.details(), null, intake.getSchool().getId()));
         checkLines(intake);
         fitSources(intake);
         checkDocuments(intake);
@@ -330,7 +330,7 @@ public class EquipmentIntakeService implements RecordAccess {
         syncHeadDocument(intake);
         if (request.details() != null) {
             intake.setDetails(forms.header(RESOURCE, request.details(), intake.getDetails(),
-                    intake.getSchool().getId(), null));
+                    intake.getSchool().getId()));
         }
         checkLines(intake);
         fitSources(intake);
@@ -356,9 +356,9 @@ public class EquipmentIntakeService implements RecordAccess {
             throw new FieldValidationException("lines", "Phiếu chưa có dòng nào để ghi tăng");
         }
         checkLines(intake);
-        forms.requireComplete(RESOURCE, intake.getDetails(), null, null);
+        forms.requireComplete(RESOURCE, intake.getDetails());
         for (EquipmentIntakeLine line : intake.getLines()) {
-            forms.requireLineComplete(RESOURCE, line.getDetails(), line.getLineNo(), null, null);
+            forms.requireLineComplete(RESOURCE, line.getDetails(), line.getLineNo());
         }
         requireDocumentLines(intake);
         requireSources(intake);
@@ -552,7 +552,7 @@ public class EquipmentIntakeService implements RecordAccess {
         if (deliveringUnit != null) {
             details.put("deliveringUnit", deliveringUnit);
         }
-        draft.setDetails(forms.header(RESOURCE, details, null, schoolId, null));
+        draft.setDetails(forms.header(RESOURCE, details, null, schoolId));
         List<EquipmentIntakeLine> result = new ArrayList<>();
         int lineNo = 1;
         for (PurchasedItem item : items) {
@@ -978,7 +978,7 @@ public class EquipmentIntakeService implements RecordAccess {
     private static void requireSources(EquipmentIntake intake) {
         OriginRule rule = OriginRule.of(intake.getOriginSource()).orElseThrow(() -> new FieldValidationException(
                 "originSource",
-                "Chọn nguồn hình thành của phiếu: kế hoạch mua sắm, được điều chuyển, được tặng, kiểm kê thừa, tự làm hay khác"));
+                "Chọn nguồn hình thành của phiếu: kế hoạch mua sắm, được cấp phát, bàn giao, được tặng, kiểm kê thừa, tự làm hay khác"));
         if (rule.noteRequired() && intake.getOriginNote() == null) {
             throw new FieldValidationException("originNote",
                     "Nguồn hình thành \"%s\": ghi rõ là nguồn gì".formatted(rule.label()));
@@ -1018,11 +1018,10 @@ public class EquipmentIntakeService implements RecordAccess {
      *
      * <p>Đây là chỗ vá một cái bẫy im lặng: {@code Equipment.missingProfile()}
      * đòi tài sản phải có mã chuẩn, đơn vị tính, nguồn kinh phí và ngày tiếp nhận
-     * thì mới được đưa vào BẤT KỲ phiếu nào sau này — cấp phát,
-     * điều chuyển, mượn, báo hỏng, thanh lý. Hai trong bốn thứ đó do phiếu nhập
+     * thì mới là hồ sơ chuẩn. Hai trong bốn thứ đó do phiếu nhập
      * cấp (nguồn kinh phí ở đầu phiếu, đơn vị tính lấy từ nhóm thiết bị), nhưng không thứ nào từng bắt buộc. Hệ quả:
-     * phiếu lập được, trình được, duyệt được, tài sản vào sổ — rồi người kế tiếp
-     * mới bị chặn, lúc phiếu đã khoá và không sửa được nữa.
+     * phiếu lập được, trình được, duyệt được, tài sản vào sổ — rồi mới
+     * thấy hồ sơ thiếu, lúc phiếu đã khoá và không sửa được nữa.
      *
      * <p>Chỉ đòi khi phiếu THỰC SỰ sinh hồ sơ tài sản: dòng quản lý theo lô chỉ
      * cộng tồn kho, không có hồ sơ nào để thiếu, nên một phiếu toàn bàn ghế
@@ -1343,7 +1342,7 @@ public class EquipmentIntakeService implements RecordAccess {
             if (line.effectiveFundingSource() == null) {
                 throw new FieldValidationException("fundingSource",
                         ("%s: chọn nguồn kinh phí — ở đầu phiếu, hoặc riêng cho dòng này. Thiết bị thiếu nguồn "
-                                + "kinh phí thì không đưa vào được phiếu cấp phát, điều chuyển hay thanh lý nào.")
+                                + "kinh phí thì hồ sơ chưa đạt chuẩn.")
                                 .formatted(where));
             }
             if (line.getCatalog().getUnit() == null) {

@@ -267,31 +267,6 @@ export type SchoolStandardRow = {
   percent: number;
 };
 
-/** Cân đối một thiết bị trên địa bàn: thiếu, thừa và phần có thể điều chuyển. */
-export type CatalogBalance = {
-  catalogId: number;
-  catalogCode: string | null;
-  name: string;
-  subjectName: string | null;
-  level: string | null;
-  shortage: number;
-  shortSchools: number;
-  surplus: number;
-  surplusSchools: number;
-  transferable: number;
-};
-
-export type CatalogSchool = {
-  schoolId: number;
-  schoolName: string;
-  level: string | null;
-  district: string | null;
-  required: number | null;
-  current: number;
-  shortage: number;
-  surplus: number;
-};
-
 export type AdequacySummary = {
   schools: number;
   withData: number;
@@ -301,8 +276,6 @@ export type AdequacySummary = {
   percent: number;
   shortageTotal: number;
   surplusTotal: number;
-  transferable: number;
   subjects: { subjectName: string; shortage: number; surplus: number; schools: number }[];
-  catalogs: CatalogBalance[];
   rows: SchoolStandardRow[];
 };

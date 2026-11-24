@@ -1,10 +1,9 @@
 import { useNotification } from "@refinedev/core";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, ChevronRight, ClipboardCheck, FileSpreadsheet, GraduationCap, Loader2, Search, Settings } from "lucide-react";
+import { ChevronRight, ClipboardCheck, FileSpreadsheet, GraduationCap, Loader2, Search, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
-import { Segmented } from "@/shared/components/segmented";
 import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
@@ -15,17 +14,16 @@ import { HelpHint } from "@/shared/components/form/help-hint";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
 import { Progress } from "@/shared/ui/progress";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import type { AdequacySummary, CatalogBalance, CatalogSchool, SchoolStandardRow } from "@/domains/procurement/types";
+import type { AdequacySummary, SchoolStandardRow } from "@/domains/procurement/types";
 import { QueryError } from "@/shared/components/query-error";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase();
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 
@@ -68,79 +66,11 @@ function matches(r: SchoolStandardRow, f: StatusFilter) {
 }
 
 /**
- * Một thiết bị, trường nào thiếu và trường nào thừa — hai cột đặt cạnh nhau để nhìn ra ngay nơi có
- * thể điều chuyển: thừa ở cột phải là nguồn cho thiếu ở cột trái.
- */
-function BalanceDialog({ item, onClose, onOpenSchool }: {
-  item: CatalogBalance | null;
-  onClose: () => void;
-  onOpenSchool: (id: number) => void;
-}) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["purchase_proposals", "adequacy-catalog", item?.catalogId],
-    enabled: !!item,
-    queryFn: ({ signal }) => kyInstance.get("purchase_proposals/adequacy-catalog", { signal,  searchParams: { catalogId: String(item!.catalogId) } }).json<CatalogSchool[]>(),
-  });
-  const rows = Array.isArray(data) ? data : [];
-  const short = rows.filter((r) => r.shortage > 0);
-  const surplus = rows.filter((r) => r.surplus > 0);
-  const column = (title: string, tone: string, list: CatalogSchool[], value: (r: CatalogSchool) => number, empty: string) => (
-    <section className="min-w-0">
-      <h4 className={cn("text-overline mb-1.5", tone)}>{title} · {list.length} trường</h4>
-      <div className="max-h-80 overflow-y-auto rounded-lg border">
-        {list.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-6 text-center text-sm">{empty}</p>
-        ) : list.map((r) => (
-          <button key={r.schoolId} type="button" onClick={() => onOpenSchool(r.schoolId)}
-            className="hover:bg-muted/50 flex w-full items-center gap-3 border-b px-3 py-2 text-start last:border-b-0">
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{r.schoolName}</span>
-              <span className="text-muted-foreground block truncate text-xs tabular-nums">
-                {[r.district, `có ${num.format(r.current)} / cần ${r.required == null ? "?" : num.format(r.required)}`].filter(Boolean).join(" · ")}
-              </span>
-            </span>
-            <span className={cn("text-sm font-semibold tabular-nums", tone)}>{num.format(value(r))}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-  return (
-    <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{item?.name}</DialogTitle>
-          <DialogDescription>
-            {[item?.catalogCode, item?.subjectName, item?.level].filter(Boolean).join(" · ")}
-          </DialogDescription>
-        </DialogHeader>
-        {item && item.transferable > 0 ? (
-          <p className="bg-info-subtle text-info-text flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-            <ArrowLeftRight className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Có thể điều chuyển <span className="font-semibold tabular-nums">{num.format(item.transferable)}</span> từ trường thừa
-              sang trường thiếu trước khi mua mới. Còn phải mua{" "}
-              <span className="font-semibold tabular-nums">{num.format(item.shortage - item.transferable)}</span>.
-            </span>
-          </p>
-        ) : null}
-        {isLoading ? <Skeleton className="h-40 w-full" /> : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {column("Đang thiếu", "text-destructive-text", short, (r) => r.shortage, "Không trường nào thiếu.")}
-            {column("Đang thừa", "text-info-text", surplus, (r) => r.surplus, "Không trường nào thừa.")}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/**
  * Thiết bị dạy học tối thiểu trên ĐỊA BÀN — màn của Sở / UBND / quản trị.
  *
  * <p>MỘT bảng như mọi danh sách: hàng công cụ (ô tìm, nút chọn chế độ xem, nút lọc cấp học và tình trạng — số bên cạnh mục là số
- * trường —, bánh răng có Xuất Excel) và phân trang. Hai chế độ xem: "Các trường" — bấm một trường mở chuẩn của trường đó;
- * "Thiết bị điều chuyển" — thiết bị thừa ở trường này mà thiếu ở trường khác, việc nên làm trước khi mua mới.
+ * trường —, bánh răng có Xuất Excel) và phân trang. Bấm một trường mở chuẩn của trường đó. Không có điều chuyển thiết bị
+ * giữa các trường (ngoài phạm vi, trưởng nhóm 24/11/2026).
  *
  * <p>Mọi tỷ lệ chỉ tính trên trường ĐÃ nhập thiết bị: trường chưa nhập thì "thiếu" của nó là thiếu dữ
  * liệu, tính vào là cả địa bàn về 0%. Trường chưa nhập là một mục lọc riêng.
@@ -151,10 +81,8 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
   const [term, setTerm] = useState("");
   const [chosenLevel, setLevel] = useState("all");
   const [status, setStatus] = useState<StatusFilter>("entered");
-  const [view, setView] = usePersistentState<"schools" | "transfer">("standard.view", "schools");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = usePersistentState<number>("standard.pageSize", 20, "local");
-  const [balance, setBalance] = useState<CatalogBalance | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
@@ -190,14 +118,9 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
     () => inLevel.filter((r) => matches(r, status) && (!q || fold(`${r.schoolName} ${r.schoolCode} ${r.district ?? ""}`).includes(q))),
     [inLevel, status, q],
   );
-  const levelName = LEVELS.find((l) => l.code === level)?.label;
-  const transfers = useMemo(() => (s?.catalogs ?? [])
-    .filter((c) => (level === "all" || c.level === levelName) && c.transferable > 0)
-    .filter((c) => !q || fold(`${c.name} ${c.catalogCode} ${c.subjectName ?? ""}`).includes(q))
-    .sort((a, b) => b.transferable - a.transferable), [s, level, levelName, q]);
 
-  const list = view === "schools" ? rows : transfers;
-  useEffect(() => setPage(1), [term, status, level, view, pageSize]);
+  const list = rows;
+  useEffect(() => setPage(1), [term, status, level, pageSize]);
   const pageCount = Math.max(1, Math.ceil(list.length / pageSize));
   const current = Math.min(page, pageCount);
   const from = (current - 1) * pageSize;
@@ -228,24 +151,19 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
           <div className="relative w-full min-w-0 sm:w-80">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input value={term} onChange={(e) => setTerm(e.target.value)} className="pl-9"
-              placeholder={view === "schools" ? "Tìm trường, mã trường, địa bàn…" : "Tìm thiết bị…"} aria-label="Tìm" />
+              placeholder="Tìm trường, mã trường, địa bàn…" aria-label="Tìm" />
           </div>
-          <Segmented label="Chế độ xem" value={view} onChange={setView}
-            options={[{ value: "schools" as const, label: "Các trường", hint: "Mức đáp ứng chuẩn tối thiểu của từng trường" },
-              { value: "transfer" as const, label: `Thiết bị điều chuyển (${num.format(transfers.length)})`, hint: "Thiết bị trường thừa có thể chuyển cho trường đang thiếu" }]} />
           {showLevel ? (
             <IconFilter icon={<GraduationCap />} label="cấp học" allLabel="Mọi cấp học" total={levelCounts.all}
               value={level === "all" ? null : level} onChange={(v) => setLevel(v ?? "all")}
               groups={[{ items: ownLevels.map((l) => ({ key: l.code, label: l.label, count: levelCounts[l.code] })) }]} />
           ) : null}
           {/* Mặc định chỉ xem trường đã nhập thiết bị, không tính là đang lọc. Số bên cạnh mục là số trường. */}
-          {view === "schools" ? (
-            <IconFilter icon={<ClipboardCheck />} label="tình trạng" baseline="entered" value={status} onChange={(v) => v && setStatus(v as StatusFilter)}
+          <IconFilter icon={<ClipboardCheck />} label="tình trạng" baseline="entered" value={status} onChange={(v) => v && setStatus(v as StatusFilter)}
               groups={([["data", "Nhập liệu"], ["result", "Kết quả đối chiếu"]] as const).map(([group, heading]) => ({
                 heading,
                 items: STATUS_FILTERS.filter((f) => f.group === group).map((f) => ({ key: f.value, label: f.label, count: counts[f.value] })),
               }))} />
-          ) : null}
           <div className="flex items-center gap-3 sm:ms-auto">
             {/* Con số chung của địa bàn: một dòng chữ, không cần cả một hàng ô chỉ số. */}
             <span className="text-muted-foreground text-sm whitespace-nowrap">
@@ -268,7 +186,6 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
         </div>
 
         <div className="scrollbar-fade min-h-0 flex-1 overflow-auto [&_tbody_tr:last-child]:border-b">
-          {view === "schools" ? (
             <Table>
               <TableHeader className="bg-surface-subtle sticky top-0 z-10">
                 <TableRow>
@@ -327,45 +244,6 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
                 })}
               </TableBody>
             </Table>
-          ) : (
-            <Table>
-              <TableHeader className="bg-surface-subtle sticky top-0 z-10">
-                <TableRow>
-                  <TableHead className={cn(head, "w-12 ps-4")}>STT</TableHead>
-                  <TableHead className={head}>Thiết bị</TableHead>
-                  <TableHead className={cn(head, "w-44")}>Môn học</TableHead>
-                  <TableHead className={cn(head, "w-32 text-right")}>Thiếu</TableHead>
-                  <TableHead className={cn(head, "w-32 text-right")}>Thừa</TableHead>
-                  <TableHead className={cn(head, "w-36 text-right")}>Điều chuyển được</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transfers.length === 0 ? (
-                  <TableEmpty colSpan={7} title={<>Chưa có thiết bị nào thừa ở trường này mà thiếu ở trường khác.</>} />
-                ) : transfers.slice(from, from + pageSize).map((c, i) => (
-                  <TableRow key={c.catalogId} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => setBalance(c)}>
-                    <TableCell className="text-muted-foreground ps-4 tabular-nums">{from + i + 1}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-muted-foreground ms-2 font-mono text-xs">{c.catalogCode}</span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground truncate">{c.subjectName ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <span className="text-destructive-text font-semibold">{num.format(c.shortage)}</span>
-                      <span className="text-muted-foreground ms-1.5 text-xs">{c.shortSchools} trường</span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <span className="text-info-text font-semibold">{num.format(c.surplus)}</span>
-                      <span className="text-muted-foreground ms-1.5 text-xs">{c.surplusSchools} trường</span>
-                    </TableCell>
-                    <TableCell className="text-right"><Badge variant="info" className="tabular-nums">{num.format(c.transferable)}</Badge></TableCell>
-                    <TableCell><ChevronRight className="text-muted-foreground size-4" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
         </div>
 
         <div className="shrink-0 border-t px-3 py-1.5">
@@ -373,8 +251,6 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
             total={list.length} />
         </div>
       </section>
-
-      <BalanceDialog item={balance} onClose={() => setBalance(null)} onOpenSchool={(id) => { setBalance(null); onOpenSchool(id); }} />
     </div>
   );
 }

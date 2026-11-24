@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX, Wrench } from "lucide-react";
+import { Boxes, ChevronRight, CircleCheck, ClipboardCheck, PackageX } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -131,16 +131,14 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Bốn con số đứng đầu, mỗi số một thẻ BẤM ĐƯỢC tới màn của nó: tổng tài sản, việc chờ duyệt, hai thứ
-          có vấn đề. Số bằng 0 ở ba thẻ sau là tin tốt nên biểu tượng chuyển sang xanh. */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Ba con số đứng đầu, mỗi số một thẻ BẤM ĐƯỢC tới màn của nó: tổng thiết bị, việc chờ duyệt, thiết bị mất qua kiểm
+          kê. Số bằng 0 ở hai thẻ sau là tin tốt nên biểu tượng chuyển sang xanh. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Kpi to="/equipment" icon={<Boxes />} label="Thiết bị trong hệ thống" value={k ? <WithUnit value={count.format(k.equipment)} unit="thiết bị" /> : "…"}
-          meter={k ? { percent: usable, label: `Đang sử dụng ${count.format(k.inUse)} / ${count.format(k.equipment)}`, title: "Số thiết bị Đang sử dụng ÷ tổng thiết bị còn trong hệ thống (không tính đã thanh lý, tiêu huỷ, mất, dùng hết)" } : undefined} />
+          meter={k ? { percent: usable, label: `Đang sử dụng ${count.format(k.inUse)} / ${count.format(k.equipment)}`, title: "Số thiết bị Đang sử dụng ÷ tổng thiết bị còn trong hệ thống (không tính thiết bị đã mất)" } : undefined} />
         {/* Ra đúng các phiếu đang chờ (lọc sẵn Chờ duyệt) như mục "Cần xử lý", không phải cả danh sách (E2E-19). */}
         <Kpi to={pending[0] ? `${VOUCHER_ROUTES[pending[0].key]}?${PENDING_FILTER}` : "/equipment-intakes"} icon={<ClipboardCheck />}
           tone={k && k.pendingVouchers > 0 ? "warning" : "good"} label="Phiếu chờ duyệt" value={k ? <WithUnit value={count.format(k.pendingVouchers)} unit="phiếu" /> : "…"} />
-        <Kpi to="/equipment" icon={<Wrench />} tone={k && k.broken > 0 ? "destructive" : "good"} label="Hỏng (theo kiểm kê)"
-          value={k ? <WithUnit value={count.format(k.broken)} unit="thiết bị" /> : "…"} />
         <Kpi to="/equipment" icon={<PackageX />} tone={k && k.missing > 0 ? "destructive" : "good"} label="Mất (theo kiểm kê)"
           value={k ? <WithUnit value={count.format(k.missing)} unit="thiết bị" /> : "…"} />
       </div>

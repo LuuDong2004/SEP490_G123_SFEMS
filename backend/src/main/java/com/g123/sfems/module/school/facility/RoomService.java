@@ -138,7 +138,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
                         "managingStaff", "Cán bộ"), "managingStaff", "Cán bộ")
                 : null);
         item.setManagingUnit(blankToNull(request.managingUnit()));
-        item.setLoanable(request.loanable() != null ? request.loanable() : defaultLoanable(item));
         // Kết cấu lấy theo khối nhà khi không khai riêng (chốt 12/11/2026) — cả form lẫn lô nhập thiếu cột kết cấu.
         item.setStructure(request.structure() != null ? request.structure()
                 : item.getBuilding() != null ? item.getBuilding().getStructure() : null);
@@ -152,14 +151,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         requirePositive(item.getArea(), item.getCapacity());
         reconcile(item);
         requireNameFree(item);
-    }
-
-    /**
-     * Cho mượn mặc định theo cờ của loại CSVC (192): phòng bộ môn, phòng đa chức năng, nhà đa năng, hội
-     * trường cho mượn; phòng học, kho, thư viện, sân, cổng… và phòng chưa phân loại thì không. Form đọc cùng cờ.
-     */
-    private static boolean defaultLoanable(Room item) {
-        return item.getRoomType() != null && !isArea(item.getRoomType()) && item.getRoomType().isLoanable();
     }
 
     /** Loại CSVC của phòng: loại của Sở, hoặc loại ngoài danh mục của CHÍNH trường đó. */
@@ -245,9 +236,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         if (request.managingUnit() != null) {
             item.setManagingUnit(blankToNull(request.managingUnit()));
         }
-        if (request.loanable() != null) {
-            item.setLoanable(request.loanable());
-        }
         if (request.structure() != null) {
             item.setStructure(request.structure());
         } else if (item.getBuilding() != null && item.getBuilding().getStructure() != null
@@ -265,14 +253,11 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         if (request.openSessions() != null) {
             item.setOpenSessions(OpeningHours.joinSessions(request.openSessions()));
         }
-        // Vừa đổi sang Khu vực, công trình: sức chứa không xoá được qua PATCH (null = để nguyên) và ô cho mượn bị ẩn,
-        // nên máy chủ tự bỏ hai ô này; khối nhà / tầng / môn thì người dùng phải bỏ (form tự bỏ khi chọn loại).
+        // Vừa đổi sang Khu vực, công trình: sức chứa không xoá được qua PATCH (null = để nguyên)
+        // nên máy chủ tự bỏ; khối nhà / tầng / môn thì người dùng phải bỏ (form tự bỏ khi chọn loại).
         if (isArea(item.getRoomType()) && !isArea(old.roomType())) {
             if (request.capacity() == null) {
                 item.setCapacity(null);
-            }
-            if (request.loanable() == null) {
-                item.setLoanable(false);
             }
         }
         // Đổi loại thì thông số của loại cũ không còn nghĩa: lọc lại theo loại mới dù không gửi thông số.
@@ -402,11 +387,11 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
 
     /** Giá trị trước khi sửa của những ô mà luật ghi so sánh. */
     private record Before(RoomType roomType, Long building, String floor, BigDecimal area, Integer capacity,
-            Long subject, RoomUsageStatus usage, boolean loanable) {
+            Long subject, RoomUsageStatus usage) {
 
         static Before of(Room r) {
             return new Before(r.getRoomType(), id(r.getBuilding()), r.getFloor(), r.getArea(), r.getCapacity(),
-                    id(r.getSubject()), r.getUsageStatus(), r.isLoanable());
+                    id(r.getSubject()), r.getUsageStatus());
         }
     }
 
@@ -419,8 +404,8 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /**
-     * Khu vực, công trình (sân, cổng, khu vệ sinh, khu để xe…) không nằm trong khối nhà, không có tầng, sức chứa, môn,
-     * không cho mượn. Lúc tạo / vừa đổi sang loại khu vực thì kiểm cả bản ghi; còn lại chỉ kiểm ô vừa đổi — hạng mục cũ
+     * Khu vực, công trình (sân, cổng, khu vệ sinh, khu để xe…) không nằm trong khối nhà, không có tầng, sức chứa, môn.
+     * Lúc tạo / vừa đổi sang loại khu vực thì kiểm cả bản ghi; còn lại chỉ kiểm ô vừa đổi — hạng mục cũ
      * lỡ có giá trị vẫn sửa được ô khác.
      */
     private static void requireArea(Room item, Before old, boolean create) {
@@ -445,10 +430,6 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
         if (item.getSubject() != null && (all || !Objects.equals(old.subject(), id(item.getSubject())))) {
             bad.add("môn");
             field = field == null ? "subject" : field;
-        }
-        if (item.isLoanable() && (all || !old.loanable())) {
-            bad.add("cho mượn");
-            field = field == null ? "loanable" : field;
         }
         if (!bad.isEmpty()) {
             throw new FieldValidationException(field,

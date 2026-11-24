@@ -21,11 +21,10 @@ final class ReportCampus {
     }
 
     /** Hình dạng SQL của một loại phiếu — bản song song của {@code VoucherCampus.Shape} cho từng bảng. */
-    record Shape(List<String> rooms, List<String> equipment, List<Lines> lines, String targetSchool,
-            String targetRoom) {
+    record Shape(List<String> rooms, List<String> equipment, List<Lines> lines) {
 
         static Shape of(List<String> rooms, List<String> equipment, Lines... lines) {
-            return new Shape(rooms, equipment, List.of(lines), null, null);
+            return new Shape(rooms, equipment, List.of(lines));
         }
     }
 
@@ -94,13 +93,6 @@ final class ReportCampus {
         }
         if (main) {
             any.add(noAnchor(shape, alias, school));
-            if (shape.targetSchool() != null) {
-                any.add("(" + alias + "." + shape.targetRoom() + " IS NULL AND " + alias + "." + shape.targetSchool()
-                        + " = " + school + ")");
-            }
-        }
-        if (shape.targetRoom() != null) {
-            any.add(alias + "." + shape.targetRoom() + " IN " + rooms);
         }
         return any.isEmpty() ? " AND FALSE " : " AND (" + String.join(" OR ", any) + ") ";
     }

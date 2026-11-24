@@ -204,7 +204,6 @@ export function EquipmentCatalogDetail({ record: r }: { record: any }) {
                     { label: "Dạng thiết bị", value: PHYSICAL_TYPE_LABELS[r.physicalOrDigital] },
                     { label: "Phân loại kế toán", value: ASSET_CATEGORY_LABELS[r.assetCategory] },
                     { label: "Mã thống kê", value: r.statisticalCode },
-                    { label: "Số năm sử dụng", value: r.usefulLifeYears },
                   ]} />
                   <Column title="Theo thông tư" items={[
                     { label: "DM tối thiểu", value: r.minimumRequired ? "Có" : "Không" },
@@ -547,25 +546,6 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
           <EnumInput control={control} name="trackingType" label="Cách quản lý" options={TRACKING_TYPE_LABELS} />
           <EnumInput control={control} name="assetCategory" label="Phân loại kế toán" options={ASSET_CATEGORY_LABELS} />
           <EnumInput control={control} name="physicalOrDigital" label="Dạng thiết bị" options={PHYSICAL_TYPE_LABELS} />
-          <FormField
-            control={control}
-            name="usefulLifeYears"
-            rules={{
-              min: { value: 0, message: "Số năm không được âm" },
-              max: { value: 100, message: "Số năm tối đa 100" },
-              validate: (v: unknown) => v == null || Number.isInteger(Number(v)) || "Số năm sử dụng phải là số nguyên",
-            }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Số năm sử dụng</FormLabel>
-                <FormControl>
-                  <Input type="number" min={0} placeholder="VD: 5" value={field.value ?? ""} name={field.name} ref={field.ref}
-                    onBlur={field.onBlur} onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
           <FormItem>
             <FormLabel>Đối tượng sử dụng</FormLabel>
             <div className="bg-field shadow-e1 flex h-9 items-center gap-4 rounded-full border border-input px-3.5">

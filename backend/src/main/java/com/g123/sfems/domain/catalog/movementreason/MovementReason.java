@@ -8,11 +8,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 /**
- * Lý do biến động tài sản — "Mua sắm mới", "Điều chuyển đi đơn vị khác",
- * "Thanh lý"... Các phiếu ghi tăng/ghi giảm thiết bị sau này chọn lý do từ đây.
- *
- * <p>Bắt buộc có loại: một phiếu ghi tăng chỉ được chọn lý do loại ghi tăng, và
- * một lý do không có loại thì không lọc vào đâu được.
+ * Lý do biến động — "Mua sắm mới", "Được cấp phát, bàn giao"... Phiếu ghi tăng chọn lý do từ đây, nên loại lý do luôn là
+ * {@link ReasonType#GHI_TANG}.
  */
 @Entity
 @Table(name = "movement_reasons")
@@ -20,7 +17,7 @@ public class MovementReason extends CatalogEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "reason_type", nullable = false, length = 32)
-    private ReasonType reasonType;
+    private ReasonType reasonType = ReasonType.GHI_TANG;
 
     public ReasonType getReasonType() {
         return reasonType;

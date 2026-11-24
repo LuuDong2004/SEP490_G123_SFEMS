@@ -144,7 +144,7 @@ public class FacilityStandardService {
         boolean needsClasses = false;
         boolean needsStudents = false;
         for (RuleRow rule : catalog.rulesFor(school.levelCode())) {
-            needsClasses |= rule.countPerClass() != null;
+            needsClasses |= rule.countPerClass() != null || rule.largeClassFrom() != null;
             needsStudents |= rule.areaPerStudent() != null;
         }
         if ((needsClasses || needsStudents) && school.classes() == null) {
@@ -209,9 +209,14 @@ public class FacilityStandardService {
             if (level == null || !FacilityLevels.applies(type.levels(), level) || (!type.standard() && rules.isEmpty())) {
                 continue;
             }
-            RoomStat stat = stats.getOrDefault(type.id(), RoomStat.EMPTY);
+            // Quy tắc tổng số phòng học bộ môn: đếm chung mọi phòng bộ môn, không phải phòng của riêng loại này.
+            RoomStat stat = stats.getOrDefault(rules.stream().anyMatch(RuleRow::subjectRooms) ? SUBJECT_ROOMS : type.id(),
+                    RoomStat.EMPTY);
+            // Trường chưa có phòng nào: `stats` là Map.of() — không tra được khoá null.
+            Long sharedType = catalog.typeId(SHARED_ROOM.get(type.code()));
+            RoomStat shared = sharedType == null ? RoomStat.EMPTY : stats.getOrDefault(sharedType, RoomStat.EMPTY);
             itemsByGroup.computeIfAbsent(type.groupCode(), k -> new ArrayList<>())
-                    .add(item(type, rules, stat, school));
+                    .add(item(type, rules, stat, shared, school));
             groupNames.putIfAbsent(type.groupCode(), type.groupName());
         }
         List<String> order = new ArrayList<>(itemsByGroup.keySet());
@@ -246,7 +251,8 @@ public class FacilityStandardService {
     }
 
     /** Một điều kiện chưa đạt: loại điều kiện → (mức → mức đòi). */
-    private Item item(TypeRow type, List<RuleRow> rules, RoomStat stat, SchoolInfo school) {
+    private Item item(TypeRow type, List<RuleRow> rules, RoomStat own, RoomStat shared, SchoolInfo school) {
+        RoomStat stat = own.plus(shared);
         Map<String, String> status = new LinkedHashMap<>();
         // Điều kiện chưa đạt, gom theo loại điều kiện để mỗi loại một cặp dòng "đang có / tiêu chuẩn".
         Map<String, Map<String, BigDecimal>> failing = new LinkedHashMap<>();
@@ -258,8 +264,13 @@ public class FacilityStandardService {
         List<String> requirements = new ArrayList<>();
         for (String tier : FacilityStandardRule.TIERS) {
             RuleRow rule = rules.stream().filter(r -> r.tier().equals(tier)).findFirst().orElse(null);
-            if (rule != null) {
+            if (rule != null && rule.onlyIfPresent() && stat.count() == 0) {
+                // Trường không có loại phòng này thì không xét (bếp, nội trú, phòng bộ môn đã ghép).
+                requirements.add(TIER_SHORT.get(tier) + ": " + describeFor(rule, school.classes(), school.students()));
+            } else if (rule != null) {
                 anyRule = true;
+                // Mức độ 2: phòng truyền thống và phòng Đoàn bố trí riêng — phòng kết hợp không tính.
+                int count = FacilityStandardRule.LEVEL2.equals(tier) ? own.count() : stat.count();
                 requirements.add(TIER_SHORT.get(tier) + ": " + describeFor(rule, school.classes(), school.students()));
                 // Số phòng
                 BigDecimal needCount = null;
@@ -276,7 +287,16 @@ public class FacilityStandardService {
                         needCount = needCount == null ? perClass : needCount.max(perClass);
                     }
                 }
-                if (needCount != null && BigDecimal.valueOf(stat.count()).compareTo(needCount) < 0) {
+                if (rule.largeClassFrom() != null) {
+                    if (school.classes() == null) {
+                        missingClasses = true;
+                        cumulativeFail = true;
+                    } else if (school.classes() > rule.largeClassFrom()) {
+                        BigDecimal large = BigDecimal.valueOf(rule.largeMinCount());
+                        needCount = needCount == null ? large : needCount.max(large);
+                    }
+                }
+                if (needCount != null && BigDecimal.valueOf(count).compareTo(needCount) < 0) {
                     failing.computeIfAbsent("count", k -> new LinkedHashMap<>()).put(tier, needCount);
                     cumulativeFail = true;
                 }
@@ -298,8 +318,7 @@ public class FacilityStandardService {
                         missingStudents = true;
                         cumulativeFail = true;
                     } else {
-                        BigDecimal perStudent = rule.areaPerStudent().multiply(BigDecimal.valueOf(school.students()))
-                                .setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal perStudent = studentArea(rule, school.students());
                         needArea = needArea == null ? perStudent : needArea.max(perStudent);
                     }
                 }
@@ -355,22 +374,23 @@ public class FacilityStandardService {
     }
 
     /**
-     * Tỉ lệ phòng theo lớp viết như thông tư: 0,1 → "1 phòng cho 10 lớp", 0,6 → "3 phòng cho 5 lớp", 1 → "1 phòng mỗi
-     * lớp". "0,1 phòng/lớp" đúng nhưng khó hiểu.
+     * Tỉ lệ phòng theo lớp viết như thông tư: 0,1 → "1 phòng/10 lớp", 0,6 → "3 phòng/5 lớp", 1 → "1 phòng/lớp". "0,1 phòng/lớp" đúng nhưng khó hiểu.
      */
     static String perClassText(BigDecimal ratio) {
         if (ratio.signum() > 0 && ratio.compareTo(BigDecimal.ONE) < 0) {
             for (int classes = 2; classes <= 100; classes++) {
-                BigDecimal rooms = ratio.multiply(BigDecimal.valueOf(classes)).stripTrailingZeros();
-                if (rooms.scale() <= 0) {
-                    return rooms.toPlainString() + " phòng cho " + classes + " lớp";
+                // Tỉ lệ lưu 3 số lẻ, cắt bớt (1 phòng/3 lớp → 0,333): nhận cả phân số gần đúng kiểu đó.
+                BigDecimal rooms = ratio.multiply(BigDecimal.valueOf(classes)).setScale(0, RoundingMode.HALF_UP);
+                if (rooms.signum() > 0 && rooms.divide(BigDecimal.valueOf(classes), 3, RoundingMode.DOWN)
+                        .compareTo(ratio) == 0) {
+                    return rooms.toPlainString() + " phòng/" + classes + " lớp";
                 }
             }
         }
-        return plain(ratio) + " phòng mỗi lớp";
+        return plain(ratio) + " phòng/lớp";
     }
 
-    /** Tóm tắt quy tắc cho người đọc: "≥ 1 phòng; 1 phòng cho 10 lớp; ≥ 45 m²/phòng; 0,6 m² mỗi học sinh; tổng ≥ 60 m²". */
+    /** Tóm tắt quy tắc cho người đọc: "≥ 1 phòng; 1 phòng/10 lớp; ≥ 45 m²/phòng; 0,6 m²/học sinh; tổng ≥ 60 m²". */
     public static String describe(RuleRow rule) {
         return describe(rule.minCount(), rule.countPerClass(), rule.minRoomArea(), rule.areaPerStudent(),
                 rule.minTotalArea());
@@ -389,7 +409,7 @@ public class FacilityStandardService {
             parts.add("≥ " + plain(roomArea) + " m²/phòng");
         }
         if (perStudent != null) {
-            parts.add(plain(perStudent) + " m² mỗi học sinh");
+            parts.add(plain(perStudent) + " m²/học sinh");
         }
         if (totalArea != null) {
             parts.add("tổng ≥ " + plain(totalArea) + " m²");
@@ -398,7 +418,7 @@ public class FacilityStandardService {
     }
 
     /**
-     * Quy tắc tính ra số của ĐÚNG trường đang xem: "≥ 15 phòng (3 phòng cho 5 lớp, trường có 24 lớp)" thay cho tỉ lệ —
+     * Quy tắc tính ra số của ĐÚNG trường đang xem: "≥ 15 phòng (3 phòng/5 lớp, trường có 24 lớp)" thay cho tỉ lệ —
      * tỉ lệ trần không nói trường cần bao nhiêu phòng. Chưa có số lớp / học sinh thì ghi tỉ lệ như {@link #describe}.
      */
     private static String describeFor(RuleRow rule, Integer classes, Integer students) {
@@ -418,38 +438,41 @@ public class FacilityStandardService {
                 parts.add(perClassText(rule.countPerClass()));
             }
         }
+        if (rule.largeClassFrom() != null) {
+            parts.add("trường trên " + rule.largeClassFrom() + " lớp ≥ " + rule.largeMinCount() + " phòng");
+        }
         if (rule.minRoomArea() != null) {
             parts.add("≥ " + plain(rule.minRoomArea()) + " m²/phòng");
         }
         if (rule.areaPerStudent() != null && students != null) {
             // Cùng cách tính với cảnh báo thiếu (2 số lẻ, làm tròn nửa lên) để hai chỗ ra một số.
-            BigDecimal need = rule.areaPerStudent().multiply(BigDecimal.valueOf(students)).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal need = studentArea(rule, students);
             if (rule.minTotalArea() != null) {
                 need = need.max(rule.minTotalArea());
             }
-            parts.add("tổng ≥ " + grouped(need) + " m² (" + plain(rule.areaPerStudent()) + " m² mỗi học sinh, trường có "
+            parts.add("tổng ≥ " + grouped(need) + " m² (" + perStudentText(rule.areaPerStudent(), rule.studentPercent())
+                    + ", trường có "
                     + grouped(students) + " học sinh)");
         } else {
             if (rule.areaPerStudent() != null) {
-                parts.add(plain(rule.areaPerStudent()) + " m² mỗi học sinh");
+                parts.add(perStudentText(rule.areaPerStudent(), rule.studentPercent()));
             }
             if (rule.minTotalArea() != null) {
                 parts.add("tổng ≥ " + plain(rule.minTotalArea()) + " m²");
             }
         }
-        return String.join("; ", parts);
+        return (rule.onlyIfPresent() ? "nếu có: " : "") + String.join("; ", parts);
     }
 
-    /** 1000 → "1.000", 605.40 → "605,4" (cách viết số trên màn hình). */
+    /** 1000 → "1000", 605.40 → "605,4" (cách viết số trên màn hình: không dấu ngăn nghìn). */
     private static String grouped(long value) {
         return grouped(BigDecimal.valueOf(value));
     }
 
     private static String grouped(BigDecimal value) {
         DecimalFormatSymbols vi = DecimalFormatSymbols.getInstance(Locale.US);
-        vi.setGroupingSeparator('.');
         vi.setDecimalSeparator(',');
-        return new DecimalFormat("#,##0.##", vi).format(value);
+        return new DecimalFormat("0.##", vi).format(value);
     }
 
     private static String plain(BigDecimal value) {
@@ -500,7 +523,22 @@ public class FacilityStandardService {
 
     /** Quy tắc đang dùng (một dòng {@code facility_standard_rules}). */
     public record RuleRow(Long roomTypeId, String levelCode, String tier, Integer minCount, BigDecimal countPerClass,
-            BigDecimal minRoomArea, BigDecimal areaPerStudent, BigDecimal minTotalArea) {
+            BigDecimal minRoomArea, BigDecimal areaPerStudent, BigDecimal minTotalArea, Integer largeClassFrom,
+            Integer largeMinCount, BigDecimal studentPercent, boolean onlyIfPresent, boolean subjectRooms) {
+    }
+
+    /** Diện tích đòi theo học sinh: số học sinh (× % học sinh nếu quy tắc khai) × m², 2 số lẻ làm tròn nửa lên. */
+    static BigDecimal studentArea(RuleRow rule, int students) {
+        BigDecimal base = rule.areaPerStudent().multiply(BigDecimal.valueOf(students));
+        if (rule.studentPercent() != null) {
+            base = base.multiply(rule.studentPercent()).movePointLeft(2);
+        }
+        return base.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** "0,6 m²/học sinh", "0,6 m²/học sinh (tính 30% học sinh)". */
+    private static String perStudentText(BigDecimal area, BigDecimal percent) {
+        return plain(area) + " m²/học sinh" + (percent == null ? "" : " (tính " + plain(percent) + "% học sinh)");
     }
 
     private record TypeRow(Long id, String code, String name, String kind, String levels, boolean standard,
@@ -509,11 +547,32 @@ public class FacilityStandardService {
 
     private record RoomStat(int count, BigDecimal total, BigDecimal smallest, int missingArea) {
         static final RoomStat EMPTY = new RoomStat(0, BigDecimal.ZERO, BigDecimal.ZERO, 0);
+
+        RoomStat plus(RoomStat other) {
+            if (other.count() == 0) {
+                return this;
+            }
+            return count == 0 ? other : new RoomStat(count + other.count(), total.add(other.total()),
+                    smallest.min(other.smallest()), missingArea + other.missingArea());
+        }
     }
+
+    /** Khoá thống kê của TỔNG phòng học bộ môn (không phải id loại nào). */
+    private static final Long SUBJECT_ROOMS = -1L;
+
+    /** Loại → loại phòng KẾT HỢP tính thay được (khoản 3 Điều 18: phòng Đoàn có thể kết hợp với phòng truyền thống). */
+    private static final Map<String, String> SHARED_ROOM = Map.of(
+            "PHONG_TRUYEN_THONG", "PHONG_KET_HOP_TRUYEN_THONG_VOI_PHONG",
+            "PHONG_DOAN_THANH_NIEN", "PHONG_KET_HOP_TRUYEN_THONG_VOI_PHONG");
 
     private record Catalog(List<TypeRow> types, List<RuleRow> rules) {
         List<RuleRow> rulesFor(String level) {
             return level == null ? List.of() : rules.stream().filter(r -> r.levelCode().equals(level)).toList();
+        }
+
+        Long typeId(String code) {
+            return code == null ? null : types.stream().filter(t -> t.code().equals(code)).map(TypeRow::id)
+                    .findFirst().orElse(null);
         }
     }
 
@@ -523,20 +582,25 @@ public class FacilityStandardService {
                        g.name AS group_name
                 FROM room_types rt
                 LEFT JOIN facility_groups g ON g.id = rt.group_id
-                WHERE rt.active AND rt.school_id IS NULL
+                WHERE rt.school_id IS NULL
+                  AND (rt.active OR EXISTS (SELECT 1 FROM facility_standard_rules f
+                                            WHERE f.room_type_id = rt.id AND f.active AND f.subject_rooms))
                 ORDER BY g.sort_order NULLS LAST, rt.sort_order NULLS LAST, rt.name""",
                 (rs, i) -> new TypeRow(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
                         rs.getString("kind"), rs.getString("levels"), rs.getBoolean("standard"),
                         rs.getString("group_code"), rs.getString("group_name")));
         List<RuleRow> rules = jdbc.query("""
                 SELECT room_type_id, level_code, tier, min_count, count_per_class, min_room_area, area_per_student,
-                       min_total_area
+                       min_total_area, large_class_from, large_min_count, student_percent, only_if_present,
+                       subject_rooms
                 FROM facility_standard_rules
                 WHERE active""",
                 (rs, i) -> new RuleRow(rs.getLong("room_type_id"), rs.getString("level_code"), rs.getString("tier"),
                         (Integer) rs.getObject("min_count"), rs.getBigDecimal("count_per_class"),
                         rs.getBigDecimal("min_room_area"), rs.getBigDecimal("area_per_student"),
-                        rs.getBigDecimal("min_total_area")));
+                        rs.getBigDecimal("min_total_area"), (Integer) rs.getObject("large_class_from"),
+                        (Integer) rs.getObject("large_min_count"), rs.getBigDecimal("student_percent"),
+                        rs.getBoolean("only_if_present"), rs.getBoolean("subject_rooms")));
         return new Catalog(types, rules);
     }
 
@@ -583,6 +647,20 @@ public class FacilityStandardService {
                                     rs.getBigDecimal("smallest") == null ? BigDecimal.ZERO
                                             : rs.getBigDecimal("smallest"),
                                     rs.getInt("no_area")));
+                });
+        // Tổng phòng học bộ môn: mỗi phòng tính một lần dù dùng kết hợp hai môn (phòng ghép). Phòng đa chức năng không
+        // còn là phòng học bộ môn (TT 14/2025/TT-BGDĐT).
+        jdbc.query("""
+                SELECT r.school_id, count(*) AS n
+                FROM rooms r
+                WHERE""" + FacilityCounting.COUNTED_ROOM + """
+                  AND EXISTS (SELECT 1 FROM room_types t
+                              WHERE t.id IN (r.room_type_id, r.combined_type_id) AND t.functional
+                                AND t.code <> 'PHONG_CHUC_NANG')
+                """ + filter + " GROUP BY r.school_id",
+                rs -> {
+                    out.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>()).put(SUBJECT_ROOMS,
+                            new RoomStat(rs.getInt("n"), BigDecimal.ZERO, BigDecimal.ZERO, 0));
                 });
         return out;
     }

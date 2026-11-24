@@ -18,8 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * theo môn học của thiết bị; một đợt theo trường.
  *
  * <p>Đếm theo sổ (phòng ghi trên sổ lúc lập phiếu), cùng định nghĩa với {@code InventoryLine.discrepancies}: không
- * thấy → thiếu; thấy ở phòng khác → sai vị trí; thấy hỏng mà sổ không ghi hỏng → hỏng. Một tài sản vừa sai vị trí
- * vừa hỏng tính ở cả hai cột, nên khớp + thiếu + sai vị trí + hỏng có thể lớn hơn số đã kiểm.
+ * thấy → thiếu; thấy ở phòng khác → sai vị trí.
  */
 @Service
 @Transactional(readOnly = true)
@@ -27,7 +26,7 @@ public class InventoryDiscrepancies {
 
     /** Một nhóm: phòng, môn hoặc trường. {@code storeroom} chỉ có nghĩa khi nhóm theo phòng. */
     public record Row(Long id, String name, boolean storeroom, int total, int checked, int matched, int missing,
-            int wrongRoom, int damaged) {
+            int wrongRoom) {
     }
 
     public record SessionBreakdown(List<Row> rooms, List<Row> subjects) {
@@ -42,9 +41,7 @@ public class InventoryDiscrepancies {
             SELECT l.session_id, l.expected_room_id AS room_id, r.name AS room_name,
                    (r.id IS NULL OR rt.code = 'KHO') AS storeroom,
                    c.subject_id, sj.name AS subject_name, l.found,
-                   COALESCE(l.found AND l.expected_room_id IS DISTINCT FROM l.found_room_id, FALSE) AS wrong_room,
-                   COALESCE(l.found AND l.found_condition = 'HONG'
-                            AND l.expected_condition IS DISTINCT FROM 'HONG', FALSE) AS damaged
+                   COALESCE(l.found AND l.expected_room_id IS DISTINCT FROM l.found_room_id, FALSE) AS wrong_room
             FROM inventory_lines l
             JOIN equipment e ON e.id = l.equipment_id
             LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id
@@ -55,10 +52,9 @@ public class InventoryDiscrepancies {
 
     private static final String COUNTS = """
             COUNT(*) AS total, COUNT(found) AS checked,
-            COUNT(*) FILTER (WHERE found AND NOT wrong_room AND NOT damaged) AS matched,
+            COUNT(*) FILTER (WHERE found AND NOT wrong_room) AS matched,
             COUNT(*) FILTER (WHERE found = FALSE) AS missing,
-            COUNT(*) FILTER (WHERE wrong_room) AS wrong_room,
-            COUNT(*) FILTER (WHERE damaged) AS damaged
+            COUNT(*) FILTER (WHERE wrong_room) AS wrong_room
             """;
 
     private final InventorySessionService sessions;
@@ -134,6 +130,6 @@ public class InventoryDiscrepancies {
 
     private static Row row(ResultSet rs, Long id, String name, boolean storeroom) throws SQLException {
         return new Row(id, name, storeroom, rs.getInt("total"), rs.getInt("checked"), rs.getInt("matched"),
-                rs.getInt("missing"), rs.getInt("wrong_room"), rs.getInt("damaged"));
+                rs.getInt("missing"), rs.getInt("wrong_room"));
     }
 }

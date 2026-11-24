@@ -14,6 +14,11 @@ import type { Report } from "@/domains/report/types";
 
 type Row = Record<string, any>;
 
+/** Hộp chi tiết giữ tối đa chừng này cột: đủ chỗ để chữ hiện trọn, không bị cắt. */
+const DRILL_MAX_COLUMNS = 7;
+/** Cột phụ bỏ trước khi hộp quá nhiều cột — vẫn xem được ở bảng chính và hồ sơ thiết bị (bấm dòng). */
+const DRILL_SECONDARY = ["catalog", "remaining_value", "original_value", "received_date", "unit"];
+
 /**
  * Số liệu của một mục vừa bấm trên biểu đồ. `rows` + `columns`: danh sách các dòng thuộc mục đó (`columns` vắng thì đủ
  * cột của báo cáo). `record`: một nhóm trên cột — liệt kê các con số của nhóm, không dựng bảng một dòng rất rộng.
@@ -37,10 +42,16 @@ export function ReportDrillDialog({ report, drill, onClose, onOpenRow }: {
   // Tài khoản trường chỉ thấy trường mình: cột Trường / Mã trường lặp một tên ở mọi dòng.
   const { perspective } = usePerspective();
   const allColumns = drill.columns ?? report.columns;
-  const columns = useMemo(
-    () => (perspective === "school" ? allColumns.filter((c) => !/^(mã )?trường$/i.test(c.label)) : allColumns),
-    [allColumns, perspective],
-  );
+  const columns = useMemo(() => {
+    let out = perspective === "school" ? allColumns.filter((c) => !/^(mã )?trường$/i.test(c.label)) : allColumns;
+    // DM thiết bị thường trùng tên thiết bị; ngày, giá trị là cột phụ.
+    for (const key of DRILL_SECONDARY) {
+      if (out.length <= DRILL_MAX_COLUMNS) break;
+      if (key === "catalog" && !out.some((c) => c.key === "name")) continue;
+      out = out.filter((c) => c.key !== key);
+    }
+    return out;
+  }, [allColumns, perspective]);
   const rows = drill.rows ?? [];
   const shownColumns = useMemo(() => columns.map((c) => ({ key: c.key, label: c.label, numeric: numeric(c.type) })), [columns]);
   const textOf = useCallback((row: Row, c: DetailColumn) => {

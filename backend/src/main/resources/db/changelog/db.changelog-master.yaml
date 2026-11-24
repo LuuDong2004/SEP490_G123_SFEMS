@@ -536,3 +536,11 @@ databaseChangeLog:
       file: db/changelog/changes/288-bo-xac-thuc-ung-dung.sql
   - include:
       file: db/changelog/changes/289-khoa-quyen-quan-tri.sql
+  - include:
+      file: db/changelog/changes/290-ho-so-nam-hoc-admin-chi-xem.sql
+  - include:
+      file: db/changelog/changes/291-chuan-csvc-thpt-day-du.sql
+  - include:
+      file: db/changelog/changes/292-go-nghiep-vu-ngoai-pham-vi.sql
+  - include:
+      file: db/changelog/changes/293-bo-tinh-trang-hong.sql

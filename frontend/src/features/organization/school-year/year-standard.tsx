@@ -1,8 +1,24 @@
 import { useCan, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, ArrowRightLeft, BookOpen, ShoppingCart, CircleAlert, CircleCheck, CircleDot, Download, Ellipsis, Gauge, History, ListChecks, Lock, MapPin,
-  Search, SlidersHorizontal, Trash2, TriangleAlert,
+  ArrowLeft,
+  BookOpen,
+  ShoppingCart,
+  CircleAlert,
+  CircleCheck,
+  Ellipsis,
+  FileSpreadsheet,
+  Loader2,
+  Gauge,
+  History,
+  ListChecks,
+  Lock,
+  MapPin,
+  Filter,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -12,6 +28,7 @@ import { StatTile } from "@/shared/components/charts/charts";
 import { WithUnit } from "@/shared/components/charts/with-unit";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
+import { downloadXlsx, type XlsxColumn } from "@/shared/api/xlsx-export";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { TableEmpty, TableSkeletonRows } from "@/shared/components/data-table/table-empty";
 import { QueryError } from "@/shared/components/query-error";
@@ -30,14 +47,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SCHOOL_ADJUST_LABELS, type YearRow, type YearStandard } from "@/domains/school-year/types";
 
 import { AdjustDialog, AdjustHistoryDialog } from "./adjust-dialog";
-import { SurplusDialog } from "./gap-dialogs";
 import { useSchoolYear } from "@/shared/hooks/use-school-year";
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
 const QK = "year_standards";
 
-type View = "all" | "shortTt" | "shortAdj" | "adjusted" | "outside" | "expired";
+type View = "all" | "shortTt" | "shortAdj" | "full" | "adjusted" | "outside" | "expired";
 
 export function useYearStandard(schoolId: number | null | undefined, yearId: number | null, campusId: number | null) {
   return useQuery({
@@ -67,6 +83,9 @@ function Gap({ value }: { value: number | null }) {
  * chỉnh, tỷ lệ đáp ứng hai số. Cả trường = cộng các điểm trường. Năm đã chốt đọc bản chốt (dải xanh), năm cũ chưa chốt
  * tính lại (dải vàng). Trường áp dụng điều chỉnh trên từng dòng (khi đã chọn một điểm trường).
  */
+/** Cột số của bảng chuẩn: cùng bề rộng, căn phải. */
+const NUM_COL = "w-32 text-right";
+
 export function YearStandardView({ schoolId, onBack }: { schoolId?: number | null; onBack?: () => void }) {
   const { open: notify } = useNotification();
   const qc = useQueryClient();
@@ -85,12 +104,10 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
   const [removing, setRemoving] = useState<YearRow | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  // Xử lý dòng thiếu (bước 5): chỉ trường mình — đưa vào đề xuất mua sắm, điều chuyển nội bộ giữa các điểm trường.
+  // Xử lý dòng thiếu (bước 5): chỉ trường mình — đưa vào đề xuất mua sắm.
   const own = !schoolId;
   const canPropose = (useCan({ resource: "purchase_proposals", action: "create" }).data?.can ?? false) && own;
-  const canTransfer = own;
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [transferring, setTransferring] = useState<YearRow | null>(null);
 
   const rows = useMemo(() => d?.rows ?? [], [d]);
   const subjects = useMemo(() => [...new Set(rows.map((r) => r.subjectName ?? "Dùng chung"))], [rows]);
@@ -100,6 +117,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
     .filter((r) => view === "all"
       || (view === "shortTt" && (r.shortageTt ?? 0) > 0)
       || (view === "shortAdj" && (r.shortageAdjusted ?? 0) > 0)
+      || (view === "full" && r.shortageAdjusted === 0)
       || (view === "adjusted" && r.adjustment && r.adjustment.kind !== "OUTSIDE" && r.adjustment.status !== "EXPIRED")
       || (view === "outside" && r.adjustment?.kind === "OUTSIDE" && r.adjustment.status !== "EXPIRED")
       || (view === "expired" && r.adjustment?.status === "EXPIRED"))
@@ -153,25 +171,49 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
       setBusy(false);
     }
   };
-  const exportCsv = () => {
+  /**
+   * Xuất Excel ĐÚNG bảng đang hiện: cùng các cột trên màn (cột điều chỉnh, ngoài thông tư chỉ khi màn có), cùng các dòng
+   * đang lọc — không mã danh mục, không cột ẩn. Môn là một cột vì trên màn nó là nhãn mở đầu nhóm.
+   */
+  const [exporting, setExporting] = useState(false);
+  const exportXlsx = async () => {
     if (!d) return;
-    const head = ["Mã TB danh mục", "Thiết bị", "Môn", "Điểm trường", "Chuẩn TT", "Theo điều chỉnh", "Đang có", "Hỏng", "Mất",
-      "Chờ ghi giảm", "Thiếu theo TT", "Thiếu theo điều chỉnh", "Ngoài TT", "Điều chỉnh", "Lý do"];
-    const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lines = shown.map((r) => [r.catalogCode ?? r.normCode, r.name, r.subjectName, r.campusName ?? "Cả trường", r.requiredTt,
-      r.requiredAdjusted, r.current, r.broken, r.lost, r.pendingDisposal, r.shortageTt, r.shortageAdjusted, r.outsideNeed,
-      r.adjustment ? SCHOOL_ADJUST_LABELS[r.adjustment.kind] : "", r.adjustment?.reason].map(cell).join(","));
-    const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const a = Object.assign(document.createElement("a"), {
-      href: URL.createObjectURL(blob),
-      download: `Chuẩn tối thiểu - ${d.schoolName} - ${d.schoolYearName}.csv`,
-    });
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const columns: XlsxColumn[] = [
+      { key: "subject", label: "Môn" },
+      { key: "name", label: "Thiết bị" },
+      ...(multi && d.campusId == null ? [{ key: "campus", label: "Điểm trường" }] : []),
+      { key: "requiredTt", label: showAdjusted ? "Cần theo TT" : "Cần có", type: "number" as const },
+      ...(showAdjusted ? [{ key: "requiredAdjusted", label: "Cần sau điều chỉnh", type: "number" as const }] : []),
+      ...(showOutside ? [{ key: "outsideNeed", label: "Ngoài TT", type: "number" as const }] : []),
+      { key: "current", label: "Đang có", type: "number" as const },
+      { key: "shortageTt", label: showAdjusted ? "Thiếu theo TT" : "Còn thiếu", type: "number" as const },
+      ...(showAdjusted ? [{ key: "shortageAdjusted", label: "Thiếu sau điều chỉnh", type: "number" as const }] : []),
+    ];
+    setExporting(true);
+    try {
+      await downloadXlsx({
+        resource: "year_standards",
+        filename: `Chuẩn tối thiểu - ${d.schoolName} - ${d.schoolYearName}.xlsx`,
+        title: `Thiết bị dạy học tối thiểu · ${d.schoolName}`,
+        subtitle: d.schoolYearName,
+        columns,
+        rows: shown.map((r) => ({
+          subject: r.subjectName ?? "Dùng chung", name: r.name, campus: r.campusName ?? "Cả trường",
+          requiredTt: r.requiredTt, requiredAdjusted: r.requiredAdjusted, outsideNeed: r.outsideNeed,
+          current: r.current, shortageTt: r.shortageTt, shortageAdjusted: r.shortageAdjusted,
+        })),
+        detail: `${d.schoolName} · ${d.schoolYearName} · ${shown.length} dòng`,
+      });
+    } catch (e) {
+      notify?.({ type: "error", message: await errorMessage(e), description: "Không xuất được Excel" });
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (isError && !d) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
-  const cols = 7 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
+  // Không cột Hỏng / mất (trưởng nhóm 24/11/2026).
+  const cols = 5 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -190,16 +232,19 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Tìm thiết bị…" className="ps-9" />
         </div>
-        <IconFilter icon={<CircleDot />} label="tình trạng" allLabel="Tất cả" total={rows.length} value={view === "all" ? null : view}
+        {/* Nút có chữ (biểu tượng + giá trị đang chọn ▾), không nút tròn: nhìn là biết đang lọc gì. */}
+        <IconFilter icon={<Filter />} labeled label="tình trạng" allLabel="Mọi tình trạng" total={rows.length} value={view === "all" ? null : view}
           onChange={(v) => { setView((v ?? "all") as View); setPage(1); }}
+          // Gọn (trưởng nhóm 24/11/2026): Còn thiếu / Đủ; các mục về điều chỉnh chỉ hiện khi trường thật sự có.
           groups={[{ items: [
-            { key: "shortTt", label: "Thiếu theo thông tư", count: rows.filter((r) => (r.shortageTt ?? 0) > 0).length },
-            { key: "shortAdj", label: "Thiếu theo điều chỉnh", count: rows.filter((r) => (r.shortageAdjusted ?? 0) > 0).length },
-            { key: "adjusted", label: "Có điều chỉnh", count: d?.adjusted },
-            { key: "outside", label: "Ngoài thông tư", count: d?.outside },
-            { key: "expired", label: "Điều chỉnh hết hiệu lực", count: rows.filter((r) => r.adjustment?.status === "EXPIRED").length },
+            { key: "shortAdj", label: "Còn thiếu", count: rows.filter((r) => (r.shortageAdjusted ?? 0) > 0).length },
+            { key: "full", label: "Đủ", count: rows.filter((r) => r.shortageAdjusted === 0).length },
+            ...(d?.adjusted ? [{ key: "adjusted", label: "Có điều chỉnh", count: d.adjusted }] : []),
+            ...(d?.outside ? [{ key: "outside", label: "Ngoài thông tư", count: d.outside }] : []),
+            ...(rows.some((r) => r.adjustment?.status === "EXPIRED")
+              ? [{ key: "expired", label: "Điều chỉnh hết hiệu lực", count: rows.filter((r) => r.adjustment?.status === "EXPIRED").length }] : []),
           ] }]} />
-        <IconFilter icon={<BookOpen />} label="môn" allLabel="Mọi môn" value={subject} onChange={(v) => { setSubject(v); setPage(1); }}
+        <IconFilter icon={<BookOpen />} labeled label="môn" allLabel="Mọi môn" value={subject} onChange={(v) => { setSubject(v); setPage(1); }}
           groups={[{ items: subjects.map((s) => ({ key: s, label: s })) }]} />
         <span className="flex-1" />
         {canPropose && selected.size ? (
@@ -208,9 +253,9 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
             Đưa {selected.size} dòng vào đề xuất
           </Button>
         ) : null}
-        <Button type="button" variant="outline" disabled={!d} onClick={exportCsv}>
-          <Download />
-          Xuất CSV
+        <Button type="button" variant="outline" disabled={!d || exporting} onClick={() => void exportXlsx()}>
+          {exporting ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+          Xuất Excel
         </Button>
       </div>
       {d?.source === "CLOSED" ? (
@@ -258,14 +303,13 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                   </TableHead>
                 ) : null}
                 <TableHead className="min-w-[14rem]">Thiết bị</TableHead>
-                <TableHead className="text-right">{showAdjusted ? "Cần theo TT" : "Cần có"}</TableHead>
-                {showAdjusted ? <TableHead className="text-right">Cần sau điều chỉnh</TableHead> : null}
-                {showOutside ? <TableHead className="text-right">Ngoài TT</TableHead> : null}
-                <TableHead className="text-right">Đang có</TableHead>
-                <TableHead className="text-right">Hỏng / mất</TableHead>
-                <TableHead className="text-right">Chờ ghi giảm</TableHead>
-                <TableHead>{showAdjusted ? "Thiếu theo TT" : "Còn thiếu"}</TableHead>
-                {showAdjusted ? <TableHead>Thiếu sau điều chỉnh</TableHead> : null}
+                {/* Cột số rộng đều nhau, căn phải; cột Thiết bị lấy phần còn lại (không để cột nào giãn lệch). */}
+                <TableHead className={NUM_COL}>{showAdjusted ? "Cần theo TT" : "Cần có"}</TableHead>
+                {showAdjusted ? <TableHead className={NUM_COL}>Cần sau điều chỉnh</TableHead> : null}
+                {showOutside ? <TableHead className={NUM_COL}>Ngoài TT</TableHead> : null}
+                <TableHead className={NUM_COL}>Đang có</TableHead>
+                <TableHead className={NUM_COL}>{showAdjusted ? "Thiếu theo TT" : "Còn thiếu"}</TableHead>
+                {showAdjusted ? <TableHead className={NUM_COL}>Thiếu sau điều chỉnh</TableHead> : null}
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -280,9 +324,12 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                 const canAct = d.canAdjust;
                 return [
                   group ? (
-                    <TableRow key={`g-${r.normId}`} className="bg-muted/40 hover:bg-muted/40">
-                      <TableCell colSpan={cols} className="py-1.5 text-xs font-semibold tracking-wide uppercase">
-                        {r.subjectName ?? "Dùng chung"}
+                    // Nhãn môn mở đầu nhóm: viên màu chính, chữ hoa nhỏ — cùng kiểu với Danh mục thiết bị tối thiểu.
+                    <TableRow key={`g-${r.normId}`} className="hover:bg-transparent">
+                      <TableCell colSpan={cols} className="py-2">
+                        <span className="bg-primary text-primary-foreground rounded-md px-2.5 py-1 text-xs font-semibold tracking-wide uppercase">
+                          {r.subjectName ?? "Dùng chung"}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ) : null,
@@ -300,9 +347,10 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                       </TableCell>
                     ) : null}
                     <TableCell className="max-w-[24rem]">
-                      <div className="truncate font-medium" title={r.name}>{r.name}</div>
+                      {/* Không dòng mã dưới tên: mã nằm trong chú thích khi rê chuột và trong tệp xuất. */}
+                      <div className="truncate font-medium" title={`${r.name} · ${r.catalogCode ?? r.normCode}`}>{r.name}</div>
+                      {adj || r.warning ? (
                       <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                        <span className="font-mono">{r.catalogCode ?? r.normCode}</span>
                         {adj ? (
                           <Badge variant={adj.status === "EXPIRED" ? "destructive" : adj.status === "PENDING_RECONFIRM" ? "warning" : ADJUST_KIND_VARIANTS[adj.kind]}
                             title={adj.reason}>
@@ -312,6 +360,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                         ) : null}
                         {r.warning ? <span className="text-warning-text truncate" title={r.warning}>{r.warning}</span> : null}
                       </div>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{r.requiredTt == null ? "—" : num.format(r.requiredTt)}</TableCell>
                     {showAdjusted ? (
@@ -321,10 +370,8 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                     ) : null}
                     {showOutside ? <TableCell className="text-right tabular-nums">{r.outsideNeed == null ? "" : num.format(r.outsideNeed)}</TableCell> : null}
                     <TableCell className="text-right tabular-nums">{num.format(r.current)}</TableCell>
-                    <TableCell className="text-muted-foreground text-right tabular-nums">{r.broken} / {r.lost}</TableCell>
-                    <TableCell className="text-muted-foreground text-right tabular-nums">{r.pendingDisposal || ""}</TableCell>
-                    <TableCell><Gap value={r.shortageTt} /></TableCell>
-                    {showAdjusted ? <TableCell><Gap value={r.shortageAdjusted} /></TableCell> : null}
+                    <TableCell className="text-right"><Gap value={r.shortageTt} /></TableCell>
+                    {showAdjusted ? <TableCell className="text-right"><Gap value={r.shortageAdjusted} /></TableCell> : null}
                     <TableCell className="py-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -357,12 +404,6 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                               Đưa vào đề xuất mua sắm
                             </DropdownMenuItem>
                           ) : null}
-                          {canTransfer && multi && d.campusId != null && d.current && (r.shortageAdjusted ?? 0) > 0 ? (
-                            <DropdownMenuItem onSelect={() => setTransferring(r)}>
-                              <ArrowRightLeft />
-                              Điểm trường thừa
-                            </DropdownMenuItem>
-                          ) : null}
                           <DropdownMenuItem onSelect={() => setHistory(r)}>
                             <History />
                             Lịch sử điều chỉnh
@@ -387,9 +428,6 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
       {adjusting && d ? (
         <AdjustDialog row={adjusting} yearId={d.schoolYearId} campusId={d.campusId}
           onClose={() => setAdjusting(null)} onSaved={() => { setAdjusting(null); void refresh(); }} />
-      ) : null}
-      {transferring && d?.campusId != null ? (
-        <SurplusDialog row={transferring} campusId={d.campusId} onClose={() => setTransferring(null)} />
       ) : null}
       {history && d ? (
         <AdjustHistoryDialog row={history} schoolId={schoolId ?? null} campusId={d.campusId} onClose={() => setHistory(null)} />

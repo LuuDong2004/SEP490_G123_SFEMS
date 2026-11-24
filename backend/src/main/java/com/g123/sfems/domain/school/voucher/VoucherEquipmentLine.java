@@ -11,15 +11,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MappedSuperclass;
 
 /**
- * Một dòng phiếu trỏ tới MỘT tài sản cụ thể — cấp phát, điều chuyển, mượn, báo
- * hỏng, thanh lý đều làm việc trên từng cái chứ không trên "loại × số lượng" như
- * phiếu nhập.
- *
- * <p>Tài sản được nạp EAGER cùng dòng, và đây là điều có chủ đích: khi trường NHẬN
- * xác nhận một phiếu điều chuyển, họ không đọc được tài sản của trường chuyển qua
- * phạm vi dữ liệu của mình — nhưng họ đọc được phiếu, và phiếu mang theo đúng những
- * tài sản nó nói tới. Đi qua dòng phiếu là cách duy nhất một phiếu được chạm vào
- * tài sản mà người thao tác không tự đọc được.
+ * Một dòng phiếu trỏ tới MỘT thiết bị cụ thể (dòng kiểm kê) — làm việc trên từng cái chứ không trên "loại × số lượng"
+ * như phiếu ghi tăng. Thiết bị được nạp EAGER cùng dòng: đọc được phiếu thì đọc được những thiết bị phiếu nói tới.
  */
 @MappedSuperclass
 public abstract class VoucherEquipmentLine {

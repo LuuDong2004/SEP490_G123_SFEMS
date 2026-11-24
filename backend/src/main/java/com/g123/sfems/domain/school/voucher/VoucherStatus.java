@@ -13,8 +13,7 @@ package com.g123.sfems.domain.school.voucher;
  * </pre>
  *
  * <p>{@code APPROVED} và {@code COMPLETED} là hai trạng thái khác nhau vì có phiếu
- * được duyệt rồi mới làm: điều chuyển được duyệt xong còn phải bàn giao thật, và
- * chỉ khi trường nhận xác nhận thì sổ mới đổi. Phiếu nào duyệt xong là xong ngay
+ * được duyệt rồi mới hoàn tất (đề xuất mua sắm, biên bản kiểm kê). Phiếu nào duyệt xong là xong ngay
  * (phiếu nhập) thì đi thẳng từ {@code PENDING} sang {@code COMPLETED}.
  *
  * <p>{@code REJECTED} và {@code CANCELLED} là hai lối ra khác nhau có chủ đích:

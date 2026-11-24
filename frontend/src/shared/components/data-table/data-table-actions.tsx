@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { BaseRecord, HttpError } from "@refinedev/core";
+import type { BaseRecord, CrudFilter, HttpError } from "@refinedev/core";
 import {
   useCan,
-  useExport,
+  useDataProvider,
   useGo,
   useResourceParams,
   useTranslate,
@@ -22,7 +22,8 @@ import {
   UploadIcon,
 } from "lucide-react";
 
-import { describeFilters, logExport } from "@/shared/api/export-log";
+import { describeFilters } from "@/shared/api/export-log";
+import { downloadXlsx } from "@/shared/api/xlsx-export";
 import { Button } from "@/shared/ui/button";
 import { useColumnsKey, writeColumnPrefs } from "@/shared/components/data-table/column-prefs";
 import {
@@ -100,7 +101,8 @@ export function DataTableRefresh<TData extends BaseRecord>({
 function columnLabel<TData>(column: Column<TData, unknown>) {
   const header = column.columnDef.header;
   if (typeof header === "string" && header.trim()) return header;
-  return column.id;
+  const label = (column.columnDef.meta as { label?: string } | undefined)?.label;
+  return label ?? column.id;
 }
 
 /**
@@ -204,7 +206,7 @@ function toField(value: unknown): string {
       if (typeof record[key] === "string") return record[key] as string;
     }
     if (Array.isArray(value)) return value.map(toField).join("; ");
-    return JSON.stringify(value);
+    return "";
   }
   return String(value);
 }
@@ -218,29 +220,6 @@ function neutralize(field: string): string {
   return /^[=+\-@\t\r]/.test(field) && !/^-\d+([.,]\d+)?$/.test(field) ? `'${field}` : field;
 }
 
-/** RFC 4180: quote the field and double any quote inside it. */
-function toCsv(rows: string[][]): string {
-  return rows
-    .map((row) =>
-      row.map((field) => `"${neutralize(field).replace(/"/g, '""')}"`).join(",")
-    )
-    .join("\r\n");
-}
-
-function download(filename: string, csv: string) {
-  // The BOM is what makes Excel open a UTF-8 CSV as UTF-8 rather than as the
-  // system codepage — without it every accented name arrives mojibake.
-  const blob = new Blob(["\ufeff" + csv], {
-    type: "text/csv;charset=utf-8;",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 /**
  * Export the table.
  *
@@ -252,14 +231,12 @@ function download(filename: string, csv: string) {
  * carrying the current filters and sorters so the file matches the table
  * rather than the whole resource.
  *
- * Both write the *stored* value rather than the rendered one — `2024-03-04`
- * rather than "Mar 4, 2024", `active` rather than "Active". A CSV is opened in
- * a spreadsheet, where a real date sorts and a formatted one is a string.
+ * Both write a real Excel file (.xlsx) with only the columns on screen — see `build`.
  *
  * A row-level scope still applies to the second one: the export reads through
  * the same endpoint, so it can only ever contain rows the caller may read.
  */
-function useTableExport<TData extends BaseRecord>(
+export function useTableExport<TData extends BaseRecord>(
   table: UseTableReturnType<TData, HttpError>,
 ) {
   const { resource, identifier } = useResourceParams();
@@ -268,52 +245,89 @@ function useTableExport<TData extends BaseRecord>(
   // cả" đi đọc tài nguyên của trang với bộ lọc của bảng kia.
   const override = (table.reactTable.options.meta as { exportResource?: string } | undefined)?.exportResource;
   const name = override ?? identifier ?? resource?.name ?? "export";
-  const filename = safeDownloadName(override === "equipment_items" ? "Danh sách thiết bị" : resource?.meta?.label ?? "Dữ liệu");
+  const title = override === "equipment_items" ? "Danh sách thiết bị" : String(resource?.meta?.label ?? "Dữ liệu");
+  const filename = safeDownloadName(title);
   const { filters, sorters } = table.refineCore;
+  const dataProvider = useDataProvider();
+  const [isLoading, setLoading] = useState(false);
 
-  const { triggerExport, isLoading } = useExport<TData>({
-    resource: override ?? resource?.name,
-    filters,
-    sorters,
-    // `download` and `useBom` both default to true, which is what writes the
-    // file and what makes Excel read it back as UTF-8.
-    filename,
-    // `_can` is the row-level flag object the API stamps on each row so the
-    // UI knows which buttons to offer. It is plumbing, and in a spreadsheet it
-    // is a column of `[object Object]`.
-    mapData: (record) => {
-      const fields: Record<string, unknown> = { ...record };
-      delete fields._can;
-      return fields;
-    },
-  });
+  /**
+   * Tệp Excel = ĐÚNG bảng trên màn (trưởng nhóm 24/11/2026: trước đây "mọi dòng" đổ nguyên bản ghi API — mã nội bộ, cờ,
+   * đối tượng lồng nhau thành "[object Object]"): chỉ các cột đang hiện, đúng tên cột, giá trị đọc được (`meta.exportValue`
+   * của cột, không thì accessor; đối tượng lấy tên). Cột không có giá trị (STT, thao tác, ô chọn) không vào tệp.
+   */
+  const build = (records: TData[]) => {
+    const columns = table.reactTable.getVisibleLeafColumns().filter((c) => {
+      const meta = c.columnDef.meta as { exportValue?: unknown } | undefined;
+      return c.id !== "actions" && c.id !== "select" && (c.accessorFn || meta?.exportValue);
+    });
+    const valueOf = (c: (typeof columns)[number], r: TData) => {
+      const meta = c.columnDef.meta as { exportValue?: (row: TData) => unknown } | undefined;
+      const v = meta?.exportValue ? meta.exportValue(r) : c.accessorFn?.(r, 0);
+      if (v == null || v === "") return null;
+      if (typeof v === "number") return v;
+      if (typeof v === "boolean") return v ? "Có" : "Không";
+      return neutralize(toField(v)) || null;
+    };
+    const cells = records.map((r) => columns.map((c) => valueOf(c, r)));
+    return {
+      columns: columns.map((c, i) => ({
+        key: `c${i}`,
+        label: columnLabel(c),
+        type: cells.some((row) => typeof row[i] === "number") ? ("number" as const) : ("text" as const),
+      })),
+      rows: cells.map((row) => Object.fromEntries(row.map((v, i) => [`c${i}`, v]))),
+    };
+  };
+  const describe = (what: string) => [what, describeFilters(filters)].filter(Boolean).join(" · ");
+  const save = async (records: TData[], what: string, suffix: string, groupBy?: (r: TData) => string | null | undefined) => {
+    const { columns, rows } = build(records);
+    // Mỗi nhóm (trường) một trang tính, theo tên; trang đầu là tổng hợp.
+    const parts = groupBy ? [...new Set(records.map((r) => groupBy(r) ?? "Không rõ"))].sort((a, b) => a.localeCompare(b, "vi"))
+      .map((g) => ({ name: g, title: `${title} · ${g}`, rows: rows.filter((_, i) => (groupBy(records[i]) ?? "Không rõ") === g) })) : undefined;
+    await downloadXlsx({ resource: name, filename: `${filename}${suffix}.xlsx`, title, subtitle: describe(what), columns, rows, parts, detail: describe(what) });
+  };
+  /** Đọc lại MỌI dòng qua API theo trang (cùng bộ lọc, cùng thứ tự, cộng `extra`), tối đa 50.000 dòng. */
+  const fetchAll = async (extra: CrudFilter[] = []) => {
+    const source = override ?? resource?.name;
+    if (!source) return [] as TData[];
+    const provider = dataProvider();
+    const all: TData[] = [];
+    for (let page = 1; all.length < 50_000; page++) {
+      const res = await provider.getList<TData>({
+        resource: source, filters: [...filters, ...extra], sorters, pagination: { currentPage: page, pageSize: 500, mode: "server" },
+      });
+      all.push(...res.data);
+      if (res.data.length < 500 || all.length >= res.total) break;
+    }
+    return all;
+  };
+  /** Cho hộp xuất riêng của màn (vd. Thiết bị: chọn trường, mỗi trường một trang tính). */
+  const exportWith = async (o: { extra?: CrudFilter[]; groupBy?: (r: TData) => string | null | undefined }) => {
+    setLoading(true);
+    try {
+      await save(await fetchAll(o.extra), "Mọi dòng khớp bộ lọc", "", o.groupBy);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Màn có hộp xuất riêng (`meta.openExport`): hai mục xuất mở hộp đó thay vì tải ngay.
+  const openExport = (table.reactTable.options.meta as { openExport?: () => void } | undefined)?.openExport;
 
   const exportPage = () => {
-    const columns = table.reactTable
-      .getVisibleLeafColumns()
-      .filter((column) => column.id !== "actions" && column.accessorFn);
-
-    const head = columns.map((column) => columnLabel(column));
-    const body = table.reactTable
-      .getRowModel()
-      .rows.map((row) =>
-        columns.map((column) => toField(row.getValue(column.id)))
-      );
-
-    download(`${filename} - trang đang xem.csv`, toCsv([head, ...body]));
-    logExport({ resource: name, format: "CSV", rows: body.length, detail: describe("Trang đang xem") });
+    if (openExport) return openExport();
+    setLoading(true);
+    void save(table.reactTable.getRowModel().rows.map((r) => r.original), "Trang đang xem", " - trang đang xem")
+      .catch(() => undefined).finally(() => setLoading(false));
   };
-
-  // Nhật ký hoạt động: xuất CSV chạy trên trình duyệt, máy chủ không thấy — báo lên kèm bộ lọc và số dòng.
-  const total = table.refineCore.tableQuery.data?.total;
-  const describe = (what: string) => [what, describeFilters(filters)].filter(Boolean).join(" · ");
+  /** Mọi dòng khớp bộ lọc: đọc lại qua API theo trang (cùng bộ lọc, cùng thứ tự), tối đa 50.000 dòng. */
   const exportAll = () => {
-    void triggerExport().then(() =>
-      logExport({ resource: name, format: "CSV", rows: total, detail: describe("Mọi dòng khớp bộ lọc") }))
-      .catch(() => undefined);
+    if (openExport) return openExport();
+    setLoading(true);
+    void fetchAll().then((all) => save(all, "Mọi dòng khớp bộ lọc", "")).catch(() => undefined).finally(() => setLoading(false));
   };
 
-  return { exportPage, exportAll, isLoading };
+  return { exportPage, exportAll, exportWith, isLoading };
 }
 
 export function DataTableExport<TData extends BaseRecord>({
@@ -346,7 +360,7 @@ export function DataTableExport<TData extends BaseRecord>({
         <TooltipContent>{t("buttons.export.label", "Export")}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>{t("buttons.export.title", "Download as CSV")}</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("buttons.export.title", "Tải về tệp Excel")}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={exportPage}>
           <span className="flex flex-col">

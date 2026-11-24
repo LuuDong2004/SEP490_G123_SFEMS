@@ -102,13 +102,14 @@ public class SchoolYearProfileService {
         List<ClosingInfo> closings = closings(school, year.id());
         ClosingInfo active = closings.stream().filter(c -> "CLOSED".equals(c.status())).findFirst().orElse(null);
         List<CampusProfile> campuses = campusProfiles(school, year);
-        boolean allConfirmed = !campuses.isEmpty() && campuses.stream().allMatch(c -> "CONFIRMED".equals(c.status()));
-        String status = active != null ? "CLOSED"
-                : !closings.isEmpty() ? "REOPENED"
-                : allConfirmed ? "CONFIRMED" : "DRAFT";
+        // Một bước (trưởng nhóm 24/11/2026): Đang khai → Đã chốt. Không xác nhận từng điểm trường; lần Sở mở lại nằm ở
+        // lịch sử (closings), không thành trạng thái riêng.
+        String status = active != null ? "CLOSED" : "DRAFT";
+        boolean ready = !campuses.isEmpty() && campuses.stream()
+                .allMatch(c -> c.todos().isEmpty() && c.pendingAdjustments() == 0);
         RowLevelPrincipal p = principals.current().orElse(null);
         boolean own = p != null && Objects.equals(p.schoolId(), school) && p.campusId() == null;
-        boolean canConfirm = own && active == null && CurrentUser.has("school_year_profiles:confirm");
+        boolean canClose = own && active == null && CurrentUser.has("school_year_profiles:confirm");
         Long body = s.get("department_of_education_id") == null ? null
                 : ((Number) s.get("department_of_education_id")).longValue();
         boolean canReopen = active != null && mayReopen(p, body);
@@ -119,8 +120,7 @@ public class SchoolYearProfileService {
                 ORDER BY n.start_date LIMIT 1""", (rs, i) -> new NextYear(rs.getLong(1), rs.getString(2)), year.id(),
                 school).stream().findFirst().orElse(null);
         return new YearProfile(school, (String) s.get("name"), year.id(), year.name(), year.current(), status, active,
-                closings, campuses, canConfirm, canConfirm && allConfirmed
-                && campuses.stream().allMatch(c -> c.pendingAdjustments() == 0), canReopen,
+                closings, campuses, canClose, canClose && ready, canReopen,
                 own && CurrentUser.has("school_year_profiles:write"), next);
     }
 
@@ -166,7 +166,7 @@ public class SchoolYearProfileService {
             int confirmed = rs.getInt("confirmed");
             boolean closed = rs.getString("closed_at") != null;
             boolean reopened = rs.getBoolean("reopened");
-            String status = closed ? "CLOSED" : reopened ? "REOPENED" : confirmed >= campuses ? "CONFIRMED" : "DRAFT";
+            String status = closed ? "CLOSED" : "DRAFT";
             Long body = (Long) rs.getObject("body");
             return new ProgressRow(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
                     rs.getString("level_name"), rs.getString("ward"), campuses, Math.min(confirmed, campuses), status,
@@ -176,45 +176,7 @@ public class SchoolYearProfileService {
 
     // ------------------------------------------------------------------ ghi
 
-    /** Lãnh đạo trường xác nhận dữ liệu một điểm trường — danh sách việc còn thiếu phải trống. */
-    @Transactional
-    public YearProfile confirm(CampusRequest request) {
-        Long school = ownSchool();
-        requireConfirmer();
-        Year year = adequacy.year(request == null ? null : request.schoolYearId());
-        requireOpen(school, year.id());
-        CampusProfile campus = campusProfiles(school, year).stream()
-                .filter(c -> Objects.equals(c.campusId(), request == null ? null : request.campusId()))
-                .findFirst().orElseThrow(() -> new FieldValidationException("campusId", "Điểm trường không thuộc trường"));
-        if (!campus.todos().isEmpty()) {
-            throw new FieldValidationException("campusId", campus.campusName() + " còn việc chưa xong: "
-                    + campus.todos().get(0).text());
-        }
-        jdbc.update("""
-                INSERT INTO school_year_profiles (school_id, school_year_id, campus_id, status, confirmed_at,
-                    confirmed_by_id, updated_at)
-                VALUES (?, ?, ?, 'CONFIRMED', now(), ?, now())
-                ON CONFLICT (school_id, school_year_id, COALESCE(campus_id, 0)) DO UPDATE SET status = 'CONFIRMED',
-                    confirmed_at = now(), confirmed_by_id = EXCLUDED.confirmed_by_id, updated_at = now()""",
-                school, year.id(), campus.campusId(), CurrentUser.id().orElse(null));
-        return profile(school, year.id());
-    }
-
-    @Transactional
-    public YearProfile unconfirm(CampusRequest request) {
-        Long school = ownSchool();
-        requireConfirmer();
-        Year year = adequacy.year(request == null ? null : request.schoolYearId());
-        requireOpen(school, year.id());
-        jdbc.update("""
-                UPDATE school_year_profiles SET status = 'DRAFT', confirmed_at = NULL, confirmed_by_id = NULL,
-                    updated_at = now()
-                WHERE school_id = ? AND school_year_id = ? AND COALESCE(campus_id, 0) = COALESCE(?::bigint, 0)""",
-                school, year.id(), request == null ? null : request.campusId());
-        return profile(school, year.id());
-    }
-
-    /** Chốt năm học: mọi điểm trường đã xác nhận → lưu bản chốt (dòng chuẩn tối thiểu + số đầu vào), khoá dữ liệu A. */
+    /** Chốt năm học (lãnh đạo trường): mọi điểm trường hết việc còn thiếu → lưu bản chốt (dòng chuẩn tối thiểu + số đầu vào), khoá dữ liệu A. */
     @Transactional
     public YearProfile close(YearRequest request) {
         Long school = ownSchool();
@@ -222,9 +184,10 @@ public class SchoolYearProfileService {
         Year year = adequacy.year(request == null ? null : request.schoolYearId());
         requireOpen(school, year.id());
         List<CampusProfile> campuses = campusProfiles(school, year);
-        CampusProfile draft = campuses.stream().filter(c -> !"CONFIRMED".equals(c.status())).findFirst().orElse(null);
+        CampusProfile draft = campuses.stream().filter(c -> !c.todos().isEmpty()).findFirst().orElse(null);
         if (draft != null) {
-            throw new FieldValidationException("schoolYearId", draft.campusName() + " chưa xác nhận");
+            throw new FieldValidationException("schoolYearId", draft.campusName() + " còn việc chưa xong: "
+                    + draft.todos().get(0).text());
         }
         CampusProfile pending = campuses.stream().filter(c -> c.pendingAdjustments() > 0).findFirst().orElse(null);
         if (pending != null) {
@@ -240,7 +203,7 @@ public class SchoolYearProfileService {
         for (Row r : result.campusRows()) {
             lines.add(new Object[] {closing, r.campusId(), r.campusName(), r.normId(), r.normCode(), r.catalogId(),
                 r.catalogCode(), r.name(), r.subjectName(), r.unitName(), r.allowedKind(), r.basisText(),
-                r.requiredTt(), r.requiredAdjusted(), r.current(), r.broken(), r.lost(), r.pendingDisposal(),
+                r.requiredTt(), r.requiredAdjusted(), r.current(), r.lost(),
                 r.shortageTt(), r.shortageAdjusted(), r.surplus(), r.outsideNeed(), r.proposed(),
                 r.adjustment() == null ? null : r.adjustment().kind(),
                 r.adjustment() == null ? null : r.adjustment().status(),
@@ -249,9 +212,9 @@ public class SchoolYearProfileService {
         jdbc.batchUpdate("""
                 INSERT INTO school_year_closing_lines (closing_id, campus_id, campus_name, norm_id, norm_code, catalog_id,
                     catalog_code, name, subject_name, unit_name, allowed_kind, basis_text, required_tt, required_adjusted,
-                    current_qty, broken, lost, pending_disposal, shortage_tt, shortage_adjusted, surplus, outside_need,
+                    current_qty, lost, shortage_tt, shortage_adjusted, surplus, outside_need,
                     proposed, adjust_kind, adjust_status, adjust_reason, warning)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", lines);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", lines);
         snapshotInputs(closing, school, year);
         return profile(school, year.id());
     }
@@ -341,7 +304,7 @@ public class SchoolYearProfileService {
                 FacilityCounting.COUNTED_ROOM), school);
         Map<Long, int[]> equipment = countBy("""
                 SELECT %s, count(*), count(*) FILTER (WHERE e.room_id IS NULL), 0, 0 FROM equipment e
-                WHERE e.school_id = ? AND e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'NOT_DELIVERED', 'USED_UP')
+                WHERE e.school_id = ? AND e.status <> 'LOST'
                 GROUP BY 1""".formatted(FacilityCounting.campusOfRoomSql("e.room_id", "e.school_id")), school);
         Map<Long, int[]> pendingAdj = pendingAdjustments(school, year.id());
         Map<Long, Object[]> status = new HashMap<>();

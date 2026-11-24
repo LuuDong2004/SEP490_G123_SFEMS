@@ -303,10 +303,10 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const decisionFields = (config?.sections ?? []).filter((s) => s.when?.field === "centralized").flatMap((s) => s.fields)
     .filter((f) => f.key !== "centralized");
   const submitRequired = new Set<string>([
-    ...(config?.sections ?? []).flatMap((s) => s.fields).filter((f) => f.required && !f.stage).map((f) => `details.${f.key}`),
+    ...(config?.sections ?? []).flatMap((s) => s.fields).filter((f) => f.required).map((f) => `details.${f.key}`),
     ...(centralized ? decisionFields.map((f) => `details.${f.key}`) : []),
   ]);
-  const handoverFields = (config?.sections ?? []).filter((s) => !s.stage && !s.when).flatMap((s) => s.fields);
+  const handoverFields = (config?.sections ?? []).filter((s) => !s.when).flatMap((s) => s.fields);
 
   // "Khi được duyệt": nói trước hệ thống sẽ sinh gì — mỗi cái một hồ sơ, mỗi dòng vật tư một lô.
   const trackingOf = (l: any) => l?.trackingType ?? catalogs.get(Number(l?.catalog?.id))?.trackingType;

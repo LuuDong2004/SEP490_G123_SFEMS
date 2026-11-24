@@ -1,6 +1,5 @@
 package com.g123.sfems.module.school.equipment;
 
-import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
@@ -40,8 +39,7 @@ public class EquipmentLifecycle {
     /**
      * Người quản lý khi một phiếu đặt tài sản vào một phòng: người nhận ghi trên phiếu; phiếu không ghi thì
      * CÁN BỘ PHỤ TRÁCH PHÒNG đó. Tài sản ghi tăng về kho là đang nằm trong tay thủ kho — để trống người quản
-     * lý là hồ sơ nói sai, và cán bộ phải mở từng hồ sơ ra điền tay (phản hồi của BA). Thu hồi về kho, nhận
-     * điều chuyển và cấp phát bỏ trống người nhận đi cùng quy tắc này. Phòng chưa khai cán bộ phụ trách
+     * lý là hồ sơ nói sai, và cán bộ phải mở từng hồ sơ ra điền tay (phản hồi của BA). Phòng chưa khai cán bộ phụ trách
      * (hoặc không có phòng) thì trống, vì không có ai để điền.
      */
     public static Staff keeperOf(Staff receiver, Room room) {
@@ -49,12 +47,6 @@ public class EquipmentLifecycle {
             return receiver;
         }
         return room == null ? null : room.getManagingStaff();
-    }
-
-    public void manager(Equipment item, Staff manager, Action action, VoucherRef voucher, String note) {
-        String from = staffLabel(item.getManager());
-        item.setManager(manager);
-        history.change(item, action, "manager", from, staffLabel(manager), voucher, note);
     }
 
     public void status(Equipment item, AssetStatus status, Action action, VoucherRef voucher, String note) {
@@ -73,22 +65,7 @@ public class EquipmentLifecycle {
         history.change(item, action, "condition", from, conditionLabel(condition), voucher, note);
     }
 
-    public void school(Equipment item, School school, Action action, VoucherRef voucher, String note) {
-        String from = item.getSchool() == null ? null : item.getSchool().getName();
-        item.setSchool(school);
-        history.change(item, action, "school", from, school.getName(), voucher, note);
-    }
-
-    /** Giá trị còn lại sau một lần tính hao mòn / khấu hao. */
-    public void remainingValue(Equipment item, java.math.BigDecimal value, Action action, VoucherRef voucher,
-            String note) {
-        String from = item.getRemainingValue() == null ? null : item.getRemainingValue().toPlainString();
-        item.setRemainingValue(value);
-        history.change(item, action, "remainingValue", from, value == null ? null : value.toPlainString(), voucher,
-                note);
-    }
-
-    /** Một sự kiện không đổi trường dữ liệu nào (vd. bảo trì định kỳ xong). */
+    /** Một sự kiện không đổi trường dữ liệu nào (vd. kiểm kê thấy đúng). */
     public void event(Equipment item, Action action, VoucherRef voucher, String note) {
         history.event(item, action, voucher, note);
     }
@@ -108,21 +85,7 @@ public class EquipmentLifecycle {
         return switch (status) {
             case IN_STOCK -> "Trong kho";
             case IN_USE -> "Đang sử dụng";
-            case BORROWED -> "Đang cho mượn";
-            case BROKEN -> "Hỏng, chờ xử lý";
-            case UNREPAIRABLE -> "Hỏng, không sửa được";
-            case REPAIRING -> "Đang sửa chữa";
-            case WARRANTY -> "Đang bảo hành";
-            case MAINTAINING -> "Đang bảo trì";
-            case MISSING -> "Chờ ghi giảm do mất";
-            case TRANSFERRING -> "Đang điều chuyển";
-            case PENDING_LIQUIDATION -> "Chờ thanh lý";
-            case LIQUIDATED -> "Đã thanh lý";
-            case PENDING_DESTRUCTION -> "Chờ tiêu huỷ";
-            case DESTROYED -> "Đã tiêu huỷ";
             case LOST -> "Mất";
-            case NOT_DELIVERED -> "Thiếu khi điều chuyển";
-            case USED_UP -> "Đã dùng hết";
         };
     }
 
@@ -134,7 +97,6 @@ public class EquipmentLifecycle {
             case TOT -> "Tốt";
             case TRUNG_BINH -> "Trung bình";
             case KEM -> "Kém";
-            case HONG -> "Hỏng";
         };
     }
 }

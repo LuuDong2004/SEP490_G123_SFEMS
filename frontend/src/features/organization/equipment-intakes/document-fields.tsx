@@ -336,7 +336,7 @@ export function hasDocumentHead(code: string | undefined) {
 /**
  * Ô "Nguồn kinh phí" của MỘT chứng từ. Đứng trong hàng ô của hoá đơn; nguồn hình thành không có chứng từ (đơn vị tự làm…)
  * thì đứng ngay hàng "Thông tin phiếu" cạnh nguồn hình thành (15/11/2026) — một khối riêng chỉ chứa một ô thì thừa.
- * Nguồn chỉ cho MỘT nguồn kinh phí (được điều chuyển → ngân sách, tặng → tài trợ): ô khoá, tự điền; đổi sang nguồn
+ * Nguồn chỉ cho MỘT nguồn kinh phí (được cấp phát, bàn giao → ngân sách, tặng → tài trợ): ô khoá, tự điền; đổi sang nguồn
  * không khoá mà ô vẫn là giá trị máy điền thì gỡ.
  */
 export function DocumentFunding({ control, index, className }: { control: Control<any>; index: number; className?: string }) {

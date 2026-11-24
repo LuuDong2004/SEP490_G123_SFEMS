@@ -23,7 +23,7 @@ import {
   type StandardStatus,
 } from "@/domains/facility/standard";
 
-const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 
 function StatusBadge({ status, bold }: { status: StandardStatus; bold?: boolean }) {
   if (status === "NONE") return <span className="text-muted-foreground">—</span>;

@@ -46,7 +46,7 @@ public class EquipmentHistoryService {
         this.jdbc = jdbc;
     }
 
-    /** Một sự kiện (ghi tăng, báo hỏng...) không gắn với một trường dữ liệu cụ thể. */
+    /** Một sự kiện (ghi tăng, kiểm kê thấy đúng) không gắn với một trường dữ liệu cụ thể. */
     @Transactional
     public void event(Equipment equipment, Action action, VoucherRef voucher, String note) {
         save(equipment, action, null, null, null, voucher, note);

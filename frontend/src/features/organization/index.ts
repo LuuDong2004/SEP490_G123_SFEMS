@@ -1,7 +1,6 @@
 /** Trục tổ chức và dữ liệu của từng trường: Sở, trường, màn Tổng quan, cán bộ/cơ sở vật chất/thiết bị. */
 import { lazyNamed } from "@/shared/lib/lazy-named";
 
-export const EquipmentLookup = lazyNamed(() => import("./equipment-labels/lookup"), "EquipmentLookup");
 export { ORG_RESOURCES } from "./resources/registry";
 
 // Màn hình: tải khi mở tới (mỗi thư mục một chunk) — xem `lazyNamed`.

@@ -1,7 +1,6 @@
 package com.g123.sfems.domain.school.voucher;
 
 import static com.g123.sfems.domain.school.voucher.ApprovalStep.MANAGING_BODY;
-import static com.g123.sfems.domain.school.voucher.ApprovalStep.RECEIVING_BODY;
 import static com.g123.sfems.domain.school.voucher.ApprovalStep.SCHOOL;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,7 +20,7 @@ class ReachedStepTest {
         assertThat(ApprovalStep.furthest(null, SCHOOL)).isEqualTo(SCHOOL);
         assertThat(ApprovalStep.furthest(MANAGING_BODY, null)).isEqualTo(MANAGING_BODY);
         assertThat(ApprovalStep.furthest(SCHOOL, MANAGING_BODY)).isEqualTo(MANAGING_BODY);
-        assertThat(ApprovalStep.furthest(RECEIVING_BODY, MANAGING_BODY)).isEqualTo(RECEIVING_BODY);
+        assertThat(ApprovalStep.furthest(MANAGING_BODY, SCHOOL)).isEqualTo(MANAGING_BODY);
     }
 
     @Test

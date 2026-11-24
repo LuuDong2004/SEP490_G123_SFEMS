@@ -13,16 +13,17 @@
  * application's decision; the language is fixed with it.
  */
 
+// Ngày số "20/09/2026" (không "20 thg 9, 2026"), giờ đứng SAU ngày: "20/09/2026 08:45".
 const DATE: Intl.DateTimeFormatOptions = {
   year: "numeric",
-  month: "short",
-  day: "numeric",
+  month: "2-digit",
+  day: "2-digit",
 };
 
-const DATE_TIME: Intl.DateTimeFormatOptions = {
-  ...DATE,
+const TIME: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
   minute: "2-digit",
+  hour12: false,
 };
 
 /** The em dash, not an empty cell — a blank reads as a rendering failure. */
@@ -41,7 +42,7 @@ export function formatDateTime(value?: string | null): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? EMPTY
-    : date.toLocaleString("vi-VN", DATE_TIME);
+    : `${date.toLocaleDateString("vi-VN", DATE)} ${date.toLocaleTimeString("vi-VN", TIME)}`;
 }
 
 /** Ngày lịch thuần ("2025-09-05") -> "05/09/2025", không qua `new Date` (múi giờ). */
@@ -122,7 +123,7 @@ export function readableUnit(basis: number, unit: string | null | undefined): { 
 }
 
 /** Số lượng để hiện: ngăn hàng nghìn, phần lẻ tối đa hai chữ số. */
-export const quantityFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+export const quantityFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 
 
 const DIGITS = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];

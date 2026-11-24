@@ -700,7 +700,7 @@ public class OnboardingService {
             Integer history = jdbc.queryForObject("SELECT COUNT(*) FROM equipment_history WHERE equipment_id = ANY (?)",
                     Integer.class, (Object) equipmentIds);
             if (historyAtCommit != null && history != null && history > historyAtCommit) {
-                throw new ConflictException("Thiết bị của lô đã có nghiệp vụ (cấp phát, sửa chữa, cập nhật…) — "
+                throw new ConflictException("Thiết bị của lô đã có thay đổi (cập nhật hồ sơ, kiểm kê…) — "
                         + "không hoàn tác được; sửa từng hồ sơ trên màn Thiết bị");
             }
         }
@@ -730,7 +730,7 @@ public class OnboardingService {
             delete("staff", staffIds);
             delete("campuses", ids(created, "campuses"));
         } catch (DataIntegrityViolationException e) {
-            throw new ConflictException("Dữ liệu của lô đã được dùng ở nơi khác (phiếu, kiểm kê, lịch sử sửa chữa…) — "
+            throw new ConflictException("Dữ liệu của lô đã được dùng ở nơi khác (phiếu, kiểm kê, lịch sử thiết bị…) — "
                     + "không hoàn tác được");
         }
         jdbc.update("DELETE FROM data_import_records WHERE batch_id = ?", id);
@@ -844,7 +844,7 @@ public class OnboardingService {
                     Long id = rooms.create(new RoomRequest(c.code(), c.name(), null, true, c.note(), school, null,
                             ref(OnboardingSheet.BUILDING, c.building()), new IdRef(c.roomType()),
                             c.subject() == null ? null : new IdRef(c.subject()), null, c.floor(), c.area(), c.capacity(),
-                            c.condition(), c.usage(), ref(OnboardingSheet.STAFF, c.manager()), c.unit(), null, c.structure(), null,
+                            c.condition(), c.usage(), ref(OnboardingSheet.STAFF, c.manager()), c.unit(), c.structure(), null,
                             null, null, null)).getId();
                     put(s, c.code(), id);
                     record("rooms", id);
@@ -1256,8 +1256,8 @@ public class OnboardingService {
     /**
      * Trả lại số thứ tự của lô cho bộ đếm mã — chạy TRƯỚC khi xoá tài sản của lô (cần mã của chúng), cùng giao dịch.
      * Chỉ lùi bộ đếm mà lô đã dùng, và chỉ khi mọi số từ số nhỏ nhất của lô tới số hiện tại của bộ đếm đều là của lô:
-     * còn số nào trong khoảng đó không thuộc lô thì nó đã cấp cho tài sản khác — kể cả tài sản đã điều chuyển sang
-     * trường khác hay hồ sơ đã thanh lý rồi xoá, vốn không còn mang {@code school_id} của trường — và cấp lại là hai
+     * còn số nào trong khoảng đó không thuộc lô thì nó đã cấp cho tài sản khác — kể cả hồ sơ
+     * đã xoá, vốn không còn mang {@code school_id} của trường — và cấp lại là hai
      * tài sản cùng một mã trên tem. Không lùi được thì để nguyên: hụt vài số không sai gì, trùng mã thì sai.
      */
     private void rewindCodeSequences(long schoolId, Long[] equipmentIds) {

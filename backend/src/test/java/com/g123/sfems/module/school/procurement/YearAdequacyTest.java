@@ -60,16 +60,14 @@ class YearAdequacyTest {
     }
 
     @Test
-    void brokenCountsButPendingDisposalDoesNot() {
+    void lostDoesNotCount() {
         Row before = total(compute());
-        long broken = equipment("BROKEN", null);
-        // Chờ ghi giảm theo trạng thái thiết bị (không còn phiếu ghi giảm từ 285).
-        equipment("PENDING_LIQUIDATION", null);
+        equipment("IN_USE", null);
+        // Mất (kiểm kê kết luận) là ra khỏi sổ: chỉ hiện ở cột riêng.
+        equipment("LOST", null);
         Row after = total(compute());
         assertThat(after.current()).isEqualTo(before.current() + 1);
-        assertThat(after.broken()).isEqualTo(before.broken() + 1);
-        assertThat(after.pendingDisposal()).isEqualTo(before.pendingDisposal() + 1);
-        assertThat(broken).isPositive();
+        assertThat(after.lost()).isEqualTo(before.lost() + 1);
     }
 
     @Test

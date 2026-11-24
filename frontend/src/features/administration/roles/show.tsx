@@ -9,6 +9,7 @@ import {
   ShowView,
   ShowViewHeader,
 } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Badge } from "@/shared/ui/badge";
 import {
   Card,
@@ -59,6 +60,16 @@ export const RoleShow = () => {
   const mayReadScopes = canReadScopes?.can ?? false;
 
   const [tab, setTab] = useState("permissions");
+
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="vai trò" />
+      </ShowView>
+    );
+  }
 
   return (
     <ShowView>

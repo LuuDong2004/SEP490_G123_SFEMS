@@ -19,7 +19,7 @@ import jakarta.persistence.Table;
  * Loại CSVC (bảng {@code room_types}, tên cũ "loại phòng") — phòng học, phòng bộ môn, thư viện, sân, cổng… theo danh
  * mục CSVC của Sở (192): mỗi loại thuộc một khối, là phòng hay khu vực, áp cho cấp nào, theo văn bản nào.
  *
- * <p>Hành vi của phòng đọc từ CỜ của loại, không từ mã: {@link #loanable} (mặc định cho mượn), {@link #functional}
+ * <p>Hành vi của phòng đọc từ CỜ của loại, không từ mã: {@link #functional}
  * (phòng bộ môn / chức năng, báo cáo Sử dụng phòng). Riêng "kho" vẫn theo mã {@code KHO} (Phòng thiết bị giáo dục).
  *
  * <p>{@link #schoolId} khác rỗng: loại ngoài danh mục do một trường thêm, chỉ trường đó (và Sở) thấy.
@@ -64,9 +64,6 @@ public class RoomType extends CatalogEntity {
 
     @Column(name = "legal_basis", length = 255)
     private String legalBasis;
-
-    @Column(name = "loanable", nullable = false)
-    private boolean loanable;
 
     @Column(name = "functional", nullable = false)
     private boolean functional;
@@ -133,14 +130,6 @@ public class RoomType extends CatalogEntity {
 
     public void setLegalBasis(String legalBasis) {
         this.legalBasis = legalBasis;
-    }
-
-    public boolean isLoanable() {
-        return loanable;
-    }
-
-    public void setLoanable(boolean loanable) {
-        this.loanable = loanable;
     }
 
     public boolean isFunctional() {

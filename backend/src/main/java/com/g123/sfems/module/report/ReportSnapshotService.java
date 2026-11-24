@@ -67,6 +67,7 @@ public class ReportSnapshotService {
         p.put("from", params.from());
         p.put("to", params.to());
         p.put("year", params.year());
+        p.put("yearId", params.yearId());
         p.put("bodyId", params.bodyId());
         p.put("levelId", params.levelId());
         p.put("schoolId", params.schoolId());

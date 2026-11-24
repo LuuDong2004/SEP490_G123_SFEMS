@@ -1,13 +1,11 @@
-import { Suspense, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigation } from "@refinedev/core";
-import { Outlet } from "react-router";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { DEFAULT_PAGE_SIZE, formatDateTime } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useTable } from "@refinedev/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarDays, CircleDot, FilePlus2, Tag } from "lucide-react";
-import type { ReactNode } from "react";
+import { CircleDot, FilePlus2 } from "lucide-react";
 
 import { CreateButton } from "@/shared/components/buttons/create";
 import { DeleteButton } from "@/shared/components/buttons/delete";
@@ -21,8 +19,6 @@ import { CampusesCell, CampusTableFilter } from "@/shared/components/campus/camp
 import { useCampusScope } from "@/shared/components/campus/use-campus";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { AwaitingMeToggle } from "@/shared/components/voucher/awaiting-me-toggle";
-import { WorkQueueToggle, type WorkQueue } from "@/shared/components/voucher/work-queue-toggle";
-import { PeriodFilter } from "@/shared/components/voucher/period-filter";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
@@ -45,40 +41,15 @@ const STATUS_OPTIONS = Object.entries(VOUCHER_STATUS_LABELS).map(([value, label]
 export function VoucherList<T extends VoucherBase>({
   resource,
   columns,
-  toolbarExtra,
-  liftRows,
-  initialFilters,
-  permanentFilters,
-  statusCell,
-  periodField,
-  enumFilters,
-  workQueues,
-  showAssets,
 }: {
-  /** Thêm cột "Tài sản" (tên tài sản đầu + số còn lại) ngay sau số phiếu — phiếu báo hỏng, sửa chữa, ghi giảm… */
-  showAssets?: boolean;
-  /** Hàng đợi việc riêng của loại phiếu, mỗi cái một nút cạnh "Chờ tôi duyệt" (vd. "Chờ trường mình nhận"). */
-  workQueues?: WorkQueue[];
   resource: string;
   columns: ColumnDef<T, any>[];
-  /** Cột Trạng thái nói theo nghiệp vụ của loại phiếu (phiếu mượn: Đang mượn · Trả một phần · Đã trả); trả `null` là nhãn chung. */
-  statusCell?: (row: T) => ReactNode;
-  toolbarExtra?: ReactNode;
-  /** Dòng nổi lên khi rê chuột (`DataTable.liftRows`). */
-  liftRows?: boolean;
-  /** Ô ngày để lọc theo tháng / quý / năm (vd `proposalDate` của phiếu ghi giảm). */
-  periodField?: string;
-  /** Lọc theo một ô có danh sách giá trị cố định (vd Hình thức ghi giảm), lọc ở máy chủ bằng `field=value`. */
-  enumFilters?: { field: string; label: string; options: Record<string, string> }[];
-  initialFilters?: { field: string; operator: "eq"; value: string }[];
-  /** Lọc luôn áp, không hiện thành ô lọc (vd. Chuyển đi / Nhận về của điều chuyển). Đổi thì dựng lại danh sách bằng `key`. */
-  permanentFilters?: { field: string; operator: "eq"; value: string }[];
 }) {
   // Tài khoản của một trường chỉ thấy phiếu của trường mình — cột Trường lặp một tên ở mọi dòng.
   const { perspective } = usePerspective();
   const isMobile = useIsMobile();
   const { show } = useNavigation();
-  // Cột nhận phần bề rộng dư: cột riêng của loại phiếu nếu nó tự khai `meta.fill`, không thì cột Tài sản, rồi cột Trường.
+  // Cột nhận phần bề rộng dư: cột riêng của loại phiếu nếu nó tự khai `meta.fill`, không thì cột Trường.
   const ownFill = columns.some((c) => (c.meta as { fill?: boolean } | undefined)?.fill);
   const allColumns: ColumnDef<T, any>[] = [
     {
@@ -106,31 +77,10 @@ export function VoucherList<T extends VoucherBase>({
           id: "school",
           header: "Trường",
           size: 220,
-          meta: { fill: !ownFill && !showAssets },
+          meta: { fill: !ownFill },
           enableSorting: false,
           cell: ({ row }) => row.original.school?.name ?? "—",
         } satisfies ColumnDef<T, any>]),
-    ...(showAssets
-      ? [{
-          id: "assets",
-          header: "Thiết bị",
-          size: 260,
-          meta: { fill: !ownFill },
-          enableSorting: false,
-          cell: ({ row }) => {
-            const items = row.original.lineItems ?? [];
-            if (!items.length) return <span className="text-muted-foreground">—</span>;
-            const more = (row.original.lineCount ?? items.length) - 1;
-            const first = items[0];
-            return (
-              <span className="block max-w-[22rem] truncate" title={items.map((i) => `${i.code ?? ""} ${i.name ?? ""}`.trim()).join("\n")}>
-                {first.name}
-                {more > 0 ? <span className="text-muted-foreground ms-1.5 text-xs">+{more}</span> : null}
-              </span>
-            );
-          },
-        } satisfies ColumnDef<T, any>]
-      : []),
     ...columns,
     // Cơ sở mà phiếu chạm tới — chỉ hiện với tài khoản cả trường của trường nhiều cơ sở (bật / tắt ở dưới).
     {
@@ -147,7 +97,7 @@ export function VoucherList<T extends VoucherBase>({
       size: 150,
       // Lưu tên enum: sắp theo chữ cái, không theo thứ tự xử lý.
       enableSorting: false,
-      cell: ({ row }) => statusCell?.(row.original) ?? <VoucherStatusBadge status={row.original.status} step={row.original.approvalStep} returned={!!row.original.returnNote} short />,
+      cell: ({ row }) => <VoucherStatusBadge status={row.original.status} step={row.original.approvalStep} returned={!!row.original.returnNote} short />,
     },
     {
       id: "actions",
@@ -177,7 +127,6 @@ export function VoucherList<T extends VoucherBase>({
     refineCoreProps: {
       syncWithLocation: true,
       pagination: { pageSize: DEFAULT_PAGE_SIZE },
-      filters: initialFilters || permanentFilters ? { initial: initialFilters, permanent: permanentFilters } : undefined,
     },
   });
   const campusScope = useCampusScope();
@@ -205,7 +154,6 @@ export function VoucherList<T extends VoucherBase>({
         table={table}
         // Phiếu đã huỷ không còn tác dụng gì nên chữ nhạt đi; phiếu nháp nhận ra qua chữ "Chưa cấp số" ở cột đầu.
         rowClassName={(row) => (row.status === "CANCELLED" ? "text-muted-foreground" : undefined)}
-        liftRows={liftRows}
         // Điện thoại: bảng rộng chỉ còn thấy hai cột đầu, phải kéo ngang mới tới trạng thái (E2E-26). Mỗi phiếu một
         // thẻ: số phiếu + trạng thái, trường, ngày lập, tài sản; bấm thẻ mở phiếu. Bộ lọc và phân trang vẫn của bảng.
         renderBody={isMobile ? (rows) => (
@@ -215,7 +163,7 @@ export function VoucherList<T extends VoucherBase>({
                 className={cn("hover:bg-muted/50 grid w-full gap-1 px-4 py-3 text-start", r.status === "CANCELLED" && "text-muted-foreground")}>
                 <span className="flex items-center justify-between gap-2">
                   <span className="font-mono text-sm font-medium">{r.code ?? (r.status === "DRAFT" ? "Chưa cấp số" : "Không cấp số")}</span>
-                  {statusCell?.(r) ?? <VoucherStatusBadge status={r.status} step={r.approvalStep} returned={!!r.returnNote} short />}
+                  <VoucherStatusBadge status={r.status} step={r.approvalStep} returned={!!r.returnNote} short />
                 </span>
                 <span className="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
                   {perspective === "school" ? null : <span>{r.school?.name}</span>}
@@ -238,37 +186,18 @@ export function VoucherList<T extends VoucherBase>({
                   <CampusTableFilter table={table} />
                   {/* Ghi qua `columnFilters` (OptionChoices), không qua `refineCore.setFilters`: bộ lọc đặt thẳng vào lõi
                       bị `useTable` xoá ngay ở lần render sau — trước đây chọn trạng thái không lọc được gì. */}
-                  {/* Trạng thái, hình thức, thời gian gom vào MỘT nút "Bộ lọc" — bốn ô chọn xếp hàng làm rối hàng công cụ. */}
-                  <FilterPopover table={table} fields={["status", ...(enumFilters ?? []).map((f) => f.field), ...(periodField ? [periodField] : [])]}>
+                  <FilterPopover table={table} fields={["status"]}>
                     <FilterField label="Trạng thái" icon={CircleDot} active={filterOn("status")}>
                       <OptionChoices table={table} field="status" options={STATUS_OPTIONS} />
                     </FilterField>
-                    {enumFilters?.map((f) => (
-                      <FilterField key={f.field} label={f.label} icon={Tag} active={filterOn(f.field)}>
-                        <OptionChoices table={table} field={f.field}
-                          options={Object.entries(f.options).map(([value, label]) => ({ value, label }))} />
-                      </FilterField>
-                    ))}
-                    {periodField ? (
-                      <FilterField label="Thời gian" icon={CalendarDays} active={filterOn(periodField)}>
-                        <div className="[&>div]:w-full [&_[role=combobox]]:flex-1"><PeriodFilter table={table} field={periodField} /></div>
-                      </FilterField>
-                    ) : null}
                   </FilterPopover>
                   <AwaitingMeToggle table={table} resource={resource} />
-                  {workQueues?.map((q) => <WorkQueueToggle key={q.field} table={table} resource={resource} queue={q} />)}
-                  {toolbarExtra}
                 </>
               }
             />
           </>
         }
       />
-      {/* Phiếu lập / sửa bằng hộp thoại (`VoucherFormPage dialog`) lồng route dưới danh sách và hiện ở đây. */}
-      {/* Hộp thoại lập / sửa là chunk tải sau: chờ tại chỗ, không che cả danh sách. */}
-      <Suspense fallback={null}>
-        <Outlet />
-      </Suspense>
     </ListView>
   );
 }

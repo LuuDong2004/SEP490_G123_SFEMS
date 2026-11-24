@@ -299,7 +299,7 @@ export const DataImportBatch = () => {
   const warnings = batch.sheets.reduce((n, s) => n + s.warning, 0);
   // Hộp xác nhận nói lô sẽ THÊM gì, theo từng trang — "140 dòng" không cho biết sắp có gì trên hệ thống.
   const adding = batch.sheets.map((s) => ({ s, n: s.ok + s.warning })).filter((x) => x.n > 0)
-    .map(({ s, n }) => `${n.toLocaleString("vi-VN")} ${s.sheet === "equipment" ? "dòng thiết bị" : s.title.toLowerCase()}`);
+    .map(({ s, n }) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${s.sheet === "equipment" ? "dòng thiết bị" : s.title.toLowerCase()}`);
   const existing = batch.sheets.reduce((n, s) => n + s.exists, 0);
   // Hoàn tác chỉ trong UNDO_HOURS giờ sau khi ghi — máy chủ kiểm lại (OnboardingService.UNDO_HOURS).
   const undoUntil = batch.committedAt ? new Date(batch.committedAt).getTime() + UNDO_HOURS * 3_600_000 : 0;
@@ -324,14 +324,14 @@ export const DataImportBatch = () => {
           <Badge variant={draft ? "info" : "success"} className="shrink-0">{IMPORT_BATCH_STATUS[batch.status]}</Badge>
           {draft && !hasRows ? <Badge variant="info" className="shrink-0">Chưa có dòng — thêm dòng trên lưới</Badge> : draft ? (
             batch.errors > 0
-              ? <Badge variant="destructive" className="shrink-0">Còn {batch.errors.toLocaleString("vi-VN")} dòng lỗi</Badge>
+              ? <Badge variant="destructive" className="shrink-0">Còn {batch.errors.toLocaleString("vi-VN", { useGrouping: false })} dòng lỗi</Badge>
               : <Badge variant={warnings ? "warning" : "success"}
                   title={`Bấm "Cập nhật" để ghi. Cập nhật rồi vẫn hoàn tác được trong ${UNDO_HOURS} giờ nếu dữ liệu chưa được dùng.`}>
-                  Hết lỗi{warnings ? ` · ${warnings.toLocaleString("vi-VN")} dòng cần xem lại` : ""}
+                  Hết lỗi{warnings ? ` · ${warnings.toLocaleString("vi-VN", { useGrouping: false })} dòng cần xem lại` : ""}
                 </Badge>
           ) : (
             <span className="text-muted-foreground max-w-96 truncate text-sm"
-              title={`${Object.entries(batch.created).map(([k, n]) => `${n.toLocaleString("vi-VN")} ${CREATED_LABELS[k] ?? k}`).join(" · ")}. ${canUndo ? `Cần sửa thì bấm "Hoàn tác" trước ${formatDateTime(new Date(undoUntil).toISOString())}, khi dữ liệu chưa được dùng.` : `Đã quá ${UNDO_HOURS} giờ, không hoàn tác được nữa.`}`}>
+              title={`${Object.entries(batch.created).map(([k, n]) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${CREATED_LABELS[k] ?? k}`).join(" · ")}. ${canUndo ? `Cần sửa thì bấm "Hoàn tác" trước ${formatDateTime(new Date(undoUntil).toISOString())}, khi dữ liệu chưa được dùng.` : `Đã quá ${UNDO_HOURS} giờ, không hoàn tác được nữa.`}`}>
               Đã ghi {formatDateTime(batch.committedAt ?? "")}{batch.committedBy ? ` · ${batch.committedBy}` : ""}
             </span>
           )}
@@ -422,7 +422,7 @@ export const DataImportBatch = () => {
                       {f.label}
                       <span className={cn("rounded-full px-1.5 text-xs tabular-nums",
                         on ? "bg-white/20" : FILTER_COUNT[f.key] ?? "text-muted-foreground")}>
-                        {count.toLocaleString("vi-VN")}
+                        {count.toLocaleString("vi-VN", { useGrouping: false })}
                       </span>
                     </button>
                   );
@@ -447,12 +447,12 @@ export const DataImportBatch = () => {
             const on = s.sheet === active;
             return (
               <button key={s.sheet} type="button" role="tab" aria-selected={on}
-                title={`${s.total.toLocaleString("vi-VN")} dòng${s.error ? ` · ${s.error} lỗi` : ""}${s.warning ? ` · ${s.warning} lưu ý` : ""}${s.exists ? ` · ${s.exists} đã có` : ""}`}
+                title={`${s.total.toLocaleString("vi-VN", { useGrouping: false })} dòng${s.error ? ` · ${s.error} lỗi` : ""}${s.warning ? ` · ${s.warning} lưu ý` : ""}${s.exists ? ` · ${s.exists} đã có` : ""}`}
                 onClick={() => { setSheetKey(s.sheet); setFilter("all"); setSort(null); setSearch(""); setTerm(""); }}
                 className={cn(TAB_ITEM, "[&>svg]:hidden min-[1440px]:[&>svg]:block", on ? TAB_ACTIVE : TAB_IDLE)}>
                 {SHEET_ICON[s.sheet]}
                 {s.title}
-                <span className="tabular-nums opacity-70">{s.total.toLocaleString("vi-VN")}</span>
+                <span className="tabular-nums opacity-70">{s.total.toLocaleString("vi-VN", { useGrouping: false })}</span>
                 {s.error ? <span className={cn("text-destructive-text rounded-full px-1.5 font-semibold tabular-nums", on && "bg-white/90")}>{s.error}</span> : null}
                 {s.warning ? <span className={cn("text-warning-text rounded-full px-1.5 font-semibold tabular-nums", on && "bg-white/90")}>{s.warning}</span> : null}
               </button>
@@ -461,8 +461,8 @@ export const DataImportBatch = () => {
         </div>
         {shown.length && !compare ? (
           <span className="text-muted-foreground ms-auto pe-1 text-xs whitespace-nowrap tabular-nums">
-            {Math.min(shown.length, visibleRows.first + 1).toLocaleString("vi-VN")}–{Math.min(shown.length, visibleRows.first + visibleRows.count).toLocaleString("vi-VN")}
-            {" "}/ {shown.length.toLocaleString("vi-VN")} dòng
+            {Math.min(shown.length, visibleRows.first + 1).toLocaleString("vi-VN", { useGrouping: false })}–{Math.min(shown.length, visibleRows.first + visibleRows.count).toLocaleString("vi-VN", { useGrouping: false })}
+            {" "}/ {shown.length.toLocaleString("vi-VN", { useGrouping: false })} dòng
           </span>
         ) : null}
         </div>
@@ -474,10 +474,10 @@ export const DataImportBatch = () => {
             description={<div className="grid gap-1.5">
               {catalog && pv ? (
                 <ul className="list-disc ps-5">
-                  <li>Thêm mới {pv.created.toLocaleString("vi-VN")}</li>
-                  <li>Cập nhật {pv.updated.toLocaleString("vi-VN")}</li>
-                  {pv.deactivateMissing ? <li>Ngừng {pv.deactivated.toLocaleString("vi-VN")} (không có trong tệp)</li> : null}
-                  <li>Không đổi {pv.unchanged.toLocaleString("vi-VN")}</li>
+                  <li>Thêm mới {pv.created.toLocaleString("vi-VN", { useGrouping: false })}</li>
+                  <li>Cập nhật {pv.updated.toLocaleString("vi-VN", { useGrouping: false })}</li>
+                  {pv.deactivateMissing ? <li>Ngừng {pv.deactivated.toLocaleString("vi-VN", { useGrouping: false })} (không có trong tệp)</li> : null}
+                  <li>Không đổi {pv.unchanged.toLocaleString("vi-VN", { useGrouping: false })}</li>
                 </ul>
               ) : adding.length ? (
                 <div>
@@ -487,7 +487,7 @@ export const DataImportBatch = () => {
                   </ul>
                 </div>
               ) : <div>Không có dòng mới.</div>}
-              {existing ? <div>{existing.toLocaleString("vi-VN")} dòng đã có trên hệ thống giữ nguyên.</div> : null}
+              {existing ? <div>{existing.toLocaleString("vi-VN", { useGrouping: false })} dòng đã có trên hệ thống giữ nguyên.</div> : null}
               <div>Quá trình có thể mất vài phút, vui lòng không đóng trang.</div>
               <div>Nếu sai, bấm Hoàn tác trong {UNDO_HOURS} giờ để gỡ lại, khi dữ liệu chưa được dùng.</div>
               {busy ? <WriteProgress writing={writing} /> : null}
@@ -497,7 +497,7 @@ export const DataImportBatch = () => {
               // Nói luôn đã tạo gì — trước đây chỉ thấy khi rê chuột vào dòng "Đã ghi …" ở đầu trang.
               (b) => {
                 const made = Object.entries(b.created ?? {}).filter(([, n]) => n > 0)
-                  .map(([k, n]) => `${n.toLocaleString("vi-VN")} ${CREATED_LABELS[k] ?? k}`).join(", ");
+                  .map(([k, n]) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${CREATED_LABELS[k] ?? k}`).join(", ");
                 return made ? `Đã cập nhật dữ liệu vào hệ thống: ${made}` : "Đã cập nhật dữ liệu vào hệ thống";
               }).then(() => setConfirm(null))} />
         ) : confirm === "rollback" ? (
@@ -533,7 +533,7 @@ function WriteProgress({ writing }: { writing: { step: string; done: number; tot
         <span>{writing ? writing.step : "Đang kiểm lại cả lô trước khi ghi…"}</span>
         {writing ? (
           <span className="tabular-nums">
-            {writing.done.toLocaleString("vi-VN")} / {writing.total.toLocaleString("vi-VN")} · {pct}%
+            {writing.done.toLocaleString("vi-VN", { useGrouping: false })} / {writing.total.toLocaleString("vi-VN", { useGrouping: false })} · {pct}%
           </span>
         ) : null}
       </div>

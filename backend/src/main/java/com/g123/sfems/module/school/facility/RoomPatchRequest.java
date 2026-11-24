@@ -44,8 +44,6 @@ public record RoomPatchRequest(
         IdRef managingStaff,
         @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị quản lý")
         String managingUnit,
-        /** Cho mượn được không; vắng lúc tạo thì theo loại phòng (kho, phòng học: không). */
-        Boolean loanable,
         /** Kết cấu: Kiên cố / Bán kiên cố / Tạm / Nhờ, mượn, thuê. */
         FacilityStructure structure,
         /** Loại CSVC thứ hai mà phòng dùng kết hợp; id null là bỏ. */

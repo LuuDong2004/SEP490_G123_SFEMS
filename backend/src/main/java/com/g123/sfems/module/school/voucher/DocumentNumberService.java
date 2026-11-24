@@ -10,8 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Số phiếu: {@code <tiền tố>-<năm>-<5 chữ số>}, đếm lại mỗi năm, riêng cho từng
  * trường và từng loại phiếu — {@code NK-2026-00042}, {@code DC-2026-00003}.
  *
- * <p>Tiền tố theo bộ số của ứng dụng cũ (NK nhập, CP cấp phát, DC điều chuyển,
- * MT mượn, BX báo hỏng, SC sửa chữa, KK kiểm kê, TL thanh lý, MS mua sắm), để
+ * <p>Tiền tố theo bộ số của ứng dụng cũ (NK ghi tăng, KK kiểm kê, MS mua sắm), để
  * người đã quen số phiếu cũ đọc được số phiếu mới.
  *
  * <p>Một lệnh {@code INSERT ... ON CONFLICT DO UPDATE ... RETURNING}: database

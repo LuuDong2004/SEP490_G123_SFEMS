@@ -1,6 +1,3 @@
-import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
-import { Link } from "react-router";
-import { useResourceParams } from "@refinedev/core";
 import { AlertCircle, CornerUpLeft } from "lucide-react";
 import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 
@@ -19,19 +16,12 @@ import {
   VoucherTimelineDialog,
   type TimelineWording,
 } from "@/shared/components/voucher/voucher-timeline";
-import { detailFacts, lineDetailsText, VoucherDetailsView } from "@/shared/components/voucher/voucher-details";
+import { detailFacts, VoucherDetailsView } from "@/shared/components/voucher/voucher-details";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
 import { formatDateTime } from "@/shared/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
-import { Badge } from "@/shared/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { ASSET_STATUS_LABELS } from "@/domains/equipment/types";
+import { Card } from "@/shared/ui/card";
 import type { EquipmentLine, VoucherBase } from "@/domains/voucher/types";
-import { LIFT_ROW } from "@/shared/lib/row-lift";
-import { cn } from "@/shared/lib/utils";
-
-const money = new Intl.NumberFormat("vi-VN");
 
 export type Fact = { label: string; value: ReactNode };
 
@@ -66,14 +56,14 @@ export function VoucherShowShell({
   /** Chữ riêng cho phần quá trình (phiếu không qua duyệt): tên phần, nhãn mốc gửi, tên từng việc. */
   timeline?: TimelineWording;
   resource: string;
-  /** "Phiếu cấp phát", "Phiếu mượn"... */
+  /** "Đề xuất mua sắm"… */
   kind: string;
   record: VoucherBase | undefined;
   loading: boolean;
   facts: Fact[];
   /** Câu chữ riêng cho các nút duyệt. */
   actions?: Omit<ComponentProps<typeof VoucherActions>, "resource" | "record">;
-  /** Nút riêng của loại phiếu (vd. "Xác nhận đã nhận", "Ghi nhận trả"). */
+  /** Nút riêng của loại phiếu (vd. "Lập phiếu ghi tăng"). */
   extraActions?: ReactNode;
   children?: ReactNode;
   attachmentsHint?: string;
@@ -163,13 +153,6 @@ export function VoucherShowShell({
                 <VoucherDetailsView config={config} details={record?.details} variant={variant}
                   draft={record?.status === "DRAFT"} />
 
-                {/* Trường chứng từ của các bước SAU khi lập phiếu (trả đồ mượn, ghi kết quả sửa chữa…):
-                    mỗi giai đoạn một khung, mang tên mục của chính nó. */}
-                {[...new Set((config?.sections ?? []).map((s) => s.stage).filter((s): s is string => !!s))].map((stage) => (
-                  <VoucherDetailsView key={stage} config={config} details={record?.details} stage={stage} variant={variant}
-                    title={stage === "return" ? "Biên bản trả" : (config?.sections.find((s) => s.stage === stage)?.title ?? "Kết quả")} />
-                ))}
-
                 <AttachmentsPanel
                   resource={resource}
                   recordId={record?.id}
@@ -222,103 +205,5 @@ function Fact({ label, value }: Fact) {
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-foreground text-sm font-medium">{value ?? "—"}</dd>
     </div>
-  );
-}
-
-/**
- * Bảng các tài sản trên phiếu. {@code extraColumns} thêm cột riêng của loại phiếu
- * (tình trạng lúc giao, kết quả khi trả...). Gọn để vừa khung không cuộn ngang: mã · tên · vị trí ·
- * trạng thái; số serial nằm dưới tên khi có; nguyên giá / còn lại chỉ ở phiếu nói về GIÁ TRỊ
- * (thanh lý, hao mòn — {@code withValues}); cột Ghi chú chỉ khi có dòng ghi chú.
- */
-export function EquipmentLinesTable<L extends EquipmentLine>({
-  title = "Thiết bị trên phiếu",
-  description,
-  lines,
-  extraColumns = [],
-  resource,
-  withValues,
-  locationNote,
-}: {
-  withValues?: boolean;
-  /**
-   * Dòng nhỏ dưới vị trí — vd. tên trường đang giữ tài sản ở phiếu điều chuyển, vì hai trường đều có "Kho thiết bị".
-   */
-  locationNote?: (line: L) => ReactNode;
-  /** Loại phiếu — để hiện trường chứng từ của từng dòng; vắng thì lấy từ URL. */
-  resource?: string;
-  title?: string;
-  description?: ReactNode;
-  lines: L[];
-  extraColumns?: { header: string; cell: (line: L) => ReactNode; className?: string }[];
-}) {
-  const params = useResourceParams();
-  const config = useVoucherForm(resource ?? params.resource?.name);
-  const hasNotes = lines.some((l) => l.note);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">
-          {title} <span className="text-muted-foreground font-normal">({lines.length})</span>
-        </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">#</TableHead>
-              <TableHead>Mã thiết bị</TableHead>
-              <TableHead>Tên</TableHead>
-              {withValues ? <TableHead className="text-right">Nguyên giá</TableHead> : null}
-              {withValues ? <TableHead className="text-right">Còn lại</TableHead> : null}
-              <TableHead>Vị trí</TableHead>
-              <TableHead>Trạng thái</TableHead>
-              {extraColumns.map((c) => (
-                <TableHead key={c.header} className={c.className}>
-                  {c.header}
-                </TableHead>
-              ))}
-              {hasNotes ? <TableHead>Ghi chú</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lines.map((line) => (
-              <TableRow key={line.id} className={cn("group/row", LIFT_ROW)}>
-                <TableCell className="text-muted-foreground tabular-nums">{line.lineNo}</TableCell>
-                <TableCell className="font-mono text-xs">
-                  <Link className="hover:underline" to={`/equipment/show/${line.equipment.id}`}>
-                    {line.equipment.code}
-                  </Link>
-                </TableCell>
-                {/* Tên dài được xuống dòng: để nguyên một dòng thì nó chiếm hết bề ngang, cột sau bị bóp hẹp. */}
-                <TableCell className="min-w-40 whitespace-normal">
-                  <div>{line.equipment.name}</div>
-                  {line.equipment.serialNumber ? <div className="text-muted-foreground font-mono text-xs">Serial {line.equipment.serialNumber}</div> : null}
-                  {lineDetailsText(config, line.details) ? (
-                    <div className="text-muted-foreground text-xs">{lineDetailsText(config, line.details)}</div>
-                  ) : null}
-                </TableCell>
-                {withValues ? <TableCell className="text-right tabular-nums">{line.equipment.originalValue != null ? money.format(line.equipment.originalValue) : "—"}</TableCell> : null}
-                {withValues ? <TableCell className="text-right tabular-nums">{line.equipment.remainingValue != null ? money.format(line.equipment.remainingValue) : "—"}</TableCell> : null}
-                <TableCell>
-                  <div>{line.equipment.room?.name ?? <span className="text-muted-foreground">Kho</span>}</div>
-                  {locationNote ? <div className="text-muted-foreground text-xs">{locationNote(line)}</div> : null}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={ASSET_STATUS_VARIANTS[line.equipment.status] ?? "neutral"}>{ASSET_STATUS_LABELS[line.equipment.status] ?? line.equipment.status}</Badge>
-                </TableCell>
-                {extraColumns.map((c) => (
-                  <TableCell key={c.header} className={c.className}>
-                    {c.cell(line)}
-                  </TableCell>
-                ))}
-                {hasNotes ? <TableCell className="text-muted-foreground">{line.note ?? "—"}</TableCell> : null}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
   );
 }

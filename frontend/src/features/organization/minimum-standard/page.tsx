@@ -1,10 +1,8 @@
-import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { usePerspective } from "@/shared/hooks/use-perspective";
-import { Segmented } from "@/shared/components/segmented";
 
 import { YearOverview } from "../school-year/year-overview";
 import { YearStandardView } from "../school-year/year-standard";
@@ -45,7 +43,6 @@ export function MinimumStandardBody() {
 export const EquipmentMinimum = () => {
   const { perspective } = usePerspective();
   const { picked, open } = usePickedSchool();
-  const [tab, setTab] = useState<"year" | "area">("year");
   return (
     <ListView>
       <ListViewHeader canCreate={false} title="Thiết bị dạy học tối thiểu" />
@@ -55,9 +52,9 @@ export const EquipmentMinimum = () => {
         <FillBox><YearStandardView schoolId={picked} onBack={() => open(null)} /></FillBox>
       ) : (
         <>
-          <Segmented label="Cách xem" value={tab} onChange={setTab} className="self-start"
-            options={[{ value: "year", label: "Theo năm học" }, { value: "area", label: "Tổng hợp địa bàn" }]} />
-          {tab === "year" ? <FillBox><YearOverview onOpenSchool={open} /></FillBox> : <StandardOverview onOpenSchool={open} />}
+          {/* Một màn (trưởng nhóm 24/11/2026): "Tổng hợp địa bàn" gộp vào bảng các trường theo năm học — dòng tổng
+              của địa bàn và Xuất Excel nằm trên hàng công cụ của bảng. */}
+          <FillBox><YearOverview onOpenSchool={open} /></FillBox>
         </>
       )}
     </ListView>

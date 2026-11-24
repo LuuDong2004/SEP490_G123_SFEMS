@@ -23,7 +23,6 @@ public record RoomTypeResponse(
         List<String> levels,
         boolean standard,
         String legalBasis,
-        boolean loanable,
         boolean functional,
         Long schoolId,
         List<Map<String, String>> params,
@@ -50,7 +49,7 @@ public record RoomTypeResponse(
                 level == null ? null : new EducationLevelSummary(level.getId(), level.getCode(), level.getName()),
                 group == null ? null : new GroupSummary(group.getId(), group.getCode(), group.getName()),
                 item.getKind(), FacilityLevels.split(item.getLevels()), item.isStandard(), item.getLegalBasis(),
-                item.isLoanable(), item.isFunctional(), item.getSchoolId(), item.getParams(),
+                item.isFunctional(), item.getSchoolId(), item.getParams(),
                 item.getCreatedAt(), item.getUpdatedAt(),
                 rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }

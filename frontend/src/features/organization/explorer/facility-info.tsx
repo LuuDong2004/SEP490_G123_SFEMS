@@ -48,7 +48,7 @@ export type FacilityInfo = {
 
 export const facilityInfoKey = (schoolId: number) => ["facility_info", schoolId];
 
-const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 const KIND: Record<string, string> = { MAIN: "Trường chính", BRANCH: "Phân hiệu", POINT: "Điểm trường" };
 
 /** Diện tích gõ kiểu Việt ("1.250,5" hoặc "1250,5") → số; rỗng → null (xoá). */

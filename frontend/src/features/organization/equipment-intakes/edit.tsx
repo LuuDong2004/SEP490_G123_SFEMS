@@ -4,7 +4,7 @@ import { useConfirmDiscard } from "@/shared/components/form/unsaved-changes-guar
 import { useForm } from "@refinedev/react-hook-form";
 import { Lock } from "lucide-react";
 import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 
 import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { IntakeFormBody } from "./form-body";
@@ -26,7 +26,7 @@ import { INTAKE_DEFAULT_VALUES, toFormValues, type IntakeFormValues } from "./fi
 export const EquipmentIntakeEdit = () => {
   const navigate = useNavigate();
   // Quay lại: về danh sách (trưởng nhóm 14/11/2026), không lùi lịch sử.
-  const { list } = useNavigation();
+  const { list, showUrl } = useNavigation();
   // Hỏi TRƯỚC rồi mới đi (lưu nháp / bỏ) — lệnh đi của Refine không chặn được giữa chừng.
   const confirmLeave = useConfirmDiscard();
   const {
@@ -94,6 +94,11 @@ export const EquipmentIntakeEdit = () => {
         </Alert>
       </EditView>
     );
+  }
+
+  // Phiếu nháp của người khác (ngoài phạm vi ghi): không mở form có nút Lưu bấm vào là lỗi — xem ở trang chi tiết.
+  if (record?._actions && !record._actions.includes("edit")) {
+    return <Navigate to={showUrl("equipment_intakes", record.id)} replace />;
   }
 
   return (

@@ -16,7 +16,7 @@ import { LoadingText } from "@/shared/components/spinner";
 /** Mục của cột trái; `g:<id>` là một khối CSVC, `g:none` là hạng mục chưa phân loại. */
 type NavItem = { value: string; label: string; icon: LucideIcon; tone: string; count?: number | null; warn?: boolean };
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 /**
  * Biểu tượng và MÀU theo khối CSVC (mã khối của Sở) — nhìn là biết khối nào. Màu lấy từ token của theme (chart-*,

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- dòng của /api/equipment_items là bản đồ tự do từ SQL gộp. */
-import { ASSET_STATUS_GROUP_VARIANTS } from "@/shared/lib/status-variants";
-import { AssetCode } from "@/shared/components/asset-code";
+import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
+import { AssetCode, EquipmentCodeExplain } from "@/shared/components/asset-code";
 import { useNavigation, type CrudFilter } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { CampusName, CampusTableFilter } from "@/shared/components/campus/campus";
@@ -16,12 +16,14 @@ import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-t
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
 import { ROW_ACTIONS_COLUMN, RowActions } from "@/shared/components/data-table/row-actions";
 import { ListToolbar, ToolbarExtrasProvider, useToolbarExtras } from "@/shared/components/views/list-view";
+import { DOWNLOAD_TIMEOUT, kyInstance } from "@/shared/api/data";
+import { EquipmentExportDialog } from "./equipment-export-dialog";
 import { DEFAULT_PAGE_SIZE, formatPlainDate, quantityFormat, readableUnit } from "@/shared/lib/format";
 import { ExpiryBadge, daysToExpiry } from "./expiry";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
-import { ASSET_STATUS_GROUP_LABELS, ASSET_STATUS_GROUP_OF, ASSET_STATUS_LABELS, EQUIPMENT_CONDITION_LABELS, OFF_BOOK_STATUSES as OFF_BOOK } from "@/domains/equipment/types";
+import { ASSET_STATUS_LABELS, EQUIPMENT_CONDITION_LABELS, OFF_BOOK_STATUSES as OFF_BOOK } from "@/domains/equipment/types";
 import { autoVisible, useColumnsKey } from "@/shared/components/data-table/column-prefs";
 
 type ItemRow = {
@@ -63,7 +65,7 @@ type ItemRow = {
  * `equipment`; lô mang số lượng và tình trạng theo chỗ để (kho → trong kho, phòng → đang
  * dùng), không có nút sửa — con số lô là hệ quả của phiếu.
  *
- * Liệt kê CẢ hồ sơ đã ra khỏi sổ (Mất, Đã thanh lý, Đã tiêu huỷ, Đã dùng hết) — xếp cuối, mang đúng trạng
+ * Liệt kê CẢ hồ sơ đã ra khỏi sổ (Mất) — xếp cuối, mang đúng trạng
  * thái — vì lịch sử và phiếu còn trỏ tới chúng; chỉ phép ĐẾM (cột trái, bảng tổng hợp) bỏ chúng. Mục
  * "Chỉ xem thiết bị đã ra khỏi sổ" trong menu lọc riêng các hồ sơ đó.
  */
@@ -84,20 +86,22 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Mã thiết bị", size: 150, enableSorting: true,
+        // Dấu "?" đặt qua `meta.hint` (ngoài phần chữ tiêu đề): đặt trong tiêu đề thì ô chữ bị coi là tràn và bật thêm
+        // một tooltip nhắc lại tên cột.
+        id: "code", header: "Mã thiết bị", size: 150, enableSorting: false, meta: { hint: <EquipmentCodeExplain /> },
         cell: ({ row }) => <AssetCode code={row.original.code} />,
       }),
       h.accessor("name", {
-        id: "name", header: "Thiết bị", size: 200, enableSorting: true, meta: { fill: true },
+        id: "name", header: "Thiết bị", size: 200, enableSorting: false, meta: { fill: true },
         cell: ({ row }) => <span className="block truncate font-medium">{row.original.name}</span>,
       }),
       h.accessor("serialNumber", {
-        id: "serialNumber", header: "Số serial", size: 120, enableSorting: true,
+        id: "serialNumber", header: "Số serial", size: 120, enableSorting: false,
         cell: ({ row }) => row.original.serialNumber
           ? <span className="font-mono text-[0.8125rem]">{row.original.serialNumber}</span> : null,
       }),
       h.accessor((r) => r.room?.name ?? "", {
-        id: "room", header: "Vị trí", size: 110, enableSorting: true,
+        id: "room", header: "Vị trí", size: 110, enableSorting: false,
         cell: ({ row }) => row.original.room?.name
           ?? (row.original.kind === "bulk" ? <span className="text-muted-foreground">Kho</span> : (
             // Xếp chỗ LẦN ĐẦU làm được ngay trên form Sửa của tài sản — đã có chỗ rồi mới phải qua phiếu.
@@ -108,11 +112,12 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       }),
       h.display({
         id: "campus", header: "Cơ sở", size: 150,
+        meta: { exportValue: (r: ItemRow) => r.campus?.name },
         cell: ({ row }) => <CampusName campus={row.original.campus} />,
       }),
       h.accessor("quantity", {
         // Đủ chỗ cho "1.500 Gam", "9,75 kg" — 72px cắt mất đơn vị thành "200 G..." (trưởng nhóm 15/11/2026).
-        id: "quantity", header: "SL", size: 108, minSize: 96, enableSorting: true,
+        id: "quantity", header: "SL", size: 108, minSize: 96, enableSorting: false,
         cell: ({ row }) => (
           <span className={cn("tabular-nums", row.original.kind === "bulk" && "font-semibold")}>
             {/* 9.750 gam hiện 9,75 kg — chỉ cách hiện, số lưu vẫn theo gam. */}
@@ -122,18 +127,17 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
         ),
       }),
       h.accessor("status", {
-        id: "status", header: "Trạng thái", size: 132, enableSorting: true,
+        id: "status", header: "Trạng thái", size: 132, enableSorting: false,
+        meta: { exportValue: (r: ItemRow) => ASSET_STATUS_LABELS[r.status as keyof typeof ASSET_STATUS_LABELS] ?? r.status },
         cell: ({ row }) => (
-          // Chip hiện NHÓM (7 nhóm); trạng thái chi tiết hiện khi rê chuột.
-          <Badge variant={ASSET_STATUS_GROUP_VARIANTS[ASSET_STATUS_GROUP_OF[row.original.status]] ?? "neutral"}
-            title={ASSET_STATUS_LABELS[row.original.status] ?? row.original.status}>
-            {ASSET_STATUS_GROUP_LABELS[ASSET_STATUS_GROUP_OF[row.original.status]] ?? ASSET_STATUS_LABELS[row.original.status] ?? row.original.status}
+          <Badge variant={ASSET_STATUS_VARIANTS[row.original.status] ?? "neutral"}>
+            {ASSET_STATUS_LABELS[row.original.status] ?? row.original.status}
           </Badge>
         ),
       }),
       // Hạn sử dụng: chỉ lô vật tư, hoá chất có.
       h.accessor((r) => r.expiryDate ?? "", {
-        id: "expiryDate", header: "Hạn sử dụng", size: 120, enableSorting: true,
+        id: "expiryDate", header: "Hạn sử dụng", size: 120, enableSorting: false,
         // Quá hạn: chỉ nhãn "Hết hạn" (ngày xem khi rê chuột) — đọc lướt cả cột là thấy lô nào phải huỷ.
         cell: ({ row }) => !row.original.expiryDate ? null : (daysToExpiry(row.original.expiryDate) ?? 0) < 0 ? (
           <Badge variant="destructive" title={`Hết hạn ngày ${formatPlainDate(row.original.expiryDate)}`}>Hết hạn</Badge>
@@ -145,7 +149,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
         ),
       }),
       h.accessor((r) => r.intake?.code ?? "", {
-        id: "intake", header: "Phiếu ghi tăng", size: 140, enableSorting: true,
+        id: "intake", header: "Phiếu ghi tăng", size: 140, enableSorting: false,
         cell: ({ row }) =>
           row.original.intake ? (
             <CrossLink to={`/equipment-intakes/show/${row.original.intake.id}`} resource="equipment_intakes" action="list" plain title="Mở phiếu ghi tăng" className="text-primary text-xs tabular-nums">
@@ -156,6 +160,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       }),
       h.display({
         id: "profileComplete", header: "Hồ sơ", size: 100,
+        meta: { exportValue: (r: ItemRow) => (r.profileComplete === false ? "Chưa chuẩn" : "Chuẩn") },
         cell: ({ row }) =>
           row.original.profileComplete === false ? (
               <CrossLink to={`/equipment/edit/${row.original.equipmentId}`} resource="equipment" title={`Thiếu: ${(row.original.missingProfile ?? []).join(", ")}. Mở hồ sơ để bổ sung.`}>
@@ -165,14 +170,16 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       }),
       h.display({
         id: "originSource", header: "Nguồn hình thành", size: 150,
+        meta: { exportValue: (r: ItemRow) => r.originSource?.name },
         cell: ({ row }) => row.original.originSource?.name ?? null,
       }),
       h.accessor((r) => r.inUseYear ?? 0, {
-        id: "inUseYear", header: "Năm sử dụng", size: 116, enableSorting: true,
+        id: "inUseYear", header: "Năm sử dụng", size: 116, enableSorting: false,
         cell: ({ row }) => <span className="tabular-nums">{row.original.inUseYear ?? ""}</span>,
       }),
       h.display({
         id: "school", header: "Trường", size: 150,
+        meta: { exportValue: (r: ItemRow) => r.school?.name },
         cell: ({ row }) => row.original.school?.name ?? "—",
       }),
       h.display({
@@ -184,7 +191,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
           <RowActions>
             <ShowButton resource="equipment" recordItemId={row.original.equipmentId} iconOnly size="icon-sm" />
             <EditButton resource="equipment" recordItemId={row.original.equipmentId} iconOnly size="icon-sm" />
-            {/* Xoá chỉ có với hồ sơ đã ra khỏi sổ: thanh lý / tiêu huỷ, ghi giảm do mất, vật tư đã dùng hết. */}
+            {/* Xoá chỉ có với hồ sơ đã ra khỏi sổ (kiểm kê xác nhận mất). */}
             {OFF_BOOK.includes(row.original.status) ? (
               <DeleteButton resource="equipment" recordItemId={row.original.equipmentId} record={row.original} iconOnly size="icon-sm" />
             ) : null}
@@ -194,6 +201,10 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
     ];
   }, []);
 
+  // Cơ quan quản lý: Xuất Excel mở cùng hộp với Tổng hợp / Theo kho-phòng (mọi trường hay chọn trường, mỗi trường một
+  // trang tính). Tài khoản của một trường thì tải thẳng.
+  const [exportOpen, setExportOpen] = useState(false);
+  const wide = usePerspective().perspective !== "school";
   const table = useTable<ItemRow>({
     columns: columns as any,
     enableColumnResizing: true,
@@ -205,7 +216,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       columnPinning: { right: ["actions"] },
       columnVisibility: { expiryDate: false, serialNumber: false, originSource: false, inUseYear: false },
     },
-    meta: { exportResource: "equipment_items" },
+    meta: { exportResource: "equipment_items", ...(wide ? { openExport: () => setExportOpen(true) } : {}) },
     refineCoreProps: {
       resource: "equipment_items",
       // Trang cha (bảng `equipment`, đang tắt) đã giữ URL; bảng này không ghi đè lên nó.
@@ -243,9 +254,44 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
     table.reactTable.getColumn("campus")?.toggleVisibility(autoVisible(columnsKey, "campus", campusScope.show));
   }, [campusScope.show, table.reactTable, columnsKey]);
 
-  // Thiết bị đã ra khỏi hệ thống: lọc bằng nhóm "Đã ra khỏi hệ thống" trong Bộ lọc.
+  /**
+   * Tra cứu theo mã (TS-02) gộp vào ô tìm: gõ xong bấm Enter, khớp ĐÚNG một mã thiết bị (mã chuẩn hoặc mã cũ của
+   * trường) thì mở thẳng hồ sơ; không khớp thì ô tìm vẫn lọc danh sách như thường.
+   */
+  async function openByCode(code: string) {
+    type Hit = { id: number; code: string | null; legacyCode?: string | null };
+    const get = (params: Record<string, string>) => kyInstance
+      .get("equipment", { searchParams: { ...params, _start: "0", _end: "5" } })
+      .json<Hit[]>()
+      .then((rows) => (Array.isArray(rows) ? rows : []))
+      .catch(() => [] as Hit[]);
+    const [byText, byLegacy] = await Promise.all([get({ q: code }), get({ legacyCode: code })]);
+    const same = (a: string | null | undefined) => (a ?? "").toLowerCase() === code.toLowerCase();
+    const hit = [...byLegacy, ...byText].find((r) => same(r.code) || same(r.legacyCode));
+    if (hit) show("equipment", hit.id);
+  }
+
+  /**
+   * Xuất Excel dạng LUỒNG (máy chủ đọc và ghi từng khúc, trình duyệt không gom dữ liệu): cùng bộ lọc của bảng trừ lọc trường
+   * (mọi trường, hoặc các trường đã chọn), đúng các cột đang hiện.
+   */
+  const exportStream = async (schoolIds: number[] | null) => {
+    const searchParams: Record<string, string> = {};
+    for (const f of table.refineCore.filters ?? []) {
+      if (!("field" in f) || f.value == null || f.value === "" || f.field === "school.id" || f.field === "schoolBody") continue;
+      searchParams[f.field] = String(f.value);
+    }
+    if (schoolIds) searchParams.schools = schoolIds.join(",");
+    searchParams.cols = table.reactTable.getVisibleLeafColumns().map((c) => c.id).filter((id) => id !== "actions" && id !== "stt").join(",");
+    const blob = await kyInstance.get("equipment_items/export.xlsx", { searchParams, timeout: DOWNLOAD_TIMEOUT }).blob();
+    const url = URL.createObjectURL(blob);
+    Object.assign(document.createElement("a"), { href: url, download: "Danh sách thiết bị.xlsx" }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   return (
     <ToolbarExtrasProvider {...extras}>
+      <EquipmentExportDialog open={exportOpen} onOpenChange={setExportOpen} params={{}} filename="Danh sách thiết bị.xlsx"
+        perSchoolOption={false} run={(schoolIds) => exportStream(schoolIds)} />
       <div className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
       <DataTable
         table={table as any}
@@ -256,7 +302,8 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
         toolbar={
           <ListToolbar
             table={table as any}
-            search={<DataTableQuickFilter table={table as any} />}
+            search={<DataTableQuickFilter table={table as any} onEnter={openByCode}
+              placeholder="Tìm theo mã, tên…" />}
             filters={<CampusTableFilter table={table as any} />}
             searchClassName="sm:max-w-sm"
           />
@@ -277,7 +324,7 @@ function emptyWhenFiltered(permanent: CrudFilter[], tableFilters: CrudFilter[] |
     return f && "value" in f && f.value != null && f.value !== "" ? String(f.value) : null;
   };
   const labels = (raw: string | null, map: Record<string, string>) =>
-    raw ? raw.split(",").map((v) => map[v] ?? v).join(", ") : null;
+    raw ? [...new Set(raw.split(",").map((v) => map[v] ?? v))].join(", ") : null;
   const parts: string[] = [];
   const q = value("q");
   if (q) parts.push(`khớp "${q}"`);

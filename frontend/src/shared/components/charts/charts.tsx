@@ -140,6 +140,13 @@ function Swatch({ color }: { color: string }) {
   return <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: seriesGradient(color, 135) }} />;
 }
 
+/** Tỷ lệ của một phần: dưới 1% thì ghi một chữ số lẻ — 10 trên 5609 mà ghi 0% là sai. */
+const sharePercent = (part: number, total: number) => {
+  const share = total ? (part / total) * 100 : 0;
+  if (share > 0 && share < 1) return share < 0.1 ? "<0,1" : share.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+  return String(Math.round(share));
+};
+
 /**
  * Vòng tròn cơ cấu + bảng chú giải (số lượng, %). Tổng nằm giữa vòng. Mỗi phần một
  * màu theo thứ tự cố định; chú giải luôn có nên không bao giờ đọc bằng màu một mình.
@@ -274,7 +281,7 @@ export function DonutBreakdown({
             <span className="text-foreground w-12 text-right font-semibold tabular-nums">{count.format(it.count)}</span>
             <span className="text-muted-foreground w-10 text-right text-xs tabular-nums"
               title={total ? `${count.format(it.count)} / ${count.format(total)} ${unit}` : undefined}>
-              {total ? Math.round((it.count / total) * 100) : 0}%
+              {sharePercent(it.count, total)}%
             </span>
           </li>
         ))}
@@ -415,6 +422,9 @@ export function StatTile({
 const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
 const shorten = (v: string, max = 14) => (v.length > max ? `${v.slice(0, max - 1)}…` : v);
 
+/** Số trên trục: ghi đủ chữ số, chỉ rút gọn từ trăm nghìn trở lên ("6 N" không ai đọc ra 6000). */
+const axisNumber = (v: number) => (Math.abs(v) < 100_000 ? count.format(v) : compact.format(v));
+
 /**
  * Biểu đồ cột dọc theo nhóm (trường, loại thiết bị, phòng…): một loạt là cột đơn, nhiều loạt thì xếp chồng thành cơ
  * cấu trong từng cột. Nhãn trục rút gọn (đủ tên ở ô nổi khi rê chuột); nhiều nhóm thì nghiêng nhãn. Vẽ `limit` nhóm
@@ -458,7 +468,7 @@ export function ColumnChart({
           <XAxis dataKey="__label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} interval={0}
             tickFormatter={(v: string) => shorten(v, tilt ? 16 : 22)} angle={tilt ? -32 : 0} textAnchor={tilt ? "end" : "middle"}
             height={tilt ? 72 : 28} />
-          <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} tickFormatter={(v: number) => compact.format(v)} />
+          <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} tickFormatter={axisNumber} />
           <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<ChartTooltipContent />} />
           {stacked ? <ChartLegend content={<ChartLegendContent />} /> : null}
           {series.map((s, i) => (
@@ -473,7 +483,7 @@ export function ColumnChart({
         </BarChart>
       </ChartContainer>
       {rows.length > limit ? (
-        <p className="text-muted-foreground text-xs">Vẽ {limit} / {count.format(rows.length)} nhóm lớn nhất — đủ ở số liệu chi tiết.{onPick ? " Bấm cột để xem chi tiết." : ""}</p>
+        <p className="text-muted-foreground text-xs">Vẽ {limit} / {count.format(rows.length)} nhóm, xem đủ ở số liệu chi tiết.{onPick ? " Bấm cột để xem chi tiết." : ""}</p>
       ) : onPick ? (
         <p className="text-muted-foreground text-xs">Bấm cột để xem chi tiết.</p>
       ) : null}
@@ -509,7 +519,7 @@ export function TrendArea({
         </defs>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} fontSize={11} minTickGap={12} />
-        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={40} fontSize={11} tickFormatter={(v: number) => compact.format(v)} />
+        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={40} fontSize={11} tickFormatter={axisNumber} />
         <ChartTooltip cursor={{ stroke: "var(--border)" }} content={<ChartTooltipContent indicator="line" />} />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((s, i) => (

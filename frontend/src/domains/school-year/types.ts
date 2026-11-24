@@ -29,13 +29,12 @@ export type AssignmentCandidate = { id: number; code: string; name: string; camp
 export type CopyResult = { fromYearId: number; fromYearName: string; copied: number; skipped: number };
 
 /** Trạng thái hồ sơ năm học của một điểm trường / cả trường. */
-export type ProfileStatus = "DRAFT" | "CONFIRMED" | "CLOSED" | "REOPENED";
+/** Hồ sơ năm học một bước (trưởng nhóm 24/11/2026): Đang khai → Đã chốt. Sở mở lại thì về Đang khai, ghi ở lịch sử. */
+export type ProfileStatus = "DRAFT" | "CLOSED";
 
 export const PROFILE_STATUS_LABELS: Record<ProfileStatus, string> = {
   DRAFT: "Đang khai",
-  CONFIRMED: "Đã xác nhận",
   CLOSED: "Đã chốt",
-  REOPENED: "Mở lại",
 };
 
 /** Một việc còn thiếu của một điểm trường — phải trống mới xác nhận được. */
@@ -150,9 +149,7 @@ export type YearRow = {
   requiredTt: number | null;
   requiredAdjusted: number | null;
   current: number;
-  broken: number;
   lost: number;
-  pendingDisposal: number;
   shortageTt: number | null;
   shortageAdjusted: number | null;
   surplus: number | null;

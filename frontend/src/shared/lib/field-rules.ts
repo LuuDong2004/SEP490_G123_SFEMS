@@ -44,7 +44,7 @@ export function textError(rule: TextRule, label: string, value: unknown, max?: n
   return undefined;
 }
 
-const vn = (n: number) => n.toLocaleString("vi-VN");
+const vn = (n: number) => n.toLocaleString("vi-VN", { useGrouping: false });
 
 export const numberMax = (rule: NumberRule) => NUMBER[rule].max ?? new Date().getFullYear() + 1;
 
@@ -54,8 +54,9 @@ export function numberError(rule: NumberRule, label: string, value: unknown): st
   if (Number.isNaN(n)) return `${label} phải là số`;
   const spec = NUMBER[rule];
   const top = numberMax(rule);
-  // Năm in liền (2027), không ngăn hàng nghìn như số tiền (2.027).
-  const show = (x: number) => (rule === "YEAR" ? String(x) : vn(x));
+  // Tiền có dấu ngăn nghìn (1.000.000.000), số lượng, số đếm, năm in liền (trưởng nhóm 24/11/2026).
+  const money = rule === "MONEY" || rule === "UNIT_PRICE";
+  const show = (x: number) => (money ? x.toLocaleString("vi-VN") : rule === "YEAR" ? String(x) : vn(x));
   if (n < spec.min || n > top) return `${label} phải từ ${show(spec.min)} đến ${show(top)}`;
   const decimals = (String(value).split(".")[1] ?? "").replace(/0+$/, "").length;
   if (decimals > spec.scale) {

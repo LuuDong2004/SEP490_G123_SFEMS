@@ -87,11 +87,10 @@ const UNGUARDED_RESOURCES = new Set([
 
 /**
  * Màn hình không có tài nguyên riêng mà làm việc trên dữ liệu của tài nguyên
- * khác — tra cứu theo mã đọc thiết bị, phòng. Chúng mượn mã quyền của tài nguyên đó
+ * khác — tra cứu hạng mục đọc phòng. Chúng mượn mã quyền của tài nguyên đó
  * thay vì bịa ra `equipment_lookup:read` mà không migration nào cấp.
  */
 const PERMISSION_ALIASES: Record<string, string> = {
-  equipment_lookup: "equipment",
   facility_lookup: "rooms",
   // Bảng Chi tiết của màn Thiết bị (và "Thiết bị trong phòng" của hồ sơ phòng) — máy chủ gác bằng `equipment:read`.
   equipment_items: "equipment",

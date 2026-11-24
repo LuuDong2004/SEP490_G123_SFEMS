@@ -74,9 +74,10 @@ public class ReportController {
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String condition,
+            @RequestParam(required = false) Long yearId,
             @RequestParam(required = false) Long campusId) {
         return reports.build(name, new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
-                typeId, status, condition, campusId));
+                typeId, status, condition, campusId, yearId));
     }
 
     @GetMapping("/{name}/export")
@@ -93,9 +94,10 @@ public class ReportController {
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String condition,
+            @RequestParam(required = false) Long yearId,
             @RequestParam(required = false) Long campusId) {
         ReportService.Params params = new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
-                typeId, status, condition, campusId);
+                typeId, status, condition, campusId, yearId);
         ReportService.Report report = reports.build(name, params);
         // Biểu số liệu CSVC: đúng bố cục mẫu của Sở (tiêu đề ba hàng, ô gộp), không phải bảng chung.
         byte[] body = CsvcStatisticsReport.NAME.equals(name) ? reports.csvcWorkbook(params)

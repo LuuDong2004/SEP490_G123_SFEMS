@@ -1,9 +1,10 @@
+import { canWriteRecord } from "@/shared/lib/can-write";
 import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { LengthCounter, TextareaField } from "@/shared/components/form/simple-fields";
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, ScanLine, Sparkles } from "lucide-react";
+import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
@@ -429,13 +430,6 @@ function StandardCodeButton({ id }: { id: number }) {
   );
 }
 
-/**
- * Vị trí, người giữ, tình trạng, trạng thái, giá trị còn lại của tài sản ĐÃ CÓ: chỉ xem.
- * Chúng đổi qua phiếu (cấp phát, điều chuyển, báo hỏng...) để có người duyệt
- * và để lại chứng từ — máy chủ cũng từ chối nếu ai đó gửi thẳng lên.
- */
-
-
 type FieldPart = "all" | "classify" | "origin" | "tech" | "usage";
 
 /**
@@ -740,7 +734,7 @@ const INLINE = cn(
  * `EquipmentService.requireRecordFieldsKept`).
  *
  * <p>Thêm: cùng khung, chưa có dải năm ô (chưa có gì để xem), thẻ "Sử dụng" để xếp chỗ, giao người, tình trạng.
- * Không có khối "Hiển thị" (thứ tự, bật/tắt) của danh mục chung: ngừng dùng là việc của phiếu ghi giảm.
+ * Không có khối "Hiển thị" (thứ tự, bật/tắt) của danh mục chung.
  */
 function EquipmentFormBody({ control, record, config }: { control: Control<any>; record?: any; config: any }) {
   const section = (title: string, children: React.ReactNode) => (
@@ -792,7 +786,7 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
   );
 
   if (record) {
-    const writable = record._can?.write !== false;
+    const writable = canWriteRecord("equipment", record);
     return (
       <div className="grid items-start gap-4 lg:grid-cols-[18.75rem_minmax(0,1fr)]">
         <Card className="gap-0 py-0 lg:sticky lg:top-4">
@@ -805,7 +799,7 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
               <div className="text-muted-foreground font-mono text-xs" title="Mã được cấp tự động, không sửa tay">{record.code}</div>
               <div className="flex flex-wrap gap-1.5">
                 {record.status ? <Badge variant={ASSET_STATUS_VARIANTS[record.status] ?? "neutral"}>{ASSET_STATUS_LABELS[record.status]}</Badge> : null}
-                <Badge variant={record.condition === "HONG" ? "destructive" : record.condition === "KEM" ? "warning" : "info"}
+                <Badge variant={record.condition === "KEM" ? "warning" : "info"}
                   title="Đổi qua các phiếu nghiệp vụ">
                   Tình trạng: {EQUIPMENT_CONDITION_LABELS[record.condition] ?? "Chưa đánh giá"}
                 </Badge>
@@ -861,11 +855,7 @@ function EquipmentFormBody({ control, record, config }: { control: Control<any>;
   );
 }
 
-/**
- * Tra cứu theo mã là việc làm TRÊN danh sách thiết bị, nên mở từ đây thay vì đứng
- * thành mục menu riêng. Màn vẫn có đường dẫn của mình: mã QR trỏ thẳng về
- * `/equipment-lookup`.
- */
+/** Nút chính của màn Thiết bị. Tra cứu theo mã nằm ở ô tìm của dạng Từng thiết bị (gõ đúng mã rồi Enter). */
 function EquipmentListActions() {
   const canIntake = useCan({ resource: "equipment_intakes", action: "create" }).data?.can ?? false;
   // Thiết bị MỚI vào sổ bằng phiếu nhập (lập → duyệt → sinh tài sản), không tạo thẳng. Cạnh đó là việc chốt số dư
@@ -894,9 +884,6 @@ function EquipmentListMenu() {
   const mayOpening = canOpening && !closed && (roles.includes("SCHOOL_LEADER") || roles.includes("ADMIN"));
   return (
     <>
-      <DropdownMenuItem asChild>
-        <Link to="/equipment-lookup"><ScanLine />Tra cứu / quét mã</Link>
-      </DropdownMenuItem>
       {mayOpening ? (
         // Số dư đầu kỳ là NHẬP DỮ LIỆU ĐẦU VÀO từ tệp Excel (tải mẫu, sửa trên lưới, cập nhật) — không gõ từng cái.
         <DropdownMenuItem asChild title="Nhập thiết bị trường đã có từ trước, từ tệp Excel">
@@ -918,13 +905,13 @@ export const EQUIPMENT_EXTRA = {
   hideCreate: true,
   // Không xoá thẳng thiết bị đang trên sổ: chỉ hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất…) mới xoá được.
   canDelete: (r: any) => OFF_BOOK_STATUSES.includes(r?.status),
-  // Đã ra khỏi sổ (thanh lý, mất, dùng hết) thì hồ sơ chỉ còn để tra — không sửa.
+  // Đã ra khỏi sổ (mất) thì hồ sơ chỉ còn để tra — không sửa.
   canEdit: (r: any) => !OFF_BOOK_STATUSES.includes(r?.status),
   ListAside: EquipmentAside,
   // Màn Thiết bị mở ở dạng TỔNG HỢP SỐ LƯỢNG (như "Tổng đầu thiết bị" của MISA); bảng từng
   // tài sản là chế độ thứ ba, và là nơi một dòng tổng hợp mở ra khi bấm vào.
   ListViews: [
-    { key: "catalog", label: "Tổng hợp", hint: "Số lượng theo từng thiết bị: tổng, đang dùng, trong kho, hỏng", render: (ctx: ListViewCtx) => <EquipmentSummary by="catalog" {...ctx} /> },
+    { key: "catalog", label: "Tổng hợp", hint: "Số lượng theo từng thiết bị: tổng, đang dùng, trong kho", render: (ctx: ListViewCtx) => <EquipmentSummary by="catalog" {...ctx} /> },
     { key: "room", label: "Theo kho/phòng", hint: "Thiết bị đang để ở từng kho, từng phòng", render: (ctx: ListViewCtx) => <EquipmentSummary by="room" {...ctx} /> },
   ],
   // Chế độ thứ ba là bảng CHI TIẾT: tài sản từng cái và lô hàng trong một bảng — thay cho
@@ -1048,7 +1035,7 @@ export const EQUIPMENT_EXTRA = {
           value: (
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono">{r.legacyCode ?? r.code}</span>
-              {r?.missingProfile?.some((m: string) => m.startsWith("mã chuẩn")) && r?._can?.write !== false ? (
+              {r?.missingProfile?.some((m: string) => m.startsWith("mã chuẩn")) && canWriteRecord("equipment", r) ? (
                 <StandardCodeButton id={r.id} />
               ) : null}
             </div>

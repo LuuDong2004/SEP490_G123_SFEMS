@@ -1,4 +1,5 @@
-import { useCustom, type CrudFilter } from "@refinedev/core";
+import { EQUIPMENT_CONDITION_LABELS } from "@/domains/equipment/types";
+import { useCustom, useList, type CrudFilter } from "@refinedev/core";
 import { BookOpen, ChevronRight, Folder, LayoutGrid, School as SchoolIcon } from "lucide-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, type ReactNode } from "react";
@@ -12,7 +13,7 @@ import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { cn } from "@/shared/lib/utils";
 import type { BodyStats } from "@/features/organization/explorer/body-grid";
 import { hueColor, hueOf } from "./equipment-colors";
-import { EquipmentAdvancedFilter, type AdvancedFilter } from "./equipment-advanced-filter";
+import { EquipmentAdvancedFilter, FILTER_STATUSES, type AdvancedFilter } from "./equipment-advanced-filter";
 
 /**
  * Cột trái của màn Thiết bị: cây NHÓM THIẾT BỊ và cây ĐƠN VỊ (cơ quan quản lý → trường),
@@ -52,8 +53,12 @@ function toFilters(sel: Selection): CrudFilter[] {
   if (sel.unit?.kind === "school") out.push({ field: "school.id", operator: "eq", value: sel.unit.id });
   if (sel.unit?.kind === "body") out.push({ field: "schoolBody", operator: "eq", value: sel.unit.id ?? "none" });
   // Tên tham số riêng (`assetStatus`, không phải `status`): bảng Theo tài sản đã dùng `status` cho nút "Đã ra khỏi sổ".
-  if (sel.advanced?.statuses.length) out.push({ field: "assetStatus", operator: "eq", value: sel.advanced.statuses.join(",") });
-  if (sel.advanced?.conditions.length) out.push({ field: "condition", operator: "eq", value: sel.advanced.conditions.join(",") });
+  // Chỉ trạng thái còn trong bộ lọc: lựa chọn cũ đã lưu (vd. Hỏng) không còn ô để bỏ chọn thì bỏ qua.
+  const statuses = (sel.advanced?.statuses ?? []).filter((s) => (FILTER_STATUSES as readonly string[]).includes(s));
+  if (statuses.length) out.push({ field: "assetStatus", operator: "eq", value: statuses.join(",") });
+  // Chỉ tình trạng còn trong bộ lọc: lựa chọn Hỏng đã lưu từ trước thì bỏ qua.
+  const conditions = (sel.advanced?.conditions ?? []).filter((c) => c in EQUIPMENT_CONDITION_LABELS);
+  if (conditions.length) out.push({ field: "condition", operator: "eq", value: conditions.join(",") });
   if (sel.advanced?.catalogScope) out.push({ field: "catalogScope", operator: "eq", value: sel.advanced.catalogScope });
   return out;
 }
@@ -114,17 +119,8 @@ export function EquipmentAside({ onFiltersChange }: { onFiltersChange: (filters:
       )
     : null;
 
-  // Phạm vi đang xem chưa có thiết bị nào (trường mới, chưa ghi tăng / nhập dữ liệu): cây không có gì để lọc —
-  // không vẽ cột, bảng giãn hết bề ngang. Ô trường và Bộ lọc vẫn lên hàng công cụ (đổi sang trường khác được).
-  // Cùng khoá truy vấn với `Facets` nên không gọi thêm lần nào; đang tải thì chưa ẩn để cột không nháy.
-  const unitSearch: Record<string, string> = { by: "catalog" };
-  for (const f of toFilters({ catalog: null, unit: sel.unit })) if ("field" in f && f.value != null) unitSearch[f.field] = String(f.value);
-  const { data: unitData } = useQuery({
-    queryKey: ["equipment", "summary", "facets", unitSearch],
-    placeholderData: keepPreviousData,
-    queryFn: ({ signal }) => kyInstance.get("equipment/summary", { signal,  searchParams: unitSearch }).json<{ rows: SummaryRow[] }>(),
-  });
-  if (unitData && unitData.rows.length === 0 && !sel.catalog && !sel.subject) return <>{toolbar}</>;
+  // Cột trái luôn đứng yên (trưởng nhóm 24/11/2026), kể cả khi trường đang lọc chưa có thiết bị nào: cột tự ẩn thì
+  // bảng nhảy sang trái và người dùng tưởng mất bộ lọc.
 
   return (
     <aside className="bg-card shadow-e1 flex min-h-0 flex-col overflow-hidden rounded-lg border max-lg:max-h-[28rem] lg:h-full">
@@ -216,7 +212,7 @@ export function AsideRow({
           {label}
         </span>
         {count != null ? (
-          <span className="text-muted-foreground text-xs font-normal tabular-nums">{count.toLocaleString("vi-VN")}</span>
+          <span className="text-muted-foreground text-xs font-normal tabular-nums">{count.toLocaleString("vi-VN", { useGrouping: false })}</span>
         ) : null}
       </button>
     </div>
@@ -278,6 +274,20 @@ function Facets({
     queryFn: ({ signal }) => kyInstance.get("equipment/summary", { signal,  searchParams: search }).json<{ rows: SummaryRow[] }>(),
   });
   const rows = data?.rows ?? [];
+  // Đủ mọi loại thiết bị và mọi môn trong danh mục (đang dùng), như cột trái màn CSVC: trường chưa có thiết bị vẫn thấy
+  // cả bộ lọc, mỗi mục số 0, mờ, không bấm được — thay vì một cột trống trơn.
+  const { result: typeList } = useList<{ id: number; name: string }>({
+    resource: "equipment_types",
+    pagination: { pageSize: 200 },
+    filters: [{ field: "active", operator: "eq", value: true }],
+    sorters: [{ field: "sortOrder", order: "asc" }],
+  });
+  const { result: subjectList } = useList<{ id: number; name: string }>({
+    resource: "subjects",
+    pagination: { pageSize: 200 },
+    filters: [{ field: "active", operator: "eq", value: true }],
+    sorters: [{ field: "sortOrder", order: "asc" }],
+  });
   // Hai nhóm LỌC CHÉO nhau: số cạnh một loại là số thiết bị của loại đó TRONG MÔN đang chọn, và
   // ngược lại. Danh sách mục vẫn đủ (mọi loại / môn đang có thiết bị) và giữ nguyên thứ tự; mục
   // về 0 trong lựa chọn của nhóm kia thì MỜ và không bấm được — không biến mất, để người dùng vẫn
@@ -294,8 +304,14 @@ function Facets({
   };
   const typeOf = (list: SummaryRow[]) => facets(list, (r) => r.type_id, (r) => r.type, "Chưa phân loại");
   const subjectOf = (list: SummaryRow[]) => facets(list, (r) => r.subject_id, (r) => r.subject, "Chưa gắn môn");
-  const types = cross(typeOf(rows), typeOf(rows.filter(inSubject)));
-  const subjects = cross(subjectOf(rows), subjectOf(rows.filter(inType)));
+  // Mục của danh mục (số 0) cộng mục đang có thiết bị; trùng id thì giữ một.
+  const withCatalog = (have: Facet[], list: { id: number; name: string }[] | undefined) => {
+    const ids = new Set(have.map((f) => String(f.id)));
+    const extra = (list ?? []).filter((x) => !ids.has(String(x.id))).map((x) => ({ id: x.id, name: x.name, qty: 0 }));
+    return [...have, ...extra].sort((a, b) => (a.id == null ? 1 : b.id == null ? -1 : a.name.localeCompare(b.name, "vi")));
+  };
+  const types = cross(withCatalog(typeOf(rows), typeList?.data), typeOf(rows.filter(inSubject)));
+  const subjects = cross(withCatalog(subjectOf(rows), subjectList?.data), subjectOf(rows.filter(inType)));
 
   return (
     <>
@@ -306,7 +322,7 @@ function Facets({
       </div>
       {/* `scrollbar-gutter: stable` giữ sẵn chỗ cho thanh cuộn: mở một nhánh làm cây dài ra,
           thanh cuộn hiện lên mà không bóp hẹp nội dung, nên các dòng không xê dịch. */}
-      <div className="scrollbar-fade min-h-0 flex-1 space-y-1 overflow-y-auto p-2 [scrollbar-gutter:stable]">
+      <div className="no-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
       <p className="text-overline text-muted-foreground px-2 pt-1 pb-0.5">Loại thiết bị</p>
       {types.map((f) => (
         <AsideRow

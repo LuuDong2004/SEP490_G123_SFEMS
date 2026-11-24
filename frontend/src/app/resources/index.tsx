@@ -29,7 +29,6 @@ import {
   Megaphone,
   Network,
   Plug,
-  ScanLine,
   School,
   School as SchoolIcon,
   Settings2,
@@ -147,8 +146,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
     })
   ),
   // Thứ tự theo yêu cầu báo cáo của Sở: tài sản (tổng hợp, trạng thái, tình
-  // trạng, giá trị), cơ sở vật chất, hư hỏng, kiểm kê, bảo trì - sửa chữa, biến động - điều chuyển - mượn trả,
-  // khai thác, mua sắm, định mức, chất lượng dữ liệu; chứng từ và ghi giảm đứng cuối. Cùng thứ tự với
+  // trạng), cơ sở vật chất, kiểm kê, mua sắm, định mức, chất lượng dữ liệu, chứng từ. Cùng thứ tự với
   // `ReportService.DEFINITIONS` ở máy chủ.
   {
     name: "report_equipment_by_school",
@@ -214,8 +212,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       icon: <University className="h-4 w-4" />,
     },
   },
-  // Các PHÂN HỆ nghiệp vụ (Thiết bị, Cấp phát & sử dụng, Mượn trả, Sửa chữa & bảo trì,
-  // Mua sắm) được chèn ở đây bởi `withModules` — xem `app/resources/modules.tsx`.
+  // Các PHÂN HỆ nghiệp vụ (Thiết bị, Mua sắm) được chèn ở đây bởi `withModules` — xem `app/resources/modules.tsx`.
   { name: "__modules__" },
   {
     name: "purchase_proposals",
@@ -365,7 +362,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
     list: "/school-year-profile",
     meta: { icon: <CalendarCheck className="h-4 w-4" />, hide: true, label: "Hồ sơ năm học" },
   },
-  // Định mức và nhu cầu mua sắm: màn tổng hợp, mượn quyền `purchase_proposals:read`.
+  // Định mức và nhu cầu mua sắm: màn tổng hợp, dùng quyền `purchase_proposals:read`.
   {
     name: "equipment_adequacy",
     list: "/equipment-adequacy",
@@ -373,25 +370,19 @@ export const resources: ResourceProps[] = withHelp(withModules([
   },
   // Thiết bị dạy học tối thiểu của TỪNG TRƯỜNG: trường thấy chuẩn của mình (tab "Chuẩn tối thiểu" của
   // phân hệ Thiết bị, cạnh danh sách thiết bị); cơ quan quản lý thấy tổng hợp địa bàn, bấm trường để
-  // mở chuẩn của trường đó. Mượn quyền `purchase_proposals:read` như màn Mức đáp ứng định mức.
+  // mở chuẩn của trường đó. Dùng quyền `purchase_proposals:read` như màn Mức đáp ứng định mức.
   {
     name: "equipment_minimum",
     list: "/equipment-minimum",
     meta: {
       icon: <Gauge className="h-4 w-4" />,
+      // `?school=`: đang xem chuẩn của một trường (màn chi tiết) — ẩn thanh tab phân hệ.
+      detailParam: "school",
       label: "Thiết bị tối thiểu",
       mgmtParent: "mgmt_equipment",
       mgmtLabel: "Đáp ứng tối thiểu",
       mgmtOrder: 2,
     },
-  },
-  // Tra cứu theo mã: màn hình trên dữ liệu thiết bị, mượn quyền `equipment:read`.
-  // Không có mục menu riêng — mở từ nút trên màn Thiết bị. Đường dẫn vẫn giữ vì tem
-  // QR đã in trỏ về `/equipment-lookup`.
-  {
-    name: "equipment_lookup",
-    list: "/equipment-lookup",
-    meta: { icon: <ScanLine className="h-4 w-4" />, parent: "equipment_mgmt", hide: true },
   },
   // Các danh mục cùng hình dạng CatalogEntity. Sinh từ `CATALOGS` — cùng mảng
   // mà cây <Route> bên dưới dùng — nên hai nửa của khai báo không thể lệch.

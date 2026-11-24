@@ -43,8 +43,8 @@ import org.springframework.web.bind.annotation.RequestBody;
  * <p>Không có mã quyền {@code attachments:*}. Đọc tệp của một phiếu cần quyền
  * ĐỌC phiếu đó, thêm hoặc xoá tệp cần quyền SỬA phiếu đó — cả mã quyền lẫn phạm
  * vi dữ liệu, hỏi qua {@link RecordAccessRegistry}. Một mã quyền riêng cho tệp
- * sẽ mở ra đúng cái lỗ ấy: người không được xem phiếu thanh lý vẫn tải được biên
- * bản thanh lý.
+ * sẽ mở ra đúng cái lỗ ấy: người không được xem phiếu ghi tăng vẫn tải được hoá
+ * đơn của nó.
  *
  * <p>Nội dung tệp nằm trong MinIO ({@link ObjectStorage}), dòng chỉ giữ khoá đối tượng.
  * Dòng cũ còn {@code data} (chưa kịp chuyển) vẫn đọc được từ database.

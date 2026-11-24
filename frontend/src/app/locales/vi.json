@@ -457,12 +457,6 @@
       "list": "Phân loại kế toán"
     }
   },
-  "usage_purposes": {
-    "usage_purposes": "Mục đích sử dụng thiết bị",
-    "titles": {
-      "list": "Mục đích sử dụng thiết bị"
-    }
-  },
   "funding_sources": {
     "funding_sources": "Nguồn kinh phí",
     "titles": {
@@ -701,21 +695,6 @@
       "list": "Tình trạng hệ thống"
     }
   },
-  "operations": {
-    "operations": "Nghiệp vụ"
-  },
-  "ops_increase": {
-    "ops_increase": "Ghi tăng"
-  },
-  "ops_distribution": {
-    "ops_distribution": "Phân phối & sử dụng"
-  },
-  "ops_periodic": {
-    "ops_periodic": "Kiểm soát định kỳ"
-  },
-  "ops_decrease": {
-    "ops_decrease": "Ghi giảm & kết thúc"
-  },
   "report_equipment_by_school": {
     "report_equipment_by_school": "Tổng hợp thiết bị",
     "titles": {
@@ -756,12 +735,6 @@
     "report_facilities": "Cơ sở vật chất",
     "titles": {
       "list": "Tổng hợp cơ sở vật chất"
-    }
-  },
-  "report_broken_equipment": {
-    "report_broken_equipment": "Hư hỏng, mất, cần thay thế",
-    "titles": {
-      "list": "Thiết bị hư hỏng, mất, cần thay thế"
     }
   },
   "report_inventory": {
@@ -822,12 +795,6 @@
     "report_supply_expiry": "Hoá chất, vật tư hết hạn",
     "titles": {
       "list": "Hoá chất, vật tư hết hạn"
-    }
-  },
-  "report_unused_equipment": {
-    "report_unused_equipment": "Không còn sử dụng",
-    "titles": {
-      "list": "Thiết bị không còn sử dụng"
     }
   },
   "report_idle_equipment": {

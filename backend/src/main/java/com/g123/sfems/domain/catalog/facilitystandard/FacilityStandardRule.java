@@ -1,15 +1,23 @@
 package com.g123.sfems.domain.catalog.facilitystandard;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
+import com.g123.sfems.domain.catalog.legaldocument.LegalDocument;
 import com.g123.sfems.domain.catalog.roomtype.RoomType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 /**
  * Quy tắc chuẩn CSVC (203): một loại CSVC ở một cấp học và một mức (tối thiểu / mức độ 1 / mức độ 2) theo
@@ -61,8 +69,77 @@ public class FacilityStandardRule extends CatalogEntity {
     @Column(name = "min_total_area", precision = 12, scale = 2)
     private BigDecimal minTotalArea;
 
+    /** Trường lớn hơn N lớp thì tối thiểu {@link #largeMinCount} phòng (291) — cả hai cùng khai hoặc cùng trống. */
+    @Column(name = "large_class_from")
+    private Integer largeClassFrom;
+
+    @Column(name = "large_min_count")
+    private Integer largeMinCount;
+
+    /** {@link #areaPerStudent} tính trên bao nhiêu % học sinh toàn trường (thư viện: 30%). Trống = mọi học sinh. */
+    @Column(name = "student_percent", precision = 5, scale = 2)
+    private BigDecimal studentPercent;
+
+    /** Chỉ xét khi trường có loại phòng này (kho bếp, phòng sinh hoạt chung của trường nội trú, phòng bộ môn từng môn). */
+    @Column(name = "only_if_present", nullable = false)
+    private Boolean onlyIfPresent = false;
+
+    /** Đếm CHUNG mọi phòng học bộ môn (một phòng ghép tính một lần) thay vì đếm phòng của riêng loại này. */
+    @Column(name = "subject_rooms", nullable = false, updatable = false)
+    private Boolean subjectRooms = false;
+
+    /** Điều, khoản áp dụng ("Khoản 4 Điều 18 và Phụ lục IV") — văn bản nào thì ở {@link #legalDocuments}. */
     @Column(name = "legal_basis", length = 255)
     private String legalBasis;
+
+    /** Văn bản căn cứ, chọn từ danh mục Văn bản căn cứ. {@code SUBSELECT}: cả danh sách một câu, không một câu mỗi quy tắc. */
+    @ManyToMany(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinTable(name = "facility_standard_rule_documents",
+            joinColumns = @JoinColumn(name = "rule_id"),
+            inverseJoinColumns = @JoinColumn(name = "legal_document_id"))
+    @OrderBy("issuedOn ASC, id ASC")
+    private Set<LegalDocument> legalDocuments = new LinkedHashSet<>();
+
+    public Set<LegalDocument> getLegalDocuments() {
+        return legalDocuments;
+    }
+
+    public Integer getLargeClassFrom() {
+        return largeClassFrom;
+    }
+
+    public void setLargeClassFrom(Integer largeClassFrom) {
+        this.largeClassFrom = largeClassFrom;
+    }
+
+    public Integer getLargeMinCount() {
+        return largeMinCount;
+    }
+
+    public void setLargeMinCount(Integer largeMinCount) {
+        this.largeMinCount = largeMinCount;
+    }
+
+    public BigDecimal getStudentPercent() {
+        return studentPercent;
+    }
+
+    public void setStudentPercent(BigDecimal studentPercent) {
+        this.studentPercent = studentPercent;
+    }
+
+    public Boolean getOnlyIfPresent() {
+        return onlyIfPresent;
+    }
+
+    public void setOnlyIfPresent(Boolean onlyIfPresent) {
+        this.onlyIfPresent = Boolean.TRUE.equals(onlyIfPresent);
+    }
+
+    public Boolean getSubjectRooms() {
+        return subjectRooms;
+    }
 
     public RoomType getRoomType() {
         return roomType;

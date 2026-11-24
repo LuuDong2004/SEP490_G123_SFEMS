@@ -10,9 +10,7 @@ export type Dashboard = {
     equipment: number;
     originalValue: number;
     inUse: number;
-    broken: number;
     missing: number;
-    pendingLiquidation: number;
     pendingVouchers: number;
     /** Tính trên các trường đã nhập thiết bị (`adequacySchools`), không phải mọi trường trong phạm vi. */
     adequacyPercent: number;
@@ -23,7 +21,7 @@ export type Dashboard = {
   };
   statuses: { key: string; label: string; count: number }[];
   pending: { key: string; label: string; count: number }[];
-  months: { month: string; intake: number; allocation: number; damage: number; disposal: number }[];
+  months: { month: string; intake: number }[];
   /** Trường cần đôn đốc (10 trường đầu): chưa nhập thiết bị, chưa khai phòng, chưa có biên bản kiểm kê của đợt đang mở. */
   attention: { id: number; name: string; equipment: number; rooms: number; inventoryDue: boolean;
     /** Đã khai thiết bị mà chưa đáp ứng danh mục tối thiểu. */
@@ -46,10 +44,7 @@ export type Dashboard = {
   waitingAt: { key: string; label: string; count: number }[];
 };
 
-/**
- * Trạng thái tài sản gộp thành 5 nhóm cho biểu đồ cơ cấu — mười trạng thái thì mười màu,
- * không mắt nào đọc nổi. Đã thanh lý và mất đã ra khỏi sổ nên không đếm.
- */
+/** Các phần của biểu đồ cơ cấu thiết bị. */
 export const ASSET_STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
   { key: "use", label: "Đang sử dụng", statuses: ["IN_USE"] },
   { key: "stock", label: "Trong kho", statuses: ["IN_STOCK"] },
@@ -63,6 +58,8 @@ export type ReportDefinition = {
   period: boolean;
   /** Báo cáo theo năm ngân sách: nhận `year`. */
   year: boolean;
+  /** Báo cáo xem được số liệu cuối một năm học đã qua: nhận `yearId`. */
+  byYear: boolean;
   /** Các chiều tổng hợp chọn được (tham số `group`); rỗng là báo cáo có một hình cố định. Phần tử đầu là mặc định. */
   groups: { key: string; label: string }[];
   /** Ô chọn riêng của báo cáo (tham số `choice`) — vd. trạng thái ở danh sách thiết bị; rỗng là không có. */
@@ -94,7 +91,7 @@ export type Report = {
 
 /**
  * Báo cáo trên menu — mỗi báo cáo một mục, đường dẫn `/reports/<name>`, resource
- * `report_<name>` (mượn quyền `reports:read`, xem `shared/lib/permissions.ts`).
+ * `report_<name>` (dùng quyền `reports:read`, xem `shared/lib/permissions.ts`).
  * `name` phải khớp tên báo cáo của `/api/reports`.
  */
 export const REPORT_MENU: { name: string; resource: string; label: string; title: string }[] = [
@@ -108,9 +105,7 @@ export const REPORT_MENU: { name: string; resource: string; label: string; title
   { name: "equipment-ledger", resource: "report_equipment_ledger", label: "Bảng theo dõi thiết bị", title: "Bảng theo dõi thiết bị" },
   { name: "facility-standard", resource: "report_facility_standard", label: "Mức độ chuẩn CSVC", title: "Đánh giá mức độ chuẩn CSVC" },
   { name: "room-standard", resource: "report_room_standard", label: "Chuẩn phòng bộ môn", title: "Đánh giá chuẩn phòng bộ môn" },
-  { name: "broken-equipment", resource: "report_broken_equipment", label: "Hư hỏng, mất, cần thay thế", title: "Thiết bị hư hỏng, mất, cần thay thế" },
   { name: "supply-expiry", resource: "report_supply_expiry", label: "Hoá chất, vật tư hết hạn", title: "Hoá chất, vật tư hết hạn" },
-  { name: "unused-equipment", resource: "report_unused_equipment", label: "Không còn sử dụng", title: "Thiết bị không còn sử dụng" },
   { name: "idle-equipment", resource: "report_idle_equipment", label: "Nằm kho kéo dài", title: "Thiết bị nằm kho kéo dài" },
   { name: "inventory", resource: "report_inventory", label: "Kết quả kiểm kê", title: "Kết quả kiểm kê" },
   { name: "movements", resource: "report_movements", label: "Tăng, giảm thiết bị", title: "Tăng, giảm thiết bị" },

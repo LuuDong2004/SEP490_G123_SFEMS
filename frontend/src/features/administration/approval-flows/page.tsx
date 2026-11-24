@@ -75,7 +75,7 @@ function EditFlowDialog({ flow, onClose }: { flow: ApprovalFlow | null; onClose:
         </DialogHeader>
 
         <div className="flex min-h-0 flex-col gap-4">
-          <FlowDesigner value={draft} onChange={setDraft} receiving={flow.receivingSupported} amountLabel={flow.amountLabel} />
+          <FlowDesigner value={draft} onChange={setDraft} amountLabel={flow.amountLabel} />
 
           {/* Panel cài đặt: ngưỡng tiền, tóm tắt luồng bằng lời, luật luôn áp dụng, căn cứ. */}
           <aside className="grid items-start gap-4 md:grid-cols-3">
@@ -106,13 +106,6 @@ function EditFlowDialog({ flow, onClose }: { flow: ApprovalFlow | null; onClose:
               {thresholdMissing ? <p className="text-warning-text text-xs">Nhập ngưỡng tiền cho nhánh, hoặc bỏ rẽ nhánh.</p> : null}
               {sameAsBase ? <p className="text-warning-text text-xs">Hai nhánh đang giống hệt nhau — sửa một nhánh, hoặc bỏ rẽ nhánh.</p> : null}
             </section>
-
-            {flow.exemptNote ? (
-              <section className="space-y-1">
-                <h4 className="text-overline text-muted-foreground">Luôn áp dụng</h4>
-                <p className="text-muted-foreground text-xs leading-relaxed">{flow.exemptNote}</p>
-              </section>
-            ) : null}
 
             <section className="space-y-1.5">
               <Label htmlFor="flow-note">Căn cứ / ghi chú</Label>
@@ -217,7 +210,6 @@ export function ApprovalFlowsPage() {
                     ) : (
                       <FlowMini steps={f.steps} />
                     )}
-                    {f.exemptNote ? <p className="text-muted-foreground text-xs">{f.exemptNote}</p> : null}
                     {f.note ? <p className="text-muted-foreground text-xs italic">{f.note}</p> : null}
                   </div>
                   {mayWrite ? (

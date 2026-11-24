@@ -35,9 +35,9 @@ import org.springframework.stereotype.Component;
  * chối, huỷ, hoàn tất — và ghi mỗi bước vào {@code voucher_events}.
  *
  * <p>Cái nó KHÔNG làm là tác động lên tài sản. Duyệt xong một phiếu nhập thì
- * sinh tài sản, duyệt xong một phiếu điều chuyển thì khoá thiết bị chờ bàn giao
+ * sinh tài sản, duyệt xong biên bản kiểm kê thì ghi kết quả vào hồ sơ thiết bị
  * — đó là việc của service từng loại phiếu, gọi ngay sau khi {@link #approve}
- * báo bước duyệt cuối cùng đã qua. Tách như vậy để bảy loại phiếu có chung MỘT
+ * báo bước duyệt cuối cùng đã qua. Tách như vậy để các loại phiếu có chung MỘT
  * luật "ai được duyệt bước nào", và luật đó nằm ở đúng một chỗ.
  *
  * <p><b>Ai được duyệt</b> là giao của hai điều kiện, và cả hai đều cần:
@@ -171,10 +171,8 @@ public class VoucherWorkflow {
     /** Báo những người duyệt được bước {@code step} — xem {@link VoucherProgressNotifier}. */
     private void awaiting(SchoolVoucher voucher, String resource, ApprovalStep step) {
         School school = voucher.getSchool();
-        School target = voucher.targetSchool();
         publisher.publishEvent(new VoucherAwaiting(resource, voucher.getId(), voucher.getCode(), step,
-                school == null ? null : school.getId(), school == null ? "" : school.getName(),
-                target == null ? null : target.getId()));
+                school == null ? null : school.getId(), school == null ? "" : school.getName()));
     }
 
     /** Báo người trình (không có thì người lập), xem {@link VoucherDecisionNotifier}. */
@@ -190,19 +188,6 @@ public class VoucherWorkflow {
         voucher.setStatus(VoucherStatus.CANCELLED);
         voucher.setCancelReason(trimToNull(reason));
         record(voucher, resource, Action.CANCEL, VoucherStatus.DRAFT, null, trimToNull(reason));
-    }
-
-    /**
-     * Rút một phiếu ĐÃ DUYỆT mà chưa hoàn tất — hiện chỉ phiếu điều chuyển giữa hai trường dùng (trường nhận không
-     * nhận). Phiếu thành đã huỷ; trả tài sản về như trước là việc của service loại phiếu, như {@link #complete}.
-     * Bắt buộc lý do: phiếu đã qua đủ cấp duyệt, các cấp đó cần biết vì sao nó không thành.
-     */
-    public void recall(SchoolVoucher voucher, String resource, String reason) {
-        require(voucher, VoucherStatus.APPROVED, "huỷ bàn giao");
-        String message = requireNote(reason, "Ghi lý do huỷ bàn giao");
-        voucher.setStatus(VoucherStatus.CANCELLED);
-        voucher.setCancelReason(message);
-        record(voucher, resource, Action.CANCEL, VoucherStatus.APPROVED, null, message);
     }
 
     /** Hoàn tất: thời điểm phiếu tác động lên sổ tài sản. */
@@ -307,19 +292,14 @@ public class VoucherWorkflow {
             case SCHOOL -> Objects.equals(principal.schoolId(), voucher.getSchool().getId());
             case MANAGING_BODY -> principal.managingBodyId() != null
                     && Objects.equals(principal.managingBodyId(), bodyId(voucher.getSchool()));
-            case RECEIVING_BODY -> principal.managingBodyId() != null
-                    && Objects.equals(principal.managingBodyId(), bodyId(voucher.targetSchool()));
         };
     }
 
     /**
      * Bộ lọc "phiếu đang chờ TÔI duyệt": trạng thái chờ duyệt, ở đúng bước mà
      * cấp của tài khoản duyệt được.
-     *
-     * @param targetAttribute thuộc tính trường nhận trên entity, hoặc {@code null}
-     *                        với loại phiếu không có trường nhận
      */
-    public <T extends SchoolVoucher> Specification<T> awaitingMe(String targetAttribute) {
+    public <T extends SchoolVoucher> Specification<T> awaitingMe() {
         Optional<RowLevelPrincipal> current = principals.current();
         return (root, query, cb) -> {
             Predicate pending = cb.equal(root.get("status"), VoucherStatus.PENDING);
@@ -336,10 +316,6 @@ public class VoucherWorkflow {
             if (!managed.isEmpty()) {
                 mine.add(cb.and(cb.equal(root.get("approvalStep"), ApprovalStep.MANAGING_BODY),
                         root.get("school").get("id").in(managed)));
-                if (targetAttribute != null) {
-                    mine.add(cb.and(cb.equal(root.get("approvalStep"), ApprovalStep.RECEIVING_BODY),
-                            root.get(targetAttribute).get("id").in(managed)));
-                }
             }
             if (mine.isEmpty()) {
                 return cb.disjunction();
@@ -358,9 +334,7 @@ public class VoucherWorkflow {
      * Bước kế tiếp sau {@code current} trong chuỗi duyệt của phiếu.
      *
      * <p>Bỏ qua bước không có ai để duyệt: trường chưa gán cơ quan quản lý thì
-     * không có bước cơ quan quản lý, và trường nhận cùng cơ quan với trường
-     * chuyển thì không có bước cơ quan trường nhận — một cơ quan không duyệt hai
-     * lần cùng một phiếu.
+     * không có bước cơ quan quản lý.
      *
      * <p>Chuỗi do Sở cấu hình ({@link ApprovalFlowService#chainOf}) và có thể đổi trong lúc phiếu đang chờ
      * duyệt — bước hiện tại khi đó có thể không còn trong chuỗi. Vì vậy "sau" nghĩa là CẤP cao hơn cấp
@@ -375,12 +349,6 @@ public class VoucherWorkflow {
             }
             if (step == ApprovalStep.MANAGING_BODY && bodyId(voucher.getSchool()) == null) {
                 continue;
-            }
-            if (step == ApprovalStep.RECEIVING_BODY) {
-                Long target = bodyId(voucher.targetSchool());
-                if (target == null || target.equals(bodyId(voucher.getSchool()))) {
-                    continue;
-                }
             }
             return step;
         }
@@ -466,7 +434,6 @@ public class VoucherWorkflow {
         return switch (step) {
             case SCHOOL -> "lãnh đạo trường";
             case MANAGING_BODY -> "cơ quan quản lý của trường";
-            case RECEIVING_BODY -> "cơ quan quản lý của trường nhận";
         };
     }
 

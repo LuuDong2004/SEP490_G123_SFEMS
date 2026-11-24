@@ -1,14 +1,11 @@
-import { useCan, useInvalidate, useList, useNotification } from "@refinedev/core";
-import { ChevronDown, DoorOpen, Search, UserPlus, Warehouse, X, Building2 } from "lucide-react";
+import { useList } from "@refinedev/core";
+import { ChevronDown, DoorOpen, Search, Warehouse, X, Building2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useController, type Control, type FieldValues } from "react-hook-form";
 
-import { kyInstance } from "@/shared/api/data";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
-import { StaffPicker, type StaffRow } from "@/shared/components/catalog/staff-picker";
 import { CrossLink } from "@/shared/components/cross-link";
 import { FormHint, HelpHint } from "@/shared/components/form/help-hint";
-import { errorMessage } from "@/shared/lib/api-error";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -29,9 +26,7 @@ export type RoomRow = {
   roomType?: { code?: string; name: string } | null;
   floor?: string | null;
   managingStaff?: { id: number; name: string } | null;
-  /** Cho mượn được không (hồ sơ phòng). */
-  loanable?: boolean;
-  /** Môn của phòng bộ môn — phiếu mượn phòng điền sẵn môn học theo nó. */
+  /** Môn của phòng bộ môn. */
   subject?: { id: number; name: string } | null;
 };
 
@@ -47,10 +42,6 @@ const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/
  * Chọn kho / phòng bằng HỘP THOẠI một lần bấm, cùng khuôn với hộp chọn cán bộ: ô tìm, lọc theo khối
  * nhà, bảng phân trang (mã · phòng · khối nhà · loại · tầng), bấm một dòng là xong. Chỉ phòng của
  * ĐÚNG trường tài sản.
- *
- * `withManager` (phiếu cấp phát): mỗi phòng hiện cán bộ phụ trách của nó, vì chọn phòng là chọn luôn
- * người nhận. Phòng chưa có người phụ trách thì ô đó là chữ đỏ "Chưa khai" — người có quyền sửa phòng
- * bấm vào, chọn cán bộ, hồ sơ phòng được cập nhật; không phải bỏ dở phiếu sang màn Phòng.
  */
 export function RoomPickerField({
   control,
@@ -62,13 +53,9 @@ export function RoomPickerField({
   hint,
   placeholder = "Vui lòng chọn kho / phòng",
   disabledHint,
-  withManager,
   onPicked,
-  only,
   required,
 }: {
-  /** Chỉ liệt kê phòng thoả điều kiện này (vd. phiếu mượn phòng: phòng dùng chung, không kho, không phòng học). */
-  only?: (room: RoomRow) => boolean;
   /** Ô bắt buộc: có dấu * và báo lỗi khi để trống. */
   required?: boolean;
   control: Control<FieldValues>;
@@ -82,9 +69,7 @@ export function RoomPickerField({
   placeholder?: string;
   /** Có giá trị = ô bị khoá, hiện câu nhắc này ("Chọn trường trước"). */
   disabledHint?: string;
-  /** Hiện cán bộ phụ trách của từng phòng và cho khai ngay khi phòng chưa có. */
-  withManager?: boolean;
-  /** Gọi khi chọn (hoặc bỏ chọn) một phòng, và khi phòng ĐANG chọn vừa được khai người phụ trách. */
+  /** Gọi khi chọn (hoặc bỏ chọn) một phòng. */
   onPicked?: (room: RoomRow | null) => void;
 }) {
   const { field, fieldState } = useController({
@@ -94,9 +79,6 @@ export function RoomPickerField({
   });
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const { open: notify } = useNotification();
-  const invalidate = useInvalidate();
-  const mayEditRooms = useCan({ resource: "rooms", action: "edit" }).data?.can ?? false;
   const scope = schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }, { field: "active", operator: "eq" as const, value: true }] : [];
   const { result, query } = useList<RoomRow>({
     resource: "rooms",
@@ -105,15 +87,7 @@ export function RoomPickerField({
     sorters: [{ field: "sortOrder", order: "asc" }],
     queryOptions: { enabled: !!schoolId },
   });
-  // Danh sách cán bộ chỉ cần khi có phòng phải khai người phụ trách — và chỉ tải lúc hộp đang mở.
-  const { result: staffResult, query: staffQuery } = useList<StaffRow>({
-    resource: "staff",
-    filters: scope,
-    pagination: { currentPage: 1, pageSize: 500 },
-    sorters: [{ field: "sortOrder", order: "asc" }],
-    queryOptions: { enabled: !!schoolId && !!withManager && mayEditRooms && open },
-  });
-  const rooms = useMemo(() => (only ? (result?.data ?? []).filter(only) : (result?.data ?? [])), [result, only]);
+  const rooms = useMemo(() => result?.data ?? [], [result]);
   const selectedId = field.value?.id ?? null;
   const selected = rooms.find((r) => r.id === selectedId) ?? (selectedId === current?.id ? current : null);
 
@@ -145,18 +119,6 @@ export function RoomPickerField({
     field.onChange(r ? { id: r.id } : { id: null });
     onPicked?.(r);
     setOpen(false);
-  };
-
-  /** Khai người phụ trách cho một phòng ngay trong hộp chọn; phòng đang chọn thì báo lại cho form. */
-  const assign = async (room: RoomRow, staff: StaffRow) => {
-    try {
-      await kyInstance.patch(`rooms/${room.id}`, { json: { managingStaff: { id: staff.id } } });
-      notify?.({ type: "success", message: `${staff.name} phụ trách ${room.name}` });
-      invalidate({ resource: "rooms", invalidates: ["list", "detail"], id: room.id });
-      if (room.id === selectedId) onPicked?.({ ...room, managingStaff: { id: staff.id, name: staff.name } });
-    } catch (error) {
-      notify?.({ type: "error", message: await errorMessage(error), description: "Không khai được người phụ trách" });
-    }
   };
 
   const isStore = (r: { name?: string; code?: string }) => /kho/i.test(`${r.name} ${r.code}`);
@@ -194,11 +156,7 @@ export function RoomPickerField({
             <DialogTitle className="flex items-center gap-2">
               Chọn {label.charAt(0).toLowerCase() + label.slice(1)}
               <HelpHint>
-                {only
-                  ? "Bấm một dòng để chọn."
-                  : withManager
-                  ? "Bấm một dòng để chọn. Cán bộ phụ trách của phòng là người nhận và quản lý thiết bị."
-                  : "Bấm một dòng để chọn. Để ở kho là \"trong kho\", để ở phòng là \"đang sử dụng\"."}
+                Bấm một dòng để chọn. Để ở kho là "trong kho", để ở phòng là "đang sử dụng".
               </HelpHint>
             </DialogTitle>
             <DialogDescription className="sr-only">Tìm theo tên, mã phòng, khối nhà rồi bấm một dòng để chọn.</DialogDescription>
@@ -216,7 +174,7 @@ export function RoomPickerField({
                 }}
                 // Hộp này mở TRONG form của màn: Enter ở ô tìm không được submit form bên ngoài.
                 onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-                placeholder={withManager ? "Tìm tên, mã phòng, người phụ trách…" : "Tìm tên, mã phòng…"}
+                placeholder="Tìm tên, mã phòng…"
                 className="rounded-full pl-8"
                 aria-label="Tìm phòng"
               />
@@ -242,7 +200,6 @@ export function RoomPickerField({
                 <col className="w-36" />
                 <col className="w-44" />
                 <col className="w-14" />
-                {withManager ? <col className="w-40" /> : null}
               </colgroup>
               <TableHeader sticky>
                 <TableRow>
@@ -251,12 +208,11 @@ export function RoomPickerField({
                   <TableHead className="px-4">Khối nhà</TableHead>
                   <TableHead className="px-4">Loại phòng</TableHead>
                   <TableHead className="px-4">Tầng</TableHead>
-                  {withManager ? <TableHead className="px-4">Phụ trách</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {query.isLoading || shown.length === 0 ? (
-                  <TableEmpty colSpan={withManager ? 6 : 5} loading={query.isLoading} title={<>{q || building !== ALL ? "Không có phòng nào khớp." : (
+                  <TableEmpty colSpan={5} loading={query.isLoading} title={<>{q || building !== ALL ? "Không có phòng nào khớp." : (
                         <>
                           Trường chưa khai báo phòng nào.{" "}
                           <CrossLink to="/rooms" resource="rooms" action="create" newTab className="text-primary font-medium">Khai phòng</CrossLink>
@@ -281,33 +237,6 @@ export function RoomPickerField({
                           {r.roomType?.name ? <Badge variant={isStore(r) ? "info" : "neutral"}>{r.roomType.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-muted-foreground px-4 tabular-nums">{r.floor ?? "—"}</TableCell>
-                        {withManager ? (
-                          // Ô này có nút riêng: bấm trong ô không phải là chọn phòng của dòng.
-                          <TableCell className="truncate px-4" onClick={(e) => !r.managingStaff && e.stopPropagation()} title={r.managingStaff?.name}>
-                            {r.managingStaff ? (
-                              r.managingStaff.name
-                            ) : mayEditRooms ? (
-                              <StaffPicker
-                                rows={staffResult?.data ?? []}
-                                loading={staffQuery.isLoading}
-                                value={null}
-                                label={`người phụ trách ${r.name}`}
-                                onChange={(staff) => {
-                                  if (staff) void assign(r, staff);
-                                }}
-                                trigger={(openStaff) => (
-                                  <button type="button" onClick={openStaff}
-                                    className="text-destructive-text inline-flex items-center gap-1 text-xs font-medium underline-offset-2 hover:underline">
-                                    Chưa khai
-                                    <UserPlus className="size-3.5" />
-                                  </button>
-                                )}
-                              />
-                            ) : (
-                              <span className="text-destructive-text text-xs font-medium">Chưa khai</span>
-                            )}
-                          </TableCell>
-                        ) : null}
                       </TableRow>
                     );
                   })

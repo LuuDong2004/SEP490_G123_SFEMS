@@ -1,10 +1,13 @@
 package com.g123.sfems.module.report;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facilitystandard.FacilityStandardService;
 import com.g123.sfems.module.school.procurement.AdequacyService;
+import com.g123.sfems.module.school.procurement.YearAdequacyService;
+import com.g123.sfems.module.school.yearprofile.YearStandardService;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import java.sql.Date;
 import java.time.LocalDate;
@@ -26,9 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Danh mục bám yêu cầu báo cáo của Sở GD&amp;ĐT TP.HCM: báo cáo
  * theo đơn vị, địa bàn, cấp học, loại thiết bị, tình trạng và nguồn hình thành; báo cáo
- * kiểm kê, bảo trì, sửa chữa, điều chuyển, mượn/trả và nhu cầu mua sắm — cộng ba bảng
- * tổng hợp ở các mục khác: cơ sở vật chất (3.5.2), thiết bị hư hỏng / cần thay thế
- * (3.5.6), đối chiếu định mức (3.5.7).
+ * kiểm kê, biến động thiết bị và nhu cầu mua sắm — cộng hai bảng
+ * tổng hợp ở các mục khác: cơ sở vật chất (3.5.2), đối chiếu định mức (3.5.7).
  *
  * <p>Mọi truy vấn gộp trên {@link VisibleSchools}: Sở thấy toàn ngành, UBND thấy
  * địa bàn, trường thấy trường mình — cùng một báo cáo, ba phạm vi. Bộ lọc của người
@@ -56,7 +58,7 @@ public class ReportService {
          * bản xuất Excel; truy vấn có tính thì cứ tính, chỉ không đưa ra.
          */
         static final Set<String> ASSET_VALUE_COLUMNS = Set.of(
-                "original_value", "remaining_value", "depreciation", "value", "unvalued");
+                "original_value", "remaining_value", "value", "unvalued");
 
         public Report {
             columns = columns.stream().filter(c -> !ASSET_VALUE_COLUMNS.contains(c.key())).toList();
@@ -91,31 +93,44 @@ public class ReportService {
         Definition(String name, String title, String description, boolean period, boolean year, List<Group> groups) {
             this(name, title, description, period, year, groups, List.of());
         }
+
+        /** Báo cáo xem được theo năm học đã qua (tham số {@code yearId}) — xem {@link ReportYear}. */
+        @JsonProperty("byYear")
+        public boolean byYear() {
+            return ReportYear.REPORTS.contains(name);
+        }
     }
 
     /**
      * Tham số của một lần xem. {@code bodyId}, {@code levelId}, {@code schoolId} lọc theo cơ quan quản lý
      * (địa bàn), cấp học, trường; {@code group} chọn chiều tổng hợp; {@code typeId}, {@code status},
      * {@code condition} lọc tài sản theo loại thiết bị, trạng thái, tình trạng ({@link ReportFilters});
-     * {@code campusId} — cơ sở ({@link #campus}): tài khoản bị giới hạn luôn là cơ sở của mình, gửi lên không nới được.
+     * {@code campusId} — cơ sở ({@link #campus}): tài khoản bị giới hạn luôn là cơ sở của mình, gửi lên không nới được;
+     * {@code yearId} — năm học đã qua đang xem ({@link ReportYear}), trống là hiện tại.
      */
     public record Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
-            String group, String choice, Long typeId, String status, String condition, Long campusId) {
+            String group, String choice, Long typeId, String status, String condition, Long campusId, Long yearId) {
 
         public Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
                 String group, String choice) {
-            this(from, to, year, bodyId, levelId, schoolId, group, choice, null, null, null, null);
+            this(from, to, year, bodyId, levelId, schoolId, group, choice, null, null, null, null, null);
         }
 
         public Params(LocalDate from, LocalDate to, Integer year, Long bodyId, Long levelId, Long schoolId,
                 String group, String choice, Long typeId, String status, String condition) {
-            this(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition, null);
+            this(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition, null, null);
         }
 
         /** Cùng tham số, cơ sở khác — {@link ReportService#resolve} gắn cơ sở thực sự áp dụng. */
         Params withCampus(Long campus) {
             return new Params(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition,
-                    campus);
+                    campus, yearId);
+        }
+
+        /** Cùng tham số, năm học khác — trống khi báo cáo không theo năm hoặc năm đó chưa qua. */
+        Params withYear(Long id) {
+            return new Params(from, to, year, bodyId, levelId, schoolId, group, choice, typeId, status, condition,
+                    campusId, id);
         }
 
         boolean filtered() {
@@ -124,8 +139,6 @@ public class ReportService {
     }
 
     private static final Group BY_SCHOOL = new Group("school", "Theo đơn vị");
-    private static final Group BY_BODY = new Group("body", "Theo địa bàn (cơ quan quản lý)");
-    private static final Group BY_LEVEL = new Group("level", "Theo cấp học");
     private static final Group BY_TYPE = new Group("type", "Theo loại thiết bị");
     private static final Group BY_ORIGIN = new Group("origin", "Theo nguồn hình thành");
     private static final Group BY_ROOM_TYPE = new Group("room_type", "Theo loại phòng");
@@ -140,41 +153,40 @@ public class ReportService {
             .map(e -> new Group(e.getKey(), e.getValue()[0])).toList();
 
     /**
-     * Trạng thái chọn được ở "Danh sách thiết bị theo trạng thái" (tham số {@code choice}) — cùng tập với bộ lọc
-     * trạng thái dùng chung, nên nằm ở {@link ReportFilters}: khoá → các trạng thái gộp.
+     * Trạng thái chọn được ở "Danh sách thiết bị theo trạng thái" (tham số {@code choice}) — tập của bộ lọc
+     * trạng thái dùng chung thêm Mất, nên nằm ở {@link ReportFilters}: khoá → trạng thái.
      */
     private static final Map<String, String> LIST_STATUSES = ReportFilters.STATUS_SQL;
 
-    private static final List<Group> STATUS_CHOICES = ReportFilters.STATUS_CHOICES;
+    private static final List<Group> LIST_CHOICES = ReportFilters.LIST_CHOICES;
 
-    /** Thứ tự ở đây là thứ tự trên menu: tài sản, cơ sở vật chất, hư hỏng, kiểm kê, sửa chữa, biến động, mua sắm, định mức, dữ liệu. */
+    /** Thứ tự ở đây là thứ tự trên menu: tài sản, cơ sở vật chất, kiểm kê, biến động, mua sắm, định mức, dữ liệu. */
     public static final List<Definition> DEFINITIONS = List.of(
             new Definition("equipment-by-school", "Tổng hợp thiết bị",
-                    "Số lượng, tình trạng và giá trị thiết bị đang trong hệ thống — gộp theo đơn vị, địa bàn, cấp học, "
-                            + "loại thiết bị hoặc nguồn hình thành.",
-                    false, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_TYPE, BY_ORIGIN)),
+                    "Số lượng, tình trạng và giá trị thiết bị đang trong hệ thống — gộp theo đơn vị, loại thiết bị "
+                            + "hoặc nguồn hình thành.",
+                    false, false, List.of(BY_SCHOOL, BY_TYPE, BY_ORIGIN)),
             new Definition("equipment-by-catalog", "Tổng hợp thiết bị theo danh mục",
-                    "Mỗi thiết bị trong danh mục: số lượng trong hệ thống, đang dùng, hỏng, có ở bao nhiêu trường.",
+                    "Mỗi thiết bị trong danh mục: số lượng trong hệ thống, đang dùng, trong kho, có ở bao nhiêu trường.",
                     false, false, List.of()),
             new Definition("equipment-by-status", "Thiết bị theo trạng thái sử dụng",
-                    "Thiết bị trong hệ thống đang ở đâu trong vòng đời: trong kho, đang dùng, cho mượn, bảo trì, sửa chữa, "
-                            + "hỏng, báo mất, chờ thanh lý.",
-                    false, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_TYPE)),
+                    "Thiết bị trong hệ thống theo trạng thái: trong kho, đang sử dụng.",
+                    false, false, List.of(BY_SCHOOL, BY_TYPE)),
             new Definition("equipment-by-condition", "Thiết bị theo tình trạng kỹ thuật",
-                    "Tình trạng kỹ thuật ghi trên hồ sơ thiết bị: tốt, khá, trung bình, kém, hỏng, không sử dụng được.",
-                    false, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_TYPE)),
+                    "Tình trạng kỹ thuật ghi trên hồ sơ thiết bị: tốt, trung bình, kém.",
+                    false, false, List.of(BY_SCHOOL, BY_TYPE)),
             new Definition("equipment-list", "Danh sách thiết bị theo trạng thái",
-                    "Từng thiết bị đang ở một trạng thái — trong kho, đang dùng, đang mượn, bảo trì, sửa chữa, hỏng "
-                            + "hoặc mất, chờ thanh lý — kèm chỗ để, người quản lý và giá trị.",
-                    false, false, List.of(), STATUS_CHOICES),
+                    "Từng thiết bị đang ở một trạng thái — trong kho, đang sử dụng, mất — kèm chỗ để, người "
+                            + "quản lý và giá trị.",
+                    false, false, List.of(), LIST_CHOICES),
             new Definition("facilities", "Tổng hợp cơ sở vật chất",
-                    "Điểm trường, khối nhà, phòng, diện tích và tình trạng phòng — theo đơn vị, địa bàn, cấp học "
+                    "Điểm trường, khối nhà, phòng, diện tích và tình trạng phòng — theo đơn vị "
                             + "hoặc loại phòng; hoặc liệt kê từng khối nhà, từng phòng đang có.",
-                    false, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL, BY_ROOM_TYPE, BY_BUILDING, BY_ROOM)),
+                    false, false, List.of(BY_SCHOOL, BY_ROOM_TYPE, BY_BUILDING, BY_ROOM)),
             CsvcStatisticsReport.DEFINITION,
             new Definition("equipment-ledger", "Bảng theo dõi thiết bị",
-                    "Bảng theo dõi thiết bị còn trong hệ thống — từng thiết bị kèm chứng từ ghi tăng, ngày nhận, nguyên giá, hao "
-                            + "mòn, còn lại, chỗ để, người quản lý. Chọn bảng: thiết bị, tài sản cố định, công cụ dụng cụ, "
+                    "Bảng theo dõi thiết bị còn trong hệ thống — từng thiết bị kèm chứng từ ghi tăng, ngày nhận, nguyên giá, "
+                            + "giá trị còn lại, chỗ để, người quản lý. Chọn bảng: thiết bị, tài sản cố định, công cụ dụng cụ, "
                             + "vật tư hoá chất.",
                     false, false, List.of(), LEDGER_CHOICES),
             FacilityStandardReports.DEFINITION,
@@ -182,34 +194,25 @@ public class ReportService {
                     "Mỗi phòng bộ môn: thiết bị phải có theo định mức \"tính cho 01 phòng\" của môn, đang đặt tại "
                             + "phòng đủ chưa — kèm diện tích, sức chứa, kết luận đạt / chưa đạt.",
                     false, false, List.of()),
-            new Definition("broken-equipment", "Thiết bị hư hỏng, mất, cần thay thế",
-                    "Thiết bị đang hỏng, đang sửa hoặc bảo hành, bị báo mất, và thiết bị không còn dùng được cần thay "
-                            + "thế, thanh lý.",
-                    false, false, List.of()),
             SupplyReports.EXPIRY,
-            new Definition("unused-equipment", "Thiết bị không còn sử dụng",
-                    "Thiết bị còn trong hệ thống mà không còn dùng được: hỏng chờ xử lý, tình trạng hỏng, "
-                            + "đã duyệt thanh lý / tiêu huỷ — kèm lý do để biết bước kế tiếp.",
-                    false, false, List.of()),
             new Definition("idle-equipment", "Thiết bị nằm kho kéo dài",
-                    "Thiết bị trong kho lâu không phát sinh sử dụng (cấp phát, mượn, sửa, bảo trì…), tính từ lần dùng "
-                            + "gần nhất hoặc ngày tiếp nhận.",
+                    "Thiết bị trong kho lâu không được dùng, tính từ ngày về kho hoặc ngày tiếp nhận.",
                     false, false, List.of(), IDLE_CHOICES),
             new Definition("inventory", "Kết quả kiểm kê",
                     "Mỗi phiên kiểm kê trong kỳ: số thiết bị kiểm, tìm thấy, thiếu, thừa, sai vị trí, sai tình trạng.",
                     true, false, List.of()),
             new Definition("movements", "Tăng, giảm thiết bị",
-                    "Ghi tăng, cấp phát, điều chuyển, mượn, báo hỏng, sửa chữa, thanh lý... trong kỳ, theo tháng.",
+                    "Thiết bị ghi tăng và thiết bị ghi mất qua kiểm kê trong kỳ, theo tháng.",
                     true, false, List.of()),
             new Definition("purchase", "Tổng hợp nhu cầu mua sắm",
-                    "Đề xuất mua sắm của năm ngân sách — theo địa bàn, cấp học, đơn vị hoặc loại thiết bị.",
-                    false, true, List.of(BY_BODY, BY_LEVEL, BY_SCHOOL, BY_TYPE)),
+                    "Đề xuất mua sắm của năm ngân sách — theo đơn vị hoặc loại thiết bị.",
+                    false, true, List.of(BY_SCHOOL, BY_TYPE)),
             new Definition("adequacy", "Mức đáp ứng danh mục thiết bị tối thiểu",
                     "Mỗi trường đạt bao nhiêu định mức, còn thiếu bao nhiêu thiết bị.", false, false, List.of()),
             new Definition("data-quality", "Chất lượng dữ liệu theo trường",
                     "Hồ sơ thiết bị còn thiếu gì ở mỗi trường: mã chuẩn, đơn vị tính, nguồn kinh phí, ngày tiếp nhận, "
                             + "nguyên giá, chỗ để, người quản lý — và tỷ lệ hồ sơ chuẩn.",
-                    false, false, List.of(BY_SCHOOL, BY_BODY, BY_LEVEL)),
+                    false, false, List.of(BY_SCHOOL)),
             new Definition("data-anomalies", "Thiết bị có dữ liệu bất thường",
                     "Từng thiết bị có dữ liệu mâu thuẫn: còn lại lớn hơn nguyên giá, nguyên giá ≤ 0, ngày nhận ở "
                             + "tương lai, trạng thái không khớp chỗ để / tình trạng, trùng số serial…",
@@ -236,17 +239,11 @@ public class ReportService {
         return VOUCHER_TABLES;
     }
 
-    private static final Map<String, String> HISTORY_LABELS = Map.ofEntries(
-            Map.entry("GHI_TANG", "Ghi tăng"), Map.entry("CAP_NHAT", "Cập nhật"), Map.entry("CAP_PHAT", "Cấp phát"),
-            Map.entry("THU_HOI", "Thu hồi"), Map.entry("DIEU_CHUYEN", "Điều chuyển"), Map.entry("MUON", "Cho mượn"),
-            Map.entry("TRA", "Trả"), Map.entry("BAO_HONG", "Báo hỏng"), Map.entry("SUA_CHUA", "Sửa chữa"),
-            Map.entry("BAO_HANH", "Bảo hành"), Map.entry("BAO_TRI", "Bảo trì"), Map.entry("KIEM_KE", "Kiểm kê"),
-            Map.entry("CHO_THANH_LY", "Chờ thanh lý"), Map.entry("THANH_LY", "Thanh lý"),
-            Map.entry("CHO_TIEU_HUY", "Chờ tiêu huỷ"), Map.entry("TIEU_HUY", "Tiêu huỷ"),
-            Map.entry("MAT", "Mất"));
+    /** Cột của báo cáo tăng, giảm: khoá → nhãn. {@code MAT} là thiết bị chuyển sang Mất khi duyệt biên bản kiểm kê. */
+    private static final Map<String, String> MOVEMENT_LABELS = Map.of("GHI_TANG", "Ghi tăng", "MAT", "Mất");
 
-    /** Tài sản đã ra khỏi sổ — không đếm vào "đang có". */
-    static final String OFF_BOOK = " ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED') ";
+    /** Tài sản đã ra khỏi sổ (mất) — không đếm vào "đang có". */
+    static final String OFF_BOOK = " ('LOST') ";
 
     /** Phiếu chưa hoặc không đi vào nghiệp vụ: nháp, huỷ, bị từ chối. */
     static final String NOT_LIVE = " ('DRAFT', 'CANCELLED', 'REJECTED') ";
@@ -263,9 +260,16 @@ public class ReportService {
     private final CsvcStatisticsReport csvc;
     private final CampusScope campuses;
     private final ReportCampus campus;
+    private final ReportYear years;
+    private final YearAdequacyService yearAdequacy;
+    private final YearStandardService yearStandards;
 
     public ReportService(JdbcTemplate jdbc, VisibleSchools visible, AdequacyService adequacy,
-            FacilityStandardService facilityStandards, CampusScope campuses) {
+            FacilityStandardService facilityStandards, CampusScope campuses, YearAdequacyService yearAdequacy,
+            YearStandardService yearStandards) {
+        this.years = new ReportYear(jdbc);
+        this.yearAdequacy = yearAdequacy;
+        this.yearStandards = yearStandards;
         this.jdbc = jdbc;
         this.visible = visible;
         this.adequacy = adequacy;
@@ -288,7 +292,8 @@ public class ReportService {
 
     public Report build(String name, Params params) {
         // Bộ lọc theo tài sản báo cáo không nhận thì gạt đi trước khi tính, không lặng lẽ áp vào truy vấn khác nghĩa.
-        Report report = compute(name, ReportFilters.only(resolve(params), ReportFilters.of(name)));
+        Params only = ReportFilters.only(resolve(params), ReportFilters.of(name));
+        Report report = compute(name, only.withYear(years.past(name, only.yearId())));
         // Cột ngày từ JDBC là java.sql.Date, mà Jackson ghi nó thành MỘT THỜI ĐIỂM theo UTC — 16/10 ở Việt Nam ra
         // "2026-10-15T17:00:00Z", và màn hình đọc nhầm sang ngày hôm trước. Đổi về ngày lịch thuần trước khi trả.
         for (Map<String, Object> row : report.rows()) {
@@ -325,12 +330,10 @@ public class ReportService {
             case "data-quality" -> dataQuality(params, group);
             case "facilities" -> facilities(params, group);
             case CsvcStatisticsReport.NAME -> csvc.build(params);
-            case "broken-equipment" -> brokenEquipment(params);
             case "inventory" -> inventory(params, from, to, period);
             case "movements" -> movements(params, from, to, period);
             case "vouchers" -> vouchers(params, from, to, period);
             case "adequacy" -> adequacyReport(params);
-            case "unused-equipment" -> analysis.unused(params);
             case "idle-equipment" -> analysis.idle(params, Integer.parseInt(choice(definition, params)));
             case "last-update" -> analysis.lastUpdate(params, null);
             case "stale-schools" -> analysis.lastUpdate(params, Integer.parseInt(choice(definition, params)));
@@ -367,12 +370,6 @@ public class ReportService {
 
     static Dim dim(String group) {
         return switch (group) {
-            case "body" -> new Dim("COALESCE(dob.name, 'Chưa có cơ quan quản lý')", null,
-                    " LEFT JOIN departments_of_education dob ON dob.id = s.department_of_education_id ",
-                    "dob.id, dob.name", "Cơ quan quản lý (địa bàn)");
-            case "level" -> new Dim("COALESCE(lv.name, 'Chưa xác định cấp học')", null,
-                    " LEFT JOIN education_levels lv ON lv.id = s.education_level_id ",
-                    "lv.id, lv.name, lv.sort_order", "Cấp học");
             case "type" -> new Dim("COALESCE(et.name, 'Chưa phân loại')", null,
                     " LEFT JOIN equipment_catalogs gc ON gc.id = e.catalog_id"
                             + " LEFT JOIN equipment_types et ON et.id = gc.equipment_type_id ",
@@ -405,12 +402,9 @@ public class ReportService {
                 + ", COUNT(DISTINCT e.school_id) AS schools, COUNT(e.id) AS total,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_USE') AS in_use,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_STOCK') AS in_stock,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')) AS broken,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'MISSING') AS missing,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')) AS pending_liquidation,"
                 + " COALESCE(SUM(e.original_value), 0) AS original_value,"
                 + " COALESCE(SUM(e.remaining_value), 0) AS remaining_value"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id" + d.joins()
+                + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id" + d.joins()
                 + " WHERE e.status NOT IN" + OFF_BOOK + assets("e", p)
                 + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name");
         List<Column> columns = leadColumns(d);
@@ -418,8 +412,7 @@ public class ReportService {
             columns.add(col("schools", "Số trường", "number"));
         }
         columns.addAll(List.of(col("total", "Tổng số", "number"), col("in_use", "Đang dùng", "number"),
-                col("in_stock", "Trong kho", "number"), col("broken", "Hỏng / đang sửa", "number"),
-                col("missing", "Chờ ghi giảm do mất", "number"), col("pending_liquidation", "Chờ thanh lý / tiêu huỷ", "number"),
+                col("in_stock", "Trong kho", "number"),
                 col("original_value", "Nguyên giá (đ)", "money"),
                 col("remaining_value", "Giá trị còn lại (đ)", "money")));
         return new Report("equipment-by-school", "Tổng hợp thiết bị " + groupTitle(group), subtitle(p, null),
@@ -434,9 +427,9 @@ public class ReportService {
                 + " CASE WHEN " + other + " THEN '" + OTHER_LABEL + "' ELSE c.name END AS catalog,"
                 + " CASE WHEN " + other + " THEN NULL ELSE t.name END AS type, COUNT(e.id) AS total,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_USE') AS in_use,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')) AS broken,"
+                + " COUNT(e.id) FILTER (WHERE e.status = 'IN_STOCK') AS in_stock,"
                 + " COUNT(DISTINCT e.school_id) AS schools, COALESCE(SUM(e.original_value), 0) AS original_value"
-                + " FROM equipment e JOIN equipment_catalogs c ON c.id = e.catalog_id"
+                + " FROM " + equipment(p) + " e JOIN equipment_catalogs c ON c.id = e.catalog_id"
                 + " LEFT JOIN equipment_types t ON t.id = c.equipment_type_id"
                 + " WHERE e.status NOT IN" + OFF_BOOK + assets("e", p)
                 + " GROUP BY CASE WHEN " + other + " THEN 0 ELSE c.id END, 1, 2, 3"
@@ -444,7 +437,7 @@ public class ReportService {
         return new Report("equipment-by-catalog", "Tổng hợp thiết bị theo danh mục", subtitle(p, null),
                 List.of(col("catalog_code", "Mã DM thiết bị", "text"), col("catalog", "Thiết bị", "text"),
                         col("type", "Loại", "text"), col("total", "Tổng số", "number"),
-                        col("in_use", "Đang dùng", "number"), col("broken", "Hỏng / đang sửa", "number"),
+                        col("in_use", "Đang dùng", "number"), col("in_stock", "Trong kho", "number"),
                         col("schools", "Số trường có", "number"), col("original_value", "Nguyên giá (đ)", "money")),
                 rows);
     }
@@ -578,57 +571,6 @@ public class ReportService {
                 rows);
     }
 
-    /**
-     * Mục 3.5.6: thiết bị hư hỏng, đang sửa, và thiết bị không còn khả năng sử dụng cần thay thế.
-     *
-     * <p>Nhóm theo TRẠNG THÁI xử lý, không theo tình trạng: báo hỏng đặt tình trạng "hỏng" cho mọi tài sản, nên
-     * "hỏng" không có nghĩa là phải thay — chỉ chờ thanh lý hoặc "không sử dụng được" mới là cần thay thế. Tài sản
-     * kém / hỏng mà chưa ai báo hỏng đứng nhóm riêng: đó là việc chưa ai bắt đầu. Tài sản bị báo mất (kiểm kê
-     * không thấy, chưa ghi giảm) cũng ở đây — nó là việc chờ xử lý như tài sản hỏng; mất đã ghi giảm thì ở báo cáo
-     * ghi giảm.
-     */
-    private Report brokenEquipment(Params p) {
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT CASE WHEN e.status = 'MISSING' THEN 'Chờ ghi giảm do mất'
-                            WHEN e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')
-                                 THEN 'Cần thay thế, ghi giảm'
-                            WHEN e.status IN ('REPAIRING', 'WARRANTY') THEN 'Đang sửa, bảo hành'
-                            WHEN e.status = 'UNREPAIRABLE' THEN 'Hỏng, không sửa được'
-                            WHEN e.status = 'BROKEN' THEN 'Hư hỏng, chờ xử lý'
-                            ELSE 'Xuống cấp, vẫn đang dùng' END AS kind,
-                       CASE WHEN e.status = 'MISSING' THEN 2
-                            WHEN e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION') THEN 4
-                            WHEN e.status IN ('REPAIRING', 'WARRANTY') THEN 3
-                            WHEN e.status = 'UNREPAIRABLE' THEN 2
-                            WHEN e.status = 'BROKEN' THEN 1 ELSE 5 END AS kind_order,
-                       e.id AS equipment_id, s.name AS school, e.code, e.name, c.name AS catalog,
-                       CASE e.status WHEN 'IN_STOCK' THEN 'Trong kho' WHEN 'IN_USE' THEN 'Đang dùng'
-                            WHEN 'BROKEN' THEN 'Hỏng, chờ xử lý' WHEN 'REPAIRING' THEN 'Đang sửa'
-                            WHEN 'UNREPAIRABLE' THEN 'Hỏng, không sửa được'
-                            WHEN 'WARRANTY' THEN 'Đang bảo hành' WHEN 'PENDING_LIQUIDATION' THEN 'Chờ thanh lý'
-                            WHEN 'PENDING_DESTRUCTION' THEN 'Chờ tiêu huỷ'
-                            WHEN 'BORROWED' THEN 'Đang cho mượn' WHEN 'MAINTAINING' THEN 'Đang bảo trì'
-                            WHEN 'MISSING' THEN 'Chờ ghi giảm do mất' ELSE e.status END AS status,
-                       CASE e.condition WHEN 'TOT' THEN 'Tốt' WHEN 'TRUNG_BINH' THEN 'Trung bình'
-                            WHEN 'KEM' THEN 'Kém' WHEN 'HONG' THEN 'Hỏng'
-                            ELSE e.condition END AS condition,
-                       e.original_value, e.remaining_value
-                FROM equipment e
-                JOIN schools s ON s.id = e.school_id
-                LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id
-                WHERE (e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY', 'PENDING_LIQUIDATION', 'PENDING_DESTRUCTION', 'MISSING')
-                       OR (e.condition IN ('KEM', 'HONG')
-                           AND e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED', 'MISSING')))\
-                """ + assets("e", p) + " ORDER BY kind_order, s.name, e.code LIMIT " + LIST_LIMIT);
-        return new Report("broken-equipment", "Thiết bị hư hỏng, mất, cần thay thế", subtitle(p, null),
-                List.of(col("kind", "Nhóm", "text"), col("school", "Trường", "text"), col("code", "Mã thiết bị", "text"),
-                        col("name", "Tên thiết bị", "text"), col("catalog", "DM thiết bị", "text"),
-                        col("status", "Trạng thái", "text"), col("condition", "Tình trạng", "text"),
-                        col("original_value", "Nguyên giá (đ)", "money"),
-                        col("remaining_value", "Giá trị còn lại (đ)", "money")),
-                rows);
-    }
-
     /** Mục 3.5.5: kết quả và chênh lệch của từng phiên kiểm kê trong kỳ. */
     private Report inventory(Params p, LocalDate from, LocalDate to, String period) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
@@ -667,13 +609,14 @@ public class ReportService {
         List<Map<String, Object>> raw = jdbc.queryForList("""
                 SELECT TO_CHAR(DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'MM/YYYY') AS month,
                        DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') AS m,
-                       h.action, COUNT(DISTINCT h.equipment_id) AS n
+                       CASE WHEN h.action = 'GHI_TANG' THEN 'GHI_TANG'
+                            WHEN h.action = 'KIEM_KE' AND h.field = 'status' AND h.to_value = 'Mất' THEN 'MAT'
+                       END AS action, COUNT(DISTINCT h.equipment_id) AS n
                 FROM equipment_history h JOIN equipment e ON e.id = h.equipment_id
                 WHERE h.created_at >= ?::date AND h.created_at < (?::date + 1)\
                 """ + scope("e.school_id", p) + campusRoom("e.room_id", "e.school_id", p)
                 + " GROUP BY 1, 2, 3 ORDER BY 2", from.toString(), to.toString());
-        List<String> actions = List.of("GHI_TANG", "CAP_PHAT", "THU_HOI", "DIEU_CHUYEN", "MUON", "BAO_HONG",
-                "SUA_CHUA", "BAO_HANH", "THANH_LY", "TIEU_HUY", "MAT");
+        List<String> actions = List.of("GHI_TANG", "MAT");
         // Đủ mọi tháng trong kỳ, tháng không phát sinh là dòng số 0: thiếu chúng thì biểu đồ dồn hai tháng có số
         // liệu sát nhau như thể kỳ chỉ dài hai tháng.
         Map<String, Map<String, Object>> byMonth = new LinkedHashMap<>();
@@ -692,7 +635,7 @@ public class ReportService {
         }
         List<Column> columns = new ArrayList<>();
         columns.add(col("month", "Tháng", "text"));
-        actions.forEach(a -> columns.add(col(a, HISTORY_LABELS.get(a), "number")));
+        actions.forEach(a -> columns.add(col(a, MOVEMENT_LABELS.get(a), "number")));
         return new Report("movements", "Biến động thiết bị", subtitle(p, period), columns,
                 new ArrayList<>(byMonth.values()));
     }
@@ -725,6 +668,9 @@ public class ReportService {
     }
 
     private Report adequacyReport(Params p) {
+        if (p.yearId() != null) {
+            return adequacyOfYear(p);
+        }
         Set<Long> only = p.filtered() ? filteredSchools(p) : null;
         List<Map<String, Object>> rows = new ArrayList<>();
         for (AdequacyService.SchoolSummary s : adequacy.summary(p.campusId()).rows()) {
@@ -743,6 +689,33 @@ public class ReportService {
             row.put("percent", s.percent());
             rows.add(row);
         }
+        return adequacyTable(p, rows);
+    }
+
+    /** Năm học đã qua: năm đã chốt đọc bản chốt, chưa chốt thì tính theo dữ liệu năm đó — cùng số với màn chuẩn theo năm. */
+    private Report adequacyOfYear(Params p) {
+        Set<Long> schools = new HashSet<>(jdbc.queryForList("SELECT DISTINCT e.school_id FROM equipment e WHERE TRUE"
+                + scope("e.school_id", p), Long.class));
+        List<Map<String, Object>> rows = new ArrayList<>();
+        yearStandards.results(schools, yearAdequacy.year(p.yearId())).values().forEach(r -> {
+            var lines = r.rowsOf(p.campusId());
+            var t = YearAdequacyService.totals(lines);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("school_code", r.schoolCode());
+            row.put("school", r.schoolName());
+            row.put("level", r.levelName());
+            row.put("norms", t.counted());
+            row.put("met", t.metAdjusted());
+            row.put("unknown", lines.stream().filter(x -> x.requiredTt() == null && x.outsideNeed() == null).count());
+            row.put("shortage", t.counted() - t.metAdjusted());
+            row.put("percent", t.percentAdjusted());
+            rows.add(row);
+        });
+        rows.sort(java.util.Comparator.comparing(x -> String.valueOf(x.get("school"))));
+        return adequacyTable(p, rows);
+    }
+
+    private Report adequacyTable(Params p, List<Map<String, Object>> rows) {
         return new Report("adequacy", "Mức đáp ứng danh mục thiết bị tối thiểu", subtitle(p, null),
                 List.of(col("school_code", "Mã trường", "text"), col("school", "Trường", "text"),
                         col("level", "Cấp học", "text"), col("norms", "Số định mức", "number"),
@@ -796,20 +769,14 @@ public class ReportService {
     /** Nhãn trạng thái tài sản bằng SQL — cùng chữ với {@code ASSET_STATUS_LABELS} ở màn hình. */
     static String statusLabel(String column) {
         return "CASE " + column + " WHEN 'IN_STOCK' THEN 'Trong kho' WHEN 'IN_USE' THEN 'Đang sử dụng'"
-                + " WHEN 'BORROWED' THEN 'Đang cho mượn' WHEN 'BROKEN' THEN 'Hỏng, chờ xử lý'"
-                + " WHEN 'UNREPAIRABLE' THEN 'Hỏng, không sửa được'"
-                + " WHEN 'REPAIRING' THEN 'Đang sửa chữa' WHEN 'WARRANTY' THEN 'Đang bảo hành'"
-                + " WHEN 'MAINTAINING' THEN 'Đang bảo trì' WHEN 'TRANSFERRING' THEN 'Đang điều chuyển'"
-                + " WHEN 'PENDING_LIQUIDATION' THEN 'Chờ thanh lý' WHEN 'PENDING_DESTRUCTION' THEN 'Chờ tiêu huỷ'"
-                + " WHEN 'LIQUIDATED' THEN 'Đã thanh lý' WHEN 'DESTROYED' THEN 'Đã tiêu huỷ'"
-                + " WHEN 'MISSING' THEN 'Chờ ghi giảm do mất'"
+                + " WHEN 'LOST' THEN 'Mất'"
                 + " ELSE " + column + " END";
     }
 
     /** Nhãn tình trạng kỹ thuật bằng SQL — cùng chữ với {@code EQUIPMENT_CONDITION_LABELS}. */
     static String conditionLabel(String column) {
         return "CASE " + column + " WHEN 'TOT' THEN 'Tốt' WHEN 'TRUNG_BINH' THEN 'Trung bình'"
-                + " WHEN 'KEM' THEN 'Kém' WHEN 'HONG' THEN 'Hỏng'"
+                + " WHEN 'KEM' THEN 'Kém'"
                 + " ELSE COALESCE(" + column + ", 'Chưa đánh giá') END";
     }
 
@@ -820,31 +787,20 @@ public class ReportService {
         }
     }
 
-    /** Tài sản trên sổ theo trạng thái sử dụng — mỗi trạng thái của vòng đời một cột. */
+    /** Tài sản trên sổ theo trạng thái sử dụng — mỗi trạng thái một cột. */
     private Report equipmentByStatus(Params p, String group) {
         Dim d = dim(group);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT " + d.select()
                 + ", COUNT(DISTINCT e.school_id) AS schools, COUNT(e.id) AS total,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_STOCK') AS in_stock,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'IN_USE') AS in_use,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'BORROWED') AS borrowed,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'MAINTAINING') AS maintaining,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('REPAIRING', 'WARRANTY')) AS repairing,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('BROKEN', 'UNREPAIRABLE')) AS broken,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'MISSING') AS missing,"
-                + " COUNT(e.id) FILTER (WHERE e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')) AS pending_liquidation,"
-                + " COUNT(e.id) FILTER (WHERE e.status = 'TRANSFERRING') AS transferring"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id" + d.joins()
+                + " COUNT(e.id) FILTER (WHERE e.status = 'IN_USE') AS in_use"
+                + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id" + d.joins()
                 + " WHERE e.status NOT IN" + OFF_BOOK + assets("e", p)
                 + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name");
         List<Column> columns = leadColumns(d);
         schoolsColumn(d, columns);
         columns.addAll(List.of(col("total", "Tổng số", "number"), col("in_stock", "Trong kho", "number"),
-                col("in_use", "Đang sử dụng", "number"), col("borrowed", "Đang cho mượn", "number"),
-                col("maintaining", "Đang bảo trì", "number"), col("repairing", "Đang sửa, bảo hành", "number"),
-                col("broken", "Hỏng, chờ xử lý", "number"), col("missing", "Chờ ghi giảm do mất", "number"),
-                col("pending_liquidation", "Chờ thanh lý / tiêu huỷ", "number"),
-                col("transferring", "Đang điều chuyển", "number")));
+                col("in_use", "Đang sử dụng", "number")));
         return new Report("equipment-by-status", "Thiết bị theo trạng thái sử dụng " + groupTitle(group),
                 subtitle(p, null), columns, rows);
     }
@@ -857,33 +813,31 @@ public class ReportService {
                 + " COUNT(e.id) FILTER (WHERE e.condition = 'TOT') AS good,"
                 + " COUNT(e.id) FILTER (WHERE e.condition = 'TRUNG_BINH') AS average,"
                 + " COUNT(e.id) FILTER (WHERE e.condition = 'KEM') AS poor,"
-                + " COUNT(e.id) FILTER (WHERE e.condition = 'HONG') AS broken,"
                 + " COUNT(e.id) FILTER (WHERE e.condition IS NULL) AS unrated"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id" + d.joins()
+                + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id" + d.joins()
                 + " WHERE e.status NOT IN" + OFF_BOOK + assets("e", p)
                 + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name");
         List<Column> columns = leadColumns(d);
         schoolsColumn(d, columns);
         columns.addAll(List.of(col("total", "Tổng số", "number"), col("good", "Tốt", "number"),
                 col("average", "Trung bình", "number"), col("poor", "Kém", "number"),
-                col("broken", "Hỏng", "number"),
                 col("unrated", "Chưa đánh giá", "number")));
         return new Report("equipment-by-condition", "Thiết bị theo tình trạng kỹ thuật " + groupTitle(group),
                 subtitle(p, null), columns, rows);
     }
 
     /**
-     * Danh sách từng tài sản ở một trạng thái — trong kho, đang dùng, đang mượn, bảo trì, sửa chữa, hỏng / mất,
-     * chờ thanh lý, đang điều chuyển. Một báo cáo thay cho tám, vì tám bảng ấy cùng cột và chỉ khác điều kiện.
+     * Danh sách từng tài sản ở một trạng thái — trong kho, đang sử dụng, mất. Một báo cáo thay cho ba, vì ba
+     * bảng ấy cùng cột và chỉ khác điều kiện.
      */
     private Report equipmentList(Params p, String choice) {
-        String label = STATUS_CHOICES.stream().filter(g -> g.key().equals(choice)).map(Group::label)
+        String label = LIST_CHOICES.stream().filter(g -> g.key().equals(choice)).map(Group::label)
                 .findFirst().orElse(choice);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT e.id AS equipment_id, s.name AS school, e.code, e.name,"
                 + " c.name AS catalog, r.name AS room, st.name AS manager,"
                 + " " + statusLabel("e.status") + " AS status, " + conditionLabel("e.condition") + " AS condition,"
                 + " e.quantity, e.received_date, e.original_value, e.remaining_value"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id"
+                + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id"
                 + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id"
                 + " LEFT JOIN rooms r ON r.id = e.room_id LEFT JOIN staff st ON st.id = e.manager_id"
                 + " WHERE e.status IN (" + LIST_STATUSES.get(choice) + ")" + assets("e", p)
@@ -898,10 +852,6 @@ public class ReportService {
                         col("remaining_value", "Giá trị còn lại (đ)", "money")),
                 rows);
     }
-
-    /** Lịch sử cho thấy tài sản ĐƯỢC DÙNG — cấp phát, mượn, trả, chuyển, sửa, bảo trì, báo hỏng, tiêu hao. */
-    static final String USAGE_ACTIONS = " ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN', 'MUON', 'TRA', 'BAO_HONG',"
-            + " 'SUA_CHUA', 'BAO_HANH', 'BAO_TRI', 'TIEU_HAO') ";
 
     /**
      * Chất lượng dữ liệu: mỗi trường còn bao nhiêu hồ sơ tài sản chưa chuẩn và thiếu gì. Năm điều kiện của hồ sơ
@@ -977,6 +927,11 @@ public class ReportService {
                 + campusRoom(alias + ".room_id", alias + ".school_id", p);
     }
 
+    /** Bảng thiết bị của lần xem: hiện tại, hoặc dựng lại tại cuối năm học đang xem. Dùng với bí danh {@code e}. */
+    String equipment(Params p) {
+        return years.equipment(p.yearId());
+    }
+
     /**
      * Vế lọc cơ sở cho bản ghi gắn phòng {@code roomIdExpr} của trường {@code schoolIdExpr} — phòng trống thuộc cơ sở
      * chính ({@code "NULL"}: bản ghi không có phòng). Không lọc cơ sở thì rỗng. Có khoảng trắng hai đầu.
@@ -1040,6 +995,9 @@ public class ReportService {
             parts.add(nameOf("equipment_types", p.typeId()));
         }
         parts.addAll(ReportFilters.labels(p));
+        if (p.yearId() != null) {
+            parts.addAll(years.labels(p.yearId(), scope("e.school_id", p)));
+        }
         if (period != null) {
             parts.add(period);
         }
@@ -1053,8 +1011,6 @@ public class ReportService {
 
     static String groupTitle(String group) {
         return switch (group) {
-            case "body" -> "theo địa bàn";
-            case "level" -> "theo cấp học";
             case "type" -> "theo loại thiết bị";
             case "origin" -> "theo nguồn hình thành";
             case "room_type" -> "theo loại phòng";

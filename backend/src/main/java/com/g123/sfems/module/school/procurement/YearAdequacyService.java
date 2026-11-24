@@ -37,29 +37,18 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li><b>Năm học:</b> lớp, sĩ số của năm đó; giáo viên theo PHÂN CÔNG của năm đó (277); thiết bị TẠI NGÀY CẮT
  *       ({@code school_years.end_date}, năm hiện tại là lúc này) dựng lại từ {@code equipment_history}. Phòng theo hiện
  *       trạng (loại B, không có lịch sử theo năm).</li>
- *   <li><b>Đang có:</b> mọi thiết bị đã ghi tăng, còn trên sổ tại ngày cắt — KỂ CẢ hỏng, mất (tách cột); trừ thiết bị
- *       đang nằm trên đề nghị ghi giảm đã trình mà chưa hoàn tất (cột "chờ ghi giảm", §7).</li>
+ *   <li><b>Đang có:</b> mọi thiết bị đã ghi tăng, còn trên sổ tại ngày cắt. Mất (kiểm kê kết
+ *       luận) đã ra khỏi sổ nên không tính vào số đang có, chỉ hiện ở cột riêng.</li>
  *   <li><b>Điểm trường:</b> mỗi điểm tính đủ / thiếu riêng; tổng trường là CỘNG các điểm — thừa điểm này không bù thiếu
  *       điểm kia (§7).</li>
  * </ul>
- * Thiết bị thuộc điểm trường theo phòng hiện tại của nó (không phòng → cơ sở chính); thiết bị đã điều chuyển sang
- * trường khác sau ngày cắt tính cho trường cũ (cơ sở chính của trường cũ).
+ * Thiết bị thuộc điểm trường theo phòng hiện tại của nó (không phòng → cơ sở chính).
  */
 @Service
 @Transactional(readOnly = true)
 public class YearAdequacyService {
 
     static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
-
-    /** Đã ra khỏi sổ — không đếm. */
-    static final Set<AssetStatus> OFF_BOOKS = Set.of(AssetStatus.LIQUIDATED, AssetStatus.DESTROYED, AssetStatus.LOST,
-            AssetStatus.NOT_DELIVERED, AssetStatus.USED_UP);
-    /** Chờ ghi giảm theo trạng thái (đề nghị thanh lý / tiêu huỷ đang mở) — không đếm, cột riêng. */
-    static final Set<AssetStatus> PENDING_STATUSES = Set.of(AssetStatus.PENDING_LIQUIDATION,
-            AssetStatus.PENDING_DESTRUCTION);
-    static final Set<AssetStatus> BROKEN = Set.of(AssetStatus.BROKEN, AssetStatus.UNREPAIRABLE, AssetStatus.REPAIRING,
-            AssetStatus.WARRANTY);
-    static final Set<AssetStatus> LOST = Set.of(AssetStatus.MISSING);
 
     private final JdbcTemplate jdbc;
     private final VisibleSchools visibleSchools;
@@ -100,7 +89,7 @@ public class YearAdequacyService {
     public record Row(Long catalogId, String catalogCode, Long normId, String normCode, String name, String subjectName,
             String unitName, Long campusId, String campusName, String allowedKind, String basisText, String allowedText,
             Integer requiredTt,
-            Integer requiredAdjusted, int current, int broken, int lost, int pendingDisposal, Integer shortageTt,
+            Integer requiredAdjusted, int current, int lost, Integer shortageTt,
             Integer shortageAdjusted, Integer surplus, Integer outsideNeed, int proposed, String warning,
             Adjustment adjustment) {
     }
@@ -355,7 +344,7 @@ public class YearAdequacyService {
                 // Nhóm đã chọn nhánh khác: dòng không được chọn về 0.
                 adjusted = 0;
             }
-            int[] h = catalogId == null ? new int[4] : have.getOrDefault(catalogId, new int[4]);
+            int[] h = catalogId == null ? new int[2] : have.getOrDefault(catalogId, new int[2]);
             int current = counted(h);
             Integer shortTt = tt.value() == null ? null : Math.max(0, tt.value() - current);
             Integer shortAdj = adjusted == null ? null : Math.max(0, adjusted - current);
@@ -364,7 +353,7 @@ public class YearAdequacyService {
                     (String) n.get("catalog_name"), (String) n.get("subject_name"), (String) n.get("unit_name"),
                     campus.id(), campus.name(), allowed, (String) n.get("adjust_basis_text"), allowedText(n), tt.value(),
                     adjusted,
-                    current, h[1], h[2], h[3], shortTt, shortAdj, surplus, outside,
+                    current, h[1], shortTt, shortAdj, surplus, outside,
                     catalogId == null ? 0 : proposed.getOrDefault(catalogId, 0), warning, adj);
             String k = catalogId != null ? "c" + catalogId : "n" + normId;
             Row existing = rows.get(k);
@@ -419,9 +408,9 @@ public class YearAdequacyService {
         return n.get("standard_id") + "|" + n.get("subject_id") + "|" + n.get("adjust_group");
     }
 
-    /** Số đang có của một dòng tồn: dùng được + hỏng + mất (chờ ghi giảm không tính). */
+    /** Số đang có của một dòng tồn (mất đã ra khỏi sổ, không tính). */
     static int counted(int[] h) {
-        return h == null ? 0 : h[0] + h[1] + h[2];
+        return h == null ? 0 : h[0];
     }
 
     /** Cộng cả trường = cộng từng điểm trường; thiếu / thừa cộng riêng từng điểm (không bù nhau). */
@@ -444,8 +433,8 @@ public class YearAdequacyService {
             Row adjusted = list.stream().filter(r -> r.adjustment() != null).findFirst().orElse(null);
             out.add(new Row(f.catalogId(), f.catalogCode(), f.normId(), f.normCode(), f.name(), f.subjectName(),
                     f.unitName(), null, null, f.allowedKind(), f.basisText(), f.allowedText(), reqTt, reqAdj,
-                    list.stream().mapToInt(Row::current).sum(), list.stream().mapToInt(Row::broken).sum(),
-                    list.stream().mapToInt(Row::lost).sum(), list.stream().mapToInt(Row::pendingDisposal).sum(), shTt,
+                    list.stream().mapToInt(Row::current).sum(),
+                    list.stream().mapToInt(Row::lost).sum(), shTt,
                     shAdj, sur, outside, list.stream().mapToInt(Row::proposed).sum(), warning,
                     adjusted == null ? null : adjusted.adjustment()));
         }
@@ -501,10 +490,9 @@ public class YearAdequacyService {
     // ------------------------------------------------------------------ dữ liệu nguồn
 
     /**
-     * Thiết bị tại ngày cắt: (trường → (cơ sở → (thiết bị → [dùng được, hỏng, mất, chờ ghi giảm]))). Trạng thái tại
+     * Thiết bị tại ngày cắt: (trường → (cơ sở → (thiết bị → [dùng được, hỏng, mất]))). Trạng thái tại
      * ngày cắt = {@code from_value} của lần đổi trạng thái ĐẦU TIÊN sau ngày cắt (nhãn → mã), không có thì trạng thái
-     * hiện tại. Không còn phiếu điều chuyển, ghi giảm (285) nên trường tại ngày cắt là trường hiện tại và không thiết
-     * bị nào "chờ ghi giảm" theo phiếu. Thiết bị chỉ tính khi đã ghi tăng trước ngày cắt.
+     * hiện tại. Thiết bị chỉ tính khi đã ghi tăng trước ngày cắt.
      */
     private Map<Long, Map<Long, Map<Long, int[]>>> equipmentAt(String ids, Year year, Timestamp cut) {
         StringBuilder labels = new StringBuilder();
@@ -518,18 +506,17 @@ public class YearAdequacyService {
                   SELECT e.id, e.catalog_id, COALESCE(e.quantity, 1) AS qty, e.room_id, e.status,
                          e.school_id AS school_at,
                          %s AS status_before,
-                         %s AS since,
-                         FALSE AS on_disposal
+                         %s AS since
                   FROM equipment e
                   WHERE e.school_id IN (%s)),
                 st AS (
                   SELECT b.*, COALESCE(lb.code, b.status) AS status_at FROM base b
                   LEFT JOIN (VALUES %s) lb(label, code) ON lb.label = b.status_before)
-                SELECT st.school_at, %s AS campus_id, st.catalog_id, st.status_at, st.on_disposal,
+                SELECT st.school_at, %s AS campus_id, st.catalog_id, st.status_at,
                        SUM(st.qty)::int AS n
                 FROM st
                 WHERE st.school_at IN (%s) AND st.since <= ?
-                GROUP BY 1, 2, 3, 4, 5""".formatted(
+                GROUP BY 1, 2, 3, 4""".formatted(
                 past ? """
                         (SELECT h.from_value FROM equipment_history h WHERE h.equipment_id = e.id AND h.field = 'status'
                            AND h.created_at > ? ORDER BY h.created_at, h.id LIMIT 1)""" : "NULL::varchar",
@@ -554,21 +541,13 @@ public class YearAdequacyService {
             } catch (IllegalArgumentException e) {
                 status = AssetStatus.IN_USE;
             }
-            if (OFF_BOOKS.contains(status)) {
-                return;
-            }
             int[] h = out.computeIfAbsent(rs.getLong("school_at"), k -> new HashMap<>())
                     .computeIfAbsent(key(rs.getObject("campus_id")), k -> new HashMap<>())
-                    .computeIfAbsent(rs.getLong("catalog_id"), k -> new int[4]);
+                    .computeIfAbsent(rs.getLong("catalog_id"), k -> new int[2]);
             int n = rs.getInt("n");
-            if (rs.getBoolean("on_disposal") || PENDING_STATUSES.contains(status)) {
-                h[3] += n;
-            } else if (BROKEN.contains(status)) {
-                h[1] += n;
-            } else if (LOST.contains(status)) {
-                h[2] += n;
-            } else {
-                h[0] += n;
+            switch (status) {
+                case IN_STOCK, IN_USE -> h[0] += n;
+                case LOST -> h[1] += n;
             }
         }, args.toArray());
         return out;

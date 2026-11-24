@@ -17,8 +17,8 @@ const ITEM = "relative z-[1] flex w-full items-center gap-2.5 rounded-lg px-3 py
 
 /**
  * Cột trái DÙNG CHUNG của hộp phòng Xem · Sửa · Thêm (mockup "Hộp phòng", trưởng nhóm chốt 13/11/2026): ảnh phòng
- * (đổi ảnh ngay tại đây), mục lục ba nhóm ô (số đỏ = ô bắt buộc còn trống), rồi Thiết bị · Lịch sử sửa chữa · Hồ sơ.
- * Ở Sửa / Thêm (`onPanel` vắng) ba mục dưới mờ đi — chúng là phần xem, không phải ô của form. Bấm Sửa từ hộp Xem thì
+ * (đổi ảnh ngay tại đây), mục lục ba nhóm ô (số đỏ = ô bắt buộc còn trống), rồi Thiết bị · Hồ sơ.
+ * Ở Sửa / Thêm (`onPanel` vắng) các mục dưới mờ đi — chúng là phần xem, không phải ô của form. Bấm Sửa từ hộp Xem thì
  * cột này đứng yên, chỉ thân bên phải thành ô nhập.
  */
 export function RoomRail({ recordId, canWrite, sections, active, onSection, panels, panel, onPanel }: {

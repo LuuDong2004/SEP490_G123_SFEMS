@@ -78,8 +78,6 @@ public class SchoolOverviewController {
              * 12 bình hoá chất và 9.800 tờ giấy cộng vào ra một con số "thiết bị" không ai đối chiếu được.
              */
             long equipment,
-            long equipmentBroken,
-            long pendingLiquidation,
             BigDecimal equipmentValue,
             /** Lớp học đang hoạt động của NĂM HỌC HIỆN HÀNH, và tổng sĩ số của chúng. */
             long classes,
@@ -185,30 +183,27 @@ public class SchoolOverviewController {
                     classes.put(rs.getLong(1), new long[] {rs.getLong(2), rs.getLong(3)});
                 },
                 array));
-        Map<Long, long[]> equipment = new HashMap<>();
+        Map<Long, Long> equipment = new HashMap<>();
         Map<Long, BigDecimal> value = new HashMap<>();
         withArray(ids, array -> jdbc.query(
                 "SELECT school_id, count(*),"
-                        + " count(*) FILTER (WHERE " + Equipment.brokenSql("") + "),"
-                        + " count(*) FILTER (WHERE status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')),"
                         + " coalesce(sum(original_value), 0)"
                         + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK + pin.equipment()
                         + " GROUP BY school_id",
                 rs -> {
                     long sid = rs.getLong(1);
-                    equipment.put(sid, new long[] {rs.getLong(2), rs.getLong(3), rs.getLong(4)});
-                    value.put(sid, rs.getBigDecimal(5));
+                    equipment.put(sid, rs.getLong(2));
+                    value.put(sid, rs.getBigDecimal(3));
                 },
                 array));
 
         List<SchoolStats> rows = new ArrayList<>();
         for (School s : visible) {
-            long[] e = equipment.getOrDefault(s.getId(), new long[3]);
             long[] c = classes.getOrDefault(s.getId(), new long[2]);
             rows.add(new SchoolStats(s.getId(), s.getCode(), s.getName(), s.getWard() == null ? s.getWardText() : s.getWard().getName(),
                     staff.getOrDefault(s.getId(), 0L), campuses.getOrDefault(s.getId(), 0L),
                     buildings.getOrDefault(s.getId(), 0L), rooms.getOrDefault(s.getId(), 0L),
-                    e[0], e[1], e[2], value.getOrDefault(s.getId(), BigDecimal.ZERO), c[0], c[1]));
+                    equipment.getOrDefault(s.getId(), 0L), value.getOrDefault(s.getId(), BigDecimal.ZERO), c[0], c[1]));
         }
         // Tổng của toàn phạm vi, không phải của trang. Lấy riêng danh sách id
         // bằng projection nên chỉ đọc một cột, không dựng lại cả đồ thị thực thể.
@@ -234,8 +229,7 @@ public class SchoolOverviewController {
             long schools,
             long staff,
             long rooms,
-            long equipment,
-            long equipmentBroken) {
+            long equipment) {
     }
 
     /**
@@ -266,7 +260,7 @@ public class SchoolOverviewController {
         withArray(ids, array -> jdbc.query(
                 "SELECT d.id, d.code, d.name, d.type, count(*),"
                         + " coalesce(sum(st.n), 0), coalesce(sum(rm.n), 0),"
-                        + " coalesce(sum(eq.units), 0), coalesce(sum(eq.broken), 0)"
+                        + " coalesce(sum(eq.units), 0)"
                         + " FROM schools s"
                         + " JOIN departments_of_education d"
                         + "   ON d.id = s.department_of_education_id"
@@ -274,8 +268,7 @@ public class SchoolOverviewController {
                         + "   ON st.school_id = s.id"
                         + " LEFT JOIN (SELECT school_id, count(*) n FROM rooms GROUP BY school_id) rm"
                         + "   ON rm.school_id = s.id"
-                        + " LEFT JOIN (SELECT school_id, count(*) units,"
-                        + "                   count(*) FILTER (WHERE " + Equipment.brokenSql("") + ") broken"
+                        + " LEFT JOIN (SELECT school_id, count(*) units"
                         + "            FROM equipment WHERE status NOT IN " + OFF_BOOK
                         + "            GROUP BY school_id) eq"
                         + "   ON eq.school_id = s.id"
@@ -287,7 +280,7 @@ public class SchoolOverviewController {
                 rs -> {
                     out.add(new BodyRow(rs.getLong(1), rs.getString(2), rs.getString(3),
                             rs.getString(4), rs.getLong(5), rs.getLong(6), rs.getLong(7),
-                            rs.getLong(8), rs.getLong(9)));
+                            rs.getLong(8)));
                 },
                 array));
 
@@ -303,22 +296,20 @@ public class SchoolOverviewController {
                     long n = rs.getLong(1);
                     if (n > 0) {
                         out.add(new BodyRow(null, UNASSIGNED, "Chưa xác định cơ quan quản lý",
-                                UNASSIGNED, n, 0, 0, 0, 0));
+                                UNASSIGNED, n, 0, 0, 0));
                     }
                 },
                 array));
         return out;
     }
 
-    /** Hồ sơ đã ra khỏi sổ (thanh lý, ghi giảm do mất, vật tư đã dùng hết) — không đếm là thiết bị của trường. */
-    private static final String OFF_BOOK = "('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')";
+    /** Hồ sơ đã ra khỏi sổ (mất) — không đếm là thiết bị của trường. */
+    private static final String OFF_BOOK = "('LOST')";
 
     /** Các cách xếp danh sách trường ngoài "theo tên": tên tham số → câu đếm theo trường. */
     private static final Map<String, String> SORT_METRICS = Map.of(
             "equipment", "SELECT school_id, count(*) FROM equipment WHERE school_id = ANY(?) AND status NOT IN "
                     + OFF_BOOK + " GROUP BY school_id",
-            "broken", "SELECT school_id, count(*) FROM equipment WHERE school_id = ANY(?) AND status NOT IN "
-                    + OFF_BOOK + " AND " + Equipment.brokenSql("") + " GROUP BY school_id",
             "rooms", "SELECT school_id, count(*) FROM rooms WHERE school_id = ANY(?) GROUP BY school_id",
             "staff", "SELECT school_id, count(*) FROM staff WHERE school_id = ANY(?) GROUP BY school_id");
 
@@ -353,7 +344,7 @@ public class SchoolOverviewController {
                 school.getName(),
                 school.getWard() == null ? school.getWardText() : school.getWard().getName(),
                 t.staff(), t.campuses(), t.buildings(), t.rooms(),
-                t.equipment(), t.equipmentBroken(), t.pendingLiquidation(),
+                t.equipment(),
                 t.equipmentValue(), t.classes(), t.students());
     }
 
@@ -412,24 +403,20 @@ public class SchoolOverviewController {
                 },
                 array));
 
-        long[] eq = new long[3];
+        long[] eq = new long[1];
         BigDecimal[] value = {BigDecimal.ZERO};
         withArray(ids, array -> jdbc.query(
                 "SELECT count(*),"
-                        + " count(*) FILTER (WHERE " + Equipment.brokenSql("") + "),"
-                        + " count(*) FILTER (WHERE status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')),"
                         + " coalesce(sum(original_value), 0)"
                         + " FROM equipment WHERE school_id = ANY(?) AND status NOT IN " + OFF_BOOK + pin.equipment(),
                 rs -> {
                     eq[0] = rs.getLong(1);
-                    eq[1] = rs.getLong(2);
-                    eq[2] = rs.getLong(3);
-                    value[0] = rs.getBigDecimal(4);
+                    value[0] = rs.getBigDecimal(2);
                 },
                 array));
 
         return new SchoolStats(null, null, "Tổng", null, staff, campuses, buildings, rooms,
-                eq[0], eq[1], eq[2], value[0] == null ? BigDecimal.ZERO : value[0], cls[0], cls[1]);
+                eq[0], value[0] == null ? BigDecimal.ZERO : value[0], cls[0], cls[1]);
     }
 
     /**
@@ -505,6 +492,6 @@ public class SchoolOverviewController {
     }
 
     private static SchoolStats empty() {
-        return new SchoolStats(null, null, "Tổng", null, 0, 0, 0, 0, 0, 0, 0, BigDecimal.ZERO, 0, 0);
+        return new SchoolStats(null, null, "Tổng", null, 0, 0, 0, 0, 0, BigDecimal.ZERO, 0, 0);
     }
 }

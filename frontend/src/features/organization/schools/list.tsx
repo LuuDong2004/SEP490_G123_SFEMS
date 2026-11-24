@@ -30,6 +30,9 @@ export const SchoolList = () => {
         id: "code",
         header: "Mã trường",
         enableSorting: true,
+        // Cỡ cột theo nội dung: mã, cấp học, trạng thái giữ cỡ vừa đủ, phần rộng dư chia cho tên trường và cơ quan quản lý.
+        size: 130,
+        meta: { fixed: true },
         cell: ({ getValue }) => (
           <span className="font-mono text-xs font-medium">{getValue()}</span>
         ),
@@ -39,6 +42,8 @@ export const SchoolList = () => {
         enableResizing: true,
         header: "Tên trường",
         enableSorting: true,
+        size: 260,
+        meta: { fill: true },
         // Một dòng tên, không dòng phụ phường / xã: cột Cơ quan quản lý ngay bên cạnh đã nói trường thuộc
         // phường nào, và hai dòng làm bảng cao gấp đôi.
         cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
@@ -47,6 +52,8 @@ export const SchoolList = () => {
         id: "departmentOfEducation",
         enableResizing: true,
         header: "Cơ quan quản lý",
+        size: 380,
+        meta: { fill: true },
         // Không sắp xếp được: API sắp theo thuộc tính của chính trường, không
         // theo tên của bảng liên kết. Bật cờ này lên sẽ cho một cột trông như
         // sắp được mà thật ra bị bỏ qua.
@@ -68,16 +75,20 @@ export const SchoolList = () => {
         id: "educationLevel",
         header: "Cấp học",
         enableSorting: false,
+        size: 110,
+        meta: { fixed: true },
         cell: ({ row }) => {
           const level = row.original.educationLevel;
           if (!level) return <span className="text-muted-foreground">—</span>;
-          return <Badge variant="neutral">{level.shortName ?? level.name}</Badge>;
+          return <Badge variant="info">{level.shortName ?? level.name}</Badge>;
         },
       }),
       columnHelper.accessor("status", {
         id: "status",
         header: "Trạng thái",
         enableSorting: true,
+        size: 170,
+        meta: { fixed: true },
         cell: ({ getValue }) => {
           const status = getValue();
           return (

@@ -6,7 +6,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { AssetCodes } from "@/features/organization/equipment-labels/asset-codes";
+import { canWriteRecord } from "@/shared/lib/can-write";
 import { kyInstance } from "@/shared/api/data";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { LoadingText } from "@/shared/components/spinner";
@@ -55,7 +55,7 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
   const by = new Map(fields.map((f) => [f.label, f]));
   const used = new Set([...HEAD, ...GROUPS.flatMap((g) => g.labels)]);
   const rest = fields.filter((f) => !used.has(f.label));
-  const canWrite = r?._can?.write !== false;
+  const canWrite = canWriteRecord("equipment", r);
   const gone = OFF_BOOK_STATUSES.includes(r?.status);
 
   const groups = [...GROUPS.map((g) => ({ title: g.title, items: g.labels.map((l) => by.get(l)).filter((f): f is FieldItem => !!f) })),
@@ -186,11 +186,10 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
           <h2 className="mt-3 text-lg leading-snug font-bold tracking-tight break-words">{r.name}</h2>
           <div className="text-muted-foreground mt-0.5 flex items-center gap-1 font-mono text-xs">
             <span className="truncate">{r.code}</span>
-            {r.code ? <AssetCodes code={r.code} name={r.name} iconOnly /> : null}
           </div>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {by.get("Trạng thái")?.value}
-            <Badge variant={r.condition === "HONG" ? "destructive" : r.condition === "KEM" ? "warning" : "info"}>
+            <Badge variant={r.condition === "KEM" ? "warning" : "info"}>
               Tình trạng: {EQUIPMENT_CONDITION_LABELS[r.condition] ?? "Chưa đánh giá"}
             </Badge>
             {r.profileComplete === false ? (
@@ -297,7 +296,7 @@ export function EquipmentEditBelow({ record: r }: { record: any }) {
     <AttachmentsPanel
       resource="equipment"
       recordId={r.id}
-      canWrite={r?._can?.write !== false}
+      canWrite={canWriteRecord("equipment", r)}
       description="Ảnh thiết bị (ảnh đầu tiên là ảnh đại diện), hồ sơ kỹ thuật, phiếu bảo hành. Tối đa 10 MB mỗi tệp."
       note="Tệp được lưu ngay khi tải lên, không cần bấm Lưu thay đổi."
       compact

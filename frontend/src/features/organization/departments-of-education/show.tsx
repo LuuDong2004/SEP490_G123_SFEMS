@@ -1,12 +1,14 @@
-import { useCan, useShow } from "@refinedev/core";
+import { useCan, useCustom, useShow } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Landmark } from "lucide-react";
+import { Boxes, DoorOpen, GraduationCap, IdCard, Landmark, School as SchoolIcon } from "lucide-react";
 import React from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
+import { FillBox } from "@/shared/components/layout/fill-box";
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import {
   DataTable,
   RESIZABLE_COLUMN_DEFAULTS,
@@ -18,6 +20,9 @@ import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { formatDateTime } from "@/shared/lib/format";
+import { compactMoney, count } from "@/shared/lib/chart-palette";
+import { API_URL } from "@/shared/api/constants";
+import { customResult } from "@/shared/hooks/use-custom-result";
 import type { School } from "@/domains/school/types";
 import type { DepartmentOfEducation } from "@/domains/department-of-education/types";
 import {
@@ -35,9 +40,47 @@ import { ORG_STATUS_VARIANTS as STATUS_VARIANTS } from "@/shared/lib/status-vari
  */
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-1">
       <span className="text-muted-foreground text-xs">{label}</span>
-      <div className="text-foreground truncate text-sm font-medium">{children}</div>
+      <div className="text-foreground text-sm font-medium break-words">{children}</div>
+    </div>
+  );
+}
+
+/** Số liệu gộp của các trường trực thuộc, cùng nguồn với màn Tổng quan trường học (`/school_overview`). */
+type Totals = {
+  staff: number;
+  campuses: number;
+  buildings: number;
+  rooms: number;
+  equipment: number;
+  equipmentValue: number | string;
+  classes: number;
+  students: number;
+};
+
+/** Một ô trong dải số liệu: biểu tượng màu, nhãn, số lớn, dòng phụ. Bằng 0 thì ghi "Chưa khai". */
+function Stat({ icon: Icon, label, value, hint, tone }: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value?: number;
+  hint?: React.ReactNode;
+  tone: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", tone)}>
+        <Icon className="size-[1.125rem]" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-muted-foreground truncate text-xs">{label}</p>
+        {value ? (
+          <p className="text-primary text-lg leading-tight font-bold tabular-nums">{count.format(value)}</p>
+        ) : (
+          <p className="text-muted-foreground text-sm italic">{value == null ? "…" : "Chưa khai"}</p>
+        )}
+        {hint && value ? <p className="text-muted-foreground truncate text-xs">{hint}</p> : null}
+      </div>
     </div>
   );
 }
@@ -63,6 +106,20 @@ export const DepartmentOfEducationShow = () => {
    * thay vì hiện một bảng rỗng đọc như "đơn vị này không có trường nào".
    */
   const mayReadSchools = useCan({ resource: "schools", action: "list" }).data?.can ?? false;
+  // Bấm một dòng mở chi tiết TRƯỜNG đó. Không khai thì bảng mở theo resource của trang (cơ quan quản lý) với id của
+  // trường, ra lỗi "không tìm thấy cơ quan quản lý".
+  const navigate = useNavigate();
+
+  // Số liệu gộp của mọi trường trực thuộc (trong phạm vi người xem): xin trang 1 dòng, chỉ đọc `totals` và `total`.
+  const { result: overviewResult } = useCustom<{ totals: Totals; total: number }>({
+    url: `${API_URL}/school_overview`,
+    method: "get",
+    config: { query: { body: record?.id, _start: 0, _end: 1 } },
+    queryOptions: { enabled: mayReadSchools && Boolean(record?.id) },
+  });
+  const overview = customResult(overviewResult?.data, "totals");
+  const totals = overview?.totals;
+  const value = Number(totals?.equipmentValue ?? 0);
 
   const columns = React.useMemo(() => {
     const col = createColumnHelper<School>();
@@ -70,14 +127,16 @@ export const DepartmentOfEducationShow = () => {
       col.accessor("code", {
         id: "code",
         header: "Mã trường",
-        size: 160,
+        size: 130,
+        meta: { fixed: true },
         enableSorting: true,
         cell: (c) => <span className="font-mono text-xs">{c.getValue()}</span>,
       }),
       col.accessor("name", {
         id: "name",
         header: "Tên trường",
-        size: 380,
+        size: 260,
+        meta: { fill: true },
         enableSorting: true,
         cell: (c) => (
           <Link
@@ -91,25 +150,27 @@ export const DepartmentOfEducationShow = () => {
       col.display({
         id: "educationLevel",
         header: "Cấp học",
-        size: 120,
+        size: 110,
+        meta: { fixed: true },
         cell: (c) => {
           const level = c.row.original.educationLevel;
           return level ? (
-            <Badge variant="neutral">{level.shortName ?? level.name}</Badge>
+            <Badge variant="info">{level.shortName ?? level.name}</Badge>
           ) : null;
         },
       }),
       col.display({
         id: "ward",
         header: "Phường/Xã",
-        size: 200,
+        size: 180,
         cell: (c) => c.row.original.ward?.name ?? c.row.original.wardText ?? null,
       }),
-      col.accessor("address", { id: "address", header: "Địa chỉ", size: 320 }),
+      col.accessor("address", { id: "address", header: "Địa chỉ", size: 340, meta: { fill: true } }),
       col.accessor("status", {
         id: "status",
         header: "Trạng thái",
-        size: 140,
+        size: 170,
+        meta: { fixed: true },
         cell: (c) => (
           <Badge variant={STATUS_VARIANTS[c.getValue()] ?? "secondary"}>
             {STATUS_LABELS[c.getValue()] ?? c.getValue()}
@@ -148,26 +209,34 @@ export const DepartmentOfEducationShow = () => {
     },
   });
 
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="cơ quan quản lý" />
+      </ShowView>
+    );
+  }
+
   return (
     <ShowView>
       <ShowViewHeader />
       <LoadingOverlay loading={isLoading}>
-        <div className="flex flex-col gap-4">
-          <Card className="gap-0 py-0">
+        {/* Thẻ hồ sơ cao theo nội dung, bảng trường lấp hết phần còn lại của màn (không để trắng ở đáy). */}
+        <FillBox className="gap-4">
+          <Card className="shrink-0 gap-0 py-0">
             <div className="flex flex-wrap items-start gap-3 px-4 py-4">
-              {/* Cùng màu cấp quản lý với cây Tổng quan: Sở đỏ, UBND xanh.
-                  Mở một đơn vị từ cây mà biểu tượng đổi màu thì người đọc phải
-                  đối chiếu lại tên để chắc mình vào đúng chỗ. */}
-              <span className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg">
-                <Landmark className={cn("size-5", bodyTone(record?.type ?? ""))} />
+              {/* Cùng màu cấp quản lý với cây Tổng quan: Sở đỏ, UBND xanh. */}
+              <span className="bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg">
+                <Landmark className={cn("size-6", bodyTone(record?.type ?? ""))} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-xl font-semibold">{record?.name ?? "—"}</h2>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {record?.type
-                    ? MANAGING_BODY_TYPE_LABELS[record.type] ?? record.type
-                    : "Cơ quan quản lý"}
-                  {record?.province ? ` · ${record.province}` : ""}
+                <h2 className="text-xl font-semibold">{record?.name ?? "—"}</h2>
+                <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-sm">
+                  <span className="font-mono">{record?.code ?? "—"}</span>
+                  <span aria-hidden>·</span>
+                  <span>{record?.type ? MANAGING_BODY_TYPE_LABELS[record.type] ?? record.type : "Cơ quan quản lý"}</span>
                 </p>
               </div>
               {record ? (
@@ -177,23 +246,33 @@ export const DepartmentOfEducationShow = () => {
               ) : null}
             </div>
 
-            <div className="border-border bg-surface-subtle grid gap-4 border-t px-4 py-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Fact label="Mã">
-                <span className="font-mono text-xs font-medium">{record?.code ?? "—"}</span>
-              </Fact>
-              <Fact label="Địa chỉ">{record?.address ?? "—"}</Fact>
-              <Fact label="Ngày tạo">
-                {record?.createdAt ? formatDateTime(record.createdAt) : "—"}
-              </Fact>
-              <Fact label="Cập nhật lần cuối">
-                {record?.updatedAt ? formatDateTime(record.updatedAt) : "—"}
-              </Fact>
+            <div className="border-border grid gap-x-6 gap-y-3 border-t px-4 py-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+              <Fact label="Địa chỉ">{record?.address || "Chưa khai"}</Fact>
+              <Fact label="Tỉnh, thành phố">{record?.province || "Chưa khai"}</Fact>
+              <Fact label="Ngày tạo">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</Fact>
+              <Fact label="Cập nhật lần cuối">{record?.updatedAt ? formatDateTime(record.updatedAt) : "Chưa sửa"}</Fact>
             </div>
+
+            {mayReadSchools ? (
+              <div className="border-border bg-surface-subtle grid border-t sm:grid-cols-3 xl:grid-cols-5 xl:divide-x">
+                <Stat icon={SchoolIcon} label="Trường trực thuộc" value={overview?.total} tone="bg-primary/10 text-primary" />
+                <Stat icon={GraduationCap} label="Lớp năm học hiện hành" value={totals?.classes}
+                  hint={totals?.students ? `${count.format(totals.students)} học sinh` : null} tone="bg-info-subtle text-info-text" />
+                <Stat icon={IdCard} label="Cán bộ, giáo viên" value={totals?.staff} tone="bg-success-subtle text-success-text" />
+                <Stat icon={DoorOpen} label="Phòng" value={totals?.rooms}
+                  hint={totals ? `${count.format(totals.campuses)} cơ sở · ${count.format(totals.buildings)} khối nhà` : null}
+                  tone="bg-warning-subtle text-warning-text" />
+                <Stat icon={Boxes} label="Thiết bị trên hệ thống" value={totals?.equipment}
+                  hint={value ? `Nguyên giá ${compactMoney.format(value)} đồng` : null} tone="bg-gold-subtle text-gold-text" />
+              </div>
+            ) : null}
           </Card>
 
           {mayReadSchools ? (
             <DataTable
               table={table}
+              fill
+              onRowDoubleClick={(school) => navigate(`/schools/show/${school.id}`)}
               toolbar={
                 <ListToolbar
                   table={table}
@@ -208,7 +287,7 @@ export const DepartmentOfEducationShow = () => {
               </p>
             </Card>
           )}
-        </div>
+        </FillBox>
       </LoadingOverlay>
     </ShowView>
   );

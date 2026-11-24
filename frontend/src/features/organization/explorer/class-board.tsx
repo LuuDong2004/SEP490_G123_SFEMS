@@ -9,7 +9,7 @@ import { useSchoolYear } from "@/shared/hooks/use-school-year";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 const students = (rows: any[]) => rows.reduce((n: number, r: any) => n + (r.studentCount ?? 0), 0);
 const missing = <span className="text-muted-foreground">Chưa có</span>;
 

@@ -822,6 +822,11 @@ declare module "@tanstack/react-table" {
      * để cột chữ đứng sau (trạng thái…) không dính sát con số.
      */
     numeric?: boolean;
+    /**
+     * Giá trị của cột trong tệp Excel xuất ra — khi ô trên màn là nhãn, chip hay đối tượng (trạng thái → chữ, phòng → tên).
+     * Vắng: lấy giá trị accessor của cột. Cột không có cả hai (STT, thao tác) không vào tệp.
+     */
+    exportValue?: (row: TData) => unknown;
     /** Giữ mở cho meta riêng của từng màn. */
     [key: string]: unknown;
   }

@@ -13,8 +13,8 @@ import java.time.Instant;
 /**
  * Một thay đổi trên một tài sản, kèm phiếu đã làm ra thay đổi đó.
  *
- * <p>Đây là bảng trả lời "cái máy chiếu này đã qua tay ai, ở phòng nào, hỏng
- * mấy lần" mà không phải lục từng loại phiếu. Mọi phiếu khi hoàn tất đều ghi vào
+ * <p>Đây là bảng trả lời "cái máy chiếu này vào sổ từ đâu, ở phòng nào, kiểm kê
+ * kết luận gì" mà không phải lục từng loại phiếu. Mọi phiếu khi hoàn tất đều ghi vào
  * đây, và sửa tay trên hồ sơ thiết bị cũng vậy — nên lịch sử không có khoảng
  * trống nào mà không ai giải thích được.
  *
@@ -28,26 +28,7 @@ public class EquipmentHistory {
     public enum Action {
         GHI_TANG,
         CAP_NHAT,
-        CAP_PHAT,
-        THU_HOI,
-        DIEU_CHUYEN,
-        MUON,
-        TRA,
-        BAO_HONG,
-        SUA_CHUA,
-        BAO_HANH,
-        BAO_TRI,
-        KIEM_KE,
-        CHO_THANH_LY,
-        THANH_LY,
-        CHO_TIEU_HUY,
-        TIEU_HUY,
-        MAT,
-        KHAU_HAO,
-        LUU_KHO,
-        XUAT_KHO,
-        TIEU_HAO,
-        DAT_PHONG
+        KIEM_KE
     }
 
     @Id

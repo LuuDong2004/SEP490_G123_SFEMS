@@ -41,7 +41,7 @@ nhận lại" (vẫn được tính, phải xác nhận hết mới chốt đư�
    / Chọn trong nhóm, kèm câu căn cứ trong thông tư. Ngừng áp dụng từ đúng ngày bắt đầu một năm học.
 1. **Trường khai dữ liệu theo điểm trường**, lãnh đạo trường xác nhận từng điểm.
 2. **Tính**: phải có theo thông tư = dòng danh mục đang hiệu lực × dữ liệu từng điểm trường của năm học. Đang có = thiết bị
-   đã ghi tăng xong và còn trên sổ tại ngày cắt, kể cả hỏng / mất (tách cột); thiết bị đang trên đề nghị ghi giảm không
+   đã ghi tăng xong và còn trên sổ tại ngày cắt (mất tách cột); thiết bị đang trên đề nghị ghi giảm không
    đếm (cột "chờ ghi giảm"). Tổng trường = cộng các điểm (thừa điểm này không bù thiếu điểm kia).
 3. **Trường áp dụng điều chỉnh** theo điểm trường × năm học, có lý do, lưu lịch sử, có hiệu lực ngay (không qua Sở duyệt):
    Giảm → tính với mức Sở cho; Thay thế → bằng thiết bị của danh mục thì máy chủ kiểm có trên sổ, bằng hình thức khác

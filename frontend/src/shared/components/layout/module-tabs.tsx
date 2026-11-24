@@ -21,7 +21,7 @@ export type TabMenuItem = { param: string; value: string; label: string; short?:
 import { tabHint } from "./tab-hints";
 
 /**
- * Thanh tab của PHÂN HỆ đang mở (Thiết bị, Mượn trả, ...), nằm trên đầu vùng nội dung.
+ * Thanh tab của PHÂN HỆ đang mở (Thiết bị, Mua sắm, ...), nằm trên đầu vùng nội dung.
  *
  * Sidebar chỉ có tên phân hệ; các chức năng của nó là các tab ở đây — mở một phiếu, sang
  * tab bên cạnh là tới chức năng kế tiếp của cùng quy trình mà không phải mở lại menu.
@@ -37,8 +37,13 @@ export function ModuleTabs() {
   const { resource, action } = useResourceParams();
   const { perspective } = usePerspective();
   const managementMenu = useManagementMenu(items);
+  const [search] = useSearchParams();
   const parent = resource?.meta?.parent as string | undefined;
   if (!resource) return null;
+  // Màn danh sách mở CHI TIẾT ngay tại chỗ bằng tham số địa chỉ (`meta.detailParam`, vd. `?school=` ở Chuẩn tối thiểu):
+  // cũng là màn chi tiết, nên ẩn thanh tab như `show` bên dưới.
+  const detailParam = resource.meta?.detailParam as string | undefined;
+  if (detailParam && search.get(detailParam)) return null;
   // Đang LẬP / SỬA một phiếu hay bản ghi: thanh tab ẩn đi. Lúc đó người dùng đang làm dở một việc —
   // tab là lối rẽ sang việc khác (và làm mất dữ liệu đang gõ), còn breadcrumb và nút quay lại đã
   // đủ để về danh sách.
@@ -92,6 +97,15 @@ function TabStrip({ label, tabs, current, management = false }: { label: string;
   const [params] = useSearchParams();
   const [ref, indRef] = useLiquid<HTMLElement>(current, { memory: `tabs:${label}` });
   const [edge, setEdge] = useState({ left: false, right: false });
+  const pinned = current.startsWith("report_");
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    if (!pinned) return;
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [pinned]);
 
   useEffect(() => {
     const el = ref.current;
@@ -152,7 +166,10 @@ function TabStrip({ label, tabs, current, management = false }: { label: string;
   return (
     // Thanh chọn kiểu iOS (như thanh chọn nghề của demo_taichinh), bo góc theo thẻ / nút của app: các tab nằm trên một thanh trắng, tab đang
     // mở là viên màu chính nổi lên, trượt kiểu chất lỏng sang tab mới (`useLiquid`).
-    <div className={cn(TAB_STRIP, "block")} data-print="hide">
+    // Màn báo cáo dài (biểu đồ rồi tới bảng): thanh tab đứng yên dưới đầu trang, cuộn xuống vẫn đổi được báo cáo. Đang cuộn thì có
+    // nền che để nội dung trôi qua không lộ quanh góc bo; ở đầu trang thì không, kẻo lộ một ô sáng trên nền trang.
+    <div className={cn(pinned && "sticky top-14 z-20 -mx-2 -my-2 px-2 py-2", pinned && scrolled && "bg-background/95 backdrop-blur-sm")} data-print="hide">
+    <div className={cn(TAB_STRIP, "block")}>
       {edge.left ? (
         <button type="button" aria-label="Xem các tab phía trước" onClick={() => scroll(-1)}
           className="from-muted via-muted text-muted-foreground hover:text-foreground absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-start rounded-l-full bg-gradient-to-r to-transparent ps-2.5">
@@ -249,6 +266,7 @@ function TabStrip({ label, tabs, current, management = false }: { label: string;
           );
         })}
       </nav>
+    </div>
     </div>
   );
 }

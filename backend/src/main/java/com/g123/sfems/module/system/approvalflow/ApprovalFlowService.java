@@ -33,8 +33,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * hỏi nó ở mỗi lần trình / duyệt. Thứ tự quyết định:
  *
  * <ol>
- *   <li>phiếu được MIỄN duyệt theo nội dung ({@link SchoolVoucher#approvalExempt()}) → không bước nào —
- *       luật nghiệp vụ, Sở không đè được;</li>
  *   <li>Sở đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên thì theo
  *       các bước "từ ngưỡng trở lên";</li>
  *   <li>chưa cấu hình → luồng mặc định.</li>
@@ -71,8 +69,6 @@ public class ApprovalFlowService {
             String amountLabel,
             BigDecimal amountThreshold,
             List<ApprovalStep> stepsAbove,
-            boolean receivingSupported,
-            String exemptNote,
             boolean customized,
             String note,
             Instant updatedAt,
@@ -93,18 +89,15 @@ public class ApprovalFlowService {
         if (type == null) {
             return voucher.approvalChain();
         }
-        if (voucher.approvalExempt()) {
-            return List.of();
-        }
         ApprovalFlow flow = current().get(type.resource());
         if (flow == null) {
-            return voucher.limitChain(type.defaultSteps());
+            return type.defaultSteps();
         }
         BigDecimal amount = type.amountLabel() == null ? null : voucher.approvalAmount();
         if (flow.getAmountThreshold() != null && amount != null && amount.compareTo(flow.getAmountThreshold()) >= 0) {
-            return voucher.limitChain(parse(flow.getStepsAbove()));
+            return parse(flow.getStepsAbove());
         }
-        return voucher.limitChain(parse(flow.getSteps()));
+        return parse(flow.getSteps());
     }
 
     /**
@@ -132,7 +125,7 @@ public class ApprovalFlowService {
     @Transactional
     public FlowView save(String resource, FlowRequest request) {
         ApprovalFlowType type = typeOf(resource);
-        List<ApprovalStep> steps = normalize(type, request.steps(), "steps");
+        List<ApprovalStep> steps = normalize(request.steps());
         BigDecimal threshold = request.amountThreshold();
         List<ApprovalStep> above = null;
         if (threshold != null) {
@@ -143,7 +136,7 @@ public class ApprovalFlowService {
             if (threshold.signum() <= 0) {
                 throw new FieldValidationException("amountThreshold", "Ngưỡng tiền phải lớn hơn 0");
             }
-            above = normalize(type, request.stepsAbove(), "stepsAbove");
+            above = normalize(request.stepsAbove());
             if (above.equals(steps)) {
                 throw new FieldValidationException("stepsAbove",
                         "Các bước từ ngưỡng trở lên đang giống hệt các bước thường — bỏ ngưỡng, hoặc chọn bước khác");
@@ -181,7 +174,7 @@ public class ApprovalFlowService {
                 type.amountLabel(),
                 flow == null ? null : flow.getAmountThreshold(),
                 flow == null || flow.getStepsAbove() == null ? null : parse(flow.getStepsAbove()),
-                type.receivingSupported(), type.exemptNote(),
+                
                 flow != null,
                 flow == null ? null : flow.getNote(),
                 flow == null ? null : (flow.getUpdatedAt() != null ? flow.getUpdatedAt() : flow.getCreatedAt()),
@@ -194,17 +187,12 @@ public class ApprovalFlowService {
     }
 
     /**
-     * Bỏ trùng và xếp theo thứ tự CẤP (trường → cơ quan quản lý → cơ quan của trường nhận): một phiếu không
-     * thể lên cơ quan quản lý trước khi trường duyệt. Bước cơ quan của trường nhận chỉ có ở phiếu hai trường.
+     * Bỏ trùng và xếp theo thứ tự CẤP (trường → cơ quan quản lý): một phiếu không
+     * thể lên cơ quan quản lý trước khi trường duyệt.
      */
-    private static List<ApprovalStep> normalize(ApprovalFlowType type, List<ApprovalStep> steps, String field) {
-        List<ApprovalStep> list = steps == null ? List.of()
+    private static List<ApprovalStep> normalize(List<ApprovalStep> steps) {
+        return steps == null ? List.of()
                 : steps.stream().distinct().sorted(Comparator.comparingInt(Enum::ordinal)).toList();
-        if (list.contains(ApprovalStep.RECEIVING_BODY) && !type.receivingSupported()) {
-            throw new FieldValidationException(field,
-                    "%s chỉ có một trường — không có bước cơ quan quản lý của trường nhận".formatted(type.label()));
-        }
-        return list;
     }
 
     private static String join(List<ApprovalStep> steps) {

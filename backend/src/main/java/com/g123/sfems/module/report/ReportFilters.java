@@ -28,7 +28,7 @@ public final class ReportFilters {
     }
 
     /**
-     * Trạng thái chọn được: khoá → các trạng thái gộp (SQL). Cũng là ô chọn của "Danh sách thiết bị theo trạng
+     * Trạng thái chọn được: khoá → trạng thái (SQL). Cũng là ô chọn của "Danh sách thiết bị theo trạng
      * thái". Nằm ở đây, không ở {@link ReportService}: lớp này không được đọc hằng của {@code ReportService} lúc
      * khởi tạo — {@code ReportService.DEFINITIONS} gọi {@link #of} khi chính nó đang khởi tạo.
      */
@@ -37,24 +37,15 @@ public final class ReportFilters {
     static {
         STATUS_SQL.put("IN_STOCK", "'IN_STOCK'");
         STATUS_SQL.put("IN_USE", "'IN_USE'");
-        STATUS_SQL.put("BORROWED", "'BORROWED'");
-        STATUS_SQL.put("MAINTAINING", "'MAINTAINING'");
-        STATUS_SQL.put("REPAIRING", "'REPAIRING', 'WARRANTY'");
-        STATUS_SQL.put("BROKEN", "'BROKEN', 'MISSING'");
-        STATUS_SQL.put("UNREPAIRABLE", "'UNREPAIRABLE'");
-        STATUS_SQL.put("PENDING_LIQUIDATION", "'PENDING_LIQUIDATION'");
-        STATUS_SQL.put("PENDING_DESTRUCTION", "'PENDING_DESTRUCTION'");
-        STATUS_SQL.put("TRANSFERRING", "'TRANSFERRING'");
+        STATUS_SQL.put("LOST", "'LOST'");
     }
 
     static final List<Group> STATUS_CHOICES = List.of(
-            new Group("IN_STOCK", "Trong kho"), new Group("IN_USE", "Đang sử dụng"),
-            new Group("BORROWED", "Đang cho mượn"), new Group("MAINTAINING", "Đang bảo trì"),
-            new Group("REPAIRING", "Đang sửa chữa, bảo hành"), new Group("BROKEN", "Hỏng, báo mất"),
-            new Group("UNREPAIRABLE", "Hỏng, không sửa được"),
-            new Group("PENDING_LIQUIDATION", "Chờ thanh lý"),
-            new Group("PENDING_DESTRUCTION", "Chờ tiêu huỷ"),
-            new Group("TRANSFERRING", "Đang điều chuyển"));
+            new Group("IN_STOCK", "Trong kho"), new Group("IN_USE", "Đang sử dụng"));
+
+    /** Ô chọn của "Danh sách thiết bị theo trạng thái": thêm Mất — báo cáo khác chỉ đếm thiết bị còn trên sổ. */
+    static final List<Group> LIST_CHOICES = Stream.concat(STATUS_CHOICES.stream(),
+            Stream.of(new Group("LOST", "Mất"))).toList();
 
     /** Tình trạng kỹ thuật chọn được: khoá → điều kiện SQL (trên {@code <bí danh>.condition}). */
     private static final Map<String, String> CONDITIONS = new LinkedHashMap<>();
@@ -63,12 +54,11 @@ public final class ReportFilters {
         CONDITIONS.put("TOT", "= 'TOT'");
         CONDITIONS.put("TRUNG_BINH", "= 'TRUNG_BINH'");
         CONDITIONS.put("KEM", "= 'KEM'");
-        CONDITIONS.put("HONG", "= 'HONG'");
         CONDITIONS.put("NONE", "IS NULL");
     }
 
     private static final List<Group> CONDITION_CHOICES = List.of(new Group("TOT", "Tốt"),
-            new Group("TRUNG_BINH", "Trung bình"), new Group("KEM", "Kém"), new Group("HONG", "Hỏng"),
+            new Group("TRUNG_BINH", "Trung bình"), new Group("KEM", "Kém"),
             new Group("NONE", "Chưa đánh giá"));
 
     static final Filter TYPE = new Filter("type", "Loại thiết bị", List.of());
@@ -86,8 +76,6 @@ public final class ReportFilters {
             Map.entry("equipment-by-condition", List.of(TYPE, STATUS)),
             Map.entry("equipment-list", List.of(TYPE, CONDITION)),
             Map.entry("equipment-ledger", List.of(TYPE, STATUS, CONDITION)),
-            Map.entry("broken-equipment", List.of(TYPE)),
-            Map.entry("unused-equipment", List.of(TYPE)),
             Map.entry("idle-equipment", List.of(TYPE, CONDITION)),
             Map.entry("data-quality", List.of(TYPE, STATUS)),
             Map.entry("data-anomalies", List.of(TYPE)),
@@ -104,12 +92,12 @@ public final class ReportFilters {
     static Params only(Params p, List<Filter> filters) {
         boolean type = filters.contains(TYPE);
         boolean status = filters.contains(STATUS) && p.status() != null
-                && STATUS_SQL.containsKey(p.status());
+                && STATUS_CHOICES.stream().anyMatch(g -> g.key().equals(p.status()));
         boolean condition = filters.contains(CONDITION) && p.condition() != null
                 && CONDITIONS.containsKey(p.condition());
         return new Params(p.from(), p.to(), p.year(), p.bodyId(), p.levelId(), p.schoolId(), p.group(), p.choice(),
                 type ? p.typeId() : null, status ? p.status() : null, condition ? p.condition() : null,
-                p.campusId());
+                p.campusId(), p.yearId());
     }
 
     /** Điều kiện SQL của các bộ lọc đang chọn, trên bí danh cho trước. Luôn có khoảng trắng hai đầu. */

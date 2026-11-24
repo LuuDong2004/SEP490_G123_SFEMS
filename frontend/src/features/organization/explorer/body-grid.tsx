@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   DoorOpen,
   Landmark,
   PackageSearch,
@@ -31,7 +30,7 @@ const CARD =
   "rounded-lg border border-border p-4 text-left shadow-e1";
 const CARD_LINK = "hover:border-primary/40 hover:shadow-e2 transition-colors";
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 /** Một số liệu trên thẻ. Ẩn khi bằng 0 — số 0 lặp lại bốn lần chỉ là nhiễu. */
 function Stat({
@@ -64,7 +63,6 @@ export type BodyStats = {
   staff: number;
   rooms: number;
   equipment: number;
-  equipmentBroken: number;
 };
 
 /** Cùng bảng màu với cây — đổi cách nhìn không được làm đổi ý nghĩa của màu. */
@@ -130,12 +128,6 @@ export function BodyGrid({
             </span>
             <Stat icon={DoorOpen} value={b.rooms} label="Phòng" />
             <Stat icon={PackageSearch} value={b.equipment} label="Thiết bị" />
-            <Stat
-              icon={AlertTriangle}
-              value={b.equipmentBroken}
-              label="Hỏng / kém"
-              tone="text-warning-text"
-            />
           </div>
         </button>
       ))}
@@ -166,13 +158,7 @@ export function SchoolGrid({ schools, emptyText }: { schools: any[]; emptyText: 
           <div className="text-muted-foreground mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <Stat icon={DoorOpen} value={s.rooms ?? 0} label="Phòng" />
             <Stat icon={PackageSearch} value={s.equipment ?? 0} label="Thiết bị" />
-            <Stat
-              icon={AlertTriangle}
-              value={s.equipmentBroken ?? 0}
-              label="Hỏng / kém"
-              tone="text-warning-text"
-            />
-            {!s.rooms && !s.equipment ? <span>Chưa nhập cơ sở vật chất, thiết bị</span> : null}
+            {!s.rooms && !s.equipment ? <span className="text-destructive italic">Chưa nhập cơ sở vật chất, thiết bị</span> : null}
           </div>
         </Link>
       ))}

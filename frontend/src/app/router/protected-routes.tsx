@@ -7,6 +7,7 @@ import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { ProcessPage } from "@/shared/components/process/process-page";
 import { PROCESS_BY_ROUTE } from "@/app/resources/modules";
 
+import { WriteGuard } from "@/app/router/write-guard";
 import { Dashboard } from "@/features/dashboard";
 import { ReportSnapshotShow, Reports } from "@/features/reports";
 import {
@@ -20,7 +21,6 @@ import { ENUM_CATALOGS } from "@/features/catalogs";
 
 import { EnumCatalogList } from "@/features/catalogs";
 import {
-  EquipmentLookup,
   EquipmentAdequacy,
   EquipmentMinimum,
   StaffAssignmentsPage,
@@ -119,7 +119,9 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
               <Layout>
                 {/* Màn hình là chunk tải khi mở tới (`lazyNamed`): khung vẫn đứng, chỉ vùng nội dung chờ. */}
                 <Suspense fallback={<FullPageSpinner label="Đang tải" />}>
-                  <Outlet />
+                  <WriteGuard>
+                    <Outlet />
+                  </WriteGuard>
                 </Suspense>
               </Layout>
             ) : (
@@ -426,14 +428,6 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
         />
         {/* "Số lượng tối thiểu" đã gộp vào Danh mục thiết bị tối thiểu (trưởng nhóm 17/11/2026) — địa chỉ cũ chuyển sang đó. */}
         <Route path="/norm-matrix" element={<Navigate to="/equipment-standards" replace />} />
-        <Route
-          path="/equipment-lookup"
-          element={
-            <CanAccess resource="equipment_lookup" action="list" fallback={<Forbidden resource="equipment" />}>
-              <EquipmentLookup />
-            </CanAccess>
-          }
-        />
         <Route
           path="/data-imports"
           element={

@@ -9,7 +9,7 @@ import type { NormRow } from "@/domains/procurement/types";
 
 import { STATUS_FILTERS, statusesOf, type AdequacyView, type StatusFilter } from "../purchase-proposals/adequacy-table";
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 const COLUMNS: DetailColumn[] = [
   { key: "code", label: "Mã DM thiết bị" },

@@ -48,7 +48,7 @@ const Missing = ({ staffId }: { staffId: number }) => (
 
 /**
  * Nhóm người hay được chọn nhất ở một ô — đưa LÊN ĐẦU danh sách khi mở hộp (không lọc bỏ ai): người
- * mượn thường là giáo viên, thủ kho thường là thủ kho / cán bộ thiết bị, chủ tịch hội đồng là lãnh đạo.
+ * dạy thường là giáo viên, thủ kho thường là thủ kho / cán bộ thiết bị, chủ tịch hội đồng là lãnh đạo.
  */
 export type StaffPrefer = "teacher" | "staff" | "keeper" | "leader";
 

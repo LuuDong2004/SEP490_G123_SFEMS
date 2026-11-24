@@ -119,6 +119,22 @@ public class YearStandardService {
         return out;
     }
 
+    /** Kết quả của nhiều trường một năm (không kiểm phạm vi — nơi gọi đã lọc): bản chốt nếu đã chốt, không thì tính. */
+    public Map<Long, SchoolYearResult> results(Set<Long> schools, Year year) {
+        Map<Long, SchoolYearResult> out = new HashMap<>();
+        Set<Long> live = new HashSet<>();
+        for (Long school : schools) {
+            Map<String, Object> closing = closingOf(school, year.id());
+            if (closing == null) {
+                live.add(school);
+            } else {
+                out.put(school, fromClosing(((Number) closing.get("id")).longValue(), school, year));
+            }
+        }
+        out.putAll(adequacy.compute(live, year));
+        return out;
+    }
+
     /** Kết quả (cả các điểm trường) của một trường một năm: bản chốt nếu đã chốt, không thì tính. */
     public SchoolYearResult result(Long school, Year year) {
         Map<String, Object> closing = closingOf(school, year.id());
@@ -153,8 +169,8 @@ public class YearStandardService {
                     (Long) rs.getObject("norm_id"), rs.getString("norm_code"), rs.getString("name"),
                     rs.getString("subject_name"), rs.getString("unit_name"), campusId, rs.getString("campus_name"),
                     rs.getString("allowed_kind"), rs.getString("basis_text"), null, (Integer) rs.getObject("required_tt"),
-                    (Integer) rs.getObject("required_adjusted"), rs.getInt("current_qty"), rs.getInt("broken"),
-                    rs.getInt("lost"), rs.getInt("pending_disposal"), (Integer) rs.getObject("shortage_tt"),
+                    (Integer) rs.getObject("required_adjusted"), rs.getInt("current_qty"),
+                    rs.getInt("lost"), (Integer) rs.getObject("shortage_tt"),
                     (Integer) rs.getObject("shortage_adjusted"), (Integer) rs.getObject("surplus"),
                     (Integer) rs.getObject("outside_need"), rs.getInt("proposed"), rs.getString("warning"), adj);
         }, closingId);

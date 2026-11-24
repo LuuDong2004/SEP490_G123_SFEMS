@@ -46,8 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
  *
  * <p>Duyệt biên bản là ghi kết quả vào sổ (KK-06, trưởng nhóm chốt 20/11/2026): thiếu → trạng thái "Mất", hỏng →
- * "Hỏng, chờ xử lý", sai vị trí → phòng theo nơi thấy; mỗi thay đổi một dòng lịch sử thiết bị. Ghi giảm, báo hỏng,
- * điều chuyển nằm ngoài phạm vi đồ án nên không sinh phiếu cho chúng. Riêng thiết bị thừa thì lập phiếu ghi tăng nháp
+ * "Hỏng", sai vị trí → phòng theo nơi thấy; mỗi thay đổi một dòng lịch sử thiết bị. Riêng
+ * thiết bị thừa thì lập phiếu ghi tăng nháp
  * (nguồn "Kiểm kê thừa", PN-01) — tự động lúc duyệt, và còn nút LẬP NHANH ({@link #followUp}) nếu phiếu đó bị huỷ.
  */
 @Service
@@ -105,10 +105,6 @@ public class InventorySessionService
         List<InventoryLine> lines = new ArrayList<>();
         int lineNo = 1;
         for (Equipment item : equipment.onRegister(voucher.getSchool().getId(), room == null ? null : room.getId())) {
-            if (item.getStatus() == AssetStatus.MISSING) {
-                // Đang chờ quyết định ghi giảm do mất — đã biết là không còn, đếm lại chỉ sinh đề nghị trùng.
-                continue;
-            }
             InventoryLine line = new InventoryLine();
             line.setLineNo(lineNo++);
             line.setEquipment(item);
@@ -334,7 +330,7 @@ public class InventorySessionService
 
     /**
      * Biên bản được duyệt: ghi kết quả vào hồ sơ từng tài sản (đúng như hộp duyệt nói) — khớp thì một dòng lịch sử;
-     * thiếu → "Mất"; hỏng → tình trạng hỏng, trạng thái "Hỏng, chờ xử lý"; sai vị trí → chuyển về phòng thực tế thấy.
+     * thiếu → "Mất"; sai vị trí → chuyển về phòng thực tế thấy.
      * Thừa → phiếu ghi tăng nháp. Tài sản đã ở trạng thái khác (vd. đã mất từ trước) thì chỉ ghi lịch sử.
      */
     @Override
@@ -356,12 +352,6 @@ public class InventorySessionService
                 }
                 continue;
             }
-            if (found.contains(Discrepancy.DAMAGED)) {
-                lifecycle.condition(item, EquipmentCondition.HONG, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
-                if (onBook) {
-                    lifecycle.status(item, AssetStatus.BROKEN, Action.KIEM_KE, ref, "Kiểm kê: phát hiện hỏng");
-                }
-            }
             if (found.contains(Discrepancy.WRONG_ROOM)) {
                 String note = "Kiểm kê: thấy ở " + (line.getFoundRoom() == null ? "kho" : line.getFoundRoom().getName())
                         + ", hệ thống ghi " + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName());
@@ -378,8 +368,8 @@ public class InventorySessionService
         }
     }
 
-    /** Trạng thái còn trong sổ — kiểm kê được phép đổi sang mất / hỏng / phòng khác. */
-    private static final Set<AssetStatus> ON_BOOK = Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE, AssetStatus.BROKEN);
+    /** Trạng thái còn trong sổ — kiểm kê được phép đổi sang mất / phòng khác. */
+    private static final Set<AssetStatus> ON_BOOK = Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE);
 
     // ------------------------------------------------------------------ lập phiếu nhanh sau kiểm kê
 
@@ -429,7 +419,7 @@ public class InventorySessionService
 
     /**
      * Lập nhanh phiếu nháp cho một nhóm chênh lệch của biên bản ĐÃ DUYỆT, chỉ với những tài sản chưa có phiếu. Dùng lại
-     * đúng các listener đã có (đề nghị ghi giảm, báo hỏng, cấp phát, ghi tăng) — phiếu nháp ra đời giống hệt phiếu lập
+     * đúng listener của phiếu ghi tăng — phiếu nháp ra đời giống hệt phiếu lập
      * tay, mang nguồn là biên bản này, người dùng sửa / bớt dòng rồi tự trình.
      */
     @Transactional
@@ -482,8 +472,8 @@ public class InventorySessionService
 
     /**
      * Số tóm tắt của từng biên bản, đếm bằng SQL — cùng phép đếm với {@code InventoryLine.discrepancies()}: không
-     * thấy là thiếu; thấy mà khác phòng trên sổ là sai vị trí; thấy hỏng mà sổ chưa ghi hỏng là hỏng; thấy và không
-     * lệch gì là khớp. Đổi một bên thì đổi bên kia.
+     * thấy là thiếu; thấy mà khác phòng trên sổ là sai vị trí; thấy và không lệch gì
+     * là khớp. Đổi một bên thì đổi bên kia.
      */
     @Transactional(readOnly = true)
     public Map<Long, InventorySessionApi.Summary> summaries(Collection<Long> sessionIds) {
@@ -499,20 +489,16 @@ public class InventorySessionService
                 });
         jdbc.query("""
                 SELECT session_id, COUNT(*), COUNT(found),
-                       COUNT(*) FILTER (WHERE found AND expected_room_id IS NOT DISTINCT FROM found_room_id
-                                         AND NOT COALESCE(found_condition = 'HONG'
-                                                          AND expected_condition IS DISTINCT FROM 'HONG', FALSE)),
+                       COUNT(*) FILTER (WHERE found AND expected_room_id IS NOT DISTINCT FROM found_room_id),
                        COUNT(*) FILTER (WHERE NOT found),
-                       COUNT(*) FILTER (WHERE found AND expected_room_id IS DISTINCT FROM found_room_id),
-                       COUNT(*) FILTER (WHERE found AND found_condition = 'HONG'
-                                         AND expected_condition IS DISTINCT FROM 'HONG')
+                       COUNT(*) FILTER (WHERE found AND expected_room_id IS DISTINCT FROM found_room_id)
                 FROM inventory_lines WHERE session_id IN (%s) GROUP BY session_id""".formatted(in), rs -> {
                     long id = rs.getLong(1);
                     result.put(id, new InventorySessionApi.Summary(rs.getInt(2), rs.getInt(3), rs.getInt(4),
-                            rs.getInt(5), rs.getInt(6), rs.getInt(7), surplus.getOrDefault(id, 0)));
+                            rs.getInt(5), rs.getInt(6), surplus.getOrDefault(id, 0)));
                 });
         for (Long id : sessionIds) {
-            result.computeIfAbsent(id, k -> new InventorySessionApi.Summary(0, 0, 0, 0, 0, 0,
+            result.computeIfAbsent(id, k -> new InventorySessionApi.Summary(0, 0, 0, 0, 0,
                     surplus.getOrDefault(k, 0)));
         }
         return result;

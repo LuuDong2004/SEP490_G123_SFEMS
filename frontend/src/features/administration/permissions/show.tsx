@@ -10,6 +10,7 @@ import {
   ShowView,
   ShowViewHeader,
 } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import type { Role } from "@/domains/role/types";
@@ -54,6 +55,16 @@ export const PermissionShow = () => {
   }, [record, roleResult?.data]);
 
   const { resource, action } = splitPermissionCode(record?.code ?? "");
+
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="quyền" />
+      </ShowView>
+    );
+  }
 
   return (
     <ShowView>

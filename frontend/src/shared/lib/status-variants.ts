@@ -64,39 +64,13 @@ export const VOUCHER_STATUS_VARIANTS: Record<
 };
 
 /**
- * Trạng thái của một TÀI SẢN (`AssetStatus`) — một bảng cho mọi nơi vẽ nhãn trạng thái tài sản (hồ sơ, bảng
- * thiết bị, hộp chọn tài sản, tra cứu): đang dùng xanh, tạm vắng mặt (cho mượn, điều chuyển) xanh dương, đang
- * xử lý kỹ thuật hoặc chờ quyết định vàng, hỏng / mất đỏ, còn lại trung tính.
+ * Trạng thái của một THIẾT BỊ (`AssetStatus`) — một bảng cho mọi nơi vẽ nhãn: đang dùng xanh, mất đỏ, trong
+ * kho trung tính.
  */
-/** Màu chip của 7 nhóm trạng thái thiết bị (`ASSET_STATUS_GROUP_OF`). */
-export const ASSET_STATUS_GROUP_VARIANTS: Record<string, BadgeVariant> = {
-  stock: "neutral",
-  use: "success",
-  moving: "info",
-  repair: "warning",
-  broken: "destructive",
-  leaving: "warning",
-  gone: "neutral",
-};
-
 export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   IN_STOCK: "neutral",
   IN_USE: "success",
-  BORROWED: "info",
-  TRANSFERRING: "info",
-  MAINTAINING: "warning",
-  REPAIRING: "warning",
-  WARRANTY: "warning",
-  PENDING_LIQUIDATION: "warning",
-  PENDING_DESTRUCTION: "warning",
-  BROKEN: "destructive",
-  UNREPAIRABLE: "destructive",
-  MISSING: "destructive",
   LOST: "destructive",
-  NOT_DELIVERED: "destructive",
-  LIQUIDATED: "neutral",
-  DESTROYED: "neutral",
-  USED_UP: "neutral",
 };
 
 /** Kết quả chấm chuẩn CSVC (203): đạt xanh, chưa đạt đỏ nhạt, chưa có quy tắc trung tính. */
@@ -126,12 +100,10 @@ export const NORM_VALIDITY_VARIANTS: Record<"active" | "stopped" | "expired", Ba
   expired: "destructive",
 };
 
-/** Hồ sơ năm học (docs/du-lieu-theo-nam-hoc.md §3): Đang khai · Đã xác nhận · Đã chốt · Mở lại. */
-export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CONFIRMED" | "CLOSED" | "REOPENED", BadgeVariant> = {
+/** Hồ sơ năm học: Đang khai · Đã chốt (một bước, trưởng nhóm 24/11/2026). */
+export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CLOSED", BadgeVariant> = {
   DRAFT: "neutral",
-  CONFIRMED: "info",
   CLOSED: "success",
-  REOPENED: "warning",
 };
 
 /** Kiểu điều chỉnh trường áp dụng (279) — cùng họ màu với mockup danh mục điều chỉnh. */

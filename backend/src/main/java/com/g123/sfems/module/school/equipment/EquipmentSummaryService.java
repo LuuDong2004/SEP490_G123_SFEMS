@@ -31,10 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Màn Thiết bị dạng TỔNG HỢP SỐ LƯỢNG: mỗi dòng một mặt hàng (hoặc một mặt hàng trong
  * một kho/phòng), cột là số lượng tách theo tình trạng — tổng, dùng được, đang dùng,
- * trong kho, đang mượn, hỏng, mất — cùng số tối thiểu trường cần có của mặt hàng.
+ * trong kho, hỏng — cùng số tối thiểu trường cần có của mặt hàng.
  *
- * <p>Mọi thứ đều đếm từ {@code equipment} (bỏ đã thanh lý / đã mất / đã dùng hết): thiết bị
- * mỗi bản ghi một cái, VẬT TƯ TIÊU HAO mỗi bản ghi một lô mang số lượng ({@code quantity}),
+ * <p>Mọi thứ đều đếm từ {@code equipment} (bỏ thiết bị đã mất): thiết bị
+ * mỗi bản ghi một cái, VẬT TƯ TIÊU HAO mỗi bản ghi mang số lượng ({@code quantity}),
  * nên tổng là {@code SUM(quantity)} chứ không phải số bản ghi.
  *
  * <p>Đơn vị tính của một dòng là đơn vị trên HỒ SƠ của chính các thiết bị được cộng (hồ sơ để
@@ -51,8 +51,8 @@ public class EquipmentSummaryService {
 
     public enum By { CATALOG, ROOM }
 
-    /** Trạng thái của tài sản đã ra khỏi sổ: thanh lý / tiêu huỷ, ghi giảm do mất, vật tư đã dùng hết. */
-    private static final String OFF_BOOK_SQL = "'LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED'";
+    /** Trạng thái của tài sản đã ra khỏi sổ: mất. */
+    private static final String OFF_BOOK_SQL = "'LOST'";
 
     /**
      * {@code schoolIds}: chỉ các trường này (xuất Excel theo trường tự chọn); rỗng / vắng = không giới hạn thêm.
@@ -99,9 +99,12 @@ public class EquipmentSummaryService {
     private final SummaryCache<Map<String, Object>> cache;
     private final SummaryCache<Long> countCache;
     private final CampusScope campusScope;
+    private final com.g123.sfems.module.school.procurement.AdequacyService adequacy;
 
     public EquipmentSummaryService(JdbcTemplate jdbc, VisibleSchools visible, EquipmentCatalogService catalogs,
-                                   SharedCache shared, CampusScope campusScope) {
+                                   SharedCache shared, CampusScope campusScope,
+                                   com.g123.sfems.module.school.procurement.AdequacyService adequacy) {
+        this.adequacy = adequacy;
         this.jdbc = jdbc;
         this.visible = visible;
         this.catalogs = catalogs;
@@ -175,19 +178,19 @@ public class EquipmentSummaryService {
         columns.add(new XlsxWriter.Column("type", "Loại", "text"));
         columns.add(new XlsxWriter.Column("tracking", "Cách quản lý", "text"));
         columns.add(new XlsxWriter.Column("total", "Tổng", "number"));
-        columns.add(new XlsxWriter.Column("usable", "Dùng được", "number"));
         columns.add(new XlsxWriter.Column("in_use", "Đang dùng", "number"));
         columns.add(new XlsxWriter.Column("in_stock", "Trong kho", "number"));
-        columns.add(new XlsxWriter.Column("borrowed", "Đang mượn", "number"));
-        columns.add(new XlsxWriter.Column("broken", "Hỏng, đang sửa, đang bảo hành", "number"));
-        columns.add(new XlsxWriter.Column("missing", "Mất", "number"));
+        if (!byRoom) {
+            columns.add(new XlsxWriter.Column("required", "Chuẩn tối thiểu: phải có", "number"));
+            columns.add(new XlsxWriter.Column("shortage", "Chuẩn tối thiểu: còn thiếu", "number"));
+        }
         columns.add(new XlsxWriter.Column("minimum", "Thuộc danh mục tối thiểu", "text"));
         return new XlsxWriter.Sheet(title, "Số lượng theo đơn vị tính của từng thiết bị", columns, rows);
     }
 
     /** Đơn vị nhỏ → đơn vị lớn gấp nghìn lần, theo tên trong danh mục Đơn vị tính (viết thường). */
     private static final Map<String, String> THOUSANDFOLD = Map.of("gam", "Kg", "g", "Kg", "mililít", "Lít", "ml", "Lít");
-    private static final List<String> QUANTITIES = List.of("total", "usable", "in_use", "in_stock", "borrowed", "broken", "missing");
+    private static final List<String> QUANTITIES = List.of("total", "in_use", "in_stock", "required", "shortage");
 
     /**
      * Hoá chất ghi theo gam / mililít (đơn vị của phụ lục thông tư) mà từ 1.000 trở lên thì ghi ra tệp theo
@@ -257,8 +260,46 @@ public class EquipmentSummaryService {
         List<Object> args = new ArrayList<>();
         StringBuilder where = commonWhere(f, args);
         List<Map<String, Object>> rows = jdbc.queryForList(summarySql(by == By.ROOM, where), args.toArray());
+        if (by == By.CATALOG) {
+            withStandard(rows, f);
+        }
         long schools = rows.stream().map(r -> ((Number) r.get("schools")).longValue()).max(Long::compare).orElse(0L);
         return Map.of("by", by.name().toLowerCase(), "rows", rows, "maxSchools", schools);
+    }
+
+    /**
+     * Gắn đối chiếu chuẩn tối thiểu vào từng dòng (bảng Tổng hợp): {@code required} là số phải có, {@code shortage}
+     * là số còn thiếu, cộng trên các trường đang xem. Thiết bị không thuộc chuẩn của trường nào trong phạm vi thì
+     * để trống (giao diện ghi "—"). Chuẩn tính theo trường, không theo phòng, nên bảng Theo kho/phòng không có.
+     */
+    private void withStandard(List<Map<String, Object>> rows, Filters f) {
+        Set<Long> schools = schoolsInFilter(f);
+        Map<Long, int[]> totals = adequacy.catalogTotals(schools, f.campusId());
+        for (Map<String, Object> r : rows) {
+            int[] t = totals.get(((Number) r.get("catalog_id")).longValue());
+            r.put("required", t == null ? null : t[0]);
+            r.put("shortage", t == null ? null : t[1]);
+            r.put("short_schools", t == null ? null : t[2]);
+        }
+    }
+
+    /** Các trường bộ lọc khoanh lại (một trường, danh sách trường, một cơ quan quản lý); {@code null} = cả phạm vi. */
+    private Set<Long> schoolsInFilter(Filters f) {
+        if (f.schoolId() != null) {
+            return Set.of(f.schoolId());
+        }
+        if (f.schoolIds() != null && !f.schoolIds().isEmpty()) {
+            return Set.copyOf(f.schoolIds());
+        }
+        if (f.schoolBody() != null && !f.schoolBody().isBlank()) {
+            String body = f.schoolBody().trim();
+            List<Long> ids = body.equals("none")
+                    ? jdbc.queryForList("SELECT id FROM schools WHERE department_of_education_id IS NULL", Long.class)
+                    : jdbc.queryForList("SELECT id FROM schools WHERE department_of_education_id = ?", Long.class,
+                            Long.parseLong(body));
+            return Set.copyOf(ids);
+        }
+        return null;
     }
 
     private String summarySql(boolean byRoom, CharSequence where) {
@@ -273,13 +314,9 @@ public class EquipmentSummaryService {
                        COUNT(DISTINCT x.school_id) AS schools,
                        COUNT(*) AS records,
                        SUM(x.q) AS total,
-                       SUM(x.q) FILTER (WHERE x.status IN ('IN_STOCK', 'IN_USE', 'BORROWED', 'MAINTAINING')) AS usable,
+                       SUM(x.q) FILTER (WHERE x.status IN ('IN_STOCK', 'IN_USE')) AS usable,
                        SUM(x.q) FILTER (WHERE x.status = 'IN_USE') AS in_use,
-                       SUM(x.q) FILTER (WHERE x.status = 'IN_STOCK') AS in_stock,
-                       SUM(x.q) FILTER (WHERE x.status = 'BORROWED') AS borrowed,
-                       SUM(x.q) FILTER (WHERE x.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')) AS broken,
-                       SUM(x.q) FILTER (WHERE x.status = 'MISSING') AS missing,
-                       SUM(x.q) FILTER (WHERE x.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION', 'TRANSFERRING', 'MAINTAINING')) AS other
+                       SUM(x.q) FILTER (WHERE x.status = 'IN_STOCK') AS in_stock
                 FROM items x
                 JOIN equipment_catalogs c ON c.id = x.catalog_id
                 JOIN schools sc ON sc.id = x.school_id
@@ -422,7 +459,7 @@ public class EquipmentSummaryService {
                     : " AND x.status IN (" + String.join(",", Collections.nCopies(statuses.size(), "?")) + ") ");
             args.addAll(statuses);
         }
-        // Không lọc trạng thái thì bảng liệt kê CẢ hồ sơ đã ra khỏi sổ (Mất, Đã thanh lý, Đã tiêu huỷ, Đã dùng hết),
+        // Không lọc trạng thái thì bảng liệt kê CẢ hồ sơ đã ra khỏi sổ (Mất),
         // xếp cuối và mang đúng trạng thái: hồ sơ không bao giờ biến mất vì lịch sử và phiếu còn trỏ tới nó (trưởng
         // nhóm, 26/10). Chỉ PHÉP ĐẾM bỏ chúng — cột trái và bảng tổng hợp vẫn lọc `OFF_BOOK_SQL`.
         if (i.intakeId() != null) {
@@ -445,9 +482,6 @@ public class EquipmentSummaryService {
         // Hạn sử dụng: `expired` = đã quá hạn, `soon` = còn trong hạn nhưng hết hạn trong 30 ngày tới.
         if ("expired".equals(i.expiry())) {
             where.append(" AND x.expiry_date < CURRENT_DATE ");
-        } else if ("valid".equals(i.expiry())) {
-            // Còn dùng được: không ghi hạn hoặc chưa quá hạn — ô chọn lô của phiếu tiêu hao.
-            where.append(" AND (x.expiry_date IS NULL OR x.expiry_date >= CURRENT_DATE) ");
         } else if ("soon".equals(i.expiry())) {
             where.append(" AND x.expiry_date >= CURRENT_DATE AND x.expiry_date <= CURRENT_DATE + ? ");
             args.add(EXPIRY_WARNING_DAYS);
@@ -503,6 +537,8 @@ public class EquipmentSummaryService {
             case "inUseYear" -> IN_USE_YEAR_SQL + " " + dir + " NULLS LAST, x.code NULLS LAST";
             case "intake" -> "(SELECT i.code FROM equipment_intake_lines il JOIN equipment_intakes i ON i.id = il.intake_id"
                     + " WHERE il.id = x.intake_line_id) " + dir + " NULLS LAST, x.code NULLS LAST";
+            // Tệp Excel của bảng Từng thiết bị: các dòng của một trường đứng liền nhau.
+            case "school" -> "sc.name, c.name, x.code NULLS LAST, x.id";
             default -> "c.name, x.code NULLS LAST";
         };
         String from = """

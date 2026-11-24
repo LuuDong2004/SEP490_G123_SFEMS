@@ -9,9 +9,7 @@ package com.g123.sfems.domain.school.voucher;
  * <ul>
  *   <li>{@link #SCHOOL} — tài khoản gắn với trường của phiếu (lãnh đạo trường).</li>
  *   <li>{@link #MANAGING_BODY} — tài khoản gắn với cơ quan quản lý của trường:
- *       UBND với trường Tiểu học, THCS; Sở với trường THPT.</li>
- *   <li>{@link #RECEIVING_BODY} — cơ quan quản lý của trường NHẬN, khi phiếu có
- *       trường nhận và trường đó thuộc cơ quan khác (điều chuyển liên đơn vị).</li>
+ *       Sở GD&amp;ĐT.</li>
  * </ul>
  *
  * <p>Không có bước nào gắn với một chức danh cụ thể. Ai là lãnh đạo trường là
@@ -20,8 +18,7 @@ package com.g123.sfems.domain.school.voucher;
  */
 public enum ApprovalStep {
     SCHOOL,
-    MANAGING_BODY,
-    RECEIVING_BODY;
+    MANAGING_BODY;
 
     /**
      * Cấp CAO hơn trong hai cấp; {@code null} là "chưa tới cấp nào". Thứ tự khai báo ở trên chính là thứ tự

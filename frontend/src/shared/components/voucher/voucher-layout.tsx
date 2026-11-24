@@ -83,7 +83,7 @@ export type ChecklistItem = { key: string; label: string; ok: boolean; hint?: st
  */
 export function CompletionList({ items, doneText = "Đủ để trình", showDone = false }: {
   items: ChecklistItem[];
-  /** Câu khi đã đủ hết — form không có bước trình (kế hoạch bảo trì) thì "Đủ để lưu". */
+  /** Câu khi đã đủ hết — form không có bước trình thì "Đủ để lưu". */
   doneText?: string;
   showDone?: boolean;
 }) {

@@ -42,13 +42,14 @@ public final class PortalRoutes {
     private static final Map<String, Rule> RULES = new LinkedHashMap<>();
 
     /**
-     * Dữ liệu nghiệp vụ: chỉ người của trường / Sở lập, sửa, duyệt — cổng Admin chỉ xem (284). Hồ sơ năm học không nằm
-     * đây: quản trị viên khởi tạo / mở lại năm cho trường ở màn Trường học; xác nhận, chốt vẫn là của lãnh đạo trường.
+     * Dữ liệu nghiệp vụ: chỉ người của trường / Sở lập, sửa, duyệt — cổng Admin chỉ xem (284). Hồ sơ năm học cũng vậy
+     * (290): lãnh đạo trường chốt, Sở khởi tạo và mở lại, quản trị viên chỉ xem.
      */
     private static final Set<String> BUSINESS_DATA = Set.of("buildings", "campuses", "rooms", "facility_info",
             "facility_todo", "equipment", "equipment_items", "inventory_sessions", "school_classes", "staff",
             "subject_teams", "data_transfer", "equipment_intakes", "purchase_proposals", "inventory_campaigns",
-            "procurement_plans", "data_imports", "staff_assignments", "year_standards", "school_norm_adjustments");
+            "procurement_plans", "data_imports", "staff_assignments", "year_standards", "school_norm_adjustments",
+            "school_year_profiles");
 
     /**
      * Khai cổng cho các tài nguyên. Cổng Admin luôn được đọc, và được ghi những gì một cổng nghiệp vụ ghi được TRỪ dữ

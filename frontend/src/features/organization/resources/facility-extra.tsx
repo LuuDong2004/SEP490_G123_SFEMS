@@ -1,7 +1,8 @@
+import { canWriteRecord } from "@/shared/lib/can-write";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { useList, useOne, type CrudFilter } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Activity, Clock, DoorOpen, FileText, Hotel, Lock, MapPin, Package, PenLine, Ruler, Users, Wrench } from "lucide-react";
+import { Activity, Clock, DoorOpen, FileText, Hotel, Lock, MapPin, Package, PenLine, Ruler, Users } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormContext, useFormState, useWatch, type Control } from "react-hook-form";
 
@@ -326,7 +327,7 @@ const facilityFiles = (resource: string, description: string) =>
       <AttachmentsPanel
         resource={resource}
         recordId={record?.id}
-        canWrite={record?._can?.write === true}
+        canWrite={record?._can?.write === true && canWriteRecord(resource, record)}
         section
         title="Ảnh và hồ sơ"
         description={description}
@@ -372,7 +373,7 @@ export const CAMPUS_EXTRA = {
 function buildingInputs(control: Control<any>, record?: any) {
   return {
     campus: <SameSchoolRef control={control} record={record} name="campus" resource="campuses" label="Cơ sở" current={record?.campus} />,
-    managingStaff: <SameSchoolRef control={control} record={record} name="managingStaff" resource="staff" label="Cán bộ phụ trách" hint="Người chịu trách nhiệm và nhận thông báo khi có báo hỏng ở đây." current={record?.managingStaff} />,
+    managingStaff: <SameSchoolRef control={control} record={record} name="managingStaff" resource="staff" label="Cán bộ phụ trách" hint="Người chịu trách nhiệm." current={record?.managingStaff} />,
     floorCount: (
       <TextField control={control} name="floorCount" label="Số tầng" hint="Tầng của phòng không được vượt số này." number numberRule="COUNT"
         rules={{ validate: { range: (v: unknown) => v == null || v === "" || Number(v) <= 200 || "Số tầng tối đa 200" } }} />
@@ -501,7 +502,7 @@ export const BUILDING_EXTRA = {
  * do máy chủ cấp theo quy tắc mã của trường (mặc định PH0001…, như bản Jmix); cơ sở theo khối
  * nhà, không hỏi.
  */
-/** Việc tự động của form phòng: cơ sở theo khối nhà, số tầng của khối nhà, mã tự cấp, "Cho mượn" theo loại phòng. */
+/** Việc tự động của form phòng: cơ sở theo khối nhà, số tầng của khối nhà, mã tự cấp, tên gợi ý theo loại phòng. */
 function useRoomForm(control: Control<any>, record?: any) {
   const { setValue, getValues } = useFormContext();
   const buildingId = useWatch({ control, name: "building.id" });
@@ -521,18 +522,11 @@ function useRoomForm(control: Control<any>, record?: any) {
   // Mã do máy chủ cấp theo quy tắc mã của trường (mặc định PH0001, PH0002…, như bản Jmix).
   useSchoolNextCode("rooms", control, record);
 
-  // Phòng MỚI: "Cho mượn" theo cờ của loại CSVC vừa chọn — phòng bộ môn, đa chức năng, hội
-  // trường thì có; phòng học, kho, thư viện, sân, cổng… thì không. Phòng đã có thì giữ lựa chọn đang lưu.
-  // Cùng luật với RoomService.defaultLoanable.
   const roomTypeId = useWatch({ control, name: "roomType.id" });
   const { result: roomType } = useOne<any>({ resource: "room_types", id: roomTypeId ?? "", queryOptions: { enabled: !!roomTypeId } });
   const combinedTypeId = useWatch({ control, name: "combinedType.id" });
   const { result: combinedType } = useOne<any>({ resource: "room_types", id: combinedTypeId ?? "", queryOptions: { enabled: !!combinedTypeId } });
-  useEffect(() => {
-    if (record?.id || !roomType?.id) return;
-    setValue("loanable", roomType.loanable === true, { shouldDirty: true });
-  }, [record?.id, roomType?.id, roomType?.loanable, setValue]);
-  // Khu vực, công trình (sân, cổng, khu vệ sinh…) không gắn khối nhà, tầng, sức chứa, môn, không cho mượn — máy
+  // Khu vực, công trình (sân, cổng, khu vệ sinh…) không gắn khối nhà, tầng, sức chứa, môn — máy
   // chủ từ chối nếu còn giá trị, nên chọn loại khu vực thì bỏ trống các ô này (ô cũng bị ẩn).
   useEffect(() => {
     if (roomType?.kind !== "AREA") return;
@@ -543,7 +537,6 @@ function useRoomForm(control: Control<any>, record?: any) {
     clear("floor", "", (v) => v != null && v !== "");
     clear("capacity", null, (v) => v != null && v !== "");
     clear("subject", { id: null }, (v) => v?.id != null);
-    clear("loanable", false, (v) => v !== false);
   }, [roomType?.kind, roomType?.id, getValues, setValue]);
   const chosenSchool = useWatch({ control, name: "school.id" });
   const roomSchool = record?.school?.id ?? chosenSchool;
@@ -622,7 +615,7 @@ function CheckGroup<V extends string | number>({ control, name, label, options }
   );
 }
 
-/** Lịch mở cửa của phòng chức năng: phiếu mượn phòng ngoài lịch bị chặn. Không tích = mở mọi lúc. */
+/** Lịch mở cửa của phòng chức năng. Không tích = mở mọi lúc. */
 function OpeningDays({ control }: { control: Control<any> }) {
   return <CheckGroup control={control} name="openDays" label="Ngày mở cửa" options={OPEN_DAYS.map((d) => ({ value: d.value, label: d.short }))} />;
 }
@@ -761,25 +754,6 @@ function roomInputs(control: Control<any>, record: any, buildingId: unknown, flo
       required={roomType?.functional === true} />,
     condition: <EnumSelect control={control} name="condition" label="Hiện trạng" hint="Tình trạng hiện tại. “Cần sửa chữa” và “Xuống cấp” sẽ có trong báo cáo cơ sở vật chất." options={CONDITION_LABELS} />,
     usageStatus: <EnumSelect control={control} name="usageStatus" label="Tình trạng sử dụng" options={USAGE_STATUS_LABELS} />,
-    loanable: (
-      <FormField
-        control={control}
-        name="loanable"
-        render={({ field }) => (
-          // Nhãn ẩn cùng cỡ nhãn các ô bên cạnh: ô tích đứng thẳng hàng với ô nhập, không tụt xuống khi ô bên cạnh có
-          // dòng phụ ("+ Loại ngoài danh mục").
-          <FormItem>
-            <FormLabel aria-hidden className="invisible select-none">Cho mượn</FormLabel>
-            <label className="flex h-9 cursor-pointer items-center gap-2 text-sm select-none">
-              <FormControl>
-                <Checkbox checked={field.value !== false} onCheckedChange={(c) => field.onChange(c === true)} />
-              </FormControl>
-              Cho mượn
-            </label>
-          </FormItem>
-        )}
-      />
-    ),
     location: <TextField control={control} name="location" label="Vị trí" placeholder="Dãy A, cạnh cầu thang" rule="SHORT_TEXT" max={100} />,
     area: <TextField control={control} name="area" label="Diện tích (m²)" number numberRule="AREA"
       // > 0 và ≤ 10.000 m² (chốt 12/11/2026, máy chủ kiểm cùng trần); phòng > 500 m² vẫn nhắc kiểm lại.
@@ -789,13 +763,13 @@ function roomInputs(control: Control<any>, record: any, buildingId: unknown, flo
       } }}
       warn={(v) => (!isArea && Number(v) > 500 && Number(v) <= 10000 ? "Diện tích lớn bất thường, kiểm tra lại số m²" : null)} />,
     // Bắt buộc với phòng học, nhà ăn, thư viện (dùng để xếp lớp, cộng chỗ nhà ăn / thư viện); > 0, ≤ 2.000.
-    capacity: <TextField control={control} name="capacity" label="Sức chứa" hint="Số chỗ ngồi tối đa, dùng khi mượn phòng." number numberRule="COUNT"
+    capacity: <TextField control={control} name="capacity" label="Sức chứa" hint="Số chỗ ngồi tối đa." number numberRule="COUNT"
       // `required` (không phải validate) để nhãn tự có dấu * khi loại phòng bắt buộc sức chứa (M2-07, 13/11/2026).
       rules={{ required: CAPACITY_REQUIRED.has(roomType?.code) ? "Nhập sức chứa" : false, validate: {
         positive: (v: unknown) => v == null || v === "" || Number(v) > 0 || "Sức chứa phải lớn hơn 0",
         max: (v: unknown) => v == null || v === "" || Number(v) <= 2000 || "Sức chứa tối đa 2.000 chỗ",
       } }} />,
-    managingStaff: <SameSchoolRef control={control} record={record} name="managingStaff" resource="staff" label="Cán bộ phụ trách" hint="Người chịu trách nhiệm và nhận thông báo khi có báo hỏng ở đây." current={record?.managingStaff} />,
+    managingStaff: <SameSchoolRef control={control} record={record} name="managingStaff" resource="staff" label="Cán bộ phụ trách" hint="Người chịu trách nhiệm." current={record?.managingStaff} />,
     managingUnit: <TextField control={control} name="managingUnit" label="Đơn vị quản lý" hint="Tổ, bộ phận quản lý phòng (nếu không phải cá nhân)." placeholder="Tổ Vật lý" rule="SHORT_TEXT" max={100} />,
   };
 }
@@ -818,7 +792,6 @@ function RoomFields({ control, record }: { control: Control<any>; record?: any }
         {f.structure}
         {f.condition}
         {f.usageStatus}
-        {area ? null : f.loanable}
       </div>
       <div className="form-flow">
         {f.location}
@@ -887,10 +860,9 @@ const ROOM_SECTIONS = [
  * Hộp Thêm / Sửa phòng (mockup A, trưởng nhóm chốt 12/11/2026): cột mục bên trái kéo kín chiều cao, mỗi mục ghi còn
  * thiếu ô bắt buộc nào; bấm mục là cuộn tới mục đó. Thân form vẫn là các nhóm như trang sửa.
  */
-/** Ba mục dưới của cột trái (Thiết bị · Lịch sử sửa chữa · Hồ sơ, bản vẽ) — mở được ở hộp Xem, mờ ở Sửa / Thêm. */
+/** Hai mục dưới của cột trái (Thiết bị · Hồ sơ, bản vẽ) — mở được ở hộp Xem, mờ ở Sửa / Thêm. */
 const ROOM_PANELS: RailPanel[] = [
   { key: "equipment", label: "Thiết bị", icon: Package },
-  { key: "works", label: "Lịch sử sửa chữa", icon: Wrench },
   { key: "files", label: "Hồ sơ, bản vẽ", icon: FileText },
 ];
 
@@ -923,7 +895,7 @@ function RoomFormNav({ control, record, children }: { control: any; record?: any
         if (key && key !== active) setActive(key);
       }}
       rail={
-        <RoomRail recordId={record?.id} canWrite={!!record?.id && record?._can?.write !== false}
+        <RoomRail recordId={record?.id} canWrite={!!record?.id && canWriteRecord("rooms", record)}
           sections={ROOM_SECTIONS.map((s) => ({ ...s, missing: missing[s.key] }))}
           active={active} onSection={(k) => {
             if (k === active) return setActive("");
@@ -1008,7 +980,7 @@ function RoomChangeGuard({ control, record }: { control: any; record?: any }) {
         <ConfirmContent tone="warning"
           title={ask === "type" ? "Đổi loại của phòng đang dùng?" : "Ngừng sử dụng phòng này?"}
           description={ask === "type"
-            ? `Phòng đang có ${used}. Đổi loại thì phòng được tính vào chuẩn cơ sở vật chất khác, ô Cho mượn và Môn có thể phải chọn lại.`
+            ? `Phòng đang có ${used}. Đổi loại thì phòng được tính vào chuẩn cơ sở vật chất khác, ô Môn có thể phải chọn lại.`
             : `Phòng đang có ${used}. Phòng ngừng sử dụng không chọn được ở phiếu; thiết bị, lớp vẫn ghi ở phòng này cho tới khi chuyển đi.`}
           cancelLabel="Giữ như cũ" confirmLabel={ask === "type" ? "Đổi loại" : "Ngừng sử dụng"}
           onConfirm={accept} />
@@ -1069,7 +1041,7 @@ function RoomFormBody({ control, record, config, inDialog }: { control: any; rec
   const { setValue } = useFormContext();
   const { buildingId, floors, roomSchool, roomType, combinedType, typeGroup } = useRoomForm(control, record);
   const f = roomInputs(control, record, buildingId, floors, setValue, roomSchool, typeGroup, roomType);
-  // Sân, cổng, khu vệ sinh, khu để xe… (dạng Khu vực, công trình): không có môn, không cho mượn.
+  // Sân, cổng, khu vệ sinh, khu để xe… (dạng Khu vực, công trình): không có môn.
   const area = roomType?.kind === "AREA";
   const specs = paramSpecs(roomType, combinedType);
   // Hộp Thêm / Sửa: ô bắt buộc còn trống tô cam (cùng danh sách với cột mục bên trái).
@@ -1088,12 +1060,11 @@ function RoomFormBody({ control, record, config, inDialog }: { control: any; rec
         <Cell control={control} name="code" label="Mã" locked={!!record?.id}>
           <CatalogCodeField control={control} config={config} fill />
         </Cell>
-        {/* Tên một cột như mọi ô (trưởng nhóm 12/11/2026: ô tên hai cột dài thừa) — hàng 1: Mã · Tên · Loại · Cho mượn. */}
+        {/* Tên một cột như mọi ô (trưởng nhóm 12/11/2026: ô tên hai cột dài thừa) — hàng 1: Mã · Tên · Loại. */}
         <Need on={need("Tên")}>
           <CatalogNameField control={control} config={config} />
         </Need>
         <Need on={need("Loại CSVC")}>{f.roomType}</Need>
-        {area ? <div className="hidden lg:block" /> : f.loanable}
         {f.combinedType}
         {area ? null : f.subject}
       </TopGroup>
@@ -1190,7 +1161,7 @@ function roomMissing(r: any) {
 
 /**
  * Thân hộp XEM phòng (mockup "Hộp phòng", trưởng nhóm chốt 13/11/2026): cùng khung, cùng cột trái với hộp Sửa / Thêm —
- * ảnh (đổi ngay tại đây), mục lục ba nhóm ô, rồi Thiết bị · Lịch sử sửa chữa · Hồ sơ, bản vẽ thay cho dải tab trên đầu.
+ * ảnh (đổi ngay tại đây), mục lục ba nhóm ô, rồi Thiết bị · Hồ sơ, bản vẽ thay cho dải tab trên đầu.
  * Bên phải là các nhóm ô chỉ đọc ở đúng vị trí của chúng trên form — bấm Sửa thì chỉ chữ thành ô nhập.
  */
 function RoomShowBody({ record: r, onTab }: { record: any; onTab?: (key: string) => void }) {
@@ -1199,7 +1170,7 @@ function RoomShowBody({ record: r, onTab }: { record: any; onTab?: (key: string)
   const [active, setActive] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
   const missing = roomMissing(r);
-  // Thiết bị, Lịch sử sửa chữa: chính các tab registry gắn vào `ShowTabs`; Hồ sơ, bản vẽ: tệp đính kèm của phòng.
+  // Thiết bị: chính các tab registry gắn vào `ShowTabs`; Hồ sơ, bản vẽ: tệp đính kèm của phòng.
   const contents: Record<string, (props: { record: any }) => ReactNode> = {
     ...Object.fromEntries((ROOM_EXTRA.ShowTabs ?? []).map((t) => [t.key, t.Content])),
     files: ROOM_FILES,
@@ -1213,7 +1184,7 @@ function RoomShowBody({ record: r, onTab }: { record: any; onTab?: (key: string)
   return (
     <RoomFrame active={panel === "info" ? active : ""} boxRef={boxRef} onClear={() => setActive("")}
       rail={
-        <RoomRail recordId={r?.id} canWrite={r?._can?.write === true}
+        <RoomRail recordId={r?.id} canWrite={r?._can?.write === true && canWriteRecord("rooms", r)}
           sections={ROOM_SECTIONS.map((s) => ({ ...s, missing: missing[s.key] }))}
           active={active}
           onSection={(k) => {
@@ -1305,7 +1276,6 @@ function RoomInfo({ record: r }: { record: any }) {
         <ViewField label="Mã" value={r?.code} required />
         <ViewField label="Tên" value={r?.name} required />
         <ViewField label="Loại CSVC" value={r?.roomType?.name} required />
-        {area ? <div className="hidden lg:block" /> : <ViewField label="Cho mượn" value={r?.loanable === false ? "Không" : "Có"} />}
         <ViewField label="Dùng kết hợp" value={r?.combinedType?.name ?? "Không"} />
         {area ? null : <ViewField label="Môn (phòng bộ môn)" value={r?.subject?.name} blank="Không phải phòng bộ môn" />}
         {area ? null : <ViewField label="Lớp đang học" value={classes || "Chưa có lớp nào"} span="2" />}
@@ -1316,7 +1286,7 @@ function RoomInfo({ record: r }: { record: any }) {
         {area ? null : <ViewField label="Khối nhà" value={r?.building?.name ? [r.building.name, r?.campus?.name].filter(Boolean).join(" · ") : null} />}
         {area ? null : <ViewField label="Tầng" value={r?.floor ? `Tầng ${r.floor}` : null} />}
         <ViewField label="Vị trí" value={r?.location} blank="Chưa ghi vị trí" />
-        <ViewField label="Diện tích (m²)" value={r?.area != null && r.area !== "" ? Number(r.area).toLocaleString("vi-VN") : null} required />
+        <ViewField label="Diện tích (m²)" value={r?.area != null && r.area !== "" ? Number(r.area).toLocaleString("vi-VN", { useGrouping: false }) : null} required />
         <ViewField label="Kết cấu" value={STRUCTURE_LABELS[r?.structure]} required />
         <ViewField label="Hiện trạng" value={CONDITION_LABELS[r?.condition]} />
         <ViewField label="Tình trạng sử dụng" value={USAGE_STATUS_LABELS[r?.usageStatus]} />
@@ -1325,7 +1295,7 @@ function RoomInfo({ record: r }: { record: any }) {
       </div>
       <div id="room-sec-use" className={ROOM_SEC_CLASS.use}>
       <TopGroup icon={Users} title="Sử dụng, quản lý" cols={4} plain>
-        {area ? null : <ViewField label="Sức chứa" value={r?.capacity != null && r.capacity !== "" ? Number(r.capacity).toLocaleString("vi-VN") : null} required={CAPACITY_REQUIRED.has(r?.roomType?.code)} blank="Chưa ghi sức chứa" />}
+        {area ? null : <ViewField label="Sức chứa" value={r?.capacity != null && r.capacity !== "" ? Number(r.capacity).toLocaleString("vi-VN", { useGrouping: false }) : null} required={CAPACITY_REQUIRED.has(r?.roomType?.code)} blank="Chưa ghi sức chứa" />}
         <ViewField label="Cán bộ phụ trách" value={r?.managingStaff?.name} blank="Chưa phân công" />
         <ViewField label="Đơn vị quản lý" value={r?.managingUnit} blank="Chưa ghi đơn vị" />
         {area ? null : <ViewField label="Buổi mở cửa" value={sessions} />}
@@ -1339,8 +1309,8 @@ function RoomInfo({ record: r }: { record: any }) {
 
 export const ROOM_EXTRA: CatalogExtra = {
   // Hộp xem, Sửa, Thêm cùng một khung (mockup "Hộp phòng", 13/11/2026): đầu hộp `RoomHeading`, cột trái `RoomRail`
-  // (ảnh, mục lục, Thiết bị · Lịch sử sửa chữa · Hồ sơ), thân là các nhóm ô. `ShowTabs` (Thiết bị + Lịch sử sửa chữa
-  // do registry gắn) không còn là dải tab — `RoomShowBody` mở chúng từ cột trái.
+  // (ảnh, mục lục, Thiết bị · Hồ sơ), thân là các nhóm ô. `ShowTabs` (Thiết bị)
+  // không còn là dải tab — `RoomShowBody` mở chúng từ cột trái.
   ShowBody: RoomShowBody,
   ShowHeading: ({ record }: { record?: any }) => <RoomHeading record={record} />,
   FormHeading: ({ record, creating }: { record?: any; creating: boolean }) => <RoomHeading record={record} editing creating={creating} />,
@@ -1374,8 +1344,6 @@ export const ROOM_EXTRA: CatalogExtra = {
     usageStatus: "DANG_SU_DUNG",
     managingStaff: { id: null },
     managingUnit: "",
-    // Chưa chọn loại phòng = chưa phân loại: không cho mượn cho tới khi chọn loại.
-    loanable: false,
     structure: null,
     combinedType: { id: null },
     params: {},
@@ -1419,7 +1387,6 @@ export const ROOM_EXTRA: CatalogExtra = {
     { label: "Loại CSVC", value: r?.roomType?.name ?? "—", group: "Thông tin phòng", groupIcon: DoorOpen },
     { label: "Dùng kết hợp", value: r?.combinedType?.name ?? "—" },
     { label: "Môn (phòng bộ môn)", value: r?.subject?.name ?? "—" },
-    { label: "Cho mượn", value: r?.loanable === false ? "Không cho mượn" : "Cho mượn", newRow: true },
     { label: "Khối nhà", value: r?.building?.name ? [r.building.name, r?.campus?.name].filter(Boolean).join(" · ") : "—", group: "Vị trí", groupIcon: MapPin },
     { label: "Tầng", value: r?.floor ? `Tầng ${r.floor}` : "—" },
     { label: "Vị trí", value: r?.location ?? "—" },

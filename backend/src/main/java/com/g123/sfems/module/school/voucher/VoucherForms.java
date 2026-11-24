@@ -68,7 +68,7 @@ public class VoucherForms {
     }
 
     /**
-     * Ô chọn KHÔNG gõ tay được: tình trạng tài sản — là mã máy so sánh (tình trạng khi mượn / khi trả, khi lưu kho).
+     * Ô chọn KHÔNG gõ tay được: tình trạng thiết bị — là mã máy so sánh.
      * Mọi ô chọn khác của phần chứng từ đều chỉ để ghi lại, nên có mục "Khác" để gõ tay (cờ {@code other} gửi cho
      * màn hình qua {@code GET /api/voucher_forms}).
      */
@@ -128,13 +128,8 @@ public class VoucherForms {
 
     // ------------------------------------------------------------------ đầu phiếu
 
-    /**
-     * Chuẩn hoá phần đầu phiếu của một giai đoạn. {@code stage == null} là form lập
-     * phiếu; {@code "return"} là hộp thoại ghi nhận trả... Các trường của giai
-     * đoạn KHÁC trong giá trị cũ được giữ nguyên: sửa phiếu nháp không xoá mất
-     * thông tin đã ghi ở bước khác.
-     */
-    public String header(String resource, Map<String, Object> input, String existing, Long schoolId, String stage) {
+    /** Chuẩn hoá phần đầu phiếu. */
+    public String header(String resource, Map<String, Object> input, String existing, Long schoolId) {
         if (!has(resource)) {
             return existing == null ? "{}" : existing;
         }
@@ -146,7 +141,7 @@ public class VoucherForms {
         }
         input = new LinkedHashMap<>(input);
         input.keySet().removeAll(retired);
-        Map<String, Map<String, Object>> fields = headerFields(resource, stage);
+        Map<String, Map<String, Object>> fields = headerFields(resource);
         for (String key : fields.keySet()) {
             result.remove(key);
         }
@@ -197,15 +192,16 @@ public class VoucherForms {
         return write(result);
     }
 
-    /** Khi trình (hoặc hoàn tất một giai đoạn): mọi trường bắt buộc của giai đoạn đó phải có. */
-    public void requireComplete(String resource, String json, String stage, String when) {
+    /** Khi trình: mọi trường bắt buộc phải có. */
+    public void requireComplete(String resource, String json) {
         if (!has(resource)) {
             return;
         }
         Map<String, Object> values = read(json);
         List<String> missing = new ArrayList<>();
         for (Map<String, Object> section : list(form(resource).get("sections"))) {
-            if (!sameStage(section, stage) || !applies(section, when)) {
+            // Mục có điều kiện (phiếu ghi tăng: cấp trên mua tập trung): dịch vụ của loại phiếu tự kiểm.
+            if (section.get("when") != null) {
                 continue;
             }
             for (Map<String, Object> f : list(section.get("fields"))) {
@@ -222,12 +218,9 @@ public class VoucherForms {
 
     // ------------------------------------------------------------------ nội bộ
 
-    private Map<String, Map<String, Object>> headerFields(String resource, String stage) {
+    private Map<String, Map<String, Object>> headerFields(String resource) {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         for (Map<String, Object> section : list(form(resource).get("sections"))) {
-            if (!sameStage(section, stage)) {
-                continue;
-            }
             for (Map<String, Object> f : list(section.get("fields"))) {
                 fields.put((String) f.get("key"), f);
             }
@@ -243,21 +236,14 @@ public class VoucherForms {
      * {@code requireComplete} chỉ đi qua danh sách thứ nhất. Thiếu lời gọi này
      * thì cờ {@code required} ở cấp dòng chỉ vẽ ra dấu sao trên màn hình mà
      * không chặn gì: người dùng thấy một cái khoá không có lưỡi.
-     *
-     * <p>{@code stage} được tôn trọng y như ở đầu phiếu: "Số lượng trả" của phiếu
-     * mượn mang {@code stage = "return"} nên lúc TRÌNH ({@code stage == null}) nó
-     * không bị đòi — chưa ai trả thì chưa có số để điền.
      */
-    public void requireLineComplete(String resource, String json, int lineNo, String stage, String when) {
+    public void requireLineComplete(String resource, String json, int lineNo) {
         if (!has(resource)) {
             return;
         }
         Map<String, Object> values = read(json);
         List<String> missing = new ArrayList<>();
         for (Map<String, Object> f : list(form(resource).get("line"))) {
-            if (!sameStage(f, stage) || !applies(f, when)) {
-                continue;
-            }
             Object v = values.get((String) f.get("key"));
             if (Boolean.TRUE.equals(f.get("required")) && (v == null || "".equals(v))) {
                 missing.add((String) f.get("label"));
@@ -267,20 +253,6 @@ public class VoucherForms {
             throw new FieldValidationException("lines",
                     "Dòng %d còn thiếu: %s".formatted(lineNo, String.join(", ", missing)));
         }
-    }
-
-    private static boolean sameStage(Map<String, Object> section, String stage) {
-        Object s = section.get("stage");
-        return stage == null ? s == null : stage.equals(s);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static boolean applies(Map<String, Object> section, String when) {
-        Object w = section.get("when");
-        if (w == null || when == null) {
-            return w == null;
-        }
-        return ((List<Object>) ((Map<String, Object>) w).get("in")).contains(when);
     }
 
     private List<Map<String, Object>> table(String resource, List<Map<String, Object>> columns, Object value,

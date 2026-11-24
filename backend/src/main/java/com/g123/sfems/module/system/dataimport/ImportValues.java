@@ -5,6 +5,9 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -118,7 +121,10 @@ final class ImportValues {
                 return e;
             }
         }
-        errors.add(label + " không hợp lệ: \"" + v + "\"");
+        // Nêu luôn những giá trị nhận được, để người nhập biết sửa thành gì.
+        String accepted = labelOf == null ? "" : Arrays.stream(type.getEnumConstants()).map(labelOf)
+                .filter(Objects::nonNull).collect(Collectors.joining(", "));
+        errors.add(label + " không hợp lệ: \"" + v + "\"" + (accepted.isEmpty() ? "" : " — chỉ nhận: " + accepted));
         return null;
     }
 

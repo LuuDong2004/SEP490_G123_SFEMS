@@ -121,16 +121,6 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
     protected void onReturned(V voucher) {
     }
 
-    /** Trường nhận của phiếu (điều chuyển) — thuộc tính entity, để lọc "chờ tôi duyệt". */
-    protected String targetAttribute() {
-        return null;
-    }
-
-    /** Biến thể form (mục chỉ hiện với một loại, vd. tiêu huỷ) — mặc định không có. */
-    protected String formVariant(V voucher) {
-        return null;
-    }
-
     /** Trường chứng từ của một dòng, đã kiểm theo cấu hình form của loại phiếu. */
     protected String lineDetails(java.util.Map<String, Object> input, School school, int lineNo) {
         return forms.line(resource, input, school.getId(), lineNo);
@@ -148,12 +138,6 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
      */
     protected List<? extends com.g123.sfems.domain.school.voucher.VoucherEquipmentLine> linesToCheck(V voucher) {
         return List.of();
-    }
-
-    /** Ghi các trường chứng từ của một giai đoạn (vd. "return" lúc trả), giữ nguyên phần còn lại. */
-    protected void stageDetails(V voucher, java.util.Map<String, Object> input, String stage) {
-        voucher.setDetails(forms.header(resource, input, voucher.getDetails(), voucher.getSchool().getId(), stage));
-        forms.requireComplete(resource, voucher.getDetails(), stage, formVariant(voucher));
     }
 
     /** Nạp các collection lazy trong transaction, trước khi controller dựng DTO. */
@@ -202,7 +186,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
 
     public Page<V> list(ListParams params) {
         Specification<V> awaiting = VoucherSpecs.awaitingMe(params)
-                ? workflow.awaitingMe(targetAttribute()) : Specification.unrestricted();
+                ? workflow.awaitingMe() : Specification.unrestricted();
         List<Specification<V>> common = new java.util.ArrayList<>();
         for (ListParams.Criterion criterion : params.filters()) {
             Specification<V> spec = VoucherSpecs.common(criterion);
@@ -255,7 +239,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         voucher.setSchool(resolveSchool(school));
         voucher.setStatus(VoucherStatus.DRAFT);
         applyCreate(voucher, request);
-        voucher.setDetails(forms.header(resource, request.details(), null, voucher.getSchool().getId(), null));
+        voucher.setDetails(forms.header(resource, request.details(), null, voucher.getSchool().getId()));
         validate(voucher);
         campus.requireWritable(campusShape(), voucher, Set.of());
         V saved = repository.persist(voucher);
@@ -279,7 +263,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         applyUpdate(voucher, request);
         if (request.details() != null) {
             voucher.setDetails(forms.header(resource, request.details(), voucher.getDetails(),
-                    voucher.getSchool().getId(), null));
+                    voucher.getSchool().getId()));
         }
         validate(voucher);
         campus.requireWritable(campusShape(), voucher, anchored);
@@ -292,9 +276,9 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         V voucher = writable(id);
         lockAndReread(voucher);
         validateSubmit(voucher);
-        forms.requireComplete(resource, voucher.getDetails(), null, formVariant(voucher));
+        forms.requireComplete(resource, voucher.getDetails());
         for (var line : linesToCheck(voucher)) {
-            forms.requireLineComplete(resource, line.getDetails(), line.getLineNo(), null, formVariant(voucher));
+            forms.requireLineComplete(resource, line.getDetails(), line.getLineNo());
         }
         boolean approved = workflow.submit(voucher, resource);
         onSubmitted(voucher);
@@ -345,27 +329,19 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
     /** Hoàn tất một phiếu đã duyệt — mặc định do người có quyền ghi phiếu làm. */
     @Transactional
     public V complete(Long id, String note) {
-        V voucher = completable(id);
+        V voucher = writable(id);
         lockAndReread(voucher);
-        // Loại phiếu kết thúc bằng một hành động RIÊNG (trả thiết bị, ghi kết quả sửa chữa, thực hiện thanh
-        // lý, trường nhận bàn giao…) gỡ "complete" khỏi `actions` — nhưng gỡ nút không phải là chặn: gọi
-        // thẳng endpoint này từng đưa phiếu về Hoàn tất mà bỏ qua chính việc phiếu sinh ra để làm (đề
-        // nghị thanh lý hoàn tất mà tài sản vẫn trên sổ, phiếu mượn hoàn tất mà tài sản vẫn "đang cho
-        // mượn"). Hỏi lại đúng danh sách hành động mà màn hình được mời.
+        // Loại phiếu kết thúc bằng một hành động RIÊNG (biên bản kiểm kê hoàn tất ngay lúc duyệt) gỡ "complete" khỏi
+        // `actions` — nhưng gỡ nút không phải là chặn: gọi thẳng endpoint này là bỏ qua chính việc phiếu sinh ra để
+        // làm. Hỏi lại đúng danh sách hành động mà màn hình được mời.
         if (voucher.getStatus() == VoucherStatus.APPROVED
                 && !actions(voucher, Map.of("write", Boolean.TRUE), false).contains("complete")) {
             throw new FieldValidationException("status",
-                    "Phiếu này không hoàn tất trực tiếp được — dùng đúng thao tác kết thúc của phiếu"
-                            + " (trả thiết bị, ghi kết quả, thực hiện, nhận bàn giao…)");
+                    "Phiếu này không hoàn tất trực tiếp được — dùng đúng thao tác kết thúc của phiếu");
         }
         workflow.complete(voucher, resource, note);
         onCompleted(voucher);
         return initialize(repository.persist(voucher));
-    }
-
-    /** Ai hoàn tất được phiếu. Phiếu điều chuyển đổi thành "trường nhận". */
-    protected V completable(Long id) {
-        return writable(id);
     }
 
     @Transactional

@@ -82,7 +82,7 @@ test("SM mobile: màn chính trên điện thoại 390×844", async ({ page }) =
   test.setTimeout(300_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await uiLogin(page, "canbo");
-  for (const path of ["/dashboard", "/purchase-proposals", "/purchase-proposals/create", "/equipment-intakes", "/inventory-sessions", "/equipment-lookup", "/notifications"]) {
+  for (const path of ["/dashboard", "/purchase-proposals", "/purchase-proposals/create", "/equipment-intakes", "/inventory-sessions", "/equipment", "/notifications"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
     await page.waitForTimeout(500);

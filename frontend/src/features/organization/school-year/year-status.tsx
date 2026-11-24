@@ -34,7 +34,7 @@ export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; s
   const [busy, setBusy] = useState(false);
 
   if (yearId == null) return null;
-  const confirmed = p?.campuses.filter((c) => c.status === "CONFIRMED").length ?? 0;
+  const ready = p?.campuses.filter((c) => c.todos.length === 0).length ?? 0;
 
   const reopen = async () => {
     if (!reason.trim()) {
@@ -61,7 +61,7 @@ export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; s
       {isLoading ? <Loader2 className="text-muted-foreground size-4 animate-spin" /> : p ? (
         <>
           <Badge variant={PROFILE_STATUS_VARIANTS[p.status]}>{PROFILE_STATUS_LABELS[p.status]}</Badge>
-          <span className="text-muted-foreground tabular-nums">{confirmed}/{p.campuses.length} điểm trường đã xác nhận</span>
+          <span className="text-muted-foreground tabular-nums">{ready}/{p.campuses.length} điểm trường đủ dữ liệu</span>
           {p.closing?.status === "CLOSED" ? <span className="text-muted-foreground tabular-nums">· Chốt {p.closing.closedAt}</span> : null}
         </>
       ) : <span className="text-muted-foreground">Chưa có dữ liệu</span>}

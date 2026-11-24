@@ -28,18 +28,17 @@ export const hueChip = (h: number): CSSProperties => ({
 
 /**
  * Màu của từng cột số lượng: mỗi trạng thái MỘT sắc mang nghĩa — dùng được xanh lá, đang dùng xanh dương, trong kho
- * xanh ngọc, đang mượn tím, hỏng cam, mất đỏ.
+ * xanh ngọc, mất đỏ.
  */
 const TEAL = "text-[color:color-mix(in_oklch,var(--chart-4)_75%,var(--foreground))]";
-const VIOLET = "text-[color:color-mix(in_oklch,var(--chart-3)_75%,var(--foreground))]";
 
 /** `text`: màu số trong ô; `head`: màu chữ tiêu đề cột. */
 export const QTY_TONE: Record<string, { text: string; head: string }> = {
   total: { text: "text-foreground font-semibold", head: "text-foreground" },
   usable: { text: "text-success-text font-semibold", head: "text-success-text" },
+  required: { text: "text-foreground font-medium", head: "text-foreground" },
+  shortage: { text: "text-destructive-text font-semibold", head: "text-destructive-text" },
   in_use: { text: "text-info-text font-medium", head: "text-info-text" },
   in_stock: { text: `${TEAL} font-medium`, head: `${TEAL}` },
-  borrowed: { text: `${VIOLET} font-medium`, head: `${VIOLET}` },
-  broken: { text: "text-warning-text font-medium", head: "text-warning-text" },
   missing: { text: "text-destructive-text font-medium", head: "text-destructive-text" },
 };

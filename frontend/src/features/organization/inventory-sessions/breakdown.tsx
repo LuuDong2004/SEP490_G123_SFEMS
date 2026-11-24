@@ -35,7 +35,6 @@ export function CountCells({ row }: { row: DiscrepancyCounts }) {
       <TableCell className="text-right"><Num value={row.matched} tone="success" /></TableCell>
       <TableCell className="text-right"><Num value={row.missing} tone="destructive" /></TableCell>
       <TableCell className="text-right"><Num value={row.wrongRoom} tone="warning" /></TableCell>
-      <TableCell className="text-right"><Num value={row.damaged} tone="warning" /></TableCell>
     </>
   );
 }

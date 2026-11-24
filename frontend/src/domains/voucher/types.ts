@@ -2,7 +2,7 @@ import type { Details } from "./form-types";
 
 /**
  * Vòng đời chung của mọi loại phiếu: trạng thái, bước duyệt, nhật ký duyệt, tệp
- * đính kèm. Mỗi loại phiếu (nhập, cấp phát, điều chuyển...) mang các trường này
+ * đính kèm. Mỗi loại phiếu (ghi tăng, đề xuất mua sắm, kiểm kê) mang các trường này
  * cộng với phần riêng của nó.
  */
 
@@ -17,13 +17,12 @@ export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
   CANCELLED: "Đã huỷ",
 };
 
-export type ApprovalStep = "SCHOOL" | "MANAGING_BODY" | "RECEIVING_BODY";
+export type ApprovalStep = "SCHOOL" | "MANAGING_BODY";
 
 /** Bước chờ duyệt, nói theo người đọc: "chờ ... duyệt". */
 export const APPROVAL_STEP_LABELS: Record<ApprovalStep, string> = {
   SCHOOL: "lãnh đạo trường",
   MANAGING_BODY: "cơ quan quản lý",
-  RECEIVING_BODY: "cơ quan quản lý trường nhận",
 };
 
 /** Các hành động server cho phép người đang xem làm trên phiếu (`_actions`). */
@@ -39,22 +38,8 @@ export type VoucherAction =
   | "return"
   | "reject"
   | "complete"
-  /** Điều chuyển: trường nhận xác nhận đã nhận. */
-  | "receive"
-  /** Điều chuyển: trường chuyển huỷ bàn giao phiếu đã duyệt mà trường nhận chưa nhận. */
-  | "recall"
-  /** Mượn: ghi nhận trả. */
-  | "return-items"
-  /** Mượn phòng: trả phòng, ghi tình trạng phòng. */
-  | "return-room"
-  /** Thu hồi nội bộ: bên đang giữ xác nhận đã giao. */
-  | "hand-over"
-  /** Báo hỏng: ghi kết quả xử lý. */
-  | "result"
   /** Kiểm kê: ghi kết quả kiểm đếm. */
-  | "count"
-  /** Thanh lý: ghi biên bản đã thực hiện. */
-  | "execute";
+  | "count";
 
 /** Phần chung mọi phiếu trả về. */
 export type VoucherBase = {
@@ -167,7 +152,6 @@ export type EquipmentLine = {
   equipment: EquipmentRef;
   quantity?: number | null;
   stockBefore?: number | null;
-  transferredEquipment?: EquipmentRef | null;
   note: string | null;
   details?: Details;
 };

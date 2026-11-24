@@ -8,6 +8,7 @@ import {
   ShowView,
   ShowViewHeader,
 } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Alert, AlertDescription } from "@/shared/ui/alert";
 import { Badge } from "@/shared/ui/badge";
 import {
@@ -31,6 +32,16 @@ export const RowLevelPolicyShow = () => {
   // 403, so the panel is not offered rather than offered and then refused.
   const { data: canReadUsers } = useCan({ resource: "users", action: "list" });
   const mayExplain = canReadUsers?.can ?? false;
+
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="phạm vi dữ liệu" />
+      </ShowView>
+    );
+  }
 
   return (
     <ShowView>

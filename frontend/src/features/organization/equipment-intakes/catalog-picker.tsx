@@ -53,12 +53,8 @@ const PAGE_SIZE = 20;
 
 
 /**
- * Chọn NHIỀU thiết bị một lượt. Mọi dòng thêm vào đều nhận về kho thiết bị của trường —
- * ghi tăng không chọn nơi nhận; đưa về phòng là việc của phiếu cấp phát.
- *
- * <p>Hộp này chọn MẶT HÀNG trong danh mục, khác hộp chọn tài sản của các phiếu
- * cấp phát / điều chuyển: lúc ghi tăng thì tài sản chưa tồn tại, đó chính là
- * thứ phiếu sắp sinh ra.
+ * Chọn NHIỀU thiết bị trong danh mục một lượt. Mọi dòng thêm vào đều nhận về kho thiết bị của trường — ghi tăng không
+ * chọn nơi nhận.
  */
 export function CatalogPickerDialog({
   open,
@@ -109,8 +105,7 @@ export function CatalogPickerDialog({
   const schoolLevel = school?.educationLevel?.id ? String(school.educationLevel.id) : null;
   const [levelPick, setLevelPick] = useState<string | null>(null);
   const levelId = schoolLevel ?? levelPick ?? ALL;
-  // Hàng ghi tăng luôn về KHO THIẾT BỊ của trường (mỗi trường một kho; đưa về phòng là việc của
-  // phiếu cấp phát) — không có ô "Nhận vào" để chọn. Không tìm thấy kho thì để trống: máy chủ coi là trong kho.
+  // Hàng ghi tăng luôn về KHO THIẾT BỊ của trường (mỗi trường một kho) — không có ô "Nhận vào" để chọn. Không tìm thấy kho thì để trống: máy chủ coi là trong kho.
   const [roomId, setRoomId] = useState<string>("");
   const [selected, setSelected] = useState<Map<number, PickedCatalog>>(new Map());
   const [creating, setCreating] = useState(false);

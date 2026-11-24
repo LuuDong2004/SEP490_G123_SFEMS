@@ -32,10 +32,13 @@ type SnapshotRow = {
 type Column = { key: string; label: string; type: string };
 type Snapshot = SnapshotRow & { columns: Column[]; rows: Record<string, unknown>[] };
 
-const number = new Intl.NumberFormat("vi-VN");
+const number = new Intl.NumberFormat("vi-VN", { useGrouping: false });
+// Số đếm, số lượng không có dấu ngăn nghìn (trưởng nhóm 24/11/2026). Tiền vẫn có: 2.500.000.000 đ dễ đọc hơn 2500000000.
+const money = new Intl.NumberFormat("vi-VN");
 const cell = (v: unknown, type: string) => {
   if (v == null || v === "") return "";
-  if (type === "number" || type === "money") return number.format(Number(v));
+  if (type === "money") return money.format(Number(v));
+  if (type === "number") return number.format(Number(v));
   if (type === "date") return formatPlainDate(String(v));
   return String(v);
 };

@@ -9,7 +9,7 @@ import java.time.Year;
  */
 public enum NumberRule {
 
-    /** Tiền (đồng), không âm. Hai số lẻ vì giá trị tách lô / hao mòn chia ra có phần lẻ. */
+    /** Tiền (đồng), không âm. Hai số lẻ vì giá trị chia theo lô có phần lẻ. */
     MONEY("0", "100000000000", 2),
     /** Đơn giá trên phiếu ghi tăng: đồng, số nguyên, tới 10 tỷ một đơn vị. */
     UNIT_PRICE("0", "10000000000", 0),

@@ -23,7 +23,7 @@ import org.hibernate.annotations.BatchSize;
 
 /**
  * Cán bộ, giáo viên của trường — NHÂN SỰ, không phải tài khoản đăng nhập.
- * Người quản lý phòng, thiết bị, người mượn... đều trỏ vào đây.
+ * Người quản lý phòng, thiết bị, thành viên tổ kiểm kê... đều trỏ vào đây.
  *
  * <p>{@code name} (của lớp nền) là HỌ TÊN. Chưa có liên kết tới tài khoản như
  * bản Jmix — làm cùng chức năng cấp tài khoản cho cán bộ.

@@ -18,10 +18,8 @@ import org.springframework.stereotype.Component;
 /**
  * Phiếu liên quan của một phiếu, hai chiều: phiếu GỐC đã sinh ra nó, và các phiếu đã sinh ra TỪ nó.
  *
- * <p>Chuỗi phiếu nối bằng sự kiện (báo hỏng → sửa chữa / bảo hành / thanh lý; sửa chữa không được → thanh lý; bảo
- * hành từ chối, bảo trì không đạt, trả mượn hỏng → báo hỏng; kiểm kê → ghi giảm, báo hỏng, cấp phát, ghi tăng; đề
- * xuất mua sắm → ghi tăng), và phiếu được sinh ghi lại nguồn ở {@code source_resource / source_id / source_code}.
- * Kế hoạch bảo trì nối với phiếu bảo trì qua {@code plan_id}. Đây là chỗ DUY NHẤT đọc ngược các cột đó, nên màn hình
+ * <p>Chuỗi phiếu nối bằng sự kiện (kiểm kê thấy thừa → ghi tăng, đề xuất mua sắm → ghi tăng), và phiếu được sinh ghi
+ * lại nguồn ở {@code source_resource / source_id / source_code}. Đây là chỗ DUY NHẤT đọc ngược các cột đó, nên màn hình
  * không phải hỏi từng loại phiếu.
  *
  * <p>Phiếu gốc phải đọc được (cùng luật quyền và phạm vi dòng với chính phiếu đó); phiếu con chỉ hiện khi người gọi có

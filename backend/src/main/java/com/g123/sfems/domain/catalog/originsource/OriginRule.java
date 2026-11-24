@@ -39,9 +39,7 @@ public enum OriginRule {
             STATE_BUDGET, TUITION, REVENUE, DEVELOPMENT_FUND, SPONSORSHIP, OTHER),
     /**
      * Cấp trên giao về theo quyết định: Sở / Phòng / UBND mua sắm tập trung rồi bàn giao, dự án giao về, đơn vị không dùng
-     * hệ thống chuyển sang — tiền ngân sách, không có hoá đơn của trường. Trường khác TRÊN hệ thống chuyển sang thì không
-     * ghi tăng: trường nhận xác nhận ở phiếu điều chuyển. Tên đổi 15/11/2026 (258) — "Được điều chuyển" trùng chữ với
-     * nghiệp vụ điều chuyển.
+     * hệ thống chuyển sang — tiền ngân sách, không có hoá đơn của trường. Tên đổi 15/11/2026 (258).
      */
     PHAN_BO("Được cấp phát, bàn giao", FundingRequired.ALWAYS, false, false,
             STATE_BUDGET),

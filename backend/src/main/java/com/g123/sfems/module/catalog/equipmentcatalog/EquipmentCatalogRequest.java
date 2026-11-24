@@ -3,13 +3,10 @@ package com.g123.sfems.module.catalog.equipmentcatalog;
 import java.util.List;
 
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
-import com.g123.sfems.domain.catalog.equipmentcatalog.DepreciationMethod;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import com.g123.sfems.shared.validation.FieldRule;
@@ -44,10 +41,6 @@ public record EquipmentCatalogRequest(
         TrackingType trackingType,
         AssetCategory assetCategory,
         PhysicalDigitalType physicalOrDigital,
-        DepreciationMethod depreciationMethod,
-        @Min(value = 0, message = "Số năm không được âm")
-        @Max(value = 100, message = "Số năm tối đa 100")
-        Integer usefulLifeYears,
         @Text(value = FieldRule.CODE, label = "Mã thống kê", max = 64)
         String statisticalCode,
         @Text(value = FieldRule.SHORT_TEXT, label = "Căn cứ pháp lý")

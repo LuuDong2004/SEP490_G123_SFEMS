@@ -52,7 +52,6 @@ class VoucherProgressNotifier {
         List<Long> recipients = switch (event.step()) {
             case SCHOOL -> jdbc.queryForList(APPROVERS + "us.school_id = ?", Long.class, permission, event.schoolId());
             case MANAGING_BODY -> bodyApprovers(permission, event.schoolId());
-            case RECEIVING_BODY -> bodyApprovers(permission, event.targetSchoolId());
         };
         Long me = CurrentUser.id().orElse(null);
         String title = kind(event.resource()) + number(event.code()) + " chờ duyệt";
@@ -102,13 +101,12 @@ class VoucherProgressNotifier {
         return switch (step) {
             case SCHOOL -> "lãnh đạo trường";
             case MANAGING_BODY -> "cơ quan quản lý";
-            case RECEIVING_BODY -> "cơ quan quản lý của trường nhận";
         };
     }
 
     /** Phiếu vừa tới bước {@code step} (sau khi trình, hoặc sau khi bước trước duyệt). */
     record VoucherAwaiting(String resource, Long voucherId, String code, ApprovalStep step, Long schoolId,
-            String schoolName, Long targetSchoolId) {
+            String schoolName) {
     }
 
     /** Phiếu vừa qua bước duyệt cuối. {@code recipientId}: người trình, không có thì người lập. */

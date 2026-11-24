@@ -33,8 +33,9 @@ kiểu cũ, minh chứng kiểm định, kết nối hệ thống ngoài cũng n
 changelog 285. Lớp, khối nhà, cơ sở còn ở backend làm DỮ LIỆU NỀN (phòng, thiết bị trỏ tới), không có màn quản lý
 riêng.
 
-Vẫn trong phạm vi: tra cứu theo mã QR (màn Tra cứu / quét mã, nút Quét mã trên phiếu kiểm kê) — chỉ việc in tem QR
-là ngoài phạm vi. Nhật ký duyệt là một phần của luồng duyệt và được giữ: mỗi phiếu ghi ai duyệt / trả lại / từ chối,
+Tra cứu theo mã (TS-02) là ô tìm của màn Thiết bị, dạng Từng thiết bị: gõ đúng mã thiết bị (mã chuẩn hoặc mã cũ) rồi
+Enter thì mở thẳng hồ sơ. Không có màn Tra cứu / quét mã riêng, không quét mã bằng camera, không in tem QR (trưởng
+nhóm chốt 24/11/2026). Nhật ký duyệt là một phần của luồng duyệt và được giữ: mỗi phiếu ghi ai duyệt / trả lại / từ chối,
 lúc nào, ý kiến gì, hiện ở mục "Quá trình duyệt" trên phiếu.
 
 ---

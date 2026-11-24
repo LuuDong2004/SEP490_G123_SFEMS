@@ -126,7 +126,7 @@ export function lineIssues(line: any, catalog: ReturnType<CatalogOf>, config: Vo
   const issue = fundingIssue(line, headFunding, rule);
   if (issue) out.push(issue);
   if (serial && catalog && !catalog.unit) out.push("Thiết bị chưa có đơn vị tính (sửa ở danh mục)");
-  for (const f of (config?.line ?? []).filter((f) => f.required && !f.stage)) {
+  for (const f of (config?.line ?? []).filter((f) => f.required)) {
     if (!filled(line.details?.[f.key])) out.push(`Thiếu ${f.label.toLowerCase()}`);
   }
   const serialProblem = serial ? serialError(line) : undefined;
@@ -274,14 +274,14 @@ export function intakeReadiness(
   if (badSerial.length) items.push(item("serial", "Số serial", badSerial));
   const tooMany = serial.filter((x) => Number(x.l?.receivedQuantity ?? 0) > 9999);
   if (tooMany.length) items.push({ ...item("capacity", "Quá 9.999 cái một dòng", tooMany), hint: `${hint(tooMany)}. Hãy tách sang phiếu khác` });
-  for (const f of (config?.line ?? []).filter((f) => f.required && !f.stage)) {
+  for (const f of (config?.line ?? []).filter((f) => f.required)) {
     if (lines.length) items.push(item(`line:${f.key}`, f.label, numbered.filter((x) => !filled(x.l?.details?.[f.key]))));
   }
 
   const headRequired = (config?.sections ?? [])
-    .filter((s) => !s.stage && !s.when)
+    .filter((s) => !s.when)
     .flatMap((s) => s.fields)
-    .filter((f) => f.required && !f.stage);
+    .filter((f) => f.required);
   for (const f of headRequired) {
     items.push({ key: `head:${f.key}`, label: f.label, ok: filled(values.details?.[f.key]), head: true, group: "handover", field: `details.${f.key}` });
   }

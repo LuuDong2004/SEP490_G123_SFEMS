@@ -18,13 +18,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * (UC27), sổ sách thiết bị, đánh giá chuẩn phòng bộ môn.
  *
  * <p>Tách khỏi {@link ReportService} cho file đó khỏi phình, nhưng cùng một hình báo cáo và cùng phạm vi: mọi truy
- * vấn đi qua {@link ReportService#scope} (phạm vi của người xem AND bộ lọc), nên Sở / UBND / trường thấy đúng phần
+ * vấn đi qua {@link ReportService#scope} (phạm vi của người xem AND bộ lọc), nên Sở / trường thấy đúng phần
  * của mình. Không phải bean — {@link ReportService} dựng nó, để hai lớp không cần nhau qua Spring.
  */
 final class AnalysisReports {
 
     /** Tài sản còn dùng được — cùng tập với {@code AdequacyService.USABLE}. */
-    private static final String USABLE = " ('IN_STOCK', 'IN_USE', 'BORROWED', 'MAINTAINING') ";
+    private static final String USABLE = " ('IN_STOCK', 'IN_USE') ";
     private static final String LOCAL_DATE = " AT TIME ZONE 'Asia/Ho_Chi_Minh')::date";
 
     private final JdbcTemplate jdbc;
@@ -35,55 +35,18 @@ final class AnalysisReports {
         this.reports = reports;
     }
 
-    // ------------------------------------------------------------------ UC53: không còn sử dụng
-
-    /**
-     * Tài sản còn trên sổ mà KHÔNG CÒN DÙNG ĐƯỢC: hỏng chờ xử lý, tình trạng "hỏng" / "không sử dụng được", hoặc đã
-     * có đề nghị thanh lý / tiêu huỷ. Đang sửa, đang bảo hành không tính — còn đang cứu. Cột "Lý do" nói vì sao nó
-     * nằm trong danh sách, để người đọc biết bước kế tiếp (lập đề nghị thanh lý hay đợi duyệt).
-     */
-    Report unused(Params p) {
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT e.id AS equipment_id, s.name AS school, e.code, e.name,"
-                + " c.name AS catalog, r.name AS room, " + ReportService.statusLabel("e.status") + " AS status, "
-                + ReportService.conditionLabel("e.condition") + " AS condition,"
-                + " CASE WHEN e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')"
-                + "        THEN 'Đã duyệt thanh lý / tiêu huỷ, chờ thực hiện'"
-                + "      WHEN e.status = 'UNREPAIRABLE'"
-                + "        THEN 'Hỏng, đã kết luận không sửa được'"
-                + "      WHEN e.status = 'BROKEN' THEN 'Hỏng, chờ xử lý'"
-                + "      ELSE 'Tình trạng ghi: hỏng' END AS reason,"
-                + " e.received_date, e.original_value, e.remaining_value"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id"
-                + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id LEFT JOIN rooms r ON r.id = e.room_id"
-                + " WHERE e.status NOT IN" + ReportService.OFF_BOOK
-                + " AND (e.status IN ('BROKEN', 'UNREPAIRABLE', 'PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')"
-                + "      OR (e.status NOT IN ('REPAIRING', 'WARRANTY') AND e.condition = 'HONG'))"
-                + reports.assets("e", p) + " ORDER BY s.name, e.code LIMIT " + ReportService.LIST_LIMIT);
-        return new Report("unused-equipment", "Thiết bị không còn sử dụng", reports.subtitle(p, null),
-                List.of(col("school", "Trường", "text"), col("code", "Mã thiết bị", "text"),
-                        col("name", "Tên thiết bị", "text"), col("catalog", "DM thiết bị", "text"),
-                        col("room", "Chỗ để", "text"), col("status", "Trạng thái", "text"),
-                        col("condition", "Tình trạng", "text"), col("reason", "Lý do", "text"),
-                        col("received_date", "Ngày tiếp nhận", "date"),
-                        col("original_value", "Nguyên giá (đ)", "money"),
-                        col("remaining_value", "Giá trị còn lại (đ)", "money")),
-                rows);
-    }
-
     // ------------------------------------------------------------------ UC54: nằm kho kéo dài
 
     /**
-     * Tài sản đang trong kho mà lâu không được dùng: tính từ lần cuối có lịch sử SỬ DỤNG (cấp phát, mượn, trả,
-     * chuyển, sửa, bảo trì, báo hỏng, tiêu hao — {@link ReportService#USAGE_ACTIONS}), chưa từng dùng thì từ ngày
-     * tiếp nhận. Ngưỡng là ô chọn của báo cáo (3 tháng / 6 tháng / 1 năm).
+     * Tài sản đang trong kho mà lâu không được dùng: tính từ lần cuối đổi trạng thái (lịch sử thiết bị, tức lúc về
+     * kho), chưa đổi lần nào thì từ ngày tiếp nhận. Ngưỡng là ô chọn của báo cáo (3 tháng / 6 tháng / 1 năm).
      */
     Report idle(Params p, int days) {
-        String since = "COALESCE((u.last_used" + LOCAL_DATE + ", e.received_date, (e.created_at" + LOCAL_DATE + ")";
+        String since = "COALESCE((u.changed_at" + LOCAL_DATE + ", e.received_date, (e.created_at" + LOCAL_DATE + ")";
         List<Map<String, Object>> rows = jdbc.queryForList("WITH u AS (SELECT h.equipment_id, MAX(h.created_at)"
-                + " AS last_used FROM equipment_history h WHERE h.action IN" + ReportService.USAGE_ACTIONS
-                + " GROUP BY h.equipment_id)"
+                + " AS changed_at FROM equipment_history h WHERE h.field = 'status' GROUP BY h.equipment_id)"
                 + " SELECT e.id AS equipment_id, s.name AS school, e.code, e.name, c.name AS catalog, r.name AS room, st.name AS manager,"
-                + " e.received_date, (u.last_used" + LOCAL_DATE + " AS last_used,"
+                + " e.received_date, " + since + " AS in_stock_since,"
                 + " (CURRENT_DATE - " + since + ") AS idle_days, e.quantity, e.original_value"
                 + " FROM equipment e JOIN schools s ON s.id = e.school_id"
                 + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id LEFT JOIN rooms r ON r.id = e.room_id"
@@ -96,7 +59,7 @@ final class AnalysisReports {
                 List.of(col("school", "Trường", "text"), col("code", "Mã thiết bị", "text"),
                         col("name", "Tên thiết bị", "text"), col("catalog", "DM thiết bị", "text"),
                         col("room", "Kho", "text"), col("manager", "Người quản lý", "text"),
-                        col("received_date", "Ngày tiếp nhận", "date"), col("last_used", "Lần dùng gần nhất", "date"),
+                        col("received_date", "Ngày tiếp nhận", "date"), col("in_stock_since", "Trong kho từ ngày", "date"),
                         col("idle_days", "Số ngày nằm kho", "number"), col("quantity", "Số lượng", "number"),
                         col("original_value", "Nguyên giá (đ)", "money")),
                 rows);
@@ -159,8 +122,8 @@ final class AnalysisReports {
 
     /**
      * Từng tài sản có dữ liệu mâu thuẫn — không phải THIẾU (đã có "Chất lượng dữ liệu"), mà SAI: còn lại lớn hơn
-     * nguyên giá, nguyên giá ≤ 0, ngày tiếp nhận ở tương lai, trạng thái không khớp chỗ để hoặc tình trạng, số lượng
-     * 0 mà chưa ghi dùng hết, bảo hành hết trước khi nhận, trùng số serial. Một tài sản có thể hiện nhiều dòng.
+     * nguyên giá, nguyên giá ≤ 0, ngày tiếp nhận ở tương lai, trạng thái không khớp chỗ để, số lượng
+     * không dương, bảo hành hết trước khi nhận, trùng số serial. Một tài sản có thể hiện nhiều dòng.
      */
     Report anomalies(Params p) {
         String base = "SELECT e.id AS equipment_id, s.name AS school, e.code, e.name, %s AS issue, %s AS detail"
@@ -180,10 +143,7 @@ final class AnalysisReports {
                 base.formatted("'Đang sử dụng nhưng nằm ở kho'", "r.name", "e.status = 'IN_USE' AND rt.code = 'KHO'"),
                 base.formatted("'Trong kho nhưng đặt ở phòng không phải kho'", "r.name",
                         "e.status = 'IN_STOCK' AND r.id IS NOT NULL AND COALESCE(rt.code, '') <> 'KHO'"),
-                base.formatted("'Tình trạng hỏng nhưng vẫn ghi đang dùng / trong kho'",
-                        ReportService.conditionLabel("e.condition"),
-                        "e.status IN ('IN_STOCK', 'IN_USE') AND e.condition = 'HONG'"),
-                base.formatted("'Số lượng bằng 0 nhưng chưa ghi dùng hết'", "e.quantity::text", "e.quantity <= 0"),
+                base.formatted("'Số lượng bằng 0 hoặc âm'", "e.quantity::text", "e.quantity <= 0"),
                 base.formatted("'Hết bảo hành trước ngày tiếp nhận'",
                         "to_char(e.warranty_expiry, 'DD/MM/YYYY') || ' < ' || to_char(e.received_date, 'DD/MM/YYYY')",
                         "e.warranty_expiry < e.received_date"),
@@ -213,19 +173,18 @@ final class AnalysisReports {
     }
 
     /**
-     * Sổ sách thiết bị: mỗi tài sản còn trên sổ một dòng — chứng từ ghi tăng, ngày nhận, số lượng, nguyên giá, hao
-     * mòn, còn lại, chỗ để, người quản lý. Phân loại tài sản lấy của tài sản, chưa khai thì của thiết bị trong danh
+     * Sổ sách thiết bị: mỗi tài sản còn trên sổ một dòng — chứng từ ghi tăng, ngày nhận, số lượng, nguyên giá, giá trị
+     * còn lại, chỗ để, người quản lý. Phân loại tài sản lấy của tài sản, chưa khai thì của thiết bị trong danh
      * mục (cùng luật với {@code EquipmentService}).
      */
     Report ledger(Params p, String choice) {
         String[] ledger = LEDGERS.getOrDefault(choice, LEDGERS.get("all"));
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM (SELECT e.id AS equipment_id, s.name AS school, e.code, e.name,"
                 + " c.name AS catalog, u.name AS unit, e.quantity, ei.code AS voucher, e.received_date,"
-                + " e.original_value, e.original_value - COALESCE(e.remaining_value, e.original_value) AS depreciation,"
-                + " COALESCE(e.remaining_value, e.original_value) AS remaining_value, r.name AS room, st.name AS manager,"
+                + " e.original_value, COALESCE(e.remaining_value, e.original_value) AS remaining_value, r.name AS room, st.name AS manager,"
                 + " " + ReportService.statusLabel("e.status") + " AS status,"
                 + " COALESCE(e.asset_category, c.asset_category) AS cat"
-                + " FROM equipment e JOIN schools s ON s.id = e.school_id"
+                + " FROM " + reports.equipment(p) + " e JOIN schools s ON s.id = e.school_id"
                 + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id LEFT JOIN units u ON u.id = e.unit_id"
                 + " LEFT JOIN equipment_intake_lines il ON il.id = e.intake_line_id"
                 + " LEFT JOIN equipment_intakes ei ON ei.id = il.intake_id"
@@ -239,7 +198,6 @@ final class AnalysisReports {
                         col("unit", "Đơn vị tính", "text"), col("quantity", "Số lượng", "number"),
                         col("voucher", "Chứng từ ghi tăng", "text"), col("received_date", "Ngày tiếp nhận", "date"),
                         col("original_value", "Nguyên giá (đ)", "money"),
-                        col("depreciation", "Hao mòn luỹ kế (đ)", "money"),
                         col("remaining_value", "Giá trị còn lại (đ)", "money"), col("room", "Chỗ để", "text"),
                         col("manager", "Người quản lý", "text"), col("status", "Trạng thái", "text")),
                 rows);

@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 /** Hình dạng trên đường truyền của một quy tắc chuẩn CSVC. */
@@ -24,6 +25,12 @@ public record FacilityStandardRuleResponse(
         BigDecimal minRoomArea,
         BigDecimal areaPerStudent,
         BigDecimal minTotalArea,
+        Integer largeClassFrom,
+        Integer largeMinCount,
+        BigDecimal studentPercent,
+        Boolean onlyIfPresent,
+        Boolean subjectRooms,
+        List<LegalDocumentSummary> legalDocuments,
         String legalBasis,
         Instant createdAt,
         Instant updatedAt,
@@ -33,6 +40,10 @@ public record FacilityStandardRuleResponse(
     public record RoomTypeSummary(Long id, String code, String name, String groupName) {
     }
 
+    /** Văn bản căn cứ rút gọn: số hiệu, trích yếu. */
+    public record LegalDocumentSummary(Long id, String code, String name) {
+    }
+
     public static FacilityStandardRuleResponse from(FacilityStandardRule item, RowLevelSecurity rowLevel) {
         RoomType type = item.getRoomType();
         return new FacilityStandardRuleResponse(item.getId(), item.getCode(), item.getName(), item.getSortOrder(),
@@ -40,7 +51,11 @@ public record FacilityStandardRuleResponse(
                 type == null ? null : new RoomTypeSummary(type.getId(), type.getCode(), type.getName(),
                         type.getGroup() == null ? null : type.getGroup().getName()),
                 item.getLevelCode(), item.getTier(), item.getMinCount(), item.getCountPerClass(),
-                item.getMinRoomArea(), item.getAreaPerStudent(), item.getMinTotalArea(), item.getLegalBasis(),
+                item.getMinRoomArea(), item.getAreaPerStudent(), item.getMinTotalArea(), item.getLargeClassFrom(),
+                item.getLargeMinCount(), item.getStudentPercent(), item.getOnlyIfPresent(), item.getSubjectRooms(),
+                item.getLegalDocuments().stream()
+                        .map(d -> new LegalDocumentSummary(d.getId(), d.getCode(), d.getName())).toList(),
+                item.getLegalBasis(),
                 item.getCreatedAt(), item.getUpdatedAt(), rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }
 }

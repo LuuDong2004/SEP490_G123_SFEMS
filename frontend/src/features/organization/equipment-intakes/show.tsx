@@ -196,8 +196,8 @@ function LineShowDialog({ line, head, config, issues, canWrite, assets, onClose 
             </Fact>
             {line.packUnit && line.packSize != null ? (
               <>
-                <Fact label="Quy cách">{`1 ${line.packUnit.name} = ${Number(line.packSize).toLocaleString("vi-VN")} ${line.unit?.name ?? ""}`}</Fact>
-                <Fact label="Vào hệ thống">{`${Number(line.stockQuantity ?? 0).toLocaleString("vi-VN")} ${line.unit?.name ?? ""}`}</Fact>
+                <Fact label="Quy cách">{`1 ${line.packUnit.name} = ${Number(line.packSize).toLocaleString("vi-VN", { useGrouping: false })} ${line.unit?.name ?? ""}`}</Fact>
+                <Fact label="Vào hệ thống">{`${Number(line.stockQuantity ?? 0).toLocaleString("vi-VN", { useGrouping: false })} ${line.unit?.name ?? ""}`}</Fact>
               </>
             ) : null}
             <Fact label="Đơn giá">{line.unitPrice != null ? `${money.format(line.unitPrice)} đ` : null}</Fact>
@@ -322,7 +322,7 @@ function IntakeDocument({ record, config }: { record: EquipmentIntake; config: V
         { label: "Nhà cung cấp", value: suppliers.join("; ") || null, wide: suppliers.join("; ").length > 40 },
         { label: "Hoá đơn, hợp đồng số", value: invoices.join(", ") || null },
         { label: "Người giao", value: [d.deliveredBy, d.deliveryRepresentative ? `đại diện ${d.deliveryRepresentative}` : null, d.delivererPhone ? `ĐT ${d.delivererPhone}` : null].filter(Boolean).join(", ") || null },
-        { label: "Người nhận", value: [d.receiverName, d.receiverPosition].filter(Boolean).join(", ") || null },
+        { label: "Người nhận", value: d.receiverName || null },
         { label: "Biên bản bàn giao số", value: d.handoverMinutesNo },
         ...extra,
         { label: "Ghi chú", value: record.note, wide: true },

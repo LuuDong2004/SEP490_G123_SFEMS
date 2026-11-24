@@ -145,12 +145,12 @@ public class OnboardingValidator {
             Map.entry("GDQP_AN", "GIAO_DUC_QUOC_PHONG_VA_AN_NINH"),
             Map.entry("GDQPAN", "GIAO_DUC_QUOC_PHONG_VA_AN_NINH"));
 
-    /** Cách ghi tình trạng thường gặp trên sổ cũ → tình trạng của hệ thống. */
+    /** Cách ghi tình trạng thường gặp trên sổ cũ → tình trạng của hệ thống. Không có tình trạng hỏng: hư, hỏng ghi Kém. */
     private static final Map<String, EquipmentCondition> CONDITION_ALIASES = Map.ofEntries(
             Map.entry("KHA", EquipmentCondition.TRUNG_BINH),
             Map.entry("BINH_THUONG", EquipmentCondition.TRUNG_BINH),
             Map.entry("HONG_NHE", EquipmentCondition.KEM),
-            Map.entry("HONG_NANG", EquipmentCondition.HONG),
+            Map.entry("HONG_NANG", EquipmentCondition.KEM),
             Map.entry("MOI", EquipmentCondition.TOT),
             Map.entry("MOI_100", EquipmentCondition.TOT),
             Map.entry("CON_TOT", EquipmentCondition.TOT),
@@ -161,15 +161,16 @@ public class OnboardingValidator {
             Map.entry("TB", EquipmentCondition.TRUNG_BINH),
             Map.entry("CU", EquipmentCondition.KEM),
             Map.entry("XUONG_CAP", EquipmentCondition.KEM),
-            Map.entry("HU", EquipmentCondition.HONG),
-            Map.entry("HU_HONG", EquipmentCondition.HONG),
-            Map.entry("HU_HONG_NANG", EquipmentCondition.HONG),
-            Map.entry("HONG_HOAN_TOAN", EquipmentCondition.HONG),
-            Map.entry("KHONG_SU_DUNG", EquipmentCondition.HONG),
-            Map.entry("KHONG_SU_DUNG_DUOC", EquipmentCondition.HONG),
-            Map.entry("KHONG_DUNG", EquipmentCondition.HONG),
-            Map.entry("KHONG_SD", EquipmentCondition.HONG),
-            Map.entry("NGUNG_SU_DUNG", EquipmentCondition.HONG));
+            Map.entry("HONG", EquipmentCondition.KEM),
+            Map.entry("HU", EquipmentCondition.KEM),
+            Map.entry("HU_HONG", EquipmentCondition.KEM),
+            Map.entry("HU_HONG_NANG", EquipmentCondition.KEM),
+            Map.entry("HONG_HOAN_TOAN", EquipmentCondition.KEM),
+            Map.entry("KHONG_SU_DUNG", EquipmentCondition.KEM),
+            Map.entry("KHONG_SU_DUNG_DUOC", EquipmentCondition.KEM),
+            Map.entry("KHONG_DUNG", EquipmentCondition.KEM),
+            Map.entry("KHONG_SD", EquipmentCondition.KEM),
+            Map.entry("NGUNG_SU_DUNG", EquipmentCondition.KEM));
 
     /**
      * Cách ghi hay gặp ở tệp của trường → tên hằng của lựa chọn, theo từng loại lựa chọn. Khoá đã bỏ dấu
@@ -233,7 +234,7 @@ public class OnboardingValidator {
 
     private static final Map<EquipmentCondition, String> CONDITION_LABELS = Map.of(
             EquipmentCondition.TOT, "Tốt", EquipmentCondition.TRUNG_BINH, "Trung bình",
-            EquipmentCondition.KEM, "Kém", EquipmentCondition.HONG, "Hỏng");
+            EquipmentCondition.KEM, "Kém");
 
     /** Viết tắt đơn vị → tên đơn vị trong danh mục (đã chuẩn hoá). */
     private static final Map<String, String> UNIT_ALIASES = Map.of(
@@ -922,7 +923,7 @@ public class OnboardingValidator {
         }
         if (!missing.isEmpty()) {
             r.warn("receivedDate", "Thiếu " + String.join(", ", missing)
-                    + " — vẫn nhập được, nhưng chưa lập phiếu (điều chuyển, ghi giảm…) cho thiết bị này được cho tới khi bổ sung");
+                    + " — vẫn nhập được, nhưng hồ sơ chưa đạt chuẩn cho tới khi bổ sung");
         }
         r.resolved.put("copies", bulk ? 1 : copies);
         // Bộ đếm mã tài sản của dòng này: MH.LT.NC (NC = năm tiếp nhận, không có thì năm nay — như khi cấp mã).
@@ -1393,7 +1394,7 @@ public class OnboardingValidator {
             if (serials == null) {
                 serials = new HashMap<>();
                 jdbc.query("SELECT serial_number, code FROM equipment WHERE school_id = ? AND serial_number IS NOT NULL"
-                        + " AND status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED') ORDER BY code", rs -> {
+                        + " AND status <> 'LOST' ORDER BY code", rs -> {
                     String key = serialKey(rs.getString("serial_number"));
                     if (key != null) {
                         serials.putIfAbsent(key, rs.getString("code"));

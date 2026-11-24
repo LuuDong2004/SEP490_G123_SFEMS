@@ -26,8 +26,8 @@ import org.springframework.data.jpa.domain.Specification;
  *   <li><b>Trường sở hữu</b> lấy từ payload ({@code school.id}); vắng thì lấy
  *       trường của TÀI KHOẢN đang đăng nhập — cán bộ trường không phải chọn
  *       trường của chính mình. Không có cả hai (Sở tạo mà quên chọn) là 422.</li>
- *   <li><b>Không đổi trường</b> sau khi tạo: dữ liệu chuyển trường là một nghiệp
- *       vụ (điều chuyển), không phải một lần sửa form.</li>
+ *   <li><b>Không đổi trường</b> sau khi tạo: chuyển dữ liệu sang trường khác không phải
+ *       là một lần sửa form.</li>
  *   <li><b>Mã duy nhất trong trường</b>, không phải trong cả bảng.</li>
  * </ul>
  *

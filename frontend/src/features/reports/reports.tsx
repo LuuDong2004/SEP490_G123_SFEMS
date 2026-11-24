@@ -1,8 +1,8 @@
 import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-table/filter-popover";
 import { useCan, useNotification } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, GraduationCap, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { useSettled } from "@/shared/hooks/use-settled";
@@ -34,13 +34,20 @@ import { SaveSnapshotDialog } from "@/features/reports/snapshots";
 import { CSVC_STATISTICS, CsvcStatisticsNotes, CsvcStatisticsTable, csvcCell } from "@/shared/components/facility/csvc-statistics";
 import { QueryError } from "@/shared/components/query-error";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { LoadMore } from "@/shared/components/data-table/load-more";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
+import { useShowMore } from "@/shared/hooks/use-infinite-scroll";
 import { CampusFilterButton } from "@/shared/components/campus/campus";
 
-const number = new Intl.NumberFormat("vi-VN");
+const number = new Intl.NumberFormat("vi-VN", { useGrouping: false });
+// Số đếm, số lượng không có dấu ngăn nghìn (trưởng nhóm 24/11/2026). Tiền vẫn có: 2.500.000.000 đ dễ đọc hơn 2500000000.
+const money = new Intl.NumberFormat("vi-VN");
 
 /** Cách gộp theo phạm vi nhiều trường — vô nghĩa với tài khoản trường. */
-const SCOPE_GROUPS = new Set(["school", "body", "level"]);
+const SCOPE_GROUPS = new Set(["school"]);
+
+/** Số dòng hiện thêm mỗi lần cuộn tới đáy bảng chi tiết. */
+const ROWS_STEP = 50;
 
 type Named = { id: number; name: string };
 
@@ -64,7 +71,7 @@ export const Reports = () => {
   const { name } = useParams<{ name: string }>();
   // Kỳ của báo cáo nằm TRONG năm học đang làm việc (ô năm học trên header). Mặc định cả năm học (tới hôm nay nếu năm
   // đang chạy); chưa có năm học trong danh mục thì như cũ — từ đầu năm dương lịch tới hôm nay.
-  const { year: workingYear } = useSchoolYear();
+  const { year: workingYear, past: pastYear } = useSchoolYear();
   const today = iso(new Date());
   const bounds: YearBounds | undefined = workingYear
     ? { from: workingYear.startDate, to: workingYear.endDate, label: `Năm học ${yearLabel(workingYear)}` }
@@ -78,7 +85,10 @@ export const Reports = () => {
   const range = rangeBy[yearKey] ?? yearRange();
   const setRange = (next: IsoRange) => setRangeBy((m) => ({ ...m, [yearKey]: next }));
   const { from, to } = range;
-  const [budgetYear, setBudgetYear] = useState(String(year + 1));
+  // Năm ngân sách mặc định theo năm học trên header (2026–2027 → 2027); đổi năm học thì về năm đó.
+  const [budgetBy, setBudgetBy] = useState<Record<string, string>>({});
+  const budgetYear = budgetBy[yearKey] ?? (workingYear?.endDate ? workingYear.endDate.slice(0, 4) : String(year + 1));
+  const setBudgetYear = (v: string) => setBudgetBy((m) => ({ ...m, [yearKey]: v }));
   const [busy, setBusy] = useState(false);
   // Chiều tổng hợp nhớ theo TỪNG báo cáo: chuyển sang báo cáo khác rồi quay lại thì vẫn đúng chiều vừa chọn.
   const [groupBy, setGroupBy] = useState<Record<string, string>>({});
@@ -93,9 +103,7 @@ export const Reports = () => {
   // Số liệu chi tiết mặc định thu gọn — biểu đồ nói trước, bấm "Xem chi tiết" mới mở bảng; nhớ theo từng báo cáo.
   const [detailBy, setDetailBy] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
-  // Bộ lọc dùng chung cho mọi báo cáo — đang xem một địa bàn thì chuyển báo cáo vẫn trên địa bàn đó.
-  const [bodyId, setBodyId] = useState<number | null>(null);
-  const [levelId, setLevelId] = useState<number | null>(null);
+  // Trường đang lọc dùng chung cho mọi báo cáo — chuyển báo cáo vẫn trên trường đó.
   const [schoolId, setSchoolIdRaw] = useState<number | null>(null);
   // Cơ sở: chỉ có nghĩa khi phạm vi là MỘT trường nhiều cơ sở — đổi trường thì bỏ chọn.
   const [campusId, setCampusId] = useState<number | null>(null);
@@ -106,7 +114,7 @@ export const Reports = () => {
   // Lọc theo tài sản: loại thiết bị, trạng thái, tình trạng — giữ khi chuyển báo cáo, chỉ gửi khi báo cáo nhận.
   const [typeId, setTypeId] = useState<number | null>(null);
   const [assetFilter, setAssetFilter] = useState<{ status?: string; condition?: string }>({});
-  // Tài khoản trường chỉ thấy trường mình: lọc theo địa bàn, cấp học, trường là câu hỏi không có lựa chọn nào.
+  // Tài khoản trường chỉ thấy trường mình: lọc theo trường là câu hỏi không có lựa chọn nào.
   const { perspective } = usePerspective();
   const canFilter = perspective !== "school";
 
@@ -117,7 +125,7 @@ export const Reports = () => {
   const definitions = Array.isArray(defs.data) ? defs.data : [];
   const current = definitions.find((d) => d.name === name);
 
-  // Tài khoản trường chỉ có MỘT trường: gộp theo đơn vị / địa bàn / cấp học luôn ra đúng một dòng — bỏ khỏi ô chọn.
+  // Tài khoản trường chỉ có MỘT trường: gộp theo đơn vị luôn ra đúng một dòng — bỏ khỏi ô chọn.
   const groups = (current?.groups ?? []).filter((g) => canFilter || !SCOPE_GROUPS.has(g.key));
   const group = (name && groupBy[name]) || groups[0]?.key;
   const choices = current?.choices ?? [];
@@ -130,10 +138,11 @@ export const Reports = () => {
   const params: Record<string, string> = {};
   if (current?.period) Object.assign(params, { from, to });
   if (current?.year) params.year = budgetYear;
+  // Năm học đã qua: số liệu dựng lại tại cuối năm đó. Báo cáo không dựng lại được thì ghi rõ là số hiện tại.
+  if (current?.byYear && pastYear && workingYear) params.yearId = String(workingYear.id);
+  const nowOnly = pastYear && !!current && !current.byYear && !current.period && !current.year;
   if (group && groups.length) params.group = group;
   if (choice && choices.length) params.choice = choice;
-  if (bodyId != null) params.bodyId = String(bodyId);
-  if (levelId != null) params.levelId = String(levelId);
   if (schoolId != null) params.schoolId = String(schoolId);
   if (campusId != null) params.campusId = String(campusId);
   if (accepts("type") && typeId != null) params.typeId = String(typeId);
@@ -150,7 +159,7 @@ export const Reports = () => {
     placeholderData: keepPreviousData,
     queryFn: ({ signal }) => kyInstance.get(`reports/${current!.name}`, { signal,  searchParams: params }).json<Report>(),
   });
-  // Chỉ giữ số cũ của CHÍNH báo cáo này — chuyển sang báo cáo khác thì không mượn số của báo cáo trước.
+  // Chỉ giữ số cũ của CHÍNH báo cáo này — chuyển sang báo cáo khác thì không giữ số của báo cáo trước.
   const loaded = report.data && "rows" in report.data && report.data.name === current?.name ? report.data : undefined;
   const columnFilters = (name && REPORT_FILTERS[name]) || [];
   const active = (name && rowFilterBy[name]) || {};
@@ -164,9 +173,9 @@ export const Reports = () => {
   const r = loaded && Object.keys(active).length
     ? { ...loaded, rows: loaded.rows.filter((row) => Object.entries(active).every(([k, v]) => String(row[k] ?? "") === v)) }
     : loaded;
-  // Số điều kiện đang bật trong nút "Bộ lọc": trạng thái khác mặc định, lọc theo tài sản, lọc theo cột.
+  // Số điều kiện đang bật trong nút "Bộ lọc": trường, trạng thái khác mặc định, lọc theo thiết bị, lọc theo cột.
   const filterCount = (choices.length && choice !== choices[0]?.key ? 1 : 0) + Object.keys(active).length
-    + [accepts("type") && typeId != null, accepts("status") && !!assetFilter.status,
+    + [canFilter && schoolId != null, accepts("type") && typeId != null, accepts("status") && !!assetFilter.status,
       accepts("condition") && !!assetFilter.condition].filter(Boolean).length;
   const filter: ReportFilter | undefined = loaded && columnFilters.length
     ? { active, set: setRowFilter, all: loaded.rows as ReportFilter["all"] }
@@ -193,7 +202,8 @@ export const Reports = () => {
   // Cột không cộng dồn được (số người khác nhau…) lấy số Tổng máy chủ tính sẵn (`totals`), còn lại cộng các dòng.
   const totals = r?.columns.map((c, i) =>
     i === 0 ? "Tổng" : r.totals?.[c.key] != null ? r.totals[c.key]
-      : c.type === "money" || (c.type === "number" && !c.label.includes("%"))
+      // "Số trường" của từng nhóm: một trường có ở nhiều nhóm, cộng lại ra số trường không có thật.
+      : c.type === "money" || (c.type === "number" && c.key !== "schools" && !c.label.includes("%"))
         ? r.rows.reduce((s, row) => s + (Number(row[c.key]) || 0), 0)
         : null,
   );
@@ -215,6 +225,24 @@ export const Reports = () => {
   // Không có biểu đồ thì bảng chi tiết là nội dung chính: thẻ kéo kín phần còn lại của màn như các danh sách, bảng cuộn
   // bên trong, bảng trống thì chữ đứng giữa khung (không bẹp thành một dải dưới bộ lọc).
   const fillDetail = useFillHeight(16, 1024, 320);
+  // Cuộn tới đâu hiện thêm tới đó, không phân trang; đổi báo cáo hay bộ lọc thì về đầu.
+  const more = useShowMore(r?.rows.length ?? 0, ROWS_STEP);
+  const resetRows = useRef(more.reset);
+  resetRows.current = more.reset;
+  const scrollBox = useRef<HTMLDivElement>(null);
+  const rowsKey = requestKey + JSON.stringify(active);
+  useEffect(() => {
+    resetRows.current();
+    scrollBox.current?.scrollTo({ top: 0 });
+  }, [rowsKey]);
+  // Mở chi tiết: đưa cả khung lên ngay dưới thanh tab — tiêu đề, tên cột và dòng tổng luôn nằm trong màn.
+  const detailCard = useRef<HTMLDivElement | null>(null);
+  const hasCharts = !!charts;
+  const measureFill = fillDetail.ref;
+  const cardRef = useCallback((el: HTMLDivElement | null) => {
+    detailCard.current = el;
+    measureFill(hasCharts ? null : el);
+  }, [hasCharts, measureFill]);
   const detailFills = !charts && fillDetail.height != null;
   // Biểu số liệu CSVC: bảng theo mẫu Sở (tiêu đề ba hàng, khối in đậm), xuất Excel đúng bố cục mẫu.
   const csvc = name === CSVC_STATISTICS;
@@ -241,7 +269,7 @@ export const Reports = () => {
       ) : null}
       <div className="space-y-4 print:hidden">
         {/* MỘT hàng ngữ cảnh: bên trái báo cáo đang gộp trên phạm vi nào (và mô tả trong dấu "?"), bên phải mọi bộ
-            chọn — chiều gộp, trạng thái, kỳ, địa bàn / cấp học / trường. Hai hàng có đường kẻ giữa thì nửa phải
+            chọn — chiều gộp, kỳ, nút Bộ lọc. Hai hàng có đường kẻ giữa thì nửa phải
             hàng trên và hàng dưới đều trống. */}
         {/* Không có bộ chọn nào (tài khoản trường, báo cáo không theo kỳ): chỉ còn nhãn phạm vi — không cần khung. */}
         <Card className={cn("flex flex-row flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 lg:flex-nowrap",
@@ -261,6 +289,12 @@ export const Reports = () => {
                 {part.charAt(0).toUpperCase() + part.slice(1)}
               </Badge>
             ))}
+            {nowOnly ? (
+              <Badge variant="warning" className="gap-1.5">
+                <CalendarDays className="size-3.5" />
+                Số liệu hiện tại, không theo năm học
+              </Badge>
+            ) : null}
             {/* Số liệu chốt lúc nào: lần đọc gần nhất từ máy chủ — Làm mới để lấy số mới. */}
             {loaded && report.dataUpdatedAt ? (
               <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
@@ -270,8 +304,7 @@ export const Reports = () => {
             ) : null}
             {report.isFetching || settling ? <Loader2 className="text-muted-foreground size-4 animate-spin" /> : null}
           </div>
-          {/* Kỳ và cách gộp hiện đủ chữ (đổi là đổi cả báo cáo). Địa bàn, cấp học, trường là nút biểu tượng tròn như các
-              danh sách: bấm là chọn, không qua hộp nào. Các điều kiện còn lại của từng báo cáo vào nút "Bộ lọc". */}
+          {/* Kỳ và cách gộp hiện đủ chữ (đổi là đổi cả báo cáo); mọi điều kiện lọc nằm trong MỘT nút "Bộ lọc". */}
           <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap [&_[data-slot=select-trigger]]:rounded-full">
             {current?.period ? (
               <DateRangePicker value={range} onChange={setRange} bounds={bounds} className="w-auto" />
@@ -307,43 +340,10 @@ export const Reports = () => {
                 </SelectContent>
               </Select>
             ) : null}
-            {canFilter ? (
-              <>
-                <AsyncCombobox<Named>
-                  icon={<MapPin />}
-                  resource="departments_of_education"
-                  value={bodyId}
-                  onChange={setBodyId}
-                  labelOf={(b) => b.name}
-                  placeholder="Lọc theo địa bàn · đang xem mọi địa bàn"
-                  searchPlaceholder="Gõ tên cơ quan quản lý..."
-                  clearLabel="— Mọi địa bàn —"
-                />
-                <AsyncCombobox<Named>
-                  icon={<GraduationCap />}
-                  resource="education_levels"
-                  value={levelId}
-                  onChange={setLevelId}
-                  labelOf={(l) => l.name}
-                  sortField="sortOrder"
-                  placeholder="Lọc theo cấp học · đang xem mọi cấp học"
-                  clearLabel="— Mọi cấp học —"
-                />
-                <AsyncCombobox<Named>
-                  icon={<School />}
-                  resource="schools"
-                  value={schoolId}
-                  onChange={setSchoolId}
-                  labelOf={(sc) => sc.name}
-                  placeholder="Lọc theo trường · đang xem mọi trường"
-                  searchPlaceholder="Gõ tên trường..."
-                  clearLabel="— Mọi trường —"
-                />
-              </>
-            ) : null}
-            <CampusFilterButton schoolId={schoolId} value={campusId} onChange={setCampusId} />
-            {choices.length > 0 || filters.length > 0 || columnFilters.length > 0 ? (
+            <CampusFilterButton labeled schoolId={schoolId} value={campusId} onChange={setCampusId} />
+            {canFilter || choices.length > 0 || filters.length > 0 || columnFilters.length > 0 ? (
               <FilterButton align="end" count={filterCount} onClear={() => {
+                setSchoolId(null);
                 setTypeId(null);
                 setAssetFilter({});
                 if (name) {
@@ -351,8 +351,21 @@ export const Reports = () => {
                   setRowFilterBy((all) => ({ ...all, [name]: {} }));
                 }
               }}>
+                {canFilter ? (
+                  <FilterField label="Trường" icon={School} active={schoolId != null}>
+                    <AsyncCombobox<Named>
+                      resource="schools"
+                      value={schoolId}
+                      onChange={setSchoolId}
+                      labelOf={(sc) => sc.name}
+                      placeholder="Mọi trường"
+                      searchPlaceholder="Gõ tên trường..."
+                      clearLabel="Mọi trường"
+                    />
+                  </FilterField>
+                ) : null}
                 {choices.length ? (
-                  <FilterField label="Trạng thái" icon={CircleDot} active={choice !== choices[0]?.key}>
+                  <FilterField label={name === "equipment-ledger" ? "Loại bảng" : "Trạng thái"} icon={CircleDot} active={choice !== choices[0]?.key}>
                     {/* Luôn có một lựa chọn (mục đầu là mặc định): bấm lại mục đang chọn thì về mục đầu. */}
                     <ChoiceList value={choice} options={choices.map((c) => ({ value: c.key, label: c.label }))}
                       onChange={(v) => name && setChoiceBy((c) => ({ ...c, [name]: v ?? choices[0]?.key ?? "" }))} />
@@ -368,7 +381,7 @@ export const Reports = () => {
                       labelOf={(t) => t.name}
                       placeholder="Mọi loại thiết bị"
                       searchPlaceholder="Gõ tên loại thiết bị..."
-                      clearLabel="— Mọi loại thiết bị —"
+                      clearLabel="Mọi loại thiết bị"
                     />
                   </FilterField>
                 ) : (
@@ -442,28 +455,34 @@ export const Reports = () => {
             `data-fit`): khung cao vừa nội dung — kéo cao thì vòng nằm giữa một khoảng trắng lớn (góp ý của người dùng). */}
         {charts ? <Card className="min-h-[calc(var(--chart-h)+7.5rem)] gap-0 py-0 [--chart-h:max(18rem,calc(100dvh-34.75rem))] *:flex-1 has-[[data-fit]]:min-h-0">{charts}</Card> : null}
 
-        <Card ref={!charts ? fillDetail.ref : undefined} style={detailFills ? { height: fillDetail.height } : undefined}
-          className={cn("gap-0 overflow-hidden py-0", detailFills && "flex flex-col print:!h-auto")}>
+        <Card ref={cardRef} style={detailFills ? { height: fillDetail.height } : undefined}
+          className={cn("scroll-mt-32 gap-0 overflow-hidden py-0", detailFills && "flex flex-col print:!h-auto")}>
           <div className={cn("flex shrink-0 items-center justify-between gap-3 px-5 py-3", detailOpen && "border-b")}>
             <div className="flex min-w-0 items-baseline gap-3">
               <h3 className="text-sm font-semibold">Số liệu chi tiết</h3>
               <p className="text-muted-foreground truncate text-xs">
-                {r ? `${number.format(r.rows.length)} dòng${detailOpen ? " · lần xuất, in được ghi vào nhật ký hoạt động" : ""}` : ""}
+                {r ? `${number.format(r.rows.length)} dòng${detailOpen && !csvc && more.hasMore ? ` · đang hiện ${number.format(more.count)}` : ""}${detailOpen ? " · lần xuất, in được ghi vào nhật ký hoạt động" : ""}` : ""}
               </p>
             </div>
             {charts ? (
               <Button type="button" size="sm" variant={detailOpen ? "ghost" : "outline"} aria-expanded={detailOpen}
-                onClick={() => name && setDetailBy((d) => ({ ...d, [name]: !detailOpen }))}>
+                onClick={() => {
+                  if (!name) return;
+                  setDetailBy((d) => ({ ...d, [name]: !detailOpen }));
+                  if (!detailOpen) setTimeout(() => detailCard.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                }}>
                 {detailOpen ? "Thu gọn" : "Xem chi tiết"}
                 <ChevronDown className={cn("transition-transform", detailOpen && "rotate-180")} />
               </Button>
             ) : null}
           </div>
           {detailOpen ? <CardContent className={cn("animate-in fade-in slide-in-from-top-1 p-0 duration-300", detailFills && "flex min-h-0 flex-1 flex-col")}>
-            <div className={detailFills ? "min-h-0 flex-1 overflow-auto" : "max-h-[65vh] overflow-auto"}>
+            {/* Khung này là vùng cuộn DUY NHẤT: khung bọc sẵn của `Table` cũng cuộn thì tên cột dính vào nó và trôi theo dòng. */}
+            <div ref={scrollBox} className={cn("overflow-auto [&>[data-slot=table-container]]:overflow-visible print:max-h-none",
+              detailFills ? "min-h-0 flex-1" : "max-h-[max(20rem,calc(100dvh-13.5rem))]")}>
               {csvc && r ? <CsvcStatisticsTable report={r} /> : (
               <Table>
-                <TableHeader className="bg-surface-subtle sticky top-0 z-10">
+                <TableHeader className="bg-surface-subtle sticky -top-px z-10">
                   <TableRow>
                     {(r?.columns ?? []).map((c) => (
                       <TableHead key={c.key} className={cn("h-auto whitespace-normal py-2.5 leading-snug text-balance min-[1800px]:whitespace-nowrap", numeric(c.type) && "text-right")}>
@@ -493,7 +512,7 @@ export const Reports = () => {
                     <TableEmpty colSpan={r.columns.length} title="Không có dữ liệu trong phạm vi và kỳ đã chọn"
                       description="Đổi kỳ, địa bàn hoặc bộ lọc để xem số liệu khác." />
                   ) : (
-                    (r?.rows ?? []).map((row, i) => {
+                    (r?.rows ?? []).slice(0, more.count).map((row, i) => {
                       // Bấm dòng: mở hồ sơ tài sản / phòng, hoặc xem đánh giá chuẩn CSVC của trường.
                       // Ctrl / Cmd + bấm mở tab mới để không mất bộ lọc của báo cáo.
                       const act = current ? rowAction(current.name, row) : null;
@@ -530,11 +549,11 @@ export const Reports = () => {
                   )}
                 </TableBody>
                 {r && r.rows.length > 1 && totals?.some((t) => typeof t === "number") ? (
-                  <TableFooter className="sticky bottom-0">
+                  <TableFooter className="sticky -bottom-px z-10">
                     <TableRow>
                       {r.columns.map((c, i) => (
                         <TableCell key={c.key} className={numeric(c.type) ? "text-right font-semibold tabular-nums" : "font-semibold"}>
-                          {typeof totals![i] === "number" ? number.format(totals![i] as number) : totals![i] ?? ""}
+                          {typeof totals![i] === "number" ? (c.type === "money" ? money : number).format(totals![i] as number) : totals![i] ?? ""}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -542,6 +561,7 @@ export const Reports = () => {
                 ) : null}
               </Table>
               )}
+              {csvc ? null : <LoadMore attach={more.attach} hasMore={more.hasMore} />}
             </div>
             {csvc && r ? <CsvcStatisticsNotes report={r} /> : null}
           </CardContent> : null}

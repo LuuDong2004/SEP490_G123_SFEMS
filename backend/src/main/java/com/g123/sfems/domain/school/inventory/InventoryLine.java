@@ -24,11 +24,10 @@ import java.util.Set;
 @Table(name = "inventory_lines")
 public class InventoryLine extends VoucherEquipmentLine {
 
-    /** Loại chênh lệch. Một dòng có thể vừa sai vị trí vừa hỏng. */
+    /** Loại chênh lệch. Một dòng có thể vừa sai vị trí vừa thiếu số lượng. */
     public enum Discrepancy {
         MISSING,
         WRONG_ROOM,
-        DAMAGED,
         /** Hoá chất, vật tư theo lô: đếm được ít hơn số trên sổ. */
         SHORTAGE
     }
@@ -77,9 +76,6 @@ public class InventoryLine extends VoucherEquipmentLine {
         }
         if (!Objects.equals(id(expectedRoom), id(foundRoom))) {
             result.add(Discrepancy.WRONG_ROOM);
-        }
-        if (foundCondition == EquipmentCondition.HONG && expectedCondition != EquipmentCondition.HONG) {
-            result.add(Discrepancy.DAMAGED);
         }
         if (expectedQuantity != null && countedQuantity != null && countedQuantity.compareTo(expectedQuantity) < 0) {
             result.add(Discrepancy.SHORTAGE);

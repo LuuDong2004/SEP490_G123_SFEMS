@@ -31,7 +31,7 @@ class VoucherProgressNotifierTest {
         Assumptions.assumeTrue(schoolId != null, "Thiếu tài khoản demo thcs.canbo");
         for (ApprovalStep step : ApprovalStep.values()) {
             var event = new VoucherProgressNotifier.VoucherAwaiting("purchase_proposals", 1L, "MS-TEST", step,
-                    schoolId, "Trường thử", schoolId);
+                    schoolId, "Trường thử");
             assertThatCode(() -> notifier.on(event)).as("bước %s", step).doesNotThrowAnyException();
         }
     }

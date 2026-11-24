@@ -18,8 +18,8 @@ import java.util.List;
  * Phần chung của mọi phiếu thuộc một trường: số phiếu, trạng thái, bước duyệt
  * đang chờ, và vết của vòng duyệt.
  *
- * <p>Mỗi loại phiếu vẫn là MỘT BẢNG RIÊNG với các dòng riêng — phiếu mượn và
- * phiếu thanh lý không có chung một cột nghiệp vụ nào đáng kể. Cái chúng chung
+ * <p>Mỗi loại phiếu vẫn là MỘT BẢNG RIÊNG với các dòng riêng — phiếu ghi tăng và
+ * biên bản kiểm kê không có chung một cột nghiệp vụ nào đáng kể. Cái chúng chung
  * là vòng đời, và vòng đời thì phải giống hệt nhau: một phiếu "chờ duyệt" ở màn
  * này và "đang trình" ở màn kia là hai trạng thái người dùng phải học riêng.
  *
@@ -111,32 +111,10 @@ public abstract class SchoolVoucher extends BaseEntity {
     public abstract List<ApprovalStep> approvalChain();
 
     /**
-     * Phiếu này KHÔNG cần duyệt vì nội dung của nó, dù luồng của loại phiếu nói gì — luật nghiệp vụ, Sở
-     * không cấu hình được (vd. báo hỏng tự sửa không tốn tiền). Mặc định: không miễn.
-     */
-    public boolean approvalExempt() {
-        return false;
-    }
-
-    /**
-     * Phiếu này chỉ đi qua MỘT PHẦN luồng của loại phiếu vì nội dung của nó — luật nghiệp vụ, Sở không cấu hình được
-     * (vd. ghi giảm do mất chỉ cần lãnh đạo trường). Nhận các bước luồng nói, trả các bước thật sự áp dụng. Mặc
-     * định: nguyên luồng.
-     */
-    public List<ApprovalStep> limitChain(List<ApprovalStep> steps) {
-        return steps;
-    }
-
-    /**
      * Số tiền mà ngưỡng của luồng phê duyệt so với (tổng tiền phiếu, chi phí dự kiến…); {@code null} =
      * loại phiếu này không có số tiền để so, hoặc phiếu chưa ghi.
      */
     public BigDecimal approvalAmount() {
-        return null;
-    }
-
-    /** Trường nhận, với phiếu có hai trường. Mặc định không có. */
-    public School targetSchool() {
         return null;
     }
 

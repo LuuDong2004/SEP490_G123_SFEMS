@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET /adequacy?schoolId=} — mức đáp ứng định mức của một trường,</li>
  *   <li>{@code GET /adequacy-summary} — tổng hợp mọi trường người xem được thấy (theo cấp học, dải tỷ
  *       lệ, môn, và cân đối thừa - thiếu theo thiết bị); {@code .xlsx} của cả hai,</li>
- *   <li>{@code GET /adequacy-catalog?catalogId=} — một thiết bị, trường nào thiếu, trường nào thừa,</li>
  *   <li>{@code POST /{id}/intake} — hàng về, lập phiếu nhập nháp từ đề xuất.</li>
  * </ul>
  * Hai đường dẫn chữ khai trước {@code /{id}} để thắng biến đường dẫn.
@@ -83,13 +82,6 @@ public class PurchaseProposalController
     public ResponseEntity<byte[]> adequacySummaryExcel(@RequestParam(required = false) Long campusId) {
         require("read");
         return xlsx("Đáp ứng thiết bị tối thiểu.xlsx", AdequacyExcel.summary(adequacy.summary(campusId)));
-    }
-
-    /** Một thiết bị: trường nào thiếu, trường nào thừa — để cân đối trên địa bàn. */
-    @GetMapping("/adequacy-catalog")
-    public List<AdequacyService.CatalogSchool> adequacyCatalog(@RequestParam Long catalogId) {
-        require("read");
-        return adequacy.catalogSchools(catalogId);
     }
 
     /**

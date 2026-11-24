@@ -1,5 +1,8 @@
 package com.g123.sfems.module.catalog.facilitystandard;
 
+import com.g123.sfems.module.catalog.base.dto.IdRef;
+import com.g123.sfems.module.catalog.legaldocument.LegalDocumentService;
+import com.g123.sfems.domain.catalog.legaldocument.LegalDocument;
 import com.g123.sfems.domain.catalog.facilitygroup.FacilityLevels;
 import com.g123.sfems.domain.catalog.facilitystandard.FacilityStandardRule;
 import com.g123.sfems.domain.catalog.roomtype.RoomType;
@@ -33,13 +36,15 @@ public class FacilityStandardRuleService
     private final FacilityStandardRuleRepository rules;
     private final RoomTypeService roomTypes;
     private final CallerSchoolLevel callerLevel;
+    private final LegalDocumentService legalDocuments;
 
     public FacilityStandardRuleService(FacilityStandardRuleRepository repository, RowLevelSecurity rowLevel,
-            RoomTypeService roomTypes, CallerSchoolLevel callerLevel) {
+            RoomTypeService roomTypes, CallerSchoolLevel callerLevel, LegalDocumentService legalDocuments) {
         super(repository, rowLevel, FacilityStandardRule.class, FacilityStandardRule::new, "Chuẩn CSVC");
         this.rules = repository;
         this.roomTypes = roomTypes;
         this.callerLevel = callerLevel;
+        this.legalDocuments = legalDocuments;
     }
 
     @Override
@@ -74,7 +79,12 @@ public class FacilityStandardRuleService
         item.setMinRoomArea(request.minRoomArea());
         item.setAreaPerStudent(request.areaPerStudent());
         item.setMinTotalArea(request.minTotalArea());
+        item.setLargeClassFrom(request.largeClassFrom());
+        item.setLargeMinCount(request.largeMinCount());
+        item.setStudentPercent(request.studentPercent());
+        item.setOnlyIfPresent(request.onlyIfPresent());
         item.setLegalBasis(blankToNull(request.legalBasis()));
+        applyDocuments(item, request.legalDocuments());
         requireCondition(item);
     }
 
@@ -104,7 +114,12 @@ public class FacilityStandardRuleService
         item.setMinRoomArea(request.minRoomArea());
         item.setAreaPerStudent(request.areaPerStudent());
         item.setMinTotalArea(request.minTotalArea());
+        item.setLargeClassFrom(request.largeClassFrom());
+        item.setLargeMinCount(request.largeMinCount());
+        item.setStudentPercent(request.studentPercent());
+        item.setOnlyIfPresent(request.onlyIfPresent());
         item.setLegalBasis(blankToNull(request.legalBasis()));
+        applyDocuments(item, request.legalDocuments());
         requireCondition(item);
     }
 
@@ -134,6 +149,69 @@ public class FacilityStandardRuleService
             specs.add((root, q, cb) -> cb.equal(root.get("levelCode"), level));
         }
         return Specification.allOf(specs);
+    }
+
+    // ------------------------------------------------------------------ cả loại một lần
+
+    /**
+     * Lưu chuẩn của một loại ở một cấp, đủ ba mức trong MỘT giao dịch. Mức có điều kiện: tạo hoặc sửa quy tắc (đang ngừng
+     * dùng thì dùng lại). Mức trống: bỏ quy tắc đang dùng — xoá khi người gọi có quyền xoá, không thì ngừng dùng; quy tắc
+     * đã ngừng dùng để nguyên. Lỗi ô báo kèm mức ({@code MIN.minCount}) để màn hình chỉ đúng cột.
+     */
+    @Transactional
+    public List<FacilityStandardRule> saveType(Long roomTypeId, FacilityStandardTypeRequest request, boolean mayDelete) {
+        String level = level(request.levelCode());
+        RoomType type = resolveType(roomTypeId, level);
+        IdRef ref = new IdRef(type.getId());
+        List<FacilityStandardRule> saved = new ArrayList<>();
+        for (FacilityStandardTypeRequest.Tier x : request.tiers()) {
+            String tier = tier(x.tier());
+            FacilityStandardRule existing = rules.findByCodeIgnoreCase(codeOf(type, level, tier)).orElse(null);
+            try {
+                if (x.blank()) {
+                    if (x.largeClassFrom() != null || x.largeMinCount() != null || x.studentPercent() != null) {
+                        throw new FieldValidationException("minCount", "Nhập ít nhất một điều kiện");
+                    }
+                    if (existing != null && Boolean.TRUE.equals(existing.getActive())) {
+                        if (mayDelete) {
+                            delete(existing.getId());
+                        } else {
+                            getWritable(existing.getId()).setActive(false);
+                        }
+                    }
+                    continue;
+                }
+                if (x.legalDocuments() == null || x.legalDocuments().isEmpty()) {
+                    throw new FieldValidationException("legalDocuments", "Vui lòng chọn văn bản căn cứ");
+                }
+                // Ghi chú: `null` nghĩa là để nguyên ở lớp nền, chuỗi rỗng là xoá.
+                String note = x.note() == null ? "" : x.note();
+                saved.add(existing == null
+                        ? create(new FacilityStandardRuleRequest(null, type.getName(), null, true, note, ref, level, tier,
+                                x.minCount(), x.countPerClass(), x.minRoomArea(), x.areaPerStudent(), x.minTotalArea(),
+                                x.largeClassFrom(), x.largeMinCount(), x.studentPercent(), x.onlyIfPresent(),
+                                x.legalDocuments(), x.legalBasis()))
+                        : update(existing.getId(), new FacilityStandardRulePatchRequest(null, null, null, true, note, ref,
+                                level, tier, x.minCount(), x.countPerClass(), x.minRoomArea(), x.areaPerStudent(),
+                                x.minTotalArea(), x.largeClassFrom(), x.largeMinCount(), x.studentPercent(),
+                                x.onlyIfPresent(), x.legalDocuments(), x.legalBasis())));
+            } catch (FieldValidationException e) {
+                String field = e.errors().keySet().iterator().next();
+                throw new FieldValidationException(tier + "." + field, e.getMessage());
+            }
+        }
+        return saved;
+    }
+
+    /** Văn bản căn cứ: {@code null} là để nguyên; danh sách gửi lên thay cả bộ. */
+    private void applyDocuments(FacilityStandardRule item, List<IdRef> refs) {
+        if (refs == null) {
+            return;
+        }
+        List<LegalDocument> docs = refs.stream().filter(r -> r != null && r.id() != null).map(IdRef::id).distinct()
+                .map(legalDocuments::get).toList();
+        item.getLegalDocuments().clear();
+        item.getLegalDocuments().addAll(docs);
     }
 
     // ------------------------------------------------------------------ luật
@@ -172,6 +250,18 @@ public class FacilityStandardRuleService
         if (item.getMinCount() == null && item.getCountPerClass() == null && item.getMinRoomArea() == null
                 && item.getAreaPerStudent() == null && item.getMinTotalArea() == null) {
             throw new FieldValidationException("minCount", "Nhập ít nhất một điều kiện");
+        }
+        if ((item.getLargeClassFrom() == null) != (item.getLargeMinCount() == null)) {
+            throw new FieldValidationException(item.getLargeClassFrom() == null ? "largeClassFrom" : "largeMinCount",
+                    "Khai đủ cả số lớp và số phòng của trường lớn");
+        }
+        if (item.getStudentPercent() != null) {
+            if (item.getAreaPerStudent() == null) {
+                throw new FieldValidationException("studentPercent", "Chỉ khai khi có diện tích theo số học sinh");
+            }
+            if (item.getStudentPercent().signum() == 0) {
+                throw new FieldValidationException("studentPercent", "Phần trăm học sinh phải lớn hơn 0");
+            }
         }
     }
 

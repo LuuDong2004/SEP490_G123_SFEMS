@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  * của cấp học của trường, phụ lục đòi bao nhiêu, trường đang có bao nhiêu cái DÙNG ĐƯỢC, thiếu bao
  * nhiêu.
  *
- * <p>"Dùng được" là trong kho, đang dùng hoặc đang cho mượn — hỏng, đang sửa, chờ thanh lý hay báo
+ * <p>"Dùng được" là trong kho hoặc đang dùng — hỏng hay
  * mất đều không tính, vì định mức hỏi lớp học có thiết bị để dạy hay không, không hỏi sổ còn ghi
  * bao nhiêu dòng. Vật tư tiêu hao cộng theo số lượng.
  *
@@ -70,7 +70,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AdequacyService {
 
-    private static final String USABLE = "('IN_STOCK', 'IN_USE', 'BORROWED', 'MAINTAINING')";
+    private static final String USABLE = "('IN_STOCK', 'IN_USE')";
     static final Map<String, int[]> LEVEL_GRADES = Map.of(
             "TH", new int[] {1, 2, 3, 4, 5},
             "THCS", new int[] {6, 7, 8, 9},
@@ -172,14 +172,6 @@ public class AdequacyService {
             int norms, int met, int percent, int shortageTotal, int surplusTotal) {
     }
 
-    /**
-     * Cân đối MỘT thiết bị trên địa bàn: tổng thiếu, tổng thừa, và phần có thể điều chuyển
-     * ({@code min(thiếu, thừa)}) — thiết bị trường này thừa là thứ trường khác đang thiếu.
-     */
-    public record CatalogBalance(Long catalogId, String catalogCode, String name, String subjectName,
-            String level, int shortage, int shortSchools, int surplus, int surplusSchools, int transferable) {
-    }
-
     public record SubjectShortage(String subjectName, int shortage, int surplus, int schools) {
     }
 
@@ -188,14 +180,8 @@ public class AdequacyService {
     }
 
     public record Summary(int schools, int withData, int fullyMet, int withShortage, int missingSize,
-            int percent, int shortageTotal, int surplusTotal, int transferable, List<LevelSummary> levels,
-            List<Band> bands, List<SubjectShortage> subjects, List<CatalogBalance> catalogs,
-            List<SchoolSummary> rows) {
-    }
-
-    /** Một trường trong phép cân đối của một thiết bị. */
-    public record CatalogSchool(Long schoolId, String schoolName, String level, String district,
-            Integer required, int current, int shortage, int surplus) {
+            int percent, int shortageTotal, int surplusTotal, List<LevelSummary> levels,
+            List<Band> bands, List<SubjectShortage> subjects, List<SchoolSummary> rows) {
     }
 
     /** Ảnh chụp cho một dòng đề xuất: số đang dùng được của thiết bị, và định mức của nó. */
@@ -318,12 +304,13 @@ public class AdequacyService {
     }
 
     /**
-     * Bản tổng hợp kèm, cho từng thiết bị, các trường thiếu / thừa nó — để màn "cân đối theo thiết bị"
-     * mở một dòng mà không tính lại định mức của mọi trường. Lưu gọn: mỗi thiết bị một mảng số
-     * {@code [chỉ số trường, phải có, đang có, thiếu, thừa] × n}; thông tin trường lấy từ
-     * {@code schools} theo chỉ số.
+     * Bản tổng hợp kèm, cho từng thiết bị, số phải có và số thiếu của từng trường — cho cột Chuẩn tối thiểu của màn
+     * Thiết bị ({@link #catalogTotals}), không tính lại định mức của mọi trường. Lưu gọn: mỗi thiết bị một mảng số
+     * {@code [chỉ số trường, phải có, thiếu] × n}; thông tin trường lấy từ {@code schools} theo chỉ số.
      */
-    private record SummaryEntry(Summary summary, List<SchoolSummary> schools, Map<Long, int[]> catalogSchools) {
+    private record SummaryEntry(Summary summary, List<SchoolSummary> schools,
+            /* Mỗi thiết bị: {@code [chỉ số trường, phải có, thiếu] × n} trên MỌI trường có thiết bị (kể cả trường đủ). */
+            Map<Long, int[]> catalogRequired) {
     }
 
     private SummaryEntry computeSummary(Set<Long> visible, Long campusId) {
@@ -331,10 +318,8 @@ public class AdequacyService {
         // mọi trường cùng lúc (toàn ngành là hơn một triệu đối tượng NormRow sống tới cuối phép tính).
         List<SchoolSummary> unsorted = new ArrayList<>();
         Map<Long, int[]> perCatalog = new HashMap<>();
-        Map<Long, NormRow> sample = new HashMap<>();
-        Map<Long, String> sampleLevel = new HashMap<>();
         Map<String, int[]> perSubject = new LinkedHashMap<>();
-        Map<Long, IntList> perCatalogSchools = new HashMap<>();
+        Map<Long, IntList> perCatalogRequired = new HashMap<>();
         computeEach(visible, campusId, a -> {
             int schoolIndex = unsorted.size();
             unsorted.add(new SchoolSummary(a.schoolId(), a.schoolCode(), a.schoolName(), a.level(), a.levelCode(),
@@ -353,6 +338,7 @@ public class AdequacyService {
                 }
                 int sh = r.shortage() == null ? 0 : r.shortage();
                 int su = r.surplus() == null ? 0 : r.surplus();
+                perCatalogRequired.computeIfAbsent(r.catalogId(), k -> new IntList()).add(schoolIndex, r.required(), sh);
                 if (sh == 0 && su == 0) {
                     continue;
                 }
@@ -361,10 +347,6 @@ public class AdequacyService {
                 c[1] += sh > 0 ? 1 : 0;
                 c[2] += su;
                 c[3] += su > 0 ? 1 : 0;
-                sample.putIfAbsent(r.catalogId(), r);
-                sampleLevel.putIfAbsent(r.catalogId(), a.level());
-                perCatalogSchools.computeIfAbsent(r.catalogId(), k -> new IntList())
-                        .add(schoolIndex, r.required(), r.current(), sh, su);
                 String subject = r.subjectName() == null ? "Chưa gắn môn" : r.subjectName();
                 int[] sj = perSubject.computeIfAbsent(subject, k -> new int[3]);
                 sj[0] += sh;
@@ -429,18 +411,6 @@ public class AdequacyService {
                 new Band("low", "Dưới 50%", band[1]), new Band("mid", "50 – 79%", band[2]),
                 new Band("high", "80 – 99%", band[3]), new Band("full", "Đủ 100%", band[4]));
 
-        List<CatalogBalance> catalogs = perCatalog.entrySet().stream()
-                .map(e -> {
-                    NormRow r = sample.get(e.getKey());
-                    int[] c = e.getValue();
-                    return new CatalogBalance(e.getKey(), r.catalogCode(), r.normName(), r.subjectName(),
-                            sampleLevel.get(e.getKey()), c[0], c[1], c[2], c[3], Math.min(c[0], c[2]));
-                })
-                .sorted((x, y) -> x.transferable() != y.transferable()
-                        ? Integer.compare(y.transferable(), x.transferable())
-                        : Integer.compare(y.shortage(), x.shortage()))
-                .limit(200)
-                .toList();
         List<SubjectShortage> subjects = perSubject.entrySet().stream()
                 .map(e -> new SubjectShortage(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]))
                 .filter(x -> x.shortage() > 0 || x.surplus() > 0)
@@ -448,12 +418,10 @@ public class AdequacyService {
                 .toList();
         int shortageTotal = perCatalog.values().stream().mapToInt(c -> c[0]).sum();
         int surplusTotal = perCatalog.values().stream().mapToInt(c -> c[2]).sum();
-        int transferable = perCatalog.values().stream().mapToInt(c -> Math.min(c[0], c[2])).sum();
-        Map<Long, int[]> catalogSchools = new HashMap<>();
-        perCatalogSchools.forEach((catalog, list) -> catalogSchools.put(catalog, list.toArray()));
+        Map<Long, int[]> catalogRequired = new HashMap<>();
+        perCatalogRequired.forEach((catalog, list) -> catalogRequired.put(catalog, list.toArray()));
         return new SummaryEntry(new Summary(rows.size(), withData, fully, shortage, missingSize, percent(met, norms),
-                shortageTotal, surplusTotal, transferable, levels, bands, subjects, catalogs, rows), schoolsInOrder,
-                catalogSchools);
+                shortageTotal, surplusTotal, levels, bands, subjects, rows), schoolsInOrder, catalogRequired);
     }
 
     /** Mảng số nguyên tự giãn — năm số một trường, không một đối tượng mỗi trường. */
@@ -475,23 +443,31 @@ public class AdequacyService {
     }
 
     /**
-     * Một thiết bị, trường nào thiếu và trường nào thừa — cho cơ quan quản lý cân đối. Chỉ các trường
-     * người xem được thấy và đã có thiết bị trên sổ; xếp trường thiếu trước, rồi trường thừa.
+     * Đối chiếu chuẩn tối thiểu cho bảng tổng hợp của màn Thiết bị: mỗi thiết bị một mảng {@code [phải có, thiếu,
+     * số trường thiếu]}, cộng trên các trường {@code schoolIds} ({@code null} = mọi trường người xem thấy). Chỉ
+     * tính trường ĐÃ có thiết bị trên sổ (cùng quy ước với bản tổng hợp: trường chưa nhập gì thì "thiếu" của nó là
+     * thiếu dữ liệu). Đọc từ bản tổng hợp đã đệm, không tính lại định mức.
      */
     @Transactional(propagation = Propagation.SUPPORTS)
-    public List<CatalogSchool> catalogSchools(Long catalogId) {
-        // Đọc từ bản tổng hợp đã đệm của cùng phạm vi (cùng các trường đã có thiết bị, cùng phép tính),
-        // không tính lại định mức của mọi trường cho mỗi cú bấm một dòng.
-        SummaryEntry entry = summaryEntry(campuses.effectiveFilter(null));
-        int[] packed = entry.catalogSchools().getOrDefault(catalogId, new int[0]);
-        List<CatalogSchool> out = new ArrayList<>(packed.length / 5);
-        for (int i = 0; i + 4 < packed.length; i += 5) {
-            SchoolSummary school = entry.schools().get(packed[i]);
-            out.add(new CatalogSchool(school.schoolId(), school.schoolName(), school.level(), school.district(),
-                    packed[i + 1], packed[i + 2], packed[i + 3], packed[i + 4]));
-        }
-        out.sort((x, y) -> x.shortage() != y.shortage() ? Integer.compare(y.shortage(), x.shortage())
-                : Integer.compare(y.surplus(), x.surplus()));
+    public Map<Long, int[]> catalogTotals(Set<Long> schoolIds, Long campusId) {
+        SummaryEntry entry = summaryEntry(campuses.effectiveFilter(campusId));
+        Map<Long, int[]> out = new HashMap<>();
+        entry.catalogRequired().forEach((catalog, packed) -> {
+            int[] sum = new int[3];
+            boolean any = false;
+            for (int i = 0; i + 2 < packed.length; i += 3) {
+                if (schoolIds != null && !schoolIds.contains(entry.schools().get(packed[i]).schoolId())) {
+                    continue;
+                }
+                any = true;
+                sum[0] += packed[i + 1];
+                sum[1] += packed[i + 2];
+                sum[2] += packed[i + 2] > 0 ? 1 : 0;
+            }
+            if (any) {
+                out.put(catalog, sum);
+            }
+        });
         return out;
     }
 

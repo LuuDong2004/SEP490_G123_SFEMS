@@ -1,7 +1,6 @@
 import {
   ASSET_STATUS_LABELS,
   EQUIPMENT_HISTORY_ACTION_LABELS,
-  historyEntryTitle,
   type EquipmentHistoryRow,
 } from "@/domains/equipment/types";
 
@@ -18,7 +17,7 @@ export type HistoryEntryData = { rows: EquipmentHistoryRow[]; repeat: boolean };
 
 /**
  * Gộp lịch sử (đã xếp mới trước) thành các mục:
- * 1. Mọi dòng của cùng một phiếu thành MỘT mục, kể cả khi không liền nhau (mượn hôm 1, trả hôm 10) — mục đứng ở
+ * 1. Mọi dòng của cùng một phiếu thành MỘT mục, kể cả khi không liền nhau — mục đứng ở
  *    mốc mới nhất của phiếu. Dòng không gắn phiếu (hệ thống tự cập nhật) đứng riêng.
  * 2. Các mục một dòng giống hệt nhau và liền nhau gộp tiếp thành "N lần", như trước.
  */
@@ -56,7 +55,7 @@ export function buildEntries(rows: EquipmentHistoryRow[]): HistoryEntryData[] {
 const FIELD_ORDER = ["status", "condition", "room", "manager", "school", "code"];
 
 /**
- * Mỗi trường đã đổi trong phiếu thành một chuỗi giá trị theo thời gian: "Hỏng → Đang sửa chữa → Hỏng".
+ * Mỗi trường đã đổi trong phiếu thành một chuỗi giá trị theo thời gian: "Trong kho → Đang sử dụng → Mất".
  * `asc` là các dòng cũ trước. Giá trị đầu "—" = trước đó trống (lúc ghi tăng).
  */
 export function fieldChains(asc: EquipmentHistoryRow[]): { field: string; values: string[] }[] {
@@ -80,9 +79,8 @@ export function fieldChains(asc: EquipmentHistoryRow[]): { field: string; values
 }
 
 /**
- * Một bước của phiếu (trình, duyệt, mượn, trả…): các dòng cùng việc, cùng người làm, cách nhau dưới một phút —
- * một lần bấm ghi nhiều trường (trạng thái + tình trạng, trạng thái + phòng). Khác việc là khác bước dù sát giờ:
- * mượn rồi trả ngay vẫn là hai bước.
+ * Một bước của phiếu: các dòng cùng việc, cùng người làm, cách nhau dưới một phút — một lần bấm ghi nhiều trường
+ * (trạng thái + tình trạng, trạng thái + phòng). Khác việc là khác bước dù sát giờ.
  */
 export type Step = { at: string; actor: string; action: string; notes: string[] };
 
@@ -104,35 +102,25 @@ export function stepsOf(asc: EquipmentHistoryRow[]): Step[] {
   return steps;
 }
 
-/** Tên một bước: vế đầu của ghi chú ("Đưa đi bảo dưỡng"), không có thì tên việc. */
+/** Tên một bước: vế đầu của ghi chú, không có thì tên việc. */
 function stepLabel(step: Step): string {
   const note = step.notes[0];
   return note ? note.split(/ — |; /)[0] : (EQUIPMENT_HISTORY_ACTION_LABELS[step.action] ?? step.action);
 }
 
 /** Nhóm của nút lọc nhanh, theo việc của mục. */
-export type HistoryGroupKey = "use" | "fix" | "book";
+export type HistoryGroupKey = "GHI_TANG" | "KIEM_KE" | "CAP_NHAT";
 
 export const HISTORY_GROUP_LABELS: Record<HistoryGroupKey, string> = {
-  use: "Cấp phát, mượn trả",
-  fix: "Hỏng, sửa chữa, bảo hành",
-  book: "Ghi tăng, ghi giảm",
+  GHI_TANG: "Ghi tăng",
+  KIEM_KE: "Kiểm kê",
+  CAP_NHAT: "Cập nhật hồ sơ",
 };
 
-const GROUP_OF_ACTION: Record<string, HistoryGroupKey> = {
-  CAP_PHAT: "use", THU_HOI: "use", DIEU_CHUYEN: "use", MUON: "use", TRA: "use", DAT_PHONG: "use", LUU_KHO: "use",
-  XUAT_KHO: "use",
-  BAO_HONG: "fix", SUA_CHUA: "fix", BAO_HANH: "fix", BAO_TRI: "fix",
-  GHI_TANG: "book", CHO_THANH_LY: "book", THANH_LY: "book", CHO_TIEU_HUY: "book", TIEU_HUY: "book", MAT: "book",
-  TIEU_HAO: "book",
-};
-
-/**
- * Mục thuộc nhóm nào — theo việc của dòng mới nhất. Kiểm kê, cập nhật hồ sơ, tính hao mòn không thuộc nhóm nào:
- * chỉ thấy ở "Tất cả".
- */
+/** Mục thuộc nhóm nào — theo việc của dòng mới nhất. */
 export function entryGroup(entry: HistoryEntryData): HistoryGroupKey | null {
-  return GROUP_OF_ACTION[entry.rows[0].action] ?? null;
+  const action = entry.rows[0].action;
+  return action in HISTORY_GROUP_LABELS ? (action as HistoryGroupKey) : null;
 }
 
 /** Khoá và nhãn tháng của một mốc: các mục gom dưới "Tháng 10 / 2026". */
@@ -173,7 +161,7 @@ export function shortActor(name: string, schoolName?: string | null): string {
 }
 
 /**
- * Ghi chú của một mục, bỏ phần lặp tiêu đề: "Ghi giảm do mất" dưới tiêu đề "Ghi giảm do mất", "Ghi tăng theo
+ * Ghi chú của một mục, bỏ phần lặp tiêu đề: "Ghi tăng theo
  * phiếu, dòng 1" dưới "Ghi tăng". Ghi chú dạng "Tiêu đề: nội dung" giữ phần nội dung — và khi mục không đổi
  * trường nào (kiểm kê khớp sổ) thì nội dung đó ghép thẳng vào tiêu đề: "Kiểm kê — khớp sổ".
  */
@@ -197,20 +185,18 @@ export function tidyNotes(title: string, notes: string[], hasChanges: boolean): 
   return { title: outTitle, notes: kept };
 }
 
-/** Trạng thái cuối mà dòng kết quả phải tô đỏ: sửa không được, hỏng lại, mất. */
-const BAD_STATUSES = new Set(["BROKEN", "UNREPAIRABLE", "MISSING", "LOST", "NOT_DELIVERED"].map((code) => ASSET_STATUS_LABELS[code]));
+/** Trạng thái cuối mà dòng kết quả phải tô đỏ: mất. */
+const BAD_STATUSES = new Set(["LOST"].map((code) => ASSET_STATUS_LABELS[code]));
 
 /** Một mục đã đọc xong: tên việc, dòng kết quả ngắn, và phần "Chi tiết". */
 export type EntrySummary = {
   title: string;
-  /** Một dòng kết quả ngắn dưới tên việc — chỉ khi cần (báo hỏng, thanh lý không có). */
+  /** Một dòng kết quả ngắn dưới tên việc — chỉ khi cần. */
   result: string | null;
-  /** Kết quả xấu (vd. sửa chữa xong vẫn hỏng) — tô đỏ. */
+  /** Kết quả xấu (mất) — tô đỏ. */
   bad: boolean;
   /** Chi tiết: mỗi trường một chuỗi giá trị cũ → mới. */
   changes: { field: string; values: string[] }[];
-  /** Chi tiết: thông tin thêm có nhãn — "Hạn trả", "Mô tả hỏng". */
-  facts: { label: string; value: string }[];
   /** Chi tiết: các bước của phiếu hoặc ghi chú không lên dòng kết quả, nối bằng "; ". */
   steps: string | null;
 };
@@ -223,20 +209,18 @@ const fromTo = (values: string[]) => {
 };
 
 /**
- * Đọc một phiếu (các dòng cũ trước) thành dòng kết quả + chi tiết, như mockup lịch sử tài sản:
- * - mượn – trả: "Người mượn · mượn 09:15, trả 11:30 (đúng hạn)"; hạn trả vào chi tiết;
- * - đổi chỗ / người giữ (cấp phát, thu hồi, điều chuyển, ghi tăng): "Kho → Phòng 101 · Người quản lý: …";
- * - báo hỏng: không có dòng kết quả, mô tả hỏng vào chi tiết;
- * - còn lại (sửa chữa, bảo hành…): ghi chú của bước cuối — "Sửa xong, đưa vào sử dụng lại".
- * Ghi chú chỉ nhắc lại số phiếu ("Cấp phát theo phiếu CP-…") bị bỏ: số phiếu đã nằm ngay dưới.
+ * Đọc một phiếu (các dòng cũ trước) thành dòng kết quả + chi tiết, như mockup lịch sử thiết bị:
+ * - đổi chỗ / người giữ: "Kho → Phòng 101 · Người quản lý: …";
+ * - còn lại: ghi chú của bước cuối.
+ * Ghi chú chỉ nhắc lại số phiếu bị bỏ: số phiếu đã nằm ngay dưới.
  */
 export function summarize(asc: EquipmentHistoryRow[]): EntrySummary {
   const changes = fieldChains(asc);
   const steps = stepsOf(asc);
-  const actions = asc.map((r) => r.action);
+  const last = asc[asc.length - 1].action;
   const code = asc[asc.length - 1].voucherCode;
-  const tidied = tidyNotes(historyEntryTitle(actions), steps[steps.length - 1].notes, changes.length > 0);
-  // Một lần bấm ghi nhiều trường thường kèm ghi chú lồng nhau ("Sửa xong" và "Sửa xong, đưa vào sử dụng lại"):
+  const tidied = tidyNotes(EQUIPMENT_HISTORY_ACTION_LABELS[last] ?? last, steps[steps.length - 1].notes, changes.length > 0);
+  // Một lần bấm ghi nhiều trường thường kèm ghi chú lồng nhau ("Khớp sổ" và "Khớp sổ, đổi phòng"):
   // giữ câu đầy đủ.
   const notes = tidied.notes
     .filter((n) => !code || !n.includes(code))
@@ -246,43 +230,13 @@ export function summarize(asc: EquipmentHistoryRow[]): EntrySummary {
   const stepLine = steps.length > 1 ? steps.map(stepLabel).join("; ") : null;
   const base = { title: tidied.title, bad, changes };
 
-  if (actions.includes("MUON") || actions.includes("TRA")) {
-    const lent = steps.find((s) => s.action === "MUON");
-    const back = [...steps].reverse().find((s) => s.action === "TRA");
-    const lentNote = lent?.notes.find((n) => n.startsWith("Cho ")) ?? "";
-    const borrower = /^Cho (.+?) mượn/.exec(lentNote)?.[1];
-    const due = /hạn trả (\d{2})\/(\d{2})\/(\d{4})/.exec(lentNote);
-    const dueText = due ? `${due[1]}/${due[2]}/${due[3]}` : null;
-    const time = (iso: string) => {
-      const d = new Date(iso);
-      // Mượn và trả khác ngày thì giờ thôi không đủ.
-      return lent && back && new Date(lent.at).toDateString() !== new Date(back.at).toDateString() ? shortDateTime(iso) : hhmm(d);
-    };
-    let onTime = "";
-    if (back && due) {
-      const dueEnd = new Date(+due[3], +due[2] - 1, +due[1], 23, 59, 59);
-      onTime = new Date(back.at) <= dueEnd ? " (đúng hạn)" : " (quá hạn)";
-    }
-    const when = [lent ? `mượn ${time(lent.at)}` : null, back ? `trả ${time(back.at)}${onTime}` : null].filter(Boolean).join(", ");
-    return {
-      ...base,
-      result: [borrower, when].filter(Boolean).join(" · ") || null,
-      facts: dueText ? [{ label: "Hạn trả", value: dueText }] : [],
-      steps: null,
-    };
-  }
-
-  if (actions.includes("BAO_HONG") && actions.every((a) => a === "BAO_HONG")) {
-    return { ...base, result: null, facts: notes.length ? [{ label: "Mô tả hỏng", value: notes.join("; ") }] : [], steps: stepLine };
-  }
-
   const place = ["school", "room", "manager"]
     .map((field) => changes.find((c) => c.field === field))
     .filter((c): c is { field: string; values: string[] } => !!c && c.values[c.values.length - 1] !== "—")
     .map((c) => (c.field === "manager" ? `Người quản lý: ${c.values[c.values.length - 1]}` : fromTo(c.values)));
   if (place.length) {
-    return { ...base, result: place.join(" · "), facts: [], steps: stepLine ?? (notes.join("; ") || null) };
+    return { ...base, result: place.join(" · "), steps: stepLine ?? (notes.join("; ") || null) };
   }
 
-  return { ...base, result: notes.join(" · ") || null, facts: [], steps: stepLine };
+  return { ...base, result: notes.join(" · ") || null, steps: stepLine };
 }

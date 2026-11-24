@@ -38,8 +38,6 @@ export type DetailField = {
   /** Lời giải thích — dấu "?" cạnh nhãn. Chỉ có ở ô mà nhãn ngắn chưa đủ nói phải điền gì. */
   hint?: string;
   resource?: string;
-  /** Trường của một giai đoạn sau (vd. "return" — lúc trả), không của form lập phiếu. */
-  stage?: string;
   /** Chữ mờ trong ô — ví dụ giá trị để người nhập hiểu phải ghi gì (vắng: "Nhập" / "Nhập số"). */
   placeholder?: string;
   /** Cột của bảng con: bề rộng tương đối (mặc định 1) — cột tên dài cho 2. */
@@ -49,8 +47,7 @@ export type DetailField = {
 export type DetailSection = {
   title: string;
   fields: DetailField[];
-  stage?: string;
-  /** Chỉ hiện khi trường `field` của phiếu thuộc `in` (vd. hình thức ghi giảm = tiêu huỷ). */
+  /** Chỉ hiện khi trường `field` của phiếu thuộc `in` (vd. `centralized`: cấp trên mua tập trung). */
   when?: { field: string; in: string[] };
 };
 

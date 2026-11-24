@@ -169,13 +169,6 @@ public class EquipmentCatalog extends CatalogEntity {
     @Column(name = "physical_or_digital", length = 30)
     private PhysicalDigitalType physicalOrDigital;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "depreciation_method", length = 30)
-    private DepreciationMethod depreciationMethod;
-
-    @Column(name = "useful_life_years")
-    private Integer usefulLifeYears;
-
     /** Thuộc danh mục thiết bị tối thiểu (theo thông tư) hay ngoài danh mục. */
     @Column(name = "minimum_required", nullable = false)
     private Boolean minimumRequired = Boolean.FALSE;
@@ -315,22 +308,6 @@ public class EquipmentCatalog extends CatalogEntity {
 
     public void setPhysicalOrDigital(PhysicalDigitalType physicalOrDigital) {
         this.physicalOrDigital = physicalOrDigital;
-    }
-
-    public DepreciationMethod getDepreciationMethod() {
-        return depreciationMethod;
-    }
-
-    public void setDepreciationMethod(DepreciationMethod depreciationMethod) {
-        this.depreciationMethod = depreciationMethod;
-    }
-
-    public Integer getUsefulLifeYears() {
-        return usefulLifeYears;
-    }
-
-    public void setUsefulLifeYears(Integer usefulLifeYears) {
-        this.usefulLifeYears = usefulLifeYears;
     }
 
     public Boolean getMinimumRequired() {

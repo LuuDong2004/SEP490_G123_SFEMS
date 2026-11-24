@@ -390,7 +390,7 @@ public class SchoolNormAdjustmentService implements YearAdequacyService.Adjustme
         }
         Integer n = jdbc.queryForObject("""
                 SELECT count(*)::int FROM equipment e WHERE e.school_id = ? AND e.catalog_id IN (%s)
-                  AND e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'NOT_DELIVERED', 'USED_UP')%s""".formatted(
+                  AND e.status <> 'LOST'%s""".formatted(
                 ids, campusFilter), Integer.class, args.toArray());
         return n == null ? 0 : n;
     }

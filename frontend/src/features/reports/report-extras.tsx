@@ -4,11 +4,14 @@ import type { ReportColumnType } from "@/domains/report/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const number = new Intl.NumberFormat("vi-VN");
+const number = new Intl.NumberFormat("vi-VN", { useGrouping: false });
+// Số đếm, số lượng không có dấu ngăn nghìn (trưởng nhóm 24/11/2026). Tiền vẫn có: 2.500.000.000 đ dễ đọc hơn 2500000000.
+const money = new Intl.NumberFormat("vi-VN");
 
 export function format(value: string | number | null | undefined, type: ReportColumnType) {
   if (value == null || value === "") return "";
-  if (type === "number" || type === "money") return number.format(Number(value));
+  if (type === "money") return money.format(Number(value));
+  if (type === "number") return number.format(Number(value));
   if (type === "date") return formatPlainDate(String(value));
   return String(value);
 }

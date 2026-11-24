@@ -8,7 +8,7 @@ import java.util.Set;
 
 /**
  * Lịch mở cửa của phòng (206): thứ trong tuần theo ISO (1 = Thứ 2 … 7 = Chủ nhật) và buổi (SANG, CHIEU,
- * TOI). Lưu chuỗi cách dấu phẩy; trống = không giới hạn. Phiếu mượn phòng và màn Trạng thái phòng dùng chung luật này.
+ * TOI). Lưu chuỗi cách dấu phẩy; trống = không giới hạn. Chỉ là thông tin trên hồ sơ phòng.
  */
 public final class OpeningHours {
 

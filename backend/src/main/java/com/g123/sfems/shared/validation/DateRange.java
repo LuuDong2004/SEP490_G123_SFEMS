@@ -26,7 +26,7 @@ public @interface DateRange {
     /** Tên thành phần record của ngày cuối. */
     String to();
 
-    /** Câu lỗi đầy đủ, vd. "Hạn trả không được trước ngày mượn". */
+    /** Câu lỗi đầy đủ, vd. "Ngày kết thúc không được trước ngày bắt đầu". */
     String message();
 
     Class<?>[] groups() default {};

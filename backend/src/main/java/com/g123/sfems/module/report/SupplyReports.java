@@ -12,14 +12,14 @@ import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Báo cáo về VẬT TƯ, HOÁ CHẤT (thiết bị quản lý theo số lượng — {@code tracking_type = 'BULK'}): tiêu hao trong kỳ
- * và lô hết hạn / sắp hết hạn. Tách khỏi {@link ReportService} như {@link AnalysisReports}: cùng hình báo cáo, cùng
+ * Báo cáo về VẬT TƯ, HOÁ CHẤT (thiết bị quản lý theo số lượng — {@code tracking_type = 'BULK'}): hết hạn và
+ * sắp hết hạn sử dụng. Tách khỏi {@link ReportService} như {@link AnalysisReports}: cùng hình báo cáo, cùng
  * phạm vi ({@link ReportService#scope}), không phải bean.
  */
 final class SupplyReports {
 
     static final Definition EXPIRY = new Definition("supply-expiry", "Hoá chất, vật tư hết hạn",
-            "Lô vật tư, hoá chất còn trong hệ thống đã quá hạn sử dụng hoặc hết hạn trong "
+            "Vật tư, hoá chất còn trong hệ thống đã quá hạn sử dụng hoặc hết hạn trong "
                     + EquipmentSummaryService.EXPIRY_WARNING_DAYS + " ngày tới: còn bao nhiêu, ở đâu, hạn ngày nào.",
             false, false, List.of(), List.of(new Group("all", "Đã hết hạn và sắp hết hạn"),
                     new Group("expired", "Đã hết hạn"), new Group("soon", "Sắp hết hạn")));
@@ -33,7 +33,7 @@ final class SupplyReports {
     }
 
     /**
-     * Lô vật tư, hoá chất còn trên sổ (còn số lượng) đã quá hạn hoặc hết hạn trong {@code EXPIRY_WARNING_DAYS} ngày
+     * Vật tư, hoá chất còn trên sổ (còn số lượng) đã quá hạn hoặc hết hạn trong {@code EXPIRY_WARNING_DAYS} ngày
      * tới — cùng ngưỡng với bộ lọc "sắp hết hạn" của màn Thiết bị. Sắp theo hạn: cái hết trước đứng trước.
      */
     Report expiry(Params p, String choice) {

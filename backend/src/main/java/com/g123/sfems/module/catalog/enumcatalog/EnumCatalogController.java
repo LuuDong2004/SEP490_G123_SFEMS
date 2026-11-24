@@ -4,7 +4,6 @@ import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.enums.LabeledEnum;
 import com.g123.sfems.domain.catalog.enums.StaffPosition;
-import com.g123.sfems.domain.catalog.enums.UsagePurpose;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +26,6 @@ public class EnumCatalogController {
     /** Tên trên URL -> enum. Chỉ những enum khai ở đây mới đọc được. */
     private static final Map<String, Class<? extends LabeledEnum>> CATALOGS = Map.of(
             "asset_categories", AssetCategory.class,
-            "usage_purposes", UsagePurpose.class,
             "funding_sources", FundingSource.class,
             "staff_positions", StaffPosition.class);
 

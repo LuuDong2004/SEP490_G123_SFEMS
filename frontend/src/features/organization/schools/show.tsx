@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router";
 
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { API_URL } from "@/shared/api/constants";
 import { customResult } from "@/shared/hooks/use-custom-result";
 import type { School } from "@/domains/school/types";
@@ -58,6 +59,16 @@ export const SchoolShow = () => {
   // Cùng một khuôn với bàn làm việc của trường ở Tổng quan: thẻ đầu (logo, tên, cấp học, phường, cơ quan
   // quản lý; nút "Hồ sơ trường"), rồi các tab mang số đếm của chính chúng — không còn hàng sáu ô chỉ số và
   // một lưới hồ sơ đầy ô "—" ở giữa.
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="trường" />
+      </ShowView>
+    );
+  }
+
   return (
     <ShowView>
       <ShowViewHeader />

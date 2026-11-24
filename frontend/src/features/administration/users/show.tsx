@@ -8,6 +8,7 @@ import {
   ShowView,
   ShowViewHeader,
 } from "@/shared/components/views/show-view";
+import { isRecordMissing, RecordNotFound } from "@/shared/components/views/record-not-found";
 import { Badge } from "@/shared/ui/badge";
 import { FormPanel } from "@/shared/components/form/form-panel";
 import { FormSection } from "@/shared/components/form/form-section";
@@ -31,6 +32,16 @@ export const UserShow = () => {
   const { result: record, query } = useShow<User>({});
   const { isLoading } = query;
   const mayWrite = useCan({ resource: "users", action: "edit" }).data?.can ?? false;
+
+  // Mở thẳng một id không có (gõ tay, liên kết cũ, ngoài phạm vi): báo "Không tìm thấy", không vẽ trang trống.
+  if (isRecordMissing(query)) {
+    return (
+      <ShowView>
+        <ShowViewHeader canEdit={false} canDelete={false} />
+        <RecordNotFound what="người dùng" />
+      </ShowView>
+    );
+  }
 
   return (
     <ShowView>
@@ -76,7 +87,7 @@ export const UserShow = () => {
               ) : null}
               <ReadField label="Cơ quan quản lý" className="@md:col-span-2">
                 {record?.managingBody ? (
-                  <Link to={`/departments_of_education/show/${record.managingBody.id}`} className="hover:underline">
+                  <Link to={`/departments-of-education/show/${record.managingBody.id}`} className="hover:underline">
                     {MANAGING_BODY_TYPE_SHORT_LABELS[record.managingBody.type]} · {record.managingBody.name}
                     <span className="text-muted-foreground ml-2 font-mono text-xs">{record.managingBody.code}</span>
                   </Link>

@@ -4,7 +4,6 @@ import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
-import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.school.procurement.PurchaseProposalApi;
 import com.g123.sfems.module.school.procurement.PurchaseProposalService;
 import com.g123.sfems.module.school.procurement.YearAdequacyService;
@@ -25,10 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Xử lý dòng thiếu (docs/du-lieu-theo-nam-hoc.md §8 bước 5) — hai cách, không có "giải trình":
+ * Xử lý dòng thiếu (docs/du-lieu-theo-nam-hoc.md §8 bước 5) — không có "giải trình":
  * <ul>
- *   <li><b>Gợi ý điểm trường thừa</b>: điểm trường khác của trường đang THỪA thiết bị đó, kèm số thiết bị đang dùng —
- *       trường tự chuyển phòng trên hồ sơ thiết bị (hệ thống chưa có phiếu cấp phát nội bộ);</li>
  *   <li><b>Đưa vào đề xuất mua sắm</b> đúng số thiếu (theo điều chỉnh), lúc nào cũng lập được; dòng ngoài thông tư lấy nhu
  *       cầu trường nhập và gắn nhãn riêng. Mỗi dòng lưu căn cứ ({@code proposal_standard_traces}) để kế hoạch truy ngược
  *       (bước 7). Trình lúc nào cũng được; năm học chưa chốt thì căn cứ mang cờ {@code yearClosed = false} để màn hình
@@ -37,9 +34,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class YearGapService {
-
-    public record Suggestion(Long campusId, String campusName, int surplus, int movable) {
-    }
 
     public record ProposalLine(Long normId, Long campusId) {
     }
@@ -75,37 +69,6 @@ public class YearGapService {
         this.proposals = proposals;
         this.principals = principals;
         this.visibleSchools = visibleSchools;
-    }
-
-    // ------------------------------------------------------------------ gợi ý điểm trường thừa
-
-    /** Điểm trường khác của trường đang thừa thiết bị này (năm hiện tại), kèm số thiết bị đang dùng chuyển được. */
-    @Transactional(readOnly = true)
-    public List<Suggestion> suggestions(Long catalogId, Long toCampusId) {
-        Long school = ownSchool();
-        SchoolYearResult r = adequacy.forSchool(school, null);
-        List<Suggestion> out = new ArrayList<>();
-        for (Row row : r.campusRows()) {
-            if (!Objects.equals(row.catalogId(), catalogId) || Objects.equals(row.campusId(), toCampusId)
-                    || row.surplus() == null || row.surplus() <= 0) {
-                continue;
-            }
-            out.add(new Suggestion(row.campusId(), row.campusName(), row.surplus(),
-                    movable(school, catalogId, row.campusId()).size()));
-        }
-        out.sort((a, b) -> Integer.compare(b.surplus(), a.surplus()));
-        return out;
-    }
-
-    /** Thiết bị đang dùng của một điểm trường (không tính kho). */
-    private List<Long> movable(Long school, Long catalogId, Long campusId) {
-        return jdbc.queryForList("""
-                SELECT e.id FROM equipment e
-                LEFT JOIN rooms r ON r.id = e.room_id LEFT JOIN room_types t ON t.id = r.room_type_id
-                WHERE e.school_id = ? AND e.catalog_id = ? AND e.status = 'IN_USE' AND e.room_id IS NOT NULL
-                  AND COALESCE(t.code, '') <> 'KHO'%s
-                ORDER BY e.code""".formatted(FacilityCounting.roomInCampusSql("e.room_id", "e.school_id", "?")),
-                Long.class, school, catalogId, campusId);
     }
 
     // ------------------------------------------------------------------ đề xuất mua sắm

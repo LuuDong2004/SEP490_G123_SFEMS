@@ -293,13 +293,15 @@ test("E7 thiết bị mang mã cũ: giữ mã cũ, bấm Cấp mã chuẩn, tra 
   const standard = /^\d{2}\.[A-Z0-9]{2}\.\d{2}\.(TB|PM|HL)\.\d{3}\.\d{2}$/;
   rec.check("E7:standard-code", "Thiết bị", "Bấm 'Cấp mã chuẩn' trên hồ sơ: mã chuẩn mới, mã cũ chuyển sang ô Mã cũ", visible && standard.test(after.body.code ?? "") && after.body.legacyCode === old, "critical", "mã chuẩn + mã cũ", `nút: ${visible ? "có" : "không"} · ${after.body.code} · mã cũ ${after.body.legacyCode}`, { role: "thcs2Canbo", evidence: await shot(page, "E7-standard-code") });
 
-  await page.goto("/equipment-lookup");
+  // Tra cứu theo mã (TS-02) nằm ở ô tìm của màn Thiết bị, dạng Từng thiết bị: gõ đúng mã rồi Enter mở thẳng hồ sơ.
+  await page.goto("/equipment");
   await loaded(page);
-  await page.getByLabel("Mã hoặc tên thiết bị").fill(old);
+  await page.getByText("Từng thiết bị", { exact: true }).click();
+  await page.getByPlaceholder("Tìm theo mã, tên…").fill(old);
   await page.keyboard.press("Enter");
   await main(page).getByText(after.body.code).first().waitFor({ timeout: 10_000 }).catch(() => {});
   const t = await main(page).innerText();
-  rec.check("E7:lookup-ui", "Thiết bị", "Màn tra cứu: quét / gõ mã tem cũ ra đúng thiết bị với mã chuẩn mới", t.includes(after.body.code), "high", after.body.code, t.includes(after.body.code) ? "ra đúng thiết bị" : t.slice(0, 120).replace(/\s+/g, " "), { role: "thcs2Canbo", evidence: await shot(page, "E7-lookup-old-code") });
+  rec.check("E7:lookup-ui", "Thiết bị", "Ô tìm màn Thiết bị: gõ mã cũ rồi Enter mở đúng hồ sơ thiết bị với mã chuẩn mới", t.includes(after.body.code), "high", after.body.code, t.includes(after.body.code) ? "ra đúng thiết bị" : t.slice(0, 120).replace(/\s+/g, " "), { role: "thcs2Canbo", evidence: await shot(page, "E7-lookup-old-code") });
   rec.check("E7:clean", "Lỗi kỹ thuật", "Không lỗi JS / API ở E7", !w.js.length && !w.api.length, "high", "sạch", clean(w));
   w.stop();
 

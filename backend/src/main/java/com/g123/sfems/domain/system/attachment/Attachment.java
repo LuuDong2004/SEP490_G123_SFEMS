@@ -8,8 +8,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Table;
 
 /**
- * Một tệp gắn vào một bản ghi — hoá đơn của phiếu nhập, biên bản bàn giao, quyết
- * định điều chuyển, ảnh thiết bị hỏng.
+ * Một tệp gắn vào một bản ghi — hoá đơn của phiếu nhập, quyết định giao, biên
+ * bản bàn giao, văn bản kế hoạch, ảnh thiết bị.
  *
  * <p>Gắn bằng cặp {@code (resource, recordId)}, không bằng khoá ngoại: cùng một
  * bảng phục vụ mọi loại phiếu và cả hồ sơ thiết bị. Ai đọc, ai sửa được tệp do

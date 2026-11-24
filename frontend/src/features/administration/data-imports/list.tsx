@@ -264,7 +264,7 @@ export const DataImports = () => {
               return (
                 <TabsTrigger key={k} value={k} title={KIND_HINT[k]}>
                   {KIND_SHORT[k]}
-                  {n ? <span className="tabular-nums opacity-70">{n.toLocaleString("vi-VN")}</span> : null}
+                  {n ? <span className="tabular-nums opacity-70">{n.toLocaleString("vi-VN", { useGrouping: false })}</span> : null}
                 </TabsTrigger>
               );
             })}
@@ -297,7 +297,7 @@ export const DataImports = () => {
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{formatDateTime(b.createdAt)}</TableCell>
                     <TableCell className="max-w-72 text-sm whitespace-normal">
                       {b.status === "COMMITTED"
-                        ? <span className="text-success-text" title={created.map(([k, n]) => `${n.toLocaleString("vi-VN")} ${CREATED_LABELS[k] ?? k}`).join(" · ")}>Thành công</span>
+                        ? <span className="text-success-text" title={created.map(([k, n]) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${CREATED_LABELS[k] ?? k}`).join(" · ")}>Thành công</span>
                         : b.errors > 0
                           ? <span className="text-destructive-text">{b.errors} lỗi</span>
                           : <span className="text-success-text">Sẵn sàng ghi</span>}

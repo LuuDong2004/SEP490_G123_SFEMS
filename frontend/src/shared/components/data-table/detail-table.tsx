@@ -39,6 +39,24 @@ const ROW_REM = 3;
 const CELL_PAD_REM = 1.75;
 const SORT_ICON_REM = 1.25;
 const MAX_COL_REM = 22;
+/** Hộp hẹp hơn bảng thì cột rộng nhất co trước (chữ xuống tối đa hai dòng), không cột nào bị ép dưới mức này (rem). */
+const MIN_SHRUNK_REM = 8;
+
+/** Co các cột rộng nhất về cùng một mức trần sao cho tổng vừa `box`; cột vốn hẹp giữ nguyên. Không đủ chỗ thì dừng ở `floor`. */
+function shrinkToFit(natural: number[], box: number, floor: number) {
+  const sum = (cap: number) => natural.reduce((s, w) => s + Math.min(w, cap), 0);
+  let high = Math.max(0, ...natural);
+  if (!box || sum(high) <= box) return natural;
+  let low = floor;
+  if (sum(low) < box) {
+    for (let i = 0; i < 20; i++) {
+      const mid = (low + high) / 2;
+      if (sum(mid) > box) high = mid;
+      else low = mid;
+    }
+  }
+  return natural.map((w) => Math.min(w, low));
+}
 
 /** Đo chữ bằng đúng font của trang — ước lượng theo số ký tự thì cột thừa hoặc thiếu, chữ bị cắt oan. */
 function textMeasurer() {
@@ -113,8 +131,20 @@ export function DetailTable<T extends Record<string, any>>({ columns, rows, text
   }, [columns, rows, text, context]);
 
   // Độ rộng theo chữ dài nhất của cột (tính trên mọi dòng để đổi trang cột không xê dịch). Bảng rộng hơn thì chia phần dư theo
-  // tỷ lệ; hẹp hơn thì cuộn ngang.
-  const widths = useMemo(() => {
+  // tỷ lệ; hẹp hơn thì co các cột dài nhất (chữ xuống dòng), hết mức mới cuộn ngang.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [boxW, setBoxW] = useState(0);
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box) return;
+    // `clientWidth` đã trừ thanh cuộn dọc, nên cột cuối không nằm khuất dưới nó.
+    const measure = () => setBoxW(box.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
+  const natural = useMemo(() => {
     const m = textMeasurer();
     return shown.map((c) => {
       const body = [...new Set(rows.map((r) => text(r, c)))].reduce((max, v) => Math.max(max, m.width(v, 0.875)), 0);
@@ -122,6 +152,7 @@ export function DetailTable<T extends Record<string, any>>({ columns, rows, text
       return Math.min(Math.max(body, head) + CELL_PAD_REM * m.root, MAX_COL_REM * m.root);
     });
   }, [shown, rows, text]);
+  const widths = useMemo(() => shrinkToFit(natural, boxW, MIN_SHRUNK_REM * textMeasurer().root), [natural, boxW]);
   const totalPx = widths.reduce((sum, w) => sum + w, 0);
 
   // Mọi nút lọc: nút theo cột `filterKey` (biểu tượng trường) rồi các nút của `filters`.
@@ -237,8 +268,8 @@ export function DetailTable<T extends Record<string, any>>({ columns, rows, text
       </div>
 
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-        <div className="min-h-0 flex-1 overflow-auto [&_tbody_tr:last-child]:border-b">
-          <Table className="table-fixed" style={{ minWidth: `${Math.ceil(totalPx)}px` }}>
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+          <Table className="table-fixed" style={{ minWidth: `${Math.floor(totalPx)}px` }}>
             <colgroup>
               {shown.map((c, i) => <col key={c.key} style={{ width: `${(widths[i] / totalPx) * 100}%` }} />)}
             </colgroup>
@@ -273,8 +304,8 @@ export function DetailTable<T extends Record<string, any>>({ columns, rows, text
                       const value = text(r, c);
                       return (
                         <TableCell key={c.key} title={value || undefined} style={{ height: `${ROW_REM}rem` }}
-                          className={cn("truncate py-0", c.numeric && "text-right tabular-nums", c.numeric && Number(r[c.key]) === 0 && "text-muted-foreground/60")}>
-                          {cell ? cell(r, c) : value}
+                          className={cn("py-1 whitespace-normal", c.numeric && "text-right tabular-nums", c.numeric && Number(r[c.key]) === 0 && "text-muted-foreground/60")}>
+                          <div className="line-clamp-2 break-words">{cell ? cell(r, c) : value}</div>
                         </TableCell>
                       );
                     })}

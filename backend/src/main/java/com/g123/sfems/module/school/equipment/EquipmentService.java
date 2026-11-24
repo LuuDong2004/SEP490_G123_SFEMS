@@ -52,7 +52,6 @@ import java.util.Objects;
 import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,12 +64,10 @@ import org.hibernate.Hibernate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.RoundingMode;
 import org.springframework.data.domain.Sort;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
-import com.g123.sfems.domain.school.staff.Staff;
 import java.util.stream.Collectors;
 
 /**
@@ -88,10 +85,8 @@ import java.util.stream.Collectors;
 public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentRequest, EquipmentPatchRequest>
         implements RecordAccess {
 
-    /** Đã ra khỏi sổ — thanh lý, tiêu huỷ, mất, dùng hết. */
-    public static final Set<AssetStatus> OFF_BOOK = EnumSet.of(
-            AssetStatus.LIQUIDATED, AssetStatus.DESTROYED, AssetStatus.LOST, AssetStatus.USED_UP,
-            AssetStatus.NOT_DELIVERED);
+    /** Đã ra khỏi sổ — kiểm kê xác nhận Mất. */
+    public static final Set<AssetStatus> OFF_BOOK = EnumSet.of(AssetStatus.LOST);
 
     private final EquipmentRepository repository;
     private final EquipmentCodeService codes;
@@ -153,20 +148,10 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         return item;
     }
 
-    /** Kết luận của lần xử lý hiện tại được lưu thành trạng thái, không dò lịch sử phiếu cũ. */
-    public boolean isUnrepairable(Long id) {
-        return repository.exists((root, query, cb) -> cb.and(
-                cb.equal(root.get("id"), id), cb.equal(root.get("status"), AssetStatus.UNREPAIRABLE)));
-    }
-
-    private static Specification<Equipment> unrepairable() {
-        return (root, query, cb) -> cb.equal(root.get("status"), AssetStatus.UNREPAIRABLE);
-    }
-
     /**
      * Sổ tài sản của một trường (hoặc một phòng) — những gì còn trên sổ, tức là
-     * trừ đã thanh lý và đã mất. Theo phạm vi đọc và cơ sở của người gọi
-     * (tài khoản một cơ sở: kiểm kê "cả trường", tính hao mòn chỉ gồm thiết bị của cơ sở mình).
+     * trừ đã mất. Theo phạm vi đọc và cơ sở của người gọi
+     * (tài khoản một cơ sở: kiểm kê "cả trường" chỉ gồm thiết bị của cơ sở mình).
      */
     public List<Equipment> onRegister(Long schoolId, Long roomId) {
         Specification<Equipment> spec = scopes.<Equipment>scope(Equipment.class, Action.READ)
@@ -273,16 +258,16 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setReceivedDate(request.receivedDate());
         item.setPurchaseDate(request.purchaseDate());
         item.setOriginalValue(request.originalValue());
-        // Tài sản khai tay là tài sản CÓ SẴN (số dư đầu kỳ): chưa khấu hao kỳ nào trên hệ
-        // thống thì còn lại bằng nguyên giá, trừ khi người khai biết số khác.
+        // Tài sản khai tay là tài sản CÓ SẴN (số dư đầu kỳ): giá trị
+        // còn lại bằng nguyên giá, trừ khi người khai biết số khác.
         item.setRemainingValue(request.remainingValue() != null ? request.remainingValue() : request.originalValue());
         item.setWarrantyExpiry(request.warrantyExpiry());
         item.setExpiryDate(bulk(item) ? request.expiryDate() : null);
         item.setRoom(ref(request.room(), rooms::get));
         item.setManager(ref(request.manager(), staff::get));
         item.setCondition(request.condition() != null ? request.condition() : EquipmentCondition.TOT);
-        // Trạng thái không chọn tay: ở kho là "trong kho", ở phòng là "đang sử dụng". Mọi
-        // trạng thái khác (mượn, hỏng, sửa, điều chuyển...) chỉ phiếu mới đặt được.
+        // Trạng thái không chọn tay: ở kho là "trong kho", ở phòng là "đang sử dụng". Hỏng
+        // và Mất chỉ duyệt kiểm kê mới đặt được.
         item.setStatus(isStoreroom(item.getRoom()) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
         item.setConfig(ref(request.config(), configs::get));
         item.setSpecs(checkedSpecs(item.getConfig(), request.specs()));
@@ -323,13 +308,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     /**
      * Thiết bị đang trên sổ KHÔNG xoá thẳng được: xoá là làm tài sản biến mất khỏi mọi báo cáo mà không chứng từ nào
-     * giải thích. Được xoá: hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất, đã thanh lý / tiêu huỷ / dùng hết), và hồ sơ khai
+     * giải thích. Được xoá: hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất), và hồ sơ khai
      * nhầm lúc trường còn khai số dư đầu kỳ, chưa qua phiếu hay kiểm kê nào.
      */
     @Override
     protected void beforeDelete(Equipment item) {
-        if (item.getStatus() == AssetStatus.LIQUIDATED || item.getStatus() == AssetStatus.DESTROYED
-                || item.getStatus() == AssetStatus.LOST || item.getStatus() == AssetStatus.USED_UP) {
+        if (OFF_BOOK.contains(item.getStatus())) {
             return;
         }
         if (openingBalance.isOpen(item.getSchool().getId()) && !touchedByVoucher(item)) {
@@ -383,13 +367,13 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     /**
      * Những gì trên hồ sơ CHỈ phiếu mới được đổi: vị trí, người giữ, trạng thái, tình
-     * trạng, giá trị còn lại, mã. Sửa thẳng ở đây thì sổ cấp phát, sổ hỏng, sổ khấu hao
-     * không còn khớp với tài sản, và không có ai duyệt thay đổi đó.
+     * trạng, giá trị còn lại, mã. Sửa thẳng ở đây thì hồ sơ lệch với
+     * phiếu ghi tăng, biên bản kiểm kê và không có ai duyệt thay đổi đó.
      *
      * <p>Ngoại lệ: XẾP CHỖ LẦN ĐẦU. Tài sản chưa có phòng (hoặc chưa có người giữ) — thường là
      * số dư đầu kỳ khai thiếu — được chọn phòng / người giữ ngay trên hồ sơ: đó là bổ sung
      * dữ liệu còn trống, không phải dời một tài sản đang nằm ở chỗ khác. Đã có chỗ rồi thì đổi
-     * vẫn phải qua phiếu cấp phát / điều chuyển.
+     * vẫn phải qua kiểm kê.
      */
     private static void requireVoucherOwnedUnchanged(Equipment item, EquipmentPatchRequest r) {
         List<String> changed = new ArrayList<>();
@@ -398,26 +382,26 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (r.room() != null && item.getRoom() != null && !Objects.equals(r.room().id(),
                 item.getRoom().getId())) {
-            changed.add("phòng (phiếu cấp phát / điều chuyển)");
+            changed.add("phòng (kiểm kê)");
         }
         if (r.manager() != null && item.getManager() != null && !Objects.equals(r.manager().id(),
                 item.getManager().getId())) {
-            changed.add("người quản lý (phiếu cấp phát)");
+            changed.add("người quản lý");
         }
-        // Số lượng của một lô vật tư là hệ quả của phiếu (nhập, xuất kho, ghi tiêu hao).
+        // Số lượng của một lô vật tư là hệ quả của phiếu ghi tăng.
         if (r.quantity() != null && r.quantity().compareTo(item.getQuantity()) != 0) {
-            changed.add("số lượng (phiếu ghi tăng / xuất kho / ghi tiêu hao)");
+            changed.add("số lượng (phiếu ghi tăng)");
         }
         if (r.status() != null && r.status() != item.getStatus()) {
-            changed.add("trạng thái (phiếu tương ứng)");
+            changed.add("trạng thái (kiểm kê)");
         }
         if (r.condition() != null && r.condition() != item.getCondition()) {
-            changed.add("tình trạng (phiếu báo hỏng / sửa chữa / kiểm kê)");
+            changed.add("tình trạng (kiểm kê)");
         }
-        // Hồ sơ chưa có giá trị (nguyên giá không bắt buộc) thì được bổ sung; đã có thì chỉ đổi qua phiếu.
+        // Hồ sơ chưa có giá trị (nguyên giá không bắt buộc) thì được bổ sung; đã có thì không sửa.
         if (r.remainingValue() != null && item.getRemainingValue() != null
                 && r.remainingValue().compareTo(item.getRemainingValue()) != 0) {
-            changed.add("giá trị còn lại (bảng tính hao mòn)");
+            changed.add("giá trị còn lại");
         }
         if (!changed.isEmpty()) {
             throw new FieldValidationException("status", "Không sửa thẳng trên hồ sơ được: "
@@ -454,7 +438,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     @Transactional
     public Equipment update(Long id, EquipmentPatchRequest request) {
         Equipment item = getWritable(id);
-        // Khoá rồi đọc lại trước khi so: form mở từ trước mà lưu sau lần duyệt phiếu (cấp phát, điều chuyển…) thì
+        // Khoá rồi đọc lại trước khi so: form mở từ trước mà lưu sau lần duyệt phiếu (kiểm kê) thì
         // phòng / trạng thái phiếu vừa đặt bị ghi đè bằng bản cũ, và "giá trị gửi lên = giá trị đang có" so trên
         // bản cũ nên không chặn được. Sau khoá, bản so là bản mới nhất — gửi lại giá trị cũ thì bị 422 như sửa tay.
         em.refresh(item, LockModeType.PESSIMISTIC_WRITE);
@@ -471,7 +455,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
      * thiết bị trong danh mục (tối thiểu hay không), và định mức, báo cáo tính theo đó chứ không theo tên.
      *
      * <ul>
-     *   <li>Thiết bị trong danh mục: tài sản sinh từ phiếu ghi tăng thì khoá (sai thì ghi giảm rồi ghi tăng lại);
+     *   <li>Thiết bị trong danh mục: tài sản sinh từ phiếu ghi tăng thì khoá;
      *       tài sản khai tay (số dư đầu kỳ) được đổi theo {@link #requireCatalogFits}.</li>
      *   <li>Loại tài sản, dạng thiết bị: đi theo thiết bị trong danh mục, không đổi riêng.</li>
      *   <li>Đơn vị tính, năm đưa vào sử dụng, nguyên giá, ngày tiếp nhận, ngày mua (năm trong mã), nguồn hình thành,
@@ -489,7 +473,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             throw new FieldValidationException("name", "Thiết bị trong danh mục giữ tên theo danh mục, không sửa tên");
         }
         if (catalogChanging && item.getIntakeLine() != null) {
-            changed.add("thiết bị trong danh mục (ghi giảm rồi ghi tăng đúng thiết bị)");
+            changed.add("thiết bị trong danh mục (theo phiếu ghi tăng)");
         }
         if (!catalogChanging) {
             kept(changed, "phân loại kế toán", item.getAssetCategory(), r.assetCategory());
@@ -542,8 +526,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         catalogs.requireOwnedBy(next, item.getSchool(), 0);
         if (next.getTrackingType() != item.getCatalog().getTrackingType()) {
             throw new FieldValidationException("catalog",
-                    "Không đổi được sang mục danh mục có cách quản lý khác (từng cái / theo lô) — ghi giảm thiết bị này"
-                            + " rồi ghi tăng đúng mục danh mục");
+                    "Không đổi được sang mục danh mục có cách quản lý khác (từng cái / theo lô)");
         }
         if (item.getCode() != null && Equipment.STANDARD_CODE.matcher(item.getCode()).matches()) {
             String subject = item.getCode().split("\\.")[2];
@@ -551,9 +534,8 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                     ? "00" : next.getSubject().getTeachingCode().trim();
             if (!subject.equals(nextSubject)) {
                 throw new FieldValidationException("catalog",
-                        "Thiết bị đã mang mã chuẩn %s (môn %s) — chỉ đổi được sang mục danh mục cùng môn. Mục khác môn thì"
-                                .formatted(item.getCode(), subject)
-                                + " ghi giảm thiết bị này rồi ghi tăng đúng mục danh mục");
+                        "Thiết bị đã mang mã chuẩn %s (môn %s) — chỉ đổi được sang mục danh mục cùng môn"
+                                .formatted(item.getCode(), subject));
             }
         }
     }
@@ -727,11 +709,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             item.setCondition(request.condition());
         }
         if (request.status() != null) {
-            if (request.status() != item.getStatus()
-                    && (request.status() == AssetStatus.UNREPAIRABLE || item.getStatus() == AssetStatus.UNREPAIRABLE)) {
-                throw new FieldValidationException("status",
-                        "Trạng thái không sửa được chỉ thay đổi qua phiếu sửa chữa và phiếu ghi giảm");
-            }
             item.setStatus(request.status());
         }
         if (request.config() != null) {
@@ -812,16 +789,15 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             item.setOtherInfo(line.otherInfoOf(i));
             item.setUsageStartYear(received.getYear());
             // Nguyên giá = đơn giá của dòng; giá trị còn lại bằng nguyên giá
-            // vì tài sản vừa về, chưa có kỳ khấu hao nào chạy qua.
+            // vì tài sản vừa về.
             item.setOriginalValue(line.getUnitPrice());
             item.setRemainingValue(line.getUnitPrice());
             item.setRoom(room);
             // Về kho thì nằm trong tay thủ kho: người quản lý là cán bộ phụ trách phòng nhận.
             item.setManager(EquipmentLifecycle.keeperOf(null, room));
             item.setCondition(EquipmentCondition.TOT);
-            // Nhập về kho thì là TRONG KHO, không phải đang sử dụng: chưa có
-            // phiếu cấp phát nào, chưa ai giữ. Chỉ khi phiếu chỉ thẳng phòng
-            // nhận thì tài sản mới bắt đầu ở trạng thái đang dùng.
+            // Nhập về kho thì là TRONG KHO, không phải đang sử dụng. Chỉ khi
+            // phiếu chỉ thẳng phòng nhận thì tài sản mới ở trạng thái đang dùng.
             item.setStatus(isStoreroom(room) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
             item.setIntakeLine(line);
             // Khoá IDENTITY: mỗi INSERT tài sản vẫn là một lượt đi về (Hibernate không gom lô được khi id
@@ -848,8 +824,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     /**
      * VẬT TƯ TIÊU HAO vào sổ: một dòng phiếu nhập sinh MỘT bản ghi thiết bị mang cả số lượng —
      * có mã chuẩn, tên, hồ sơ, lịch sử như mọi thiết bị; chỉ khác là đếm theo số lượng thay vì
-     * mỗi cái một mã. Nguyên giá là giá trị cả lô (đơn giá × số lượng); giá trị còn lại giảm theo
-     * số lượng khi xuất / tiêu hao.
+     * mỗi cái một mã. Nguyên giá là giá trị cả lô (đơn giá × số lượng).
      */
     @Transactional
     public Equipment generateLotFromIntakeLine(EquipmentIntakeLine line) {
@@ -900,180 +875,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         history.change(saved, EquipmentHistory.Action.GHI_TANG, "manager", null,
                 EquipmentLifecycle.staffLabel(saved.getManager()), intakeRef, "Cán bộ phụ trách phòng nhận");
         repository.flush();
-        return saved;
-    }
-
-    /**
-     * Trừ {@code amount} vật tư của (trường, mặt hàng, chỗ để) — xuất kho, ghi tiêu hao. Lấy từ lô
-     * cũ trước (ngày tiếp nhận, rồi id); lô về 0 thành "đã dùng hết" và ra khỏi sổ nhưng giữ hồ
-     * sơ và lịch sử. Không đủ thì từ chối cả thao tác, nêu số còn — âm kho là sổ nói có thứ không
-     * tồn tại. Đọc KHÔNG qua phạm vi dòng: quyền ghi đã được kiểm ở phiếu gọi tới đây.
-     */
-    @Transactional
-    public void consumeLot(School school, EquipmentCatalog catalog, Room room, BigDecimal amount,
-            EquipmentHistory.Action action, VoucherRef ref, String where) {
-        if (amount == null || amount.signum() <= 0) {
-            throw new FieldValidationException("lines", where + ": số lượng phải lớn hơn 0");
-        }
-        if (!Unit.accepts(catalog.getUnit(), amount)) {
-            throw new FieldValidationException("lines", "%s: %s tính theo %s — không chia lẻ được, nhập số nguyên"
-                    .formatted(where, catalog.getName(), unitName(catalog.getUnit())));
-        }
-        Long roomId = room == null ? null : room.getId();
-        List<Equipment> lots = repository.findAll((root, q, cb) -> cb.and(
-                        cb.equal(root.get("school").get("id"), school.getId()),
-                        cb.equal(root.get("catalog").get("id"), catalog.getId()),
-                        roomId == null ? cb.isNull(root.get("room")) : cb.equal(root.get("room").get("id"), roomId),
-                        cb.greaterThan(root.get("quantity"), BigDecimal.ZERO),
-                        root.get("status").in(AssetStatus.IN_STOCK, AssetStatus.IN_USE)),
-                Sort.by("receivedDate", "id"));
-        // Khoá các lô (theo id, để hai phiếu không khoá chéo nhau) rồi đọc lại số lượng: đọc không khoá thì hai phiếu
-        // xuất song song cùng thấy đủ, và lần ghi sau đè số của lần ghi trước — xuất 14 từ 10 mà sổ còn 4.
-        lots.stream().sorted(Comparator.comparing(Equipment::getId))
-                .forEach(lot -> em.refresh(lot, LockModeType.PESSIMISTIC_WRITE));
-        lots = lots.stream().filter(lot -> lot.getQuantity() != null && lot.getQuantity().signum() > 0
-                && (lot.getStatus() == AssetStatus.IN_STOCK || lot.getStatus() == AssetStatus.IN_USE)).toList();
-        BigDecimal have = lots.stream().map(Equipment::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (have.compareTo(amount) < 0) {
-            throw new FieldValidationException("lines", "%s: %s %s chỉ còn %s, không đủ %s".formatted(
-                    where, catalog.getName(), room == null ? "trong kho" : "ở " + room.getName(), plain(have), plain(amount)));
-        }
-        BigDecimal left = amount;
-        for (Equipment lot : lots) {
-            if (left.signum() <= 0) {
-                break;
-            }
-            BigDecimal before = lot.getQuantity();
-            BigDecimal take = before.min(left);
-            BigDecimal after = before.subtract(take);
-            if (lot.getRemainingValue() != null && before.signum() > 0) {
-                lot.setRemainingValue(lot.getRemainingValue().multiply(after).divide(before, 0, RoundingMode.HALF_UP));
-            }
-            lot.setQuantity(after);
-            if (after.signum() == 0) {
-                lot.setStatus(AssetStatus.USED_UP);
-            }
-            history.change(lot, action, "quantity", plain(before), plain(after), ref,
-                    "%s: lấy %s, còn %s".formatted(where, plain(take), plain(after)));
-            repository.persist(lot);
-            left = left.subtract(take);
-        }
-    }
-
-    /** Trừ đúng lô ghi trên phiếu tiêu hao, không tự chuyển sang lô cùng loại. */
-    @Transactional
-    public void consumeSelectedLot(School school, Equipment lot, BigDecimal amount,
-            EquipmentHistory.Action action, VoucherRef ref, String where) {
-        if (!lot.getSchool().getId().equals(school.getId())
-                || lot.getCatalog().getTrackingType() != TrackingType.BULK
-                || (lot.getStatus() != AssetStatus.IN_STOCK && lot.getStatus() != AssetStatus.IN_USE)) {
-            throw new FieldValidationException("equipment", "Lô vật tư đã chọn không còn dùng được cho phiếu tiêu hao");
-        }
-        Unit unit = lot.getUnit() != null ? lot.getUnit() : lot.getCatalog().getUnit();
-        if (amount == null || amount.signum() <= 0 || !Unit.accepts(unit, amount)) {
-            throw new FieldValidationException("quantity",
-                    "Số lượng tiêu hao không hợp lệ với đơn vị của lô " + lot.getCode());
-        }
-        BigDecimal before = lot.getQuantity();
-        if (before == null || before.compareTo(amount) < 0) {
-            throw new FieldValidationException("quantity", "%s: lô %s chỉ còn %s %s, không đủ %s".formatted(
-                    where, lot.getCode(), before == null ? "0" : plain(before),
-                    unitName(unit), plain(amount)));
-        }
-        BigDecimal after = before.subtract(amount);
-        if (lot.getRemainingValue() != null) {
-            lot.setRemainingValue(lot.getRemainingValue().multiply(after).divide(before, 0, RoundingMode.HALF_UP));
-        }
-        lot.setQuantity(after);
-        if (after.signum() == 0) {
-            lot.setStatus(AssetStatus.USED_UP);
-        }
-        history.change(lot, action, "quantity", plain(before), plain(after), ref,
-                "%s: lấy %s, còn %s".formatted(where, plain(amount), plain(after)));
-        repository.persist(lot);
-    }
-
-    /** Chia lô khi chỉ bàn giao một phần: lô gốc giữ phần còn lại, phần giao có mã riêng ở phòng nhận. */
-    @Transactional
-    public Equipment transferLot(Equipment source, BigDecimal amount, Room target,
-            Staff receiver, AssetStatus targetStatus,
-            EquipmentHistory.Action action, VoucherRef ref, String note) {
-        BigDecimal before = source.getQuantity();
-        if (source.getCatalog().getTrackingType() != TrackingType.BULK || amount == null
-                || amount.signum() <= 0 || amount.compareTo(before) >= 0) {
-            throw new FieldValidationException("lines", "Chỉ tách được một phần của lô vật tư còn tồn");
-        }
-        var parts = codes.parts(source.getSchool(), source.getCatalog(), source.getPhysicalOrDigital(),
-                source.getReceivedDate(), source.getPurchaseDate())
-                .orElseThrow(() -> new FieldValidationException("lines", "Không sinh được mã cho phần vật tư bàn giao"));
-        String newCode = codes.reserve(source.getSchool(), parts)
-                .orElseThrow(() -> new FieldValidationException("lines", "Đã hết mã thiết bị cho phần vật tư bàn giao"));
-
-        Equipment moved = new Equipment();
-        moved.setSchool(source.getSchool());
-        moved.setCode(newCode);
-        moved.setName(source.getName());
-        moved.setSortOrder(source.getSortOrder());
-        moved.setActive(source.getActive());
-        moved.setNote(source.getNote());
-        moved.setCatalog(source.getCatalog());
-        moved.setPhysicalOrDigital(source.getPhysicalOrDigital());
-        moved.setAssetCategory(source.getAssetCategory());
-        moved.setModel(source.getModel());
-        moved.setManufacturer(source.getManufacturer());
-        moved.setOtherInfo(source.getOtherInfo());
-        moved.setUnit(source.getUnit());
-        moved.setQuantity(amount);
-        moved.setOriginSource(source.getOriginSource());
-        moved.setAcquisitionMethod(source.getAcquisitionMethod());
-        moved.setFundingSource(source.getFundingSource());
-        moved.setOriginNote(source.getOriginNote());
-        moved.setFundingNote(source.getFundingNote());
-        moved.setAcquisitionNote(source.getAcquisitionNote());
-        moved.setProductionYear(source.getProductionYear());
-        moved.setUsageStartYear(source.getUsageStartYear());
-        moved.setReceivedDate(source.getReceivedDate());
-        moved.setPurchaseDate(source.getPurchaseDate());
-        moved.setWarrantyExpiry(source.getWarrantyExpiry());
-        moved.setExpiryDate(source.getExpiryDate());
-        moved.setRoom(target);
-        moved.setManager(EquipmentLifecycle.keeperOf(receiver, target));
-        moved.setCondition(source.getCondition());
-        moved.setStatus(targetStatus);
-        moved.setConfig(source.getConfig());
-        moved.setSpecs(source.getSpecs());
-        moved.setIntakeLine(source.getIntakeLine());
-        moved.setPack(source.getPackUnit(), source.getPackSize());
-
-        BigDecimal after = before.subtract(amount);
-        if (source.getOriginalValue() != null) {
-            BigDecimal movedValue = source.getOriginalValue().multiply(amount)
-                    .divide(before, 2, RoundingMode.HALF_UP);
-            moved.setOriginalValue(movedValue);
-            BigDecimal keptValue = source.getOriginalValue().subtract(movedValue);
-            history.change(source, action, "originalValue", source.getOriginalValue().toPlainString(),
-                    keptValue.toPlainString(), ref, note);
-            source.setOriginalValue(keptValue);
-        }
-        if (source.getRemainingValue() != null) {
-            BigDecimal movedValue = source.getRemainingValue().multiply(amount)
-                    .divide(before, 2, RoundingMode.HALF_UP);
-            moved.setRemainingValue(movedValue);
-            BigDecimal keptValue = source.getRemainingValue().subtract(movedValue);
-            history.change(source, action, "remainingValue", source.getRemainingValue().toPlainString(),
-                    keptValue.toPlainString(), ref, note);
-            source.setRemainingValue(keptValue);
-        }
-        String unit = unitName(source.getUnit() != null ? source.getUnit() : source.getCatalog().getUnit());
-        history.change(source, action, "quantity", before.stripTrailingZeros().toPlainString(),
-                after.stripTrailingZeros().toPlainString(), ref,
-                note + ": giao " + amount.stripTrailingZeros().toPlainString() + " " + unit);
-        source.setQuantity(after);
-        repository.persist(source);
-        Equipment saved = repository.persist(moved);
-        history.event(saved, action, ref,
-                note + ": nhận " + amount.stripTrailingZeros().toPlainString() + " " + unit
-                        + " từ lô " + source.getCode());
         return saved;
     }
 
@@ -1301,18 +1102,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                 } else {
                     specs.add(complete ? EquipmentService::completeProfile : EquipmentService::incompleteProfile);
                 }
-            } else if (criterion.field().equals("disposalEligible")) {
-                specs.add("unrepairable".equals(criterion.value())
-                        ? unrepairable() : (root, query, cb) -> cb.disjunction());
-            } else if (criterion.field().equals("expiry")) {
-                // `expired`: lô đã quá hạn sử dụng (tiêu huỷ do hết hạn); `valid`: không ghi hạn hoặc còn hạn.
-                LocalDate today = LocalDate.now();
-                specs.add("expired".equals(criterion.value())
-                        ? (root, query, cb) -> cb.lessThan(root.get("expiryDate"), today)
-                        : "valid".equals(criterion.value())
-                                ? (root, query, cb) -> cb.or(cb.isNull(root.get("expiryDate")),
-                                        cb.greaterThanOrEqualTo(root.get("expiryDate"), today))
-                                : (root, query, cb) -> cb.disjunction());
             }
         }
         return Specification.allOf(specs);

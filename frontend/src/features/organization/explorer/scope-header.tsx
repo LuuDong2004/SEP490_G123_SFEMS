@@ -25,7 +25,7 @@ export function SchoolScopeHeader() {
       s={overview.totals}
       schools={overview.total}
       title={onlyBody ? onlyBody.name : "Sở Giáo dục và Đào tạo TP. Hồ Chí Minh"}
-      meta={onlyBody ? null : `${new Intl.NumberFormat("vi-VN").format(bodies.filter((b) => b.id != null).length)} cơ quan quản lý có trường`}
+      meta={onlyBody ? null : `${new Intl.NumberFormat("vi-VN", { useGrouping: false }).format(bodies.filter((b) => b.id != null).length)} cơ quan quản lý có trường`}
     />
   );
 }

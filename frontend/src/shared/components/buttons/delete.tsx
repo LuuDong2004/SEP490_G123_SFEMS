@@ -66,8 +66,7 @@ type DeleteButtonProps = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   record?: any;
   /**
-   * Tên gọi loại bản ghi trong câu hỏi, khi nhãn của resource không phải một danh từ ("Mượn - trả",
-   * "Bảo hành" là nhãn tab — hỏi "Xoá bảo hành này?" là sai nghĩa; phiếu thì hỏi "Xoá phiếu này?").
+   * Tên gọi loại bản ghi trong câu hỏi, khi nhãn của resource không phải một danh từ — phiếu thì hỏi "Xoá phiếu này?").
    */
   noun?: string;
 } & Omit<React.ComponentProps<typeof Button>, "onSuccess">;

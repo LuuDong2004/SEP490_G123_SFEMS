@@ -58,20 +58,6 @@ public class SchoolYearProfileController {
         return ResponseEntity.ok().header("X-Total-Count", String.valueOf(out.size())).body(out);
     }
 
-    @PostMapping("/confirm")
-    @PreAuthorize("hasAuthority('school_year_profiles:confirm')")
-    public SchoolYearProfileService.YearProfile confirm(
-            @Valid @RequestBody SchoolYearProfileService.CampusRequest request) {
-        return service.confirm(request);
-    }
-
-    @PostMapping("/unconfirm")
-    @PreAuthorize("hasAuthority('school_year_profiles:confirm')")
-    public SchoolYearProfileService.YearProfile unconfirm(
-            @Valid @RequestBody SchoolYearProfileService.CampusRequest request) {
-        return service.unconfirm(request);
-    }
-
     @PostMapping("/close")
     @PreAuthorize("hasAuthority('school_year_profiles:confirm')")
     public SchoolYearProfileService.YearProfile close(@Valid @RequestBody SchoolYearProfileService.YearRequest request) {

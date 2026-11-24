@@ -523,7 +523,7 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
             {FILTERS.filter((f) => f.value !== "excluded" || counts.excluded > 0).map((f) => (
               <SelectItem key={f.value} value={f.value} title={"hint" in f ? f.hint : undefined}>
                 {f.label}
-                <span className="text-muted-foreground tabular-nums"> ({counts[f.value].toLocaleString("vi-VN")})</span>
+                <span className="text-muted-foreground tabular-nums"> ({counts[f.value].toLocaleString("vi-VN", { useGrouping: false })})</span>
               </SelectItem>
             ))}
           </SelectContent>

@@ -24,7 +24,10 @@ import { autoVisible, useColumnsKey } from "@/shared/components/data-table/colum
 import { CampusesCell, CampusTableFilter } from "@/shared/components/campus/campus";
 import { useCampusScope } from "@/shared/components/campus/use-campus";
 
-const STATUS_OPTIONS = Object.entries(VOUCHER_STATUS_LABELS).map(([value, label]) => ({ value, label }));
+// Phiếu ghi tăng duyệt xong là ghi tăng ngay trong cùng giao dịch (Chờ duyệt → Hoàn tất), không dừng ở "Đã duyệt" —
+// Báo cáo 3: Nháp → Chờ duyệt → Hoàn tất, Bị từ chối, Đã huỷ.
+const INTAKE_STATUSES = ["DRAFT", "PENDING", "COMPLETED", "REJECTED", "CANCELLED"] as const;
+const STATUS_OPTIONS = INTAKE_STATUSES.map((value) => ({ value, label: VOUCHER_STATUS_LABELS[value] }));
 
 const money = new Intl.NumberFormat("vi-VN");
 
@@ -45,7 +48,7 @@ export const EquipmentIntakeList = () => {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Số phiếu", size: 150, enableSorting: true,
+        id: "code", header: "Số phiếu", size: 150, enableSorting: false,
         cell: ({ getValue, row }) => {
           const code = getValue();
           return code ? (
@@ -60,7 +63,7 @@ export const EquipmentIntakeList = () => {
         },
       }),
       h.accessor("intakeDate", {
-        id: "intakeDate", header: "Ngày ghi tăng", size: 112, enableSorting: true,
+        id: "intakeDate", header: "Ngày ghi tăng", size: 112, enableSorting: false,
         // Ngày ghi tăng = ngày duyệt; phiếu chưa duyệt chưa có (cùng kiểu "Chưa cấp số" của cột số phiếu).
         cell: ({ getValue, row }) => row.original.status === "COMPLETED"
           ? <span className="tabular-nums">{formatPlainDate(getValue())}</span>
@@ -153,9 +156,9 @@ export const EquipmentIntakeList = () => {
         ...ROW_ACTIONS_COLUMN,
         cell: ({ row }) => (
           <RowActions>
-            {/* Phiếu nháp không có màn chi tiết — mở thẳng form sửa; chỉ phiếu đã trình (chờ duyệt, hoàn tất…) mới xem chi tiết
-                (trưởng nhóm 14/11/2026). */}
-            {row.original.status !== "DRAFT" ? <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" /> : null}
+            {/* Phiếu nháp mở thẳng form sửa; phiếu đã trình thì xem chi tiết (trưởng nhóm 14/11/2026). Người không sửa được phiếu
+                nháp (quản trị viên, Sở) cũng xem chi tiết. */}
+            {row.original.status !== "DRAFT" || !row.original._actions?.includes("edit") ? <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" /> : null}
             {/* Nút chỉ hiện ở nơi nó làm được việc — server nói qua `_actions`, không hiện rồi trả 422. */}
             {row.original._actions?.includes("edit") ? (
               <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
@@ -216,7 +219,7 @@ export const EquipmentIntakeList = () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             table={table as any}
             fill
-            onRowDoubleClick={(r: EquipmentIntake) => (r.status === "DRAFT" ? edit("equipment_intakes", r.id) : show("equipment_intakes", r.id))}
+            onRowDoubleClick={(r: EquipmentIntake) => (r.status === "DRAFT" && r._actions?.includes("edit") ? edit("equipment_intakes", r.id) : show("equipment_intakes", r.id))}
             toolbar={
               <>
                 <ListToolbar
@@ -235,7 +238,7 @@ export const EquipmentIntakeList = () => {
                           const others = (prev as { id: string }[]).filter((f) => f.id !== "status");
                           return (v == null ? others : [...others, { id: "status", operator: "eq", value: v }]) as typeof prev;
                         })} />
-                      {/* Lọc theo kỳ (tháng / quý / năm) của ngày phiếu — cùng ô lọc với danh sách ghi giảm. Phiếu chưa duyệt mang
+                      {/* Lọc theo kỳ (tháng / quý / năm) của ngày phiếu. Phiếu chưa duyệt mang
                           ngày lập, phiếu đã duyệt mang ngày ghi tăng (`intakeDate`). */}
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <PeriodSelect table={table as any} field="intakeDate" />

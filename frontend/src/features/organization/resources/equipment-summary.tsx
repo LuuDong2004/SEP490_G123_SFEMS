@@ -42,26 +42,31 @@ type Row = {
   usable: number | null;
   in_use: number | null;
   in_stock: number | null;
-  borrowed: number | null;
-  broken: number | null;
-  missing: number | null;
-  other: number | null;
+  /** Chuẩn tối thiểu (chỉ bảng Tổng hợp): số phải có và số còn thiếu, cộng trên các trường đang xem. Trống = không thuộc chuẩn. */
+  required?: number | null;
+  shortage?: number | null;
+  short_schools?: number | null;
 };
 
-/** Cột số lượng — thứ tự là thứ tự đọc: có bao nhiêu → dùng được bao nhiêu → đang ở đâu → hỏng, mất. */
+/** Cột số lượng — thứ tự là thứ tự đọc: có bao nhiêu → đang ở đâu. */
 const QTY: { key: keyof Row; label: string; tone?: "strong" | "success" | "warning" | "destructive"; hint?: string }[] = [
   { key: "total", label: "Tổng", tone: "strong" },
-  { key: "usable", label: "Dùng được", tone: "success" },
   { key: "in_use", label: "Đang dùng" },
   { key: "in_stock", label: "Trong kho" },
-  { key: "borrowed", label: "Đang mượn" },
-  { key: "broken", label: "Hỏng", tone: "warning", hint: "Hỏng, đang sửa, đang bảo hành" },
-  { key: "missing", label: "Mất", tone: "destructive" },
+];
+
+/**
+ * Đối chiếu chuẩn tối thiểu (thay cột "Dùng được" — trưởng nhóm 24/11/2026): phải có bao nhiêu, còn thiếu bao nhiêu.
+ * Chỉ ở bảng Tổng hợp: chuẩn tính theo trường, không theo kho/phòng.
+ */
+const NORM: { key: "required" | "shortage"; label: string }[] = [
+  { key: "required", label: "Phải có" },
+  { key: "shortage", label: "Còn thiếu" },
 ];
 
 /** Độ rộng cố định của từng cột số (theo độ dài tiêu đề) — cột Thiết bị lấy phần còn lại. */
 const COL_W: Record<string, string> = {
-  total: "w-[4.5rem]", usable: "w-[6.5rem]", in_use: "w-[6.5rem]", in_stock: "w-24", borrowed: "w-[6.5rem]", broken: "w-20", missing: "w-16",
+  total: "w-20", in_use: "w-24", in_stock: "w-24", required: "w-24", shortage: "w-24",
 };
 
 /** Bộ lọc của cây bên trái → tham số của `/equipment/summary` (cùng tên với bộ lọc danh sách). */
@@ -209,7 +214,8 @@ export function EquipmentSummary({ by, filters, drill }: {
 
   // Cột Môn chỉ hiện khi có mặt hàng gắn môn — một cột toàn "—" chỉ chiếm chỗ.
   const showSubject = rows.some((r) => r.subject);
-  const cols = 3 + (showSubject ? 1 : 0) + QTY.length;
+  const norm = by === "catalog" ? NORM : [];
+  const cols = 3 + (showSubject ? 1 : 0) + QTY.length + norm.length;
   return (
     <section className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
       <EquipmentExportDialog open={exportOpen} onOpenChange={setExportOpen} params={search} filename={exportName} />
@@ -266,16 +272,16 @@ export function EquipmentSummary({ by, filters, drill }: {
         </div>
       </div>
 
-      <div className="scrollbar-fade min-h-0 flex-1 overflow-auto [&_tbody_tr:last-child]:border-b">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-auto [&_tbody_tr:last-child]:border-b">
         {/* Độ rộng cột CỐ ĐỊNH (`table-fixed` + `colgroup`): để tự co theo nội dung thì thu gọn
             một kho/phòng — các dòng mặt hàng biến mất — làm cả bảng tính lại và cột xê dịch. */}
-        <table className="w-full min-w-[62rem] table-fixed text-sm">
+        <table className="w-full min-w-[56rem] table-fixed text-sm">
           <colgroup>
             <col className="w-10" />
             <col />
-            {showSubject ? <col className="w-36" /> : null}
-            <col className="w-16" />
-            {QTY.map((c) => (
+            {showSubject ? <col className="w-40" /> : null}
+            <col className="w-20" />
+            {[...QTY, ...norm].map((c) => (
               <col key={c.key} className={COL_W[c.key as string] ?? "w-20"} />
             ))}
           </colgroup>
@@ -288,19 +294,32 @@ export function EquipmentSummary({ by, filters, drill }: {
               vạch trái. */}
           <thead style={{ "--hl": "color-mix(in oklch, var(--primary) 35%, transparent)" } as React.CSSProperties}
             className="bg-table-head sticky top-0 z-10 [&_th]:border-transparent [&_th]:font-semibold [&_th]:shadow-[inset_1px_0_0_var(--hl),inset_0_-1px_0_var(--hl)] [&_tr]:border-transparent [&_tr:first-child>th:first-child]:shadow-[inset_0_-1px_0_var(--hl)]">
-            <tr className="text-overline text-table-head-text border-b">
+            {/* Chữ tiêu đề màu đen hết (trưởng nhóm 24/11/2026): màu riêng chỉ ở số trong ô. */}
+            <tr className="text-overline text-foreground border-b">
               <th rowSpan={2} className="w-12 border-e px-3 py-2 text-center align-middle">STT</th>
               <th rowSpan={2} className="border-e px-3 py-2 text-start align-middle">Thiết bị</th>
               {showSubject ? <th rowSpan={2} className="border-e px-3 py-2 text-start align-middle whitespace-nowrap">Môn</th> : null}
               <th rowSpan={2} className="px-3 py-2 text-start align-middle">ĐVT</th>
-              <th colSpan={QTY.length} className="text-table-head-text border-s border-b px-3 py-1.5 text-center tracking-widest">Số lượng</th>
+              <th colSpan={QTY.length} className="text-foreground border-s border-b px-3 py-1.5 text-center tracking-widest">Số lượng</th>
+              {norm.length ? (
+                <th colSpan={norm.length} className="text-foreground border-b px-3 py-1.5 text-center tracking-widest">
+                  Chuẩn tối thiểu
+                  <HelpHint className="ms-1">
+                    Phải có: số lượng tối thiểu theo thông tư, cộng trên các trường đang xem (trường đã nhập thiết bị). Còn thiếu:
+                    cộng phần thiếu của từng trường.
+                  </HelpHint>
+                </th>
+              ) : null}
             </tr>
-            <tr className="text-overline text-table-head-text border-b">
+            <tr className="text-overline text-foreground border-b">
               {QTY.map((c) => (
-                <th key={c.key} className={cn("border-s px-2 py-1.5 text-end whitespace-nowrap", QTY_TONE[c.key as string]?.head)}>
+                <th key={c.key} className={cn("border-s px-2 py-1.5 text-end whitespace-nowrap")}>
                   {c.label}
                   {c.hint ? <HelpHint className="ms-1">{c.hint}</HelpHint> : null}
                 </th>
+              ))}
+              {norm.map((c) => (
+                <th key={c.key} className={cn("px-2 py-1.5 text-end whitespace-nowrap")}>{c.label}</th>
               ))}
             </tr>
           </thead>
@@ -311,7 +330,7 @@ export function EquipmentSummary({ by, filters, drill }: {
               const filtered = !!term || filters.some((f) => "field" in f && !SCOPE_FIELDS.has(f.field));
               return (
                 <TableEmpty colSpan={cols} loading={isFetching} filtered={filtered}
-                  title={filtered ? "Không có thiết bị nào khớp bộ lọc." : "Chưa có thiết bị nào trong hệ thống."}
+                  title={filtered ? "Không có thiết bị nào khớp bộ lọc." : filters.some((f) => "field" in f && f.field === "school.id") ? "Trường này chưa có thiết bị nào." : "Chưa có thiết bị nào trong hệ thống."}
                   description={filtered ? undefined : (
                     <span className="flex flex-wrap justify-center gap-x-4 gap-y-1">
                       <CrossLink to="/equipment-intakes/create" resource="equipment_intakes" action="create" plain className="text-primary hover:underline">Lập phiếu ghi tăng</CrossLink>
@@ -335,7 +354,7 @@ export function EquipmentSummary({ by, filters, drill }: {
                           <SchoolIcon className="text-muted-foreground size-4 shrink-0" />
                           <span className="font-semibold">{school}</span>
                           <span className="text-muted-foreground text-xs tabular-nums">
-                            {totals ? `${totals.rooms} kho/phòng · ${totals.records.toLocaleString("vi-VN")} thiết bị` : ""}
+                            {totals ? `${totals.rooms} kho/phòng · ${totals.records.toLocaleString("vi-VN", { useGrouping: false })} thiết bị` : ""}
                           </span>
                         </div>
                       </td>
@@ -349,12 +368,14 @@ export function EquipmentSummary({ by, filters, drill }: {
                     const bulk = g.rows.length - counted.length;
                     const expanded = !collapsed.includes(g.key);
                     return (
-                      <tr className={cn("hover:bg-muted/60 cursor-pointer border-b select-none", expanded && "bg-muted hover:bg-muted/70")} onClick={() => toggle(g.key)}
+                      <tr className={cn("hover:bg-muted/60 cursor-pointer border-b select-none", expanded && "bg-muted hover:bg-muted/70",
+                        // Chưa xếp phòng: tô đỏ cả dòng — việc còn dở, phải giao thiết bị về phòng.
+                        g.roomId == null && "bg-destructive/10 hover:bg-destructive/15 text-destructive-text")} onClick={() => toggle(g.key)}
                         aria-expanded={expanded} title={expanded ? "Thu gọn" : "Mở danh sách"}>
                         <td colSpan={cols - QTY.length} className="px-3 py-2.5">
                           <div className="flex min-w-0 items-center gap-2">
                             <ChevronRight className={cn("text-muted-foreground size-4 shrink-0 transition-transform", expanded && "rotate-90")} />
-                            <span className="text-primary shrink-0 [&_svg]:size-4">
+                            <span className={cn("shrink-0 [&_svg]:size-4", g.roomId == null ? "text-destructive-text" : "text-primary")}>
                               {g.roomId == null ? <CircleDashed /> : /kho/i.test(g.room ?? "") ? <Warehouse /> : <DoorOpen />}
                             </span>
                             <span className="truncate text-[0.9375rem] font-semibold">{g.title}</span>
@@ -369,7 +390,7 @@ export function EquipmentSummary({ by, filters, drill }: {
                             <td key={c.key} className={cn("px-2 py-2.5 text-end font-semibold tabular-nums", i === 0 && "border-s",
                               v === 0 ? "text-muted-foreground/40" : QTY_TONE[c.key as string]?.text)}
                               title={bulk ? `Không cộng ${bulk} loại vật tư tiêu hao (tính theo kg, lít…)` : undefined}>
-                              {v === 0 ? "–" : quantityFormat.format(v)}
+                              {quantityFormat.format(v)}
                             </td>
                           );
                         })}
@@ -385,8 +406,6 @@ export function EquipmentSummary({ by, filters, drill }: {
                         <td className="text-muted-foreground px-3 py-2.5 text-center tabular-nums">{stt}</td>
                         {/* Không có dòng mã dưới tên — mã nằm trong chú thích khi rê chuột và trong tệp xuất. */}
                         <td className="px-3 py-2.5" title={`${r.name} · ${r.code}${r.type ? ` · ${r.type}` : ""}${r.tracking_type === "BULK" ? " · vật tư tiêu hao" : ""}`}>
-                          {/* Gần như mọi thiết bị đều thuộc danh mục tối thiểu, nên không dành một cột cho dấu tích:
-                              chỉ đánh dấu cái NGOÀI danh mục, ngay cạnh tên. */}
                           <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate font-medium">{r.name}</span>
                             {perspective !== "school" && dupNames.has(r.name) && r.code ? (
@@ -394,9 +413,6 @@ export function EquipmentSummary({ by, filters, drill }: {
                                 {/^(TH|THCS|THPT|GDTX)-/.test(r.code) ? r.code.split("-")[0] : r.code}
                               </span>
                             ) : null}
-                            {r.minimum_required ? null : (
-                              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem]" title="Không thuộc danh mục thiết bị tối thiểu theo thông tư">Ngoài danh mục</span>
-                            )}
                           </div>
                         </td>
                         {showSubject ? (
@@ -414,7 +430,23 @@ export function EquipmentSummary({ by, filters, drill }: {
                           return (
                             <td key={c.key} className={cn("px-2 py-2.5 text-end tabular-nums", i === 0 && "border-s",
                               v === 0 ? "text-muted-foreground/40" : QTY_TONE[c.key as string]?.text)}>
-                              {v === 0 ? "–" : quantityFormat.format(v)}
+                              {quantityFormat.format(v)}
+                            </td>
+                          );
+                        })}
+                        {norm.length && r.required == null ? (
+                          <td colSpan={norm.length} className="text-muted-foreground px-2 py-2.5 text-center text-xs italic">
+                            Ngoài danh mục
+                          </td>
+                        ) : norm.map((c) => {
+                          const factor = readableUnit(n(r.total as number), r.unit).factor;
+                          const v = n(r[c.key] as number) / factor;
+                          const short = c.key === "shortage";
+                          return (
+                            <td key={c.key} className={cn("px-2 py-2.5 text-end tabular-nums",
+                              short && v === 0 ? "text-success-text font-medium" : QTY_TONE[c.key]?.text)}
+                              title={short && v > 0 ? `${r.short_schools ?? 0} trường còn thiếu` : undefined}>
+                              {short && v === 0 ? "Đủ" : quantityFormat.format(v)}
                             </td>
                           );
                         })}

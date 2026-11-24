@@ -4,7 +4,6 @@ import java.util.stream.Stream;
 import java.util.List;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.equipmentcatalog.CatalogOrigin;
-import com.g123.sfems.domain.catalog.equipmentcatalog.DepreciationMethod;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
@@ -40,8 +39,6 @@ public record EquipmentCatalogResponse(
         TrackingType trackingType,
         AssetCategory assetCategory,
         PhysicalDigitalType physicalOrDigital,
-        DepreciationMethod depreciationMethod,
-        Integer usefulLifeYears,
         Boolean minimumRequired,
         String statisticalCode,
         String legalBasis,
@@ -76,7 +73,6 @@ public record EquipmentCatalogResponse(
                 RefSummary.of(item.getUnit()),
                 item.getModel(), item.getManufacturer(), item.getTrackingType(),
                 item.getAssetCategory(), item.getPhysicalOrDigital(),
-                item.getDepreciationMethod(), item.getUsefulLifeYears(),
                 item.getMinimumRequired(),
                 item.getStatisticalCode(), item.getLegalBasis(), item.getDescription(),
                 item.getUsedByTeacher(), item.getUsedByStudent(), item.getSelfMade(),

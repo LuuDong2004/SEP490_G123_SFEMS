@@ -269,6 +269,12 @@
       scrollbar-color: color-mix(in oklab, currentColor 40%, transparent) transparent;
     }
   }
+  /* Chrome 121+: luật thanh cuộn chung (`* { scrollbar-width: thin }`) làm trình duyệt BỎ QUA ::-webkit-scrollbar
+     bên dưới — thanh cuộn thành dải ~11px chạy suốt bảng. Trả hai thuộc tính chuẩn về auto để vạch 4px, ngắn được dùng. */
+  @supports selector(::-webkit-scrollbar) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
   &::-webkit-scrollbar {
     width: 4px;
     height: 4px;

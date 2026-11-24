@@ -1,7 +1,14 @@
 package com.g123.sfems.module.school.yearprofile;
 
 import jakarta.validation.Valid;
+import com.g123.sfems.shared.office.XlsxWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,14 +32,6 @@ public class YearStandardController {
     public YearStandardController(YearStandardService service, YearGapService gaps) {
         this.service = service;
         this.gaps = gaps;
-    }
-
-    /** Điểm trường khác đang thừa một thiết bị — gợi ý để trường chuyển phòng trên hồ sơ thiết bị. */
-    @GetMapping("/suggestions")
-    @PreAuthorize("hasAuthority('purchase_proposals:read')")
-    public List<YearGapService.Suggestion> suggestions(@RequestParam Long catalogId,
-            @RequestParam(required = false) Long toCampusId) {
-        return gaps.suggestions(catalogId, toCampusId);
     }
 
     /** Lập đề xuất mua sắm nháp đúng số thiếu của các dòng đã chọn. */
@@ -64,5 +63,38 @@ public class YearStandardController {
     public ResponseEntity<List<YearStandardService.OverviewRow>> overview(@RequestParam(required = false) Long yearId) {
         List<YearStandardService.OverviewRow> out = service.overview(yearId);
         return ResponseEntity.ok().header("X-Total-Count", String.valueOf(out.size())).body(out);
+    }
+
+    private static final Map<String, String> STATUS = Map.of(
+            "DRAFT", "Đang khai", "CONFIRMED", "Đã xác nhận", "CLOSED", "Đã chốt", "REOPENED", "Mở lại");
+
+    /** Bảng các trường của {@link #overview} ra tệp Excel — cùng cột với màn Chuẩn tối thiểu của Sở. */
+    @GetMapping("/overview.xlsx")
+    @PreAuthorize("hasAuthority('purchase_proposals:read')")
+    public ResponseEntity<byte[]> overviewXlsx(@RequestParam(required = false) Long yearId) {
+        List<Map<String, Object>> rows = service.overview(yearId).stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("school", r.schoolName());
+            m.put("status", STATUS.getOrDefault(r.status(), r.status()));
+            m.put("percentTt", r.hasEquipment() ? r.percentTt() : null);
+            m.put("percentAdjusted", r.hasEquipment() ? r.percentAdjusted() : null);
+            m.put("short", r.hasEquipment() ? r.shortItemsAdjusted() : null);
+            m.put("note", r.hasEquipment() ? "" : "Chưa nhập thiết bị");
+            return m;
+        }).toList();
+        List<XlsxWriter.Column> columns = List.of(
+                new XlsxWriter.Column("school", "Trường", "text"),
+                new XlsxWriter.Column("status", "Hồ sơ năm học", "text"),
+                new XlsxWriter.Column("percentTt", "Đáp ứng theo thông tư (%)", "number"),
+                new XlsxWriter.Column("percentAdjusted", "Đáp ứng theo điều chỉnh (%)", "number"),
+                new XlsxWriter.Column("short", "Số loại còn thiếu", "number"),
+                new XlsxWriter.Column("note", "Ghi chú", "text"));
+        byte[] body = XlsxWriter.write(new XlsxWriter.Sheet("Thiết bị dạy học tối thiểu theo năm học",
+                "Mức đáp ứng của từng trường", columns, rows));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("Thiết bị tối thiểu theo năm học.xlsx", StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 }

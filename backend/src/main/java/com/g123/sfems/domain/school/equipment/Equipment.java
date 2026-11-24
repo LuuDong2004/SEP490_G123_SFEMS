@@ -42,9 +42,8 @@ import org.hibernate.type.SqlTypes;
  * <p>{@code code} (lớp nền) là MÃ ĐỊNH DANH theo chuẩn {@code TT.TR.MH.LT.ST.NC}
  * — xem {@code EquipmentCodeService}. {@code name} là tên thiết bị.
  *
- * <p>Đây là NHÓM TRƯỜNG LÕI. Phần kế toán (hoá đơn, hợp đồng, khấu hao), kho
- * (tồn, mượn, mất) và bảo hành chi tiết của bản Jmix thêm vào cùng các phiếu
- * nghiệp vụ dùng chúng.
+ * <p>Đây là NHÓM TRƯỜNG LÕI. Hoá đơn, hợp đồng, quyết định giao nằm ở phiếu
+ * ghi tăng sinh ra thiết bị.
  *
  * <p>Thông số kỹ thuật lưu ở {@link #specs} (JSONB: mã thông số → giá trị dạng
  * chuỗi), theo định nghĩa trong bộ thông số {@link #config}.
@@ -61,7 +60,7 @@ import org.hibernate.type.SqlTypes;
 /*
  * Các quan hệ lớn (nhóm thiết bị, phòng, người quản lý, cấu hình, dòng phiếu nhập)
  * nạp bằng câu SELECT riêng thay vì JOIN: mỗi cái kéo theo cây EAGER của nó, và
- * khi tài sản được nạp theo id (qua một phiếu, một kế hoạch bảo trì) Hibernate
+ * khi tài sản được nạp theo id (qua một phiếu) Hibernate
  * gộp tất cả vào một câu — vượt giới hạn 1664 cột của PostgreSQL.
  */
 public class Equipment extends SchoolOwnedEntity {
@@ -406,14 +405,6 @@ public class Equipment extends SchoolOwnedEntity {
         return expiryDate;
     }
 
-    /**
-     * Lô đã quá hạn sử dụng — "Hết hạn sử dụng" là trạng thái TÍNH theo ngày, không lưu: trạng thái tài
-     * sản chỉ đổi qua phiếu. Lô hết hạn không vào được phiếu dùng (tiêu hao…), chỉ vào phiếu tiêu huỷ.
-     */
-    public boolean isExpired() {
-        return expiryDate != null && expiryDate.isBefore(LocalDate.now());
-    }
-
     public void setExpiryDate(LocalDate expiryDate) {
         this.expiryDate = expiryDate;
     }
@@ -476,30 +467,15 @@ public class Equipment extends SchoolOwnedEntity {
 
     /** Mã chuẩn của Sở: {@code TT.TR.MH.LT.ST.NC}, vd. {@code 79.A1.08.TB.01.25}. */
     public static final Pattern STANDARD_CODE = Pattern.compile("^\\d{2}\\.[A-Z0-9]{2}\\.\\d{2}\\.(TB|PM|HL)\\.\\d{3,4}\\.\\d{2}$");
-    /**
-     * Thiết bị tính là HỎNG ở mọi số đếm: tình trạng Hỏng, hoặc trạng thái đang ở khâu hỏng / sửa / bảo hành.
-     * Tình trạng Kém là xuống cấp, không tính hỏng. Bảo trì không tính: thiết bị vẫn dùng được.
-     *
-     * @param alias bí danh bảng equipment trong câu SQL, rỗng nếu không có
-     */
-    public static String brokenSql(String alias) {
-        String a = alias == null || alias.isEmpty() ? "" : alias + ".";
-        return "(" + a + "condition = 'HONG' OR " + a
-                + "status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY'))";
-    }
-
     public static final String STANDARD_CODE_SQL = "^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.(TB|PM|HL)\\.[0-9]{3,4}\\.[0-9]{2}$";
 
     /**
      * Hồ sơ còn thiếu gì — TÍNH RA, không lưu. Rỗng là hồ sơ chuẩn.
      *
-     * <p>Đây là cửa vào của mọi nghiệp vụ: phiếu cấp phát, điều chuyển, mượn, báo hỏng,
-     * thanh lý... chỉ nhận tài sản có hồ sơ chuẩn ({@code VoucherLines.requireStatus}).
-     * Một tài sản không có mã chuẩn, không đơn vị tính mà đi vào sổ cấp phát hay biên bản
-     * thanh lý thì mọi báo cáo sau đó đều sai theo.
+     * <p>Hồ sơ thiếu mã chuẩn, đơn vị tính thì báo cáo và kiểm kê dựa trên nó đều sai theo.
      *
      * <p>Nguyên giá KHÔNG nằm trong điều kiện: HSMT 3.5.3 chỉ đòi "nguyên giá hoặc giá trị theo
-     * dữ liệu được cung cấp" — có thì ghi, không có thì để trống; hệ thống không tính hao mòn.
+     * dữ liệu được cung cấp" — có thì ghi, không có thì để trống.
      *
      * <p>Số serial KHÔNG nằm trong điều kiện: bản đồ, tranh, bàn ghế không có serial của
      * nhà sản xuất, và mã tài sản chuẩn đã phân biệt được từng cái.

@@ -22,7 +22,7 @@ export type TrackingType = "serial" | "bulk";
 export function intakeLineOutcome(trackingType: string | undefined, quantity: number, unitName?: string): string {
   if (quantity <= 0) return "Không ghi tăng (không nhận được cái nào)";
   return trackingType === "bulk"
-    ? `Ghi tăng 1 lô vật tư, số lượng ${quantity.toLocaleString("vi-VN")}${unitName ? ` ${unitName}` : ""}, chung một mã`
+    ? `Ghi tăng 1 lô vật tư, số lượng ${quantity.toLocaleString("vi-VN", { useGrouping: false })}${unitName ? ` ${unitName}` : ""}, chung một mã`
     : `Ghi tăng ${quantity} thiết bị, mỗi cái một mã`;
 }
 

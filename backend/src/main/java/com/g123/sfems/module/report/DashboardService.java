@@ -46,9 +46,9 @@ public class DashboardService {
 
     private final ConcurrentHashMap<String, CompletableFuture<Cached>> cache = new ConcurrentHashMap<>();
 
-    public record Kpis(long schools, long equipment, java.math.BigDecimal originalValue, long inUse, long broken,
-            // Tên trường JSON cũ được giữ để các màn đang dùng API không bị gãy; gồm cả chờ tiêu huỷ.
-            long missing, long pendingLiquidation, long pendingVouchers,
+    public record Kpis(long schools, long equipment, java.math.BigDecimal originalValue, long inUse,
+            /* Thiết bị đã ghi mất (không tính vào {@code equipment}). */
+            long missing, long pendingVouchers,
             int adequacyPercent, int adequacySchools,
             /* Đánh giá CSVC theo chuẩn (TC-04): % trường đạt từ mức tối thiểu trở lên, trên số trường đã khai phòng. */
             int facilityPercent, int facilitySchools) {
@@ -57,7 +57,7 @@ public class DashboardService {
     public record Count(String key, String label, long count) {
     }
 
-    public record Month(String month, long intake, long allocation, long damage, long disposal) {
+    public record Month(String month, long intake) {
     }
 
     /**
@@ -105,7 +105,6 @@ public class DashboardService {
         CONDITIONS.put("TOT", "Tốt");
         CONDITIONS.put("TRUNG_BINH", "Trung bình");
         CONDITIONS.put("KEM", "Kém");
-        CONDITIONS.put("HONG", "Hỏng");
     }
 
     /**
@@ -219,12 +218,10 @@ public class DashboardService {
         String since = PERIODS.get(kind);
         String eq = visible.sqlFilter("e.school_id") + ReportCampus.room("e.room_id", "e.school_id", campus);
         Map<String, Object> e = jdbc.queryForMap("""
-                SELECT COUNT(*) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')) AS total,
-                       COALESCE(SUM(e.original_value) FILTER (WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')), 0) AS value,
+                SELECT COUNT(*) FILTER (WHERE e.status <> 'LOST') AS total,
+                       COALESCE(SUM(e.original_value) FILTER (WHERE e.status <> 'LOST'), 0) AS value,
                        COUNT(*) FILTER (WHERE e.status = 'IN_USE') AS in_use,
-                       COUNT(*) FILTER (WHERE e.condition = 'HONG' OR e.status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY')) AS broken,
-                       COUNT(*) FILTER (WHERE e.status IN ('MISSING', 'LOST')) AS missing,
-                       COUNT(*) FILTER (WHERE e.status IN ('PENDING_LIQUIDATION', 'PENDING_DESTRUCTION')) AS pending_liq
+                       COUNT(*) FILTER (WHERE e.status = 'LOST') AS missing
                 FROM equipment e WHERE TRUE""" + eq);
         long schools = jdbc.queryForObject("SELECT COUNT(*) FROM schools s WHERE s.status = 'ACTIVE'"
                 + visible.sqlFilter("s.id"), Long.class);
@@ -252,7 +249,7 @@ public class DashboardService {
         waiting.put("SO", 0L);
         for (String table : ReportService.voucherTables().keySet()) {
             jdbc.query("""
-                    SELECT CASE WHEN v.approval_step IN ('MANAGING_BODY', 'RECEIVING_BODY') AND d.type IS NOT NULL
+                    SELECT CASE WHEN v.approval_step = 'MANAGING_BODY' AND d.type IS NOT NULL
                                 THEN d.type ELSE 'SCHOOL' END, COUNT(*)
                     FROM %s v
                     LEFT JOIN schools s ON s.id = v.school_id
@@ -281,16 +278,13 @@ public class DashboardService {
         List<Month> months = jdbc.query(("""
                 WITH m AS (SELECT generate_series(MONTH_START, MONTH_START + INTERVAL '11 months', INTERVAL '1 month') AS m)
                 SELECT TO_CHAR(m.m, 'MM/YYYY'),
-                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'GHI_TANG'),
-                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('CAP_PHAT', 'THU_HOI', 'DIEU_CHUYEN')),
-                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'BAO_HONG'),
-                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action IN ('THANH_LY', 'TIEU_HUY', 'MAT'))
+                       COUNT(DISTINCT h.equipment_id) FILTER (WHERE h.action = 'GHI_TANG')
                 FROM m
                 LEFT JOIN (SELECT h.* FROM equipment_history h JOIN equipment e ON e.id = h.equipment_id
                            WHERE h.created_at >= MONTH_START - INTERVAL '1 day'""" + eq + """
                 ) h ON DATE_TRUNC('month', h.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') = m.m
                 GROUP BY m.m ORDER BY m.m""").replace("MONTH_START", monthStart),
-                (rs, i) -> new Month(rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)));
+                (rs, i) -> new Month(rs.getString(1), rs.getLong(2)));
 
         List<SchoolRow> attention = List.of();
         int attentionTotal = 0;
@@ -333,7 +327,7 @@ public class DashboardService {
         // Tình trạng kỹ thuật của tài sản còn trên sổ.
         Map<String, Long> byCondition = new java.util.HashMap<>();
         jdbc.query("SELECT COALESCE(e.condition, 'NONE'), COUNT(*) FROM equipment e"
-                        + " WHERE e.status NOT IN ('LIQUIDATED', 'DESTROYED', 'LOST', 'USED_UP', 'NOT_DELIVERED')" + eq + " GROUP BY 1",
+                        + " WHERE e.status <> 'LOST'" + eq + " GROUP BY 1",
                 rs -> {
                     byCondition.put(rs.getString(1), rs.getLong(2));
                 });
@@ -396,7 +390,7 @@ public class DashboardService {
         attentionTotal = gaps.size();
 
         Kpis kpis = new Kpis(schools, num(e.get("total")), (java.math.BigDecimal) e.get("value"), num(e.get("in_use")),
-                num(e.get("broken")), num(e.get("missing")), num(e.get("pending_liq")), pendingTotal,
+                num(e.get("missing")), pendingTotal,
                 adequacyPercent, entered, facilityPercent, withRooms.size());
         return new Dashboard(visible.level(), reports.scopeLabel(), kpis, statuses, pending, months, attention,
                 kind, vouchers, span, daily, conditions, waitingAt, attentionTotal, yearCurrent);

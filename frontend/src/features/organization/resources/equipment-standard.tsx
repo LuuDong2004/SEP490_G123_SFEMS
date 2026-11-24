@@ -43,7 +43,7 @@ type CatalogStandard = {
   unitName?: string | null;
 };
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 /** "1.100 Gam" — số kèm đơn vị tính (trưởng nhóm 15/11/2026: "100 là gì?"). */
 const withUnit = (n: number, unit?: string | null) => `${num.format(n)}${unit ? ` ${unit}` : ""}`;
 

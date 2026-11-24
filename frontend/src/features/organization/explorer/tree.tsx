@@ -14,6 +14,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { useInfiniteScroll } from "@/shared/hooks/use-infinite-scroll";
+import { count } from "@/shared/lib/chart-palette";
 import { cn } from "@/shared/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -366,7 +367,7 @@ function Leaf({ node, depth, selectedKey, onSelect, badge }: Props & { node: Tre
 }
 
 /**
- * Dải số liệu ở cuối một dòng cây: trường, phòng, thiết bị, hỏng.
+ * Dải số liệu ở cuối một dòng cây: trường, phòng, thiết bị.
  *
  * <p>Tồn tại vì dòng cây trải hết chiều ngang thẻ, và trước đây chỉ có tên ở
  * mép trái với một con số ở mép phải — ở giữa là một khoảng trống rộng bằng
@@ -377,14 +378,15 @@ function Leaf({ node, depth, selectedKey, onSelect, badge }: Props & { node: Tre
  * <p>Số 0 bị ẩn: bốn con số 0 lặp lại trên trăm dòng chỉ là nhiễu, và làm
  * chìm mất những dòng có số thật.
  */
-function StatCell({ value, label, tone }: { value?: number; label: string; tone?: string }) {
-  // Chưa có số liệu (vd. dòng khối nhà, phòng): ô trống. Có mà bằng 0: dấu gạch mờ — cả cột trống trơn thì
-  // mắt không dóng được con số của dòng nào với tên nào.
+function StatCell({ value, label, tone, empty = "Chưa khai" }: { value?: number; label: string; tone?: string; empty?: string | null }) {
+  // Chưa có số liệu (vd. dòng khối nhà, phòng): ô trống. Bằng 0: ghi chữ ("Chưa khai", "Không tính được") thay cho
+  // dấu gạch khó hiểu. `empty = null`: số 0 là số thật, hiện "0".
   if (value == null) return <span className={STAT_CELL} aria-hidden />;
-  if (value === 0) return <span className={cn(STAT_CELL, "text-muted-foreground/50")} aria-hidden>–</span>;
+  if (value === 0 && empty) return <span className={cn(STAT_CELL, "text-muted-foreground text-xs font-normal italic")}>{empty}</span>;
   return (
-    <span className={cn(STAT_CELL, tone)} title={label}>
-      {new Intl.NumberFormat("vi-VN").format(value)}
+    // Số thật tô màu chính, đậm: nổi lên giữa các ô "Chưa khai" mờ.
+    <span className={cn(STAT_CELL, "text-primary font-semibold", value ? tone : undefined)} title={label}>
+      {count.format(value)}
     </span>
   );
 }
@@ -393,13 +395,12 @@ function StatCell({ value, label, tone }: { value?: number; label: string; tone?
 /** `schoolCount = false` khi các dòng là TRƯỜNG: cột "Trường" để trống, vẫn giữ chỗ cho các cột sau thẳng hàng. */
 export function TreeStatsHeader({ schoolCount = true }: { schoolCount?: boolean }) {
   return (
-    <div className="text-overline text-muted-foreground flex flex-[3] items-center gap-4 pr-2">
+    <div className="text-sm font-bold tracking-wide uppercase text-muted-foreground flex flex-[3] items-center gap-4 pr-2">
       {/* Cột đầu: số trường ở dòng cơ quan, số lớp ở dòng trường. */}
       <span className={STAT_CELL}>{schoolCount ? "Trường" : "Lớp"}</span>
       <span className={STAT_CELL}>Cán bộ</span>
       <span className={STAT_CELL}>Phòng</span>
       <span className={STAT_CELL}>Thiết bị</span>
-      <span className={STAT_CELL}>Hỏng</span>
     </div>
   );
 }
@@ -409,23 +410,20 @@ export function TreeStats({
   staff,
   rooms,
   equipment,
-  equipmentBroken,
 }: {
   /** Cột đầu: số trường (dòng cơ quan) hoặc số lớp (dòng trường). */
   schools?: number;
   staff?: number;
   rooms?: number;
   equipment?: number;
-  equipmentBroken?: number;
 }) {
   return (
-    // Số là thứ người ta đọc ở cây này: chữ thường, đậm vừa — không mờ nhỏ như chú thích. Dấu "–" vẫn mờ.
+    // Số là thứ người ta đọc ở cây này: chữ thường, đậm vừa — không mờ nhỏ như chú thích. Ô chữ "Chưa khai" mờ.
     <span className="text-foreground hidden flex-[3] items-center gap-4 text-sm font-medium sm:flex">
       <StatCell value={schools} label="Trường" />
       <StatCell value={staff} label="Cán bộ" />
       <StatCell value={rooms} label="Phòng" />
       <StatCell value={equipment} label="Thiết bị" />
-      <StatCell value={equipmentBroken} label="Hỏng / kém" tone="text-warning-text" />
     </span>
   );
 }
@@ -464,7 +462,6 @@ export function ManagingBodyBranch({
     staff?: number;
     rooms?: number;
     equipment?: number;
-    equipmentBroken?: number;
   };
   depth: number;
 }) {
@@ -499,7 +496,6 @@ export function ManagingBodyBranch({
           staff={body.staff}
           rooms={body.rooms}
           equipment={body.equipment}
-          equipmentBroken={body.equipmentBroken}
         />
       }
       renderChild={(school, d) => (
@@ -540,7 +536,6 @@ export function SchoolBranch({
           staff={stats?.staff}
           rooms={stats?.rooms}
           equipment={stats?.equipment}
-          equipmentBroken={stats?.equipmentBroken}
         />
       }
       renderChild={(campus, d) => (

@@ -265,7 +265,7 @@ public class ProcurementPlanService {
         apply(plan, input);
         plan.setPlanDate(input.planDate() != null ? input.planDate() : LocalDate.now());
         plan.setCode(nextCode(plan.getBudgetYear()));
-        plan.setDetails(forms.header("procurement_plans", input.details(), null, null, null));
+        plan.setDetails(forms.header("procurement_plans", input.details(), null, null));
         ProcurementPlan saved = repository.save(plan);
         if (input.lines() != null) {
             applyLines(saved, input.lines());
@@ -281,7 +281,7 @@ public class ProcurementPlanService {
             plan.setPlanDate(input.planDate());
         }
         if (input.details() != null) {
-            plan.setDetails(forms.header("procurement_plans", input.details(), plan.getDetails(), null, null));
+            plan.setDetails(forms.header("procurement_plans", input.details(), plan.getDetails(), null));
         }
         ProcurementPlan saved = repository.save(plan);
         if (input.lines() != null) {

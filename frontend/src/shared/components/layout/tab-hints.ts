@@ -44,10 +44,10 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   equipment_standards: "Danh mục thiết bị tối thiểu theo thông tư",
   equipment_norms: "Số lượng tối thiểu từng thiết bị theo cấp, khối",
   // Tài chính, nghiệp vụ
-  origin_sources: "Thiết bị từ đâu ra: kế hoạch mua sắm, được điều chuyển, được tặng…",
+  origin_sources: "Thiết bị từ đâu ra: kế hoạch mua sắm, được cấp phát, được tặng…",
   funding_sources: "Tiền từ đâu: ngân sách, học phí, tài trợ…",
-  acquisition_methods: "Mua mới, tài trợ, điều chuyển đến…",
-  movement_reasons: "Lý do khi thiết bị tăng, giảm, điều chuyển",
+  acquisition_methods: "Mua mới, tài trợ…",
+  movement_reasons: "Lý do ghi tăng thiết bị",
 
   // Tổ chức của trường
   staff: "Cán bộ, giáo viên của trường",
@@ -60,8 +60,8 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   // Báo cáo — tài sản
   report_equipment_by_school: "Số thiết bị theo từng trường",
   report_equipment_by_catalog: "Số lượng theo từng thiết bị trong danh mục",
-  report_equipment_by_status: "Đang dùng, trong kho, đang mượn, hỏng…",
-  report_equipment_by_condition: "Tốt, hỏng, cần sửa…",
+  report_equipment_by_status: "Đang dùng, trong kho",
+  report_equipment_by_condition: "Tốt, trung bình, kém",
   report_equipment_list: "Danh sách thiết bị lọc theo trạng thái",
   report_equipment_ledger: "Bảng theo dõi thiết bị để in",
   report_inventory: "Kết quả các đợt kiểm kê",
@@ -70,9 +70,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   report_csvc_statistics: "Biểu số liệu theo mẫu Sở",
   report_room_standard: "Phòng bộ môn đạt chuẩn hay chưa",
   report_facility_standard: "Trường đạt chuẩn CSVC mức nào",
-  // Hư hỏng
-  report_broken_equipment: "Thiết bị hỏng, mất, cần thay thế",
-  report_unused_equipment: "Thiết bị không còn dùng được",
   report_idle_equipment: "Thiết bị nằm kho lâu không dùng",
   // Biến động, chứng từ
   report_movements: "Thiết bị tăng, giảm trong kỳ",

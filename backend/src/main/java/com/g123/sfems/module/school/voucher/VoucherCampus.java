@@ -38,7 +38,7 @@ import org.springframework.util.ReflectionUtils;
  * Phạm vi CƠ SỞ của phiếu (267, giai đoạn 2) — MỘT luật cho mọi loại phiếu và phiếu ghi tăng. Phiếu "chạm" một cơ sở
  * khi phòng ở đầu phiếu, thiết bị ở đầu phiếu, hoặc BẤT KỲ dòng nào (phòng của dòng, thiết bị của dòng theo phòng hiện
  * tại) thuộc cơ sở đó — phiếu có thiết bị của hai cơ sở thì cán bộ cả hai cơ sở cùng thấy. Phiếu không phòng, không
- * thiết bị (đề xuất mua sắm, phiếu xuất kho chỉ có danh mục) thuộc cơ sở chính. Thiết bị chưa có phòng thuộc cơ sở chính.
+ * thiết bị (đề xuất mua sắm) thuộc cơ sở chính. Thiết bị chưa có phòng thuộc cơ sở chính.
  *
  * <p>Mỗi loại phiếu chỉ khai HÌNH DẠNG ({@link Shape}: thuộc tính phòng / thiết bị ở đầu phiếu, các tập dòng và
  * phòng / thiết bị trên dòng); từ đó dựng cả vế lọc (EXISTS tương quan — không join nhân dòng, {@code X-Total-Count}
@@ -51,22 +51,18 @@ public class VoucherCampus {
     public record Line(String collection, List<String> rooms, List<String> equipment) {
     }
 
-    /**
-     * Hình dạng của một loại phiếu. {@code targetSchool} / {@code targetRoom}: phiếu còn thuộc trường NHẬN (điều chuyển)
-     * — chạm cơ sở của phòng nhận, phòng nhận trống thì cơ sở chính của trường nhận.
-     */
-    public record Shape(List<String> rooms, List<String> equipment, List<Line> lines, String targetSchool,
-            String targetRoom) {
+    /** Hình dạng của một loại phiếu. */
+    public record Shape(List<String> rooms, List<String> equipment, List<Line> lines) {
 
         /** Mặc định: dòng {@code lines} trỏ tới thiết bị ({@code VoucherEquipmentLine}). */
         public static final Shape LINES = new Shape(List.of(), List.of(),
-                List.of(new Line("lines", List.of(), List.of("equipment"))), null, null);
+                List.of(new Line("lines", List.of(), List.of("equipment"))));
 
         /** Không phòng, không thiết bị — luôn thuộc cơ sở chính. */
-        public static final Shape NONE = new Shape(List.of(), List.of(), List.of(), null, null);
+        public static final Shape NONE = new Shape(List.of(), List.of(), List.of());
 
         public static Shape of(List<String> rooms, List<String> equipment, Line... lines) {
-            return new Shape(rooms, equipment, List.of(lines), null, null);
+            return new Shape(rooms, equipment, List.of(lines));
         }
     }
 
@@ -174,7 +170,7 @@ public class VoucherCampus {
         boolean touches = false;
         boolean anchored = false;
         for (Anchor a : anchors(shape, voucher)) {
-            anchored = anchored || !a.target();
+            anchored = true;
             if (!Objects.equals(a.schoolId(), school)) {
                 continue;
             }
@@ -188,12 +184,9 @@ public class VoucherCampus {
             return;
         }
         if (campus.isMainCampus(pinned)) {
-            // Cơ sở chính nhận phiếu không trỏ tới phòng / thiết bị nào, và phiếu điều chuyển tới chưa có phòng nhận.
+            // Cơ sở chính nhận phiếu không trỏ tới phòng / thiết bị nào.
             boolean ownSchool = voucher.getSchool() != null && Objects.equals(voucher.getSchool().getId(), school);
-            boolean targetMain = shape.targetSchool() != null && read(voucher, shape.targetRoom()) == null
-                    && read(voucher, shape.targetSchool()) instanceof School target
-                    && Objects.equals(target.getId(), school);
-            if ((ownSchool && !anchored) || targetMain) {
+            if (ownSchool && !anchored) {
                 return;
             }
         }
@@ -238,13 +231,6 @@ public class VoucherCampus {
         }
         if (main) {
             any.add(noAnchor(shape, root, query, cb, school));
-            if (shape.targetSchool() != null) {
-                any.add(cb.and(cb.isNull(root.get(shape.targetRoom())),
-                        cb.equal(root.get(shape.targetSchool()).get("id"), school)));
-            }
-        }
-        if (shape.targetRoom() != null) {
-            any.add(roomIn(root.get(shape.targetRoom()), rooms, cb));
         }
         return cb.or(any.toArray(Predicate[]::new));
     }
@@ -296,18 +282,15 @@ public class VoucherCampus {
 
     // ------------------------------------------------------------------ trong bộ nhớ
 
-    /** Một phòng / thiết bị mà phiếu trỏ tới. {@code target}: phòng nhận của trường nhận. */
-    private record Anchor(String key, String field, String message, Long schoolId, Long campusId, boolean target) {
+    /** Một phòng / thiết bị mà phiếu trỏ tới. */
+    private record Anchor(String key, String field, String message, Long schoolId, Long campusId) {
     }
 
     private List<Anchor> anchors(Shape shape, SchoolVoucher voucher) {
         List<Anchor> out = new ArrayList<>();
         Object self = Hibernate.unproxy(voucher);
         for (String attr : shape.rooms()) {
-            room(out, read(self, attr), attr, OTHER_ROOM, false);
-        }
-        if (shape.targetRoom() != null) {
-            room(out, read(self, shape.targetRoom()), shape.targetRoom(), OTHER_ROOM, true);
+            room(out, read(self, attr), attr, OTHER_ROOM);
         }
         for (String attr : shape.equipment()) {
             equipment(out, read(self, attr), attr, OTHER_EQUIPMENT);
@@ -322,7 +305,7 @@ public class VoucherCampus {
                 Object lineNo = read(row, "lineNo");
                 int no = lineNo instanceof Integer n ? n : index;
                 for (String attr : line.rooms()) {
-                    room(out, read(row, attr), line.collection(), "Dòng %d: phòng thuộc cơ sở khác".formatted(no), false);
+                    room(out, read(row, attr), line.collection(), "Dòng %d: phòng thuộc cơ sở khác".formatted(no));
                 }
                 for (String attr : line.equipment()) {
                     Object value = read(row, attr);
@@ -335,17 +318,17 @@ public class VoucherCampus {
         return out;
     }
 
-    private void room(List<Anchor> out, Object value, String field, String message, boolean target) {
+    private void room(List<Anchor> out, Object value, String field, String message) {
         if (value instanceof Room room) {
             out.add(new Anchor("R" + room.getId(), field, message,
-                    room.getSchool() == null ? null : room.getSchool().getId(), campus.campusOfRoom(room), target));
+                    room.getSchool() == null ? null : room.getSchool().getId(), campus.campusOfRoom(room)));
         }
     }
 
     private void equipment(List<Anchor> out, Object value, String field, String message) {
         if (value instanceof Equipment item) {
             out.add(new Anchor("E" + item.getId(), field, message,
-                    item.getSchool() == null ? null : item.getSchool().getId(), campus.campusOfEquipment(item), false));
+                    item.getSchool() == null ? null : item.getSchool().getId(), campus.campusOfEquipment(item)));
         }
     }
 

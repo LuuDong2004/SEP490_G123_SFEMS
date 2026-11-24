@@ -1,4 +1,4 @@
-import { Banknote, Boxes, Building2, CircleHelp, CalendarClock, CircleAlert, ClipboardList, FileCheck2, Gauge, Package, Ruler, School, ShieldCheck, ShoppingCart, TrendingDown, TrendingUp, Wrench } from "lucide-react";
+import { Banknote, Boxes, Building2, CircleHelp, CalendarClock, CircleAlert, ClipboardList, FileCheck2, Gauge, Package, Ruler, School, ShieldCheck, ShoppingCart, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ChartCard, ColumnChart, DonutBreakdown, GroupedBars, Meter, StatTile, TrendArea, type Series, type Slice } from "@/shared/components/charts/charts";
@@ -13,9 +13,7 @@ import type { ReportDrill } from "@/features/reports/report-drill";
 type Row = Record<string, any>;
 const MOVES: Series[] = [
   { key: "GHI_TANG", label: "Ghi tăng" },
-  { key: "CAP_PHAT", label: "Cấp phát" },
-  { key: "BAO_HONG", label: "Báo hỏng" },
-  { key: "out", label: "Ghi giảm" },
+  { key: "MAT", label: "Mất" },
 ];
 const n = (v: unknown) => Number(v) || 0;
 const sum = (rows: Row[], key: string) => rows.reduce((s, r) => s + n(r[key]), 0);
@@ -23,7 +21,7 @@ const money = shortMoney;
 
 /**
  * Ô chỉ số mang nhiều con số: MỘT số lớn, các phần ghi ở dòng phụ, mỗi số kèm chữ nói nó là gì — mọi ô cùng một dáng, không ô
- * nào nhồi ba số to. `sumOf`: các phần cộng được (hỏng + mất). `leadOf`: không cộng được (khối nhà, phòng) — số lớn là phần đầu.
+ * nào nhồi ba số to. `sumOf`: các phần cộng được (thiếu + thừa). `leadOf`: không cộng được (khối nhà, phòng) — số lớn là phần đầu.
  */
 const partsHint = (items: [number, string][]) => items.map(([v, word]) => `${count.format(v)} ${word}`).join(" · ");
 const sumOf = (items: [number, string][]) => ({ value: count.format(items.reduce((t, [v]) => t + v, 0)), hint: partsHint(items) });
@@ -40,28 +38,35 @@ const seriesTotals = (rows: Row[], series: Series[]): Slice[] =>
 
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : null);
 
+/** Số cột tối đa của biểu đồ theo nhóm — nhiều hơn thì chữ dưới cột không đọc nổi. */
+const TOP = 10;
+
 /**
  * Cặp biểu đồ thường gặp: vòng tròn cơ cấu CHUNG (tổng từng loạt trên mọi nhóm) bên trái, cột chồng theo từng nhóm
  * bên phải — nhìn tổng thể trước, rồi so các nhóm với nhau.
  */
-function Breakdown({ rows, labelKey, series, unit, donutTitle, columnsTitle, description, onSlice, onColumn }: {
+function Breakdown({ rows, labelKey, series, unit, donutTitle, columnsTitle, noun, onSlice, onColumn }: {
   rows: Row[];
   labelKey: string;
   series: Series[];
   unit: string;
   donutTitle: string;
   columnsTitle: string;
-  description?: string;
+  /** Một cột là gì: "trường", "loại thiết bị" — dòng phụ nói đang vẽ mấy cột trên tổng bao nhiêu. */
+  noun: string;
   onSlice?: (slice: Slice) => void;
   onColumn?: (row: Row) => void;
 }) {
+  const shown = rows.length > TOP
+    ? `${TOP} ${noun} nhiều ${unit} nhất, trên tổng ${count.format(rows.length)} ${noun}`
+    : `Đủ ${count.format(rows.length)} ${noun} có ${unit}, nhiều nhất trước`;
   return (
     <Pair className="lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <ChartCard bare title={donutTitle} description="Tổng trên mọi nhóm">
+      <ChartCard bare title={donutTitle} description={`Tổng của ${count.format(rows.length)} ${noun}`}>
         <DonutBreakdown items={seriesTotals(rows, series)} unit={unit} onPick={onSlice} />
       </ChartCard>
-      <ChartCard bare title={columnsTitle} description={description}>
-        <ColumnChart rows={rows} labelKey={labelKey} series={series} unit={unit} onPick={onColumn} />
+      <ChartCard bare title={columnsTitle} description={shown}>
+        <ColumnChart rows={rows} labelKey={labelKey} series={series} unit={unit} limit={TOP} onPick={onColumn} />
       </ChartCard>
     </Pair>
   );
@@ -70,7 +75,7 @@ function Breakdown({ rows, labelKey, series, unit, donutTitle, columnsTitle, des
 function Tiles({ children }: { children: ReactNode }) {
   return (
     <Card className="gap-0 py-0">
-      <div className="grid grid-cols-[minmax(0,1fr)] divide-y sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4 xl:divide-x">{children}</div>
+      <div className="grid grid-cols-[minmax(0,1fr)] divide-y sm:grid-cols-2 sm:divide-y-0 xl:auto-cols-fr xl:grid-flow-col xl:grid-cols-none xl:divide-x">{children}</div>
     </Card>
   );
 }
@@ -121,7 +126,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
   const pickSchool = (unit: string) => onDrill && ((row: Row) =>
     onDrill({ title: String(row.label), summary: summaryOf(row.count, unit), columns: without("school"), rows: rows.filter((r) => r.school === row.label) }));
   // Báo cáo chỉ có số đếm theo nhóm: mục vừa bấm chia theo từng nhóm. `parts`: phần của vòng cộng từ cột nào của báo
-  // cáo khi khoá của nó không phải tên cột ("Đang dùng, cho mượn" = in_use + borrowed).
+  // cáo khi khoá của nó không phải tên cột.
   const pickSeries = (unit: string, source: Row[], parts: Record<string, string[]> = {}) => onDrill && ((s: Slice) => {
     const keys = parts[s.key] ?? [s.key];
     const value = (r: Row) => keys.reduce((t, k) => t + n(r[k]), 0);
@@ -190,103 +195,79 @@ export function ReportVisual({ report, part, filter, onDrill }: {
           <Tiles>
             <StatTile flat icon={<School />} label={bySchool ? "Trường" : "Phạm vi"}
               {...(bySchool ? { value: count.format(schools) } : leadOf([[rows.length, dimension.toLowerCase()], [schools, "trường"]]))} />
-            <StatTile flat icon={<Boxes />} label="Thiết bị trong hệ thống" value={count.format(sum(rows, "total"))}
-              hint={`${count.format(sum(rows, "in_use"))} đang dùng · ${count.format(sum(rows, "in_stock"))} trong kho`} />
-            <StatTile flat icon={<CircleAlert />} tone="destructive" label="Hỏng, mất"
-              {...sumOf([[sum(rows, "broken"), "hỏng, đang sửa"], [sum(rows, "missing"), "báo mất"]])} />
+            <StatTile flat icon={<Boxes />} label="Thiết bị trong hệ thống" value={count.format(sum(rows, "total"))} />
+            <StatTile flat icon={<ShieldCheck />} tone="success" label="Đang dùng" value={count.format(sum(rows, "in_use"))} />
+            <StatTile flat icon={<Package />} label="Trong kho" value={count.format(sum(rows, "in_stock"))} />
           </Tiles>
         </>
       ) : (
         <Breakdown rows={sorted} labelKey="name" unit="thiết bị" donutTitle="Cơ cấu thiết bị"
           onSlice={pickSeries("thiết bị", sorted)} onColumn={pickRecord("name")}
-          columnsTitle={`Thiết bị — ${dimension.toLowerCase()}`} description="Nhóm nhiều thiết bị nhất" series={[
+          columnsTitle={`Thiết bị theo ${dimension.toLowerCase()}`} noun={dimension.toLowerCase()} series={[
             { key: "in_use", label: "Đang dùng" },
             { key: "in_stock", label: "Trong kho" },
-            { key: "broken", label: "Hỏng, đang sửa" },
-            { key: "missing", label: "Chờ ghi giảm do mất" },
-            { key: "pending_liquidation", label: "Chờ thanh lý / tiêu huỷ" },
           ]} />
       );
     }
     case "equipment-by-catalog": {
-      const sorted = [...rows].sort((a, b) => n(b.total) - n(a.total))
-        .map((r) => ({ ...r, other: Math.max(n(r.total) - n(r.in_use) - n(r.broken), 0) }));
+      const sorted = [...rows].sort((a, b) => n(b.total) - n(a.total));
       return part === "stats" ? (
         <>
           <Tiles>
             <StatTile flat icon={<Package />} label="DM thiết bị" value={count.format(rows.length)} />
             <StatTile flat icon={<Boxes />} label="Thiết bị trong hệ thống" value={count.format(sum(rows, "total"))} />
-            <StatTile flat icon={<CircleAlert />} tone="destructive" label="Hỏng, đang sửa" value={count.format(sum(rows, "broken"))} />
+            <StatTile flat icon={<ShieldCheck />} tone="success" label="Đang dùng" value={count.format(sum(rows, "in_use"))} />
+            <StatTile flat icon={<Package />} label="Trong kho" value={count.format(sum(rows, "in_stock"))} />
           </Tiles>
         </>
       ) : (
         <Breakdown rows={sorted} labelKey="catalog" unit="thiết bị" donutTitle="Tình hình sử dụng"
           onSlice={pickSeries("thiết bị", sorted)} onColumn={pickRecord("catalog")}
-          columnsTitle="Thiết bị theo danh mục" description="Thiết bị có số lượng nhiều nhất" series={[
+          columnsTitle="Thiết bị theo danh mục" noun="danh mục" series={[
             { key: "in_use", label: "Đang dùng" },
-            { key: "other", label: "Trong kho, khác" },
-            { key: "broken", label: "Hỏng, đang sửa" },
+            { key: "in_stock", label: "Trong kho" },
           ]} />
       );
     }
     case "equipment-by-status": {
-      // Chín trạng thái gộp về năm nhóm cho biểu đồ (tối đa năm loạt màu); bảng vẫn đủ chín cột.
-      const data = [...rows].sort((a, b) => n(b.total) - n(a.total)).map((r) => ({
-        ...r,
-        using: n(r.in_use) + n(r.borrowed),
-        service: n(r.maintaining) + n(r.repairing) + n(r.transferring),
-        lost: n(r.broken) + n(r.missing),
-      }));
+      const data = [...rows].sort((a, b) => n(b.total) - n(a.total));
       const dimension = report.columns.find((c) => c.key === "name")?.label ?? "Nhóm";
       return part === "stats" ? (
         <Tiles>
-          <StatTile flat icon={<Boxes />} label="Thiết bị trong hệ thống" value={count.format(sum(rows, "total"))}
-            hint={`${count.format(sum(rows, "in_stock"))} trong kho`} />
-          <StatTile flat icon={<ShieldCheck />} tone="success" label="Đang dùng, cho mượn"
-            value={count.format(sum(data, "using"))} hint={`${count.format(sum(rows, "borrowed"))} đang cho mượn`} />
-          <StatTile flat icon={<Wrench />} label="Bảo trì, sửa chữa, điều chuyển" value={count.format(sum(data, "service"))} />
-          <StatTile flat icon={<CircleAlert />} tone="destructive" label="Hỏng, mất, chờ ghi giảm"
-            {...sumOf([[sum(rows, "broken"), "hỏng"], [sum(rows, "missing"), "báo mất"], [sum(rows, "pending_liquidation"), "chờ ghi giảm"]])} />
+          <StatTile flat icon={<Boxes />} label="Thiết bị trong hệ thống" value={count.format(sum(rows, "total"))} />
+          <StatTile flat icon={<ShieldCheck />} tone="success" label="Đang dùng" value={count.format(sum(rows, "in_use"))} />
+          <StatTile flat icon={<Package />} label="Trong kho" value={count.format(sum(rows, "in_stock"))} />
         </Tiles>
       ) : data.length ? (
         <Breakdown rows={data} labelKey="name" unit="thiết bị" donutTitle="Trạng thái sử dụng"
-          onSlice={pickSeries("thiết bị", data, { using: ["in_use", "borrowed"], service: ["maintaining", "repairing", "transferring"], lost: ["broken", "missing"] })}
+          onSlice={pickSeries("thiết bị", data)}
           onColumn={pickRecord("name")}
-          columnsTitle={`Trạng thái — ${dimension.toLowerCase()}`} description="Nhóm nhiều thiết bị nhất" series={[
-            { key: "using", label: "Đang dùng, cho mượn" },
+          columnsTitle={`Trạng thái theo ${dimension.toLowerCase()}`} noun={dimension.toLowerCase()} series={[
+            { key: "in_use", label: "Đang dùng" },
             { key: "in_stock", label: "Trong kho" },
-            { key: "service", label: "Bảo trì, sửa, điều chuyển" },
-            { key: "lost", label: "Hỏng, báo mất" },
-            { key: "pending_liquidation", label: "Chờ thanh lý / tiêu huỷ" },
           ]} />
       ) : null;
     }
     case "equipment-by-condition": {
-      const data = [...rows].sort((a, b) => n(b.total) - n(a.total)).map((r) => ({
-        ...r,
-        okay: n(r.good),
-        bad: n(r.broken),
-      }));
+      const data = [...rows].sort((a, b) => n(b.total) - n(a.total));
       const total = sum(rows, "total");
-      const pct = (v: number) => (total ? `${Math.round((v / total) * 100)}% thiết bị` : undefined);
+      const pct = (v: number) => (total ? `${v > 0 && v / total < 0.01 ? ((v / total) * 100).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) : Math.round((v / total) * 100)}% thiết bị` : undefined);
       const dimension = report.columns.find((c) => c.key === "name")?.label ?? "Nhóm";
       return part === "stats" ? (
         <Tiles>
-          <StatTile flat icon={<ShieldCheck />} tone="success" label="Tốt" value={count.format(sum(data, "okay"))} hint={pct(sum(data, "okay"))} />
+          <StatTile flat icon={<ShieldCheck />} tone="success" label="Tốt" value={count.format(sum(rows, "good"))} hint={pct(sum(rows, "good"))} />
           <StatTile flat icon={<Gauge />} label="Trung bình" value={count.format(sum(rows, "average"))} hint={pct(sum(rows, "average"))} />
           <StatTile flat icon={<TrendingDown />} tone="warning" label="Kém" value={count.format(sum(rows, "poor"))} hint={pct(sum(rows, "poor"))} />
-          <StatTile flat icon={<CircleAlert />} tone="destructive" label="Hỏng" value={count.format(sum(data, "bad"))}
-            hint={sum(rows, "unrated") ? `${count.format(sum(rows, "unrated"))} chưa đánh giá` : pct(sum(data, "bad"))} />
+          <StatTile flat icon={<CircleHelp />} label="Chưa đánh giá" value={count.format(sum(rows, "unrated"))} hint={pct(sum(rows, "unrated"))} />
         </Tiles>
       ) : data.length ? (
         <Breakdown rows={data} labelKey="name" unit="thiết bị" donutTitle="Tình trạng kỹ thuật"
-          onSlice={pickSeries("thiết bị", data, { okay: ["good"], bad: ["broken"] })}
+          onSlice={pickSeries("thiết bị", data)}
           onColumn={pickRecord("name")}
-          columnsTitle={`Tình trạng — ${dimension.toLowerCase()}`} description="Nhóm nhiều thiết bị nhất" series={[
-            { key: "okay", label: "Tốt" },
+          columnsTitle={`Tình trạng theo ${dimension.toLowerCase()}`} noun={dimension.toLowerCase()} series={[
+            { key: "good", label: "Tốt" },
             { key: "average", label: "Trung bình" },
             { key: "poor", label: "Kém" },
-            { key: "bad", label: "Hỏng, không dùng được" },
             { key: "unrated", label: "Chưa đánh giá" },
           ]} />
       ) : null;
@@ -401,44 +382,11 @@ export function ReportVisual({ report, part, filter, onDrill }: {
       ) : sorted.length ? (
         <Breakdown rows={sorted} labelKey="name" unit="phòng" donutTitle="Tình trạng phòng" columnsTitle="Phòng theo nhóm"
           onSlice={pickSeries("phòng", sorted)} onColumn={pickRecord("name")}
-          description="Nhóm nhiều phòng nhất" series={[
+          noun="nhóm" series={[
             { key: "rooms_good", label: "Tốt, bình thường" },
             { key: "other", label: "Chưa đánh giá" },
             { key: "rooms_poor", label: "Xuống cấp, cần sửa" },
           ]} />
-      ) : null;
-    }
-    case "broken-equipment": {
-      // Năm phần của vòng, gom ĐỦ sáu nhóm của `ReportService.brokenEquipment` (tên phải trùng từng chữ — lệch một chữ
-      // là tài sản rơi khỏi vòng): "Hỏng, không sửa được" gom vào phần hỏng chờ xử lý, cột Nhóm của bảng vẫn tách riêng.
-      const groups: string[][] = [["Hư hỏng, chờ xử lý", "Hỏng, không sửa được"], ["Chờ ghi giảm do mất"], ["Đang sửa, bảo hành"], ["Cần thay thế, ghi giảm"], ["Xuống cấp, vẫn đang dùng"]];
-      const kinds = groups.map((g) => g[0]);
-      const byKind: Slice[] = groups.map((g, i) => ({ key: `k${i}`, label: g[0], count: rows.filter((r) => g.includes(r.kind)).length }));
-      const bySchool = Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        m[r.school] = (m[r.school] ?? 0) + 1;
-        return m;
-      }, {})).map(([k, v]) => ({ key: k, label: k, count: v })).sort((a, b) => b.count - a.count).slice(0, 10);
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<CircleAlert />} tone="warning" label="Chờ xử lý"
-            {...sumOf([[byKind[0].count, "hỏng"], [byKind[1].count, "báo mất"]])} />
-          <StatTile flat icon={<Wrench />} label={kinds[2]} value={count.format(byKind[2].count)} />
-          <StatTile flat icon={<TrendingDown />} tone="destructive" label={kinds[3]} value={count.format(byKind[3].count)} />
-          <StatTile flat icon={<Gauge />} label={kinds[4]} value={count.format(byKind[4].count)} />
-        </Tiles>
-      ) : rows.length ? (
-        // Một trường (tài khoản trường, hoặc đang lọc một trường): biểu đồ "Theo trường" chỉ là một thanh 100%.
-        <Pair className={bySchool.length > 1 ? undefined : "lg:grid-cols-1"}>
-          <ChartCard bare title="Theo nhóm xử lý">
-            <DonutBreakdown items={byKind} unit="thiết bị" bars={bySchool.length <= 1}
-              onPick={pickList("thiết bị", (r, s) => groups[byKind.findIndex((k) => k.key === s.key)].includes(r.kind), { hide: "kind" })} />
-          </ChartCard>
-          {bySchool.length > 1 ? (
-            <ChartCard bare title="Theo trường" description="Trường nhiều thiết bị hư hỏng nhất">
-              <ColumnChart rows={bySchool} labelKey="label" unit="thiết bị" series={[{ key: "count", label: "Thiết bị hư hỏng" }]} onPick={pickSchool("thiết bị")} />
-            </ChartCard>
-          ) : null}
-        </Pair>
       ) : null;
     }
     case "inventory": {
@@ -476,24 +424,21 @@ export function ReportVisual({ report, part, filter, onDrill }: {
       ) : null;
     }
     case "movements": {
-      const data = rows.map((r) => ({ ...r, out: n(r.THANH_LY) + n(r.TIEU_HUY) + n(r.MAT) }));
       return part === "stats" ? (
         <>
           <Tiles>
             <StatTile flat icon={<TrendingUp />} tone="success" label="Ghi tăng" value={count.format(sum(rows, "GHI_TANG"))} />
-            <StatTile flat icon={<ClipboardList />} label="Cấp phát, điều chuyển" value={count.format(sum(rows, "CAP_PHAT") + sum(rows, "DIEU_CHUYEN"))} />
-            <StatTile flat icon={<CircleAlert />} tone="warning" label="Báo hỏng" value={count.format(sum(rows, "BAO_HONG"))} />
-            <StatTile flat icon={<TrendingDown />} tone="destructive" label="Ghi giảm (thanh lý, tiêu huỷ, mất)" value={count.format(sum(data, "out"))} />
+            <StatTile flat icon={<TrendingDown />} tone="destructive" label="Mất" value={count.format(sum(rows, "MAT"))} />
           </Tiles>
         </>
       ) : (
         <Pair className="lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
           <ChartCard bare title="Xu hướng theo tháng" description="Số thiết bị có phát sinh trong kỳ">
-            <TrendArea data={data} xKey="month" series={MOVES} />
+            <TrendArea data={rows} xKey="month" series={MOVES} />
           </ChartCard>
           <ChartCard bare title="Cơ cấu biến động" description="Tổng cả kỳ">
-            <DonutBreakdown items={seriesTotals(data, MOVES)} unit="thiết bị"
-              onPick={pickSeries("thiết bị", data, { out: ["THANH_LY", "TIEU_HUY", "MAT"] })} />
+            <DonutBreakdown items={seriesTotals(rows, MOVES)} unit="thiết bị"
+              onPick={pickSeries("thiết bị", rows)} />
           </ChartCard>
         </Pair>
       );

@@ -219,33 +219,6 @@ function CatalogTreeFields({ control, record }: { control: Control<any>; record?
       </div>
       <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <EnumSelect control={control} name="trackingType" label="Cách quản lý" hint="Từng cái: mỗi cái một mã. Theo lô: cả lô chung một mã, chỉ cho vật tư, hoá chất." options={TRACKING_TYPE_LABELS} />
-        <FormField
-          control={control}
-          name="usefulLifeYears"
-          rules={{
-            min: { value: 0, message: "Số năm không được âm" },
-            max: { value: 100, message: "Số năm tối đa 100" },
-            validate: (v: unknown) => v == null || Number.isInteger(Number(v)) || "Số năm sử dụng phải là số nguyên",
-          }}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Số năm sử dụng</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="VD: 5"
-                  value={field.value ?? ""}
-                  onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  ref={field.ref}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
       </div>
       <FormField
         control={control}
@@ -282,8 +255,6 @@ export const EQUIPMENT_CATALOG_EXTRA = {
     usedByTeacher: false,
     usedByStudent: false,
     selfMade: false,
-    depreciationMethod: null,
-    usefulLifeYears: null,
     minimumRequired: false,
     educationLevels: [],
     subjects: [],
@@ -360,7 +331,6 @@ export const EQUIPMENT_CATALOG_EXTRA = {
     { label: "Phân loại kế toán", value: ASSET_CATEGORY_LABELS[r?.assetCategory] ?? "—" },
     { label: "Dạng thiết bị", value: PHYSICAL_TYPE_LABELS[r?.physicalOrDigital] ?? "—" },
     { label: "Cách quản lý", value: TRACKING_TYPE_LABELS[r?.trackingType] ?? "—" },
-    { label: "Số năm sử dụng", value: r?.usefulLifeYears ?? "—" },
     { label: "Mã thống kê", value: r?.statisticalCode ?? "—" },
     { label: "Thông tư / Quyết định", value: r?.legalBasis ?? "—" },
     { label: "Đối tượng sử dụng", value: [r?.usedByTeacher ? "Giáo viên" : null, r?.usedByStudent ? "Học sinh" : null].filter(Boolean).join(", ") || "—" },

@@ -995,7 +995,7 @@ function LotPanel({ control, path, line, catalog, rooms, received, code, reason,
     <section className="bg-card overflow-hidden rounded-md border">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
         <h4 className="text-muted-foreground flex-1 text-xs font-semibold tracking-wide uppercase">
-          {priceNo ? `Đơn giá số ${priceNo}` : "Lô vật tư"} · {received.toLocaleString("vi-VN")} {unit}
+          {priceNo ? `Đơn giá số ${priceNo}` : "Lô vật tư"} · {received.toLocaleString("vi-VN", { useGrouping: false })} {unit}
         </h4>
         <span className="text-muted-foreground text-xs">Cả lô chung một mã</span>
       </div>

@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Payload tạo loại CSVC (Sở): năm trường chung + khối, phòng hay khu vực, cấp áp dụng, chuẩn / ngoài danh mục, văn
- * bản, cờ cho mượn, cờ phòng bộ môn. {@code roomGroup}, {@code educationLevel} là trường cũ, còn nhận cho client cũ.
+ * bản, cờ phòng bộ môn. {@code roomGroup}, {@code educationLevel} là trường cũ, còn nhận cho client cũ.
  */
 public record RoomTypeRequest(
         // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
@@ -34,7 +34,6 @@ public record RoomTypeRequest(
         Boolean standard,
         @Text(value = FieldRule.SHORT_TEXT, label = "Văn bản căn cứ")
         String legalBasis,
-        Boolean loanable,
         Boolean functional,
         /** Thông số riêng của loại: [{key, label, unit, type}], type = number | text. */
         List<Map<String, String>> params) implements CatalogInput {

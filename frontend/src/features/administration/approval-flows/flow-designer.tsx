@@ -1,4 +1,4 @@
-import { Building2, CheckCircle2, GitFork, GripVertical, Landmark, Plus, School, Send, X } from "lucide-react";
+import { CheckCircle2, GitFork, GripVertical, Landmark, Plus, School, Send, X } from "lucide-react";
 import { useState, type DragEvent, type ReactNode } from "react";
 
 import { cn } from "@/shared/lib/utils";
@@ -29,7 +29,6 @@ export type FlowDraft = {
 const STEP_STYLE: Record<ApprovalStep, { icon: ReactNode; chip: string }> = {
   SCHOOL: { icon: <School />, chip: "bg-info-subtle text-info-text" },
   MANAGING_BODY: { icon: <Landmark />, chip: "bg-warning-subtle text-warning-text" },
-  RECEIVING_BODY: { icon: <Building2 />, chip: "bg-success-subtle text-success-text" },
 };
 
 const money = new Intl.NumberFormat("vi-VN");
@@ -201,15 +200,14 @@ function LaneRow({ lane, steps, palette, onAdd, onRemove, onDropStep, title }: {
  * thẻ sang nhánh kia để chuyển; bấm × để bỏ. Thứ tự KHÔNG kéo đổi được, và đó là cố ý: phiếu không thể lên cơ
  * quan quản lý trước khi trường duyệt, nên bước thả vào tự đứng đúng chỗ của cấp nó.
  */
-export function FlowDesigner({ value, onChange, receiving, amountLabel }: {
+export function FlowDesigner({ value, onChange, amountLabel }: {
   value: FlowDraft;
   onChange: (next: FlowDraft) => void;
-  receiving: boolean;
   /** `null` = loại phiếu này không có số tiền, không rẽ nhánh được. */
   amountLabel: string | null;
 }) {
   const branched = value.threshold !== null;
-  const palette = APPROVAL_STEP_ORDER.filter((s) => s !== "RECEIVING_BODY" || receiving);
+  const palette = APPROVAL_STEP_ORDER;
 
   const add = (lane: Lane, step: ApprovalStep, from?: Lane) => {
     let steps = value.steps;

@@ -159,7 +159,7 @@ function People({ people }: { people?: SchoolPerson[] }) {
   );
 }
 
-const count = new Intl.NumberFormat("vi-VN");
+const count = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 /**
  * Một ô "nhãn — giá trị" của hồ sơ. Nhãn có dấu ":" (trưởng nhóm 13/11/2026); ô trống ghi chữ, không "—" (12/11/2026).

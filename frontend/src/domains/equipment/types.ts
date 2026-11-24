@@ -6,73 +6,21 @@ export const PHYSICAL_TYPE_LABELS: Record<string, string> = {
   LEARNING_SUPPORT: "Hệ thống hỗ trợ học tập",
 };
 
+/** Không có tình trạng hỏng: báo hỏng phải có phiếu, ngoài phạm vi đồ án (trưởng nhóm 24/11/2026). */
 export const EQUIPMENT_CONDITION_LABELS: Record<string, string> = {
   TOT: "Tốt",
   TRUNG_BINH: "Trung bình",
   KEM: "Kém",
-  HONG: "Hỏng",
 };
 
 export const ASSET_STATUS_LABELS: Record<string, string> = {
   IN_STOCK: "Trong kho",
   IN_USE: "Đang sử dụng",
-  BORROWED: "Đang cho mượn",
-  BROKEN: "Hỏng, chờ xử lý",
-  UNREPAIRABLE: "Hỏng, không sửa được",
-  REPAIRING: "Đang sửa chữa",
-  WARRANTY: "Đang bảo hành",
-  MAINTAINING: "Đang bảo trì",
-  TRANSFERRING: "Đang điều chuyển",
-  PENDING_LIQUIDATION: "Chờ thanh lý",
-  LIQUIDATED: "Đã thanh lý",
-  PENDING_DESTRUCTION: "Chờ tiêu huỷ",
-  DESTROYED: "Đã tiêu huỷ",
-  MISSING: "Chờ ghi giảm do mất",
   LOST: "Mất",
-  NOT_DELIVERED: "Thiếu khi điều chuyển",
-  USED_UP: "Đã dùng hết",
 };
 
-/**
- * Trạng thái gộp thành 7 nhóm để HIỆN trên danh sách (chip): 17 trạng thái chi tiết vẫn lưu và vẫn quyết định
- * phiếu nào chọn được thiết bị nào; nhãn chi tiết hiện khi rê chuột và ở trang thiết bị.
- */
-export const ASSET_STATUS_GROUP_OF: Record<string, string> = {
-  IN_STOCK: "stock",
-  IN_USE: "use",
-  BORROWED: "moving",
-  TRANSFERRING: "moving",
-  REPAIRING: "repair",
-  WARRANTY: "repair",
-  MAINTAINING: "repair",
-  BROKEN: "broken",
-  UNREPAIRABLE: "broken",
-  PENDING_LIQUIDATION: "leaving",
-  PENDING_DESTRUCTION: "leaving",
-  MISSING: "leaving",
-  LIQUIDATED: "gone",
-  DESTROYED: "gone",
-  LOST: "gone",
-  NOT_DELIVERED: "gone",
-  USED_UP: "gone",
-};
-
-export const ASSET_STATUS_GROUP_LABELS: Record<string, string> = {
-  stock: "Trong kho",
-  use: "Đang sử dụng",
-  moving: "Mượn, điều chuyển",
-  repair: "Đang sửa chữa",
-  broken: "Hỏng",
-  leaving: "Chờ ghi giảm",
-  gone: "Đã ghi giảm",
-};
-
-/**
- * Trạng thái của hồ sơ ĐÃ RA KHỎI SỔ: thanh lý / tiêu huỷ, ghi giảm do mất, vật tư đã dùng hết. Mọi
- * con số "thiết bị của trường" (cột trái, bảng tổng hợp, bảng Chi tiết, huy hiệu ở hồ sơ trường)
- * đều bỏ các hồ sơ này — cùng danh sách với `OFF_BOOK` ở máy chủ.
- */
-export const OFF_BOOK_STATUSES = ["LIQUIDATED", "DESTROYED", "LOST", "USED_UP", "NOT_DELIVERED"];
+/** Hồ sơ ĐÃ RA KHỎI SỔ (kiểm kê xác nhận mất): mọi con số "thiết bị của trường" đều bỏ — cùng luật với máy chủ. */
+export const OFF_BOOK_STATUSES = ["LOST"];
 
 export const ASSET_CATEGORY_LABELS: Record<string, string> = {
   FIXED_ASSET: "Tài sản cố định (TSCĐ)",
@@ -149,26 +97,7 @@ export type EquipmentHistoryRow = {
 export const EQUIPMENT_HISTORY_ACTION_LABELS: Record<string, string> = {
   GHI_TANG: "Ghi tăng",
   CAP_NHAT: "Cập nhật hồ sơ",
-  CAP_PHAT: "Cấp phát",
-  THU_HOI: "Thu hồi",
-  DIEU_CHUYEN: "Điều chuyển",
-  MUON: "Cho mượn",
-  TRA: "Trả",
-  BAO_HONG: "Báo hỏng",
-  SUA_CHUA: "Sửa chữa",
-  BAO_HANH: "Bảo hành",
-  BAO_TRI: "Bảo trì",
   KIEM_KE: "Kiểm kê",
-  CHO_THANH_LY: "Chờ thanh lý",
-  THANH_LY: "Thanh lý",
-  CHO_TIEU_HUY: "Chờ tiêu huỷ",
-  TIEU_HUY: "Tiêu huỷ",
-  MAT: "Mất",
-  KHAU_HAO: "Tính hao mòn",
-  LUU_KHO: "Lưu kho",
-  XUAT_KHO: "Xuất kho",
-  TIEU_HAO: "Tiêu hao",
-  DAT_PHONG: "Dùng theo mượn phòng",
 };
 
 export const EQUIPMENT_HISTORY_FIELD_LABELS: Record<string, string> = {
@@ -180,20 +109,6 @@ export const EQUIPMENT_HISTORY_FIELD_LABELS: Record<string, string> = {
   code: "Mã thiết bị",
   remainingValue: "Giá trị còn lại",
 };
-
-/**
- * Tiêu đề một mục lịch sử đã gộp theo phiếu: nói việc của CẢ phiếu, không nói bước cuối — "Ghi giảm do mất"
- * chứ không phải "Mất", "Mượn – trả" chứ không phải "Trả". `actions` là hành động của các dòng trong mục, cũ trước.
- */
-export function historyEntryTitle(actions: string[]): string {
-  const has = (...codes: string[]) => codes.some((c) => actions.includes(c));
-  if (has("MUON", "TRA")) return has("TRA") ? "Mượn – trả" : "Mượn – trả (đang mượn)";
-  if (has("MAT")) return "Ghi giảm do mất";
-  if (has("THANH_LY", "CHO_THANH_LY")) return "Thanh lý";
-  if (has("TIEU_HUY", "CHO_TIEU_HUY")) return "Tiêu huỷ";
-  const last = actions[actions.length - 1];
-  return EQUIPMENT_HISTORY_ACTION_LABELS[last] ?? last;
-}
 
 /** Đường dẫn màn phiếu theo tên tài nguyên — để lịch sử và thông báo mở được phiếu gốc. */
 export const VOUCHER_ROUTES: Record<string, string> = {

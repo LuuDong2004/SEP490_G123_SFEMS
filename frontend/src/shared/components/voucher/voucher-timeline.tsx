@@ -41,8 +41,8 @@ const TONE: Record<VoucherEventAction, TimelineTone> = {
  * là thứ người lập cần đọc để sửa.
  */
 /**
- * Chữ riêng của một loại phiếu cho phần quá trình — phiếu không qua duyệt (điều chuyển liên trường) không gọi là
- * "Quá trình duyệt", bước đầu không phải "Trình duyệt". Thiếu ô nào thì dùng chữ mặc định.
+ * Chữ riêng của một loại phiếu cho phần quá trình — phiếu không qua duyệt không gọi là
+ * "Quá trình duyệt". Thiếu ô nào thì dùng chữ mặc định.
  */
 export type TimelineWording = {
   /** Tên phần: mặc định "Quá trình duyệt". */

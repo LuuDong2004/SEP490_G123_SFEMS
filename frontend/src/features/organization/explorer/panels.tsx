@@ -48,15 +48,13 @@ export type SchoolStats = {
   buildings: number;
   rooms: number;
   equipment: number;
-  equipmentBroken: number;
-  pendingLiquidation: number;
   equipmentValue: number;
   /** Lớp học đang hoạt động của năm học hiện hành, và tổng sĩ số. */
   classes: number;
   students: number;
 };
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 // Ô không có giá trị để TRỐNG (không vẽ gạch) — cả cột gạch chỉ là nhiễu. Ô phải khai (kết cấu, sử dụng, hiện trạng)
 // thì nói rõ "Chưa khai" vì đó là việc còn phải làm.
@@ -123,7 +121,6 @@ function Kpi({ icon: Icon, label, value, tone }: { icon: typeof School; label: s
  * Dòng tên phạm vi ở trên, các ô ngăn bằng đường kẻ mảnh bên dưới.
  */
 export function KpiRow({ s, schools, title, meta }: { s: SchoolStats; schools: number; title?: ReactNode; meta?: ReactNode }) {
-  const perSchool = schools ? Math.round((s.rooms / schools) * 10) / 10 : 0;
   return (
     <Card className="gap-0 py-0">
       {title ? (
@@ -136,7 +133,7 @@ export function KpiRow({ s, schools, title, meta }: { s: SchoolStats; schools: n
         <Kpi icon={School} label="Trường" value={num.format(schools)} />
         <Kpi icon={Hotel} label="Cơ sở, điểm trường" value={num.format(s.campuses)} />
         <Kpi icon={Warehouse} label="Khối nhà" value={num.format(s.buildings)} />
-        <Kpi icon={DoorOpen} label={perSchool ? `Phòng · trung bình ${num.format(perSchool)} phòng / trường` : "Phòng"} value={num.format(s.rooms)} />
+        <Kpi icon={DoorOpen} label="Phòng" value={num.format(s.rooms)} />
       </div>
     </Card>
   );
@@ -182,7 +179,7 @@ function useQuickDialog(resource: string, presets: Record<string, unknown>, onSa
       <AlertDialog open={removing != null} onOpenChange={(o) => !o && !busy && setRemoving(null)}>
         {removing ? (
           <ConfirmContent tone="danger" title={removing.name ? `Xoá ${config.label.toLowerCase()} “${removing.name}”?` : `Xoá ${config.label.toLowerCase()} này?`}
-            description="Chỉ xoá được khi chưa có thiết bị, lớp, lịch sử sửa chữa hay kiểm kê. Xoá rồi không lấy lại được."
+            description="Chỉ xoá được khi chưa có thiết bị, lớp hay kiểm kê. Xoá rồi không lấy lại được."
             cancelLabel="Giữ lại" confirmLabel="Xoá" busy={busy} keepOpen onConfirm={() => void remove()} />
         ) : null}
       </AlertDialog>
@@ -300,7 +297,7 @@ const itemColumns: MiniColumn[] = [
   { header: "Tên", cell: nameCell },
   { header: "Loại CSVC", cell: roomTypeCell },
   { header: "Kết cấu", cell: (r) => STRUCTURE_LABELS[r.structure] ?? <span className="text-warning-text">Chưa khai</span>, className: "w-24" },
-  { header: "Diện tích (m²)", cell: (r) => (r.area != null ? Number(r.area).toLocaleString("vi-VN") : dash), className: "w-32 text-right" },
+  { header: "Diện tích (m²)", cell: (r) => (r.area != null ? Number(r.area).toLocaleString("vi-VN", { useGrouping: false }) : dash), className: "w-32 text-right" },
   { header: "Điểm trường", cell: (r) => r.campus?.name ?? dash, className: "w-28" },
   { header: "Kết hợp", cell: (r) => r.combinedType?.name ?? dash, className: "w-24" },
   { header: "Hiện trạng", cell: (r) => statusBadge(CONDITION_LABELS, FACILITY_CONDITION_VARIANTS, r.condition), className: "w-28" },
@@ -364,7 +361,7 @@ const bySchool = (id: number) => [{ field: "school.id", operator: "eq" as const,
  * khối này — mở đúng tab từ một liên kết là việc của trang.
  */
 /** Số đếm cạnh tên tab — vắng thì tab chỉ có chữ. */
-export type FacilityCounts = Partial<Record<"classes" | "rooms" | "buildings" | "campuses" | "works" | "staff" | "teams" | "equipment", number>>;
+export type FacilityCounts = Partial<Record<"classes" | "rooms" | "buildings" | "campuses" | "staff" | "teams" | "equipment", number>>;
 
 /**
  * Các tab: Hồ sơ trường (TC-01), Cơ sở vật chất — phòng (TC-02), Đánh giá CSVC theo chuẩn, Nhân sự (cán bộ và
@@ -398,9 +395,8 @@ function groupOf(tab: string): string {
   // Phần cũ của tab Cơ sở vật chất nay là tab riêng: thông tin chung → Hồ sơ trường, chuẩn / biểu số liệu → Đánh giá.
   if (tab === "info") return "profile";
   if (tab === "standard" || tab === "statistics") return "assessment";
-  // "works": sổ sửa chữa từng là một phần của tab này — liên kết cũ vẫn mở đúng tab.
   // "classes": tab Lớp học cũ — lớp nay là một mục của cột trái Cơ sở vật chất (lớp gắn với phòng học).
-  if (tab === "works" || tab === "classes" || FACILITY_PARTS.some((p) => p.value === tab)) return "facilities";
+  if (tab === "classes" || FACILITY_PARTS.some((p) => p.value === tab)) return "facilities";
   if (PEOPLE_PARTS.some((p) => p.value === tab)) return "people";
   return TAB_DEFS.some((t) => t.value === tab) ? tab : "profile";
 }
@@ -467,8 +463,6 @@ export function SchoolFacilityTabs({
   const teamDialog = useQuickDialog("subject_teams", { school: { id: schoolId } });
   // Phần đang mở trong hai tab gộp. Bên gọi đưa giá trị cũ ("rooms", "teams"…) thì mở đúng phần đó.
   const [peoplePart, setPeoplePart] = usePersistentState<(typeof PEOPLE_PARTS)[number]["value"]>("explorer.peoplePart", "staff");
-  // Lịch sử sửa chữa, cải tạo nằm trong hộp chi tiết của từng cơ sở / khối nhà / hạng mục, không có nút
-  // chung trên hàng công cụ.
   // "Thêm nhanh" (khối nhà): nút riêng cạnh nút thêm; hộp của nó do màn này mở.
   const [quickAdd, setQuickAdd] = useState<"buildings" | null>(null);
   const quickProps = (key: "buildings") => ({ open: quickAdd === key, onOpenChange: (o: boolean) => setQuickAdd(o ? key : null) });

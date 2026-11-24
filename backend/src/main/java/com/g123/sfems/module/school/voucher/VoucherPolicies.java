@@ -37,8 +37,8 @@ public abstract class VoucherPolicies<V extends SchoolVoucher> implements RowLev
                 FieldDescriptor.column("returnNote", String.class, true),
                 // Cấp cao nhất phiếu từng lên tới: Sở / UBND chỉ thấy phiếu đã trình tới bàn mình (125).
                 FieldDescriptor.column("reachedStep", ApprovalStep.class, true),
-                // Người lập: để một vai vừa bị ẩn phiếu nháp của người khác vừa tự lập phiếu (giáo viên
-                // đặt phòng) vẫn thấy phiếu nháp của CHÍNH MÌNH.
+                // Người lập: để một vai vừa bị ẩn phiếu nháp của người khác vừa tự lập phiếu
+                // vẫn thấy phiếu nháp của CHÍNH MÌNH.
                 FieldDescriptor.column("createdById", Long.class, true),
                 FieldDescriptor.column("createdAt", Instant.class, false)));
         fields.addAll(extraFields());

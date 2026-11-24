@@ -37,9 +37,9 @@ class ReportFiltersTest {
 
     @Test
     void sqlUsesTheAliasAndGroupedStatuses() {
-        String sql = ReportFilters.sql("e", params(7L, "REPAIRING", "NONE"));
+        String sql = ReportFilters.sql("e", params(7L, "IN_USE", "NONE"));
         assertThat(sql).contains("e.catalog_id IN (SELECT ftc.id FROM equipment_catalogs ftc WHERE ftc.equipment_type_id = 7)")
-                .contains("e.status IN ('REPAIRING', 'WARRANTY')")
+                .contains("e.status IN ('IN_USE')")
                 .contains("e.condition IS NULL")
                 .startsWith(" ").endsWith(" ");
     }

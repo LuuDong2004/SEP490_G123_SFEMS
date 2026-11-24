@@ -290,7 +290,7 @@ export type CatalogExtra = {
   assetCode?: boolean;
   /**
    * Bản ghi này có được xoá không (theo TRẠNG THÁI, ngoài quyền) — vd. thiết bị chỉ xoá được
-   * khi đã thanh lý / ghi giảm. Vắng = luôn cho (quyền quyết). Máy chủ kiểm lại lần nữa.
+   * khi đã ra khỏi sổ. Vắng = luôn cho (quyền quyết). Máy chủ kiểm lại lần nữa.
    */
   canDelete?: (record: any) => boolean;
   /** Nhãn của chế độ xem bảng từng bản ghi khi có `ListViews` — vd. "Chi tiết". */

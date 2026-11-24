@@ -21,7 +21,7 @@ import type { FacilityTodoFilter } from "@/domains/facility/todo";
 import { CsvcStatisticsPanel, GROUP_ICONS } from "@/features/organization/explorer/facility-nav";
 import { FacilityTodo } from "@/features/organization/explorer/facility-todo";
 
-const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1, useGrouping: false });
 
 /** Tiền tố của từng mức trong `requirements` máy chủ ghi ("tối thiểu: ≥ 15 phòng (0,6 phòng/lớp × 24 lớp)"). */
 const TIER_PREFIX: Record<StandardTier, string> = { MIN: "tối thiểu", LEVEL1: "mức độ 1", LEVEL2: "mức độ 2" };

@@ -31,7 +31,6 @@ public record RoomTypePatchRequest(
         Boolean standard,
         @Text(value = FieldRule.SHORT_TEXT, label = "Văn bản căn cứ")
         String legalBasis,
-        Boolean loanable,
         Boolean functional,
         /** Thông số riêng của loại: [{key, label, unit, type}], type = number | text. */
         List<Map<String, String>> params) implements CatalogInput {

@@ -60,7 +60,7 @@ type ShowViewHeaderProps = PropsWithChildren<{
    */
   more?: ReactNode;
   /**
-   * `false` ẩn nút Xoá mặc định cho BẢN GHI NÀY (vd. thiết bị chưa thanh lý — ra khỏi sổ phải
+   * `false` ẩn nút Xoá mặc định cho BẢN GHI NÀY (vd. thiết bị còn trên sổ — ra khỏi sổ phải
    * qua phiếu). Quyền vẫn do `hideIfUnauthorized` quyết như cũ; đây là luật nghiệp vụ theo trạng thái.
    */
   canDelete?: boolean;

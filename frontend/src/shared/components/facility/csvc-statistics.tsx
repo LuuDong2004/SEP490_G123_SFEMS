@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 /** Tên báo cáo ở `/api/reports` — biểu số liệu CSVC theo mẫu Sở (`CsvcStatisticsReport`). */
 export const CSVC_STATISTICS = "csvc-statistics";
 
-const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 
 const STRUCTURES = [
   { prefix: "kc", label: "Kiên cố" },

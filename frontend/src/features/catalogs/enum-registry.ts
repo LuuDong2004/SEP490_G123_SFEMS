@@ -1,4 +1,4 @@
-import { Award, Banknote, ClipboardCheck, Tags } from "lucide-react";
+import { Award, Banknote, Tags } from "lucide-react";
 
 /**
  * Danh mục CỐ ĐỊNH, chỉ đọc — giá trị nằm trong code backend
@@ -24,13 +24,6 @@ export const ENUM_CATALOGS: EnumCatalogConfig[] = [
     group: "catalog_equip",
     icon: Tags,
     label: "Phân loại kế toán",
-  },
-  {
-    resource: "usage_purposes",
-    path: "/usage-purposes",
-    group: "catalog_equip",
-    icon: ClipboardCheck,
-    label: "Mục đích sử dụng thiết bị",
   },
   {
     resource: "funding_sources",

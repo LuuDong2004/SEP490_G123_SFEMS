@@ -1,9 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidate, useOne } from "@refinedev/core";
-import {
-  ArrowLeftRight, Ban, Calculator, ClipboardCheck, FilePen, History, Loader2, PackageMinus, PackagePlus, RefreshCw, Settings,
-  ShieldCheck, TriangleAlert, Undo2, UserCheck, Warehouse, Wrench,
-} from "lucide-react";
+import { ClipboardCheck, FilePen, History, Loader2, PackagePlus, RefreshCw, Settings } from "lucide-react";
 import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -45,37 +42,12 @@ import { LoadingText } from "@/shared/components/spinner";
 const ACTION_ICONS: Record<string, ReactNode> = {
   GHI_TANG: <PackagePlus />,
   CAP_NHAT: <FilePen />,
-  CAP_PHAT: <UserCheck />,
-  THU_HOI: <Undo2 />,
-  DIEU_CHUYEN: <ArrowLeftRight />,
-  MUON: <Undo2 />,
-  TRA: <Undo2 />,
-  DAT_PHONG: <UserCheck />,
-  BAO_HONG: <TriangleAlert />,
-  SUA_CHUA: <Wrench />,
-  BAO_HANH: <ShieldCheck />,
-  BAO_TRI: <Wrench />,
   KIEM_KE: <ClipboardCheck />,
-  KHAU_HAO: <Calculator />,
-  LUU_KHO: <Warehouse />,
-  XUAT_KHO: <PackageMinus />,
-  TIEU_HAO: <PackageMinus />,
-  CHO_THANH_LY: <Ban />,
-  THANH_LY: <Ban />,
-  CHO_TIEU_HUY: <Ban />,
-  TIEU_HUY: <Ban />,
-  MAT: <Ban />,
 };
 const iconOf = (action: string) => ACTION_ICONS[action] ?? <History />;
 
-/** Vào sổ xanh lá, dùng / di chuyển xanh dương, hỏng – sửa vàng, ra khỏi sổ đỏ; hồ sơ, kiểm kê xám. */
-const ACTION_TONES: Record<string, TimelineTone> = {
-  GHI_TANG: "success",
-  CAP_PHAT: "info", THU_HOI: "info", DIEU_CHUYEN: "info", MUON: "info", TRA: "info", DAT_PHONG: "info",
-  LUU_KHO: "info", XUAT_KHO: "info", TIEU_HAO: "info",
-  BAO_HONG: "warning", SUA_CHUA: "warning", BAO_HANH: "warning", BAO_TRI: "warning",
-  CHO_THANH_LY: "destructive", THANH_LY: "destructive", CHO_TIEU_HUY: "destructive", TIEU_HUY: "destructive", MAT: "destructive",
-};
+/** Vào sổ xanh lá; hồ sơ, kiểm kê xám. */
+const ACTION_TONES: Record<string, TimelineTone> = { GHI_TANG: "success" };
 const toneOf = (action: string) => ACTION_TONES[action] ?? "neutral";
 
 /** Tài sản đang thế nào — đọc từ hồ sơ, cho khối "Hiện tại" ghim đầu lịch sử. */
@@ -216,10 +188,10 @@ function DetailToggle({ open, onToggle }: { open: boolean; onToggle: () => void 
   );
 }
 
-/** "—" trong lịch sử là ô bị xoá trống (vd. người quản lý không theo sang trường nhận): nói thành chữ. */
+/** "—" trong lịch sử là ô bị xoá trống: nói thành chữ. */
 const shown = (v: string) => (v === "—" ? "trống" : v);
 
-/** Chuỗi giá trị trong chi tiết: cũ gạch ngang, giữa để thường, mới đậm — "~~Hỏng~~ → Đang sửa → **Hỏng**". */
+/** Chuỗi giá trị trong chi tiết: cũ gạch ngang, giữa để thường, mới đậm — "~~Trong kho~~ → Đang sử dụng → **Mất**". */
 function Chain({ values }: { values: string[] }) {
   const list = values[0] === "—" ? values.slice(1) : values;
   return (
@@ -257,11 +229,6 @@ function Details({ summary }: { summary: EntrySummary }) {
           <Chain values={MONEY_FIELDS.has(c.field) ? c.values.map(money) : c.values} />
         </p>
       ))}
-      {summary.facts.map((f) => (
-        <p key={f.label}>
-          <span className="text-muted-foreground">{f.label}:</span> {f.value}
-        </p>
-      ))}
       {summary.steps ? <p className="text-muted-foreground pt-1 text-[0.8125rem]">{summary.steps}</p> : null}
     </DetailBox>
   );
@@ -272,7 +239,7 @@ function VoucherEntry({ rows, school }: { rows: EquipmentHistoryRow[]; school?: 
   const [open, setOpen] = useState(false);
   const latest = rows[0];
   const summary = summarize([...rows].reverse());
-  const hasDetails = summary.changes.length > 0 || summary.facts.length > 0 || !!summary.steps;
+  const hasDetails = summary.changes.length > 0 || !!summary.steps;
   return (
     <TimelineItem icon={iconOf(latest.action)} tone={toneOf(latest.action)} title={summary.title}
       time={fullDateTime(latest.createdAt)} by={<ByLine row={latest} school={school} />}>
@@ -413,7 +380,7 @@ export function EquipmentMoreMenu({ record }: { record: { id: number } }) {
               Lịch sử thiết bị
               {n ? <Badge variant="neutral">{n}</Badge> : null}
             </DialogTitle>
-            <DialogDescription className="sr-only">Ghi tăng, cấp phát, điều chuyển, mượn trả, sửa chữa… theo từng phiếu, mới nhất trước.</DialogDescription>
+            <DialogDescription className="sr-only">Ghi tăng, kiểm kê, cập nhật hồ sơ theo từng phiếu, mới nhất trước.</DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col">
             <EquipmentHistoryPanel equipmentId={record.id} bare />

@@ -73,7 +73,7 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "data_transfer": { read: ["admin", "so", "school"], write: ["school"] },
   "staff_assignments": { read: ["admin", "so", "school"], write: ["school"] },
   "year_standards": { read: ["admin", "so", "school"], write: ["school"] },
-  "school_year_profiles": { read: ["admin", "so", "school"], write: ["admin", "so", "school"] },
+  "school_year_profiles": { read: ["admin", "so", "school"], write: ["so", "school"] },
   "school_norm_adjustments": { read: ["admin", "so", "school"], write: ["school"] },
   "equipment_intakes": { read: ["admin", "so", "school"], write: ["so", "school"] },
   "purchase_proposals": { read: ["admin", "so", "school"], write: ["so", "school"] },

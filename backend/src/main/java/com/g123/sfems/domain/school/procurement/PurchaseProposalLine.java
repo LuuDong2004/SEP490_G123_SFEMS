@@ -28,7 +28,7 @@ public class PurchaseProposalLine {
     public enum Kind {
         /** Mua mới, bổ sung cho đủ định mức. */
         NEW,
-        /** Thay thế thiết bị hỏng, đã thanh lý. */
+        /** Thay thế thiết bị hỏng, mất. */
         REPLACE
     }
 

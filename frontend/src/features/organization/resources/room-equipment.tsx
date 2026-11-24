@@ -32,7 +32,7 @@ type Group = {
 };
 
 const PAGE_SIZE = 10;
-const fmt = (n: number) => n.toLocaleString("vi-VN");
+const fmt = (n: number) => n.toLocaleString("vi-VN", { useGrouping: false });
 
 /** Chú thích khi rê chuột lên một mã: chỉ tên loại mã ("Mã danh mục thiết bị" / "Mã thiết bị"). */
 function CodeHint({ label, children }: { label: string; children: ReactNode }) {
@@ -174,7 +174,7 @@ export function RoomEquipment({ record }: { record: any }) {
               {loading ? <TableSkeletonRows rows={6} cols={colCount} /> : shown.length === 0 ? (
                 <TableEmpty colSpan={colCount} icon={<Package />} filtered={!!term}
                   title={term ? "Không có thiết bị khớp" : "Chưa có thiết bị"}
-                  description={term ? "Thử tên khác, hoặc mã / serial của thiết bị." : "Thiết bị vào phòng qua phiếu ghi tăng, cấp phát."} />
+                  description={term ? "Thử tên khác, hoặc mã / serial của thiết bị." : "Thiết bị vào phòng qua phiếu ghi tăng."} />
               ) : visible.map((g) => {
                 const expanded = isOpen(g.key);
                 return (

@@ -1,6 +1,6 @@
 import { useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, Check, CircleAlert, FileCheck2, History, Loader2, Lock, MapPinned } from "lucide-react";
+import { CalendarCheck, Check, CircleAlert, FileCheck2, History, Lock, MapPinned } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 
@@ -23,7 +23,7 @@ import { PROFILE_STATUS_LABELS, type CampusProfile, type ProfileTodo, type YearP
 import { InitYearDialog } from "./init-year";
 import { yearLabel, useSchoolYear } from "@/shared/hooks/use-school-year";
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 const RESOURCE = "school_year_profiles";
 
 /** Màn khai từng phần dữ liệu còn thiếu. */
@@ -110,7 +110,8 @@ export function SchoolYearProfileBody() {
 
   if (isError && !p) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   const closed = p?.status === "CLOSED";
-  const confirmed = p?.campuses.filter((c) => c.status === "CONFIRMED").length ?? 0;
+  // Một bước chốt (trưởng nhóm 24/11/2026): không xác nhận từng điểm trường; điểm nào hết việc còn thiếu là đủ dữ liệu.
+  const ready = p?.campuses.filter((c) => c.todos.length === 0).length ?? 0;
   const reopened = p?.history.find((h) => h.status === "REOPENED");
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -140,12 +141,12 @@ export function SchoolYearProfileBody() {
       ) : null}
       {/* Nói luôn quy trình: màn chỉ có số và nút mờ thì không ai hiểu vì sao không chốt được (góp ý 23/11/2026). */}
       {p && !closed ? (
-        <ol className="text-muted-foreground grid gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+        <ol className="text-muted-foreground grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
           <li><span className="text-foreground font-medium">1. Khai đủ dữ liệu</span> của từng điểm trường: lớp và sĩ số,
             phân công giáo viên, phòng, thiết bị đã xếp phòng. Ô màu cam là còn thiếu, bấm vào để sửa.</li>
-          <li><span className="text-foreground font-medium">2. Hiệu trưởng xác nhận</span> từng điểm trường khi đã đủ.</li>
-          <li><span className="text-foreground font-medium">3. Chốt năm học.</span> Số liệu chuẩn tối thiểu lưu thành bản
-            chốt. Đề xuất mua sắm của năm chưa chốt vẫn trình được nhưng mang nhãn "Năm học chưa chốt".</li>
+          <li><span className="text-foreground font-medium">2. Hiệu trưởng chốt năm học</span> khi mọi điểm trường đã đủ.
+            Số liệu chuẩn tối thiểu lưu thành bản chốt, dữ liệu năm đó khoá lại. Cần sửa thì Sở mở lại. Đề xuất mua sắm của
+            năm chưa chốt vẫn trình được nhưng mang nhãn "Năm học chưa chốt".</li>
         </ol>
       ) : null}
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
@@ -158,13 +159,12 @@ export function SchoolYearProfileBody() {
                 <TableHead>Giáo viên đã phân công</TableHead>
                 <TableHead>Phòng</TableHead>
                 <TableHead>Thiết bị trên sổ</TableHead>
-                <TableHead className="w-36">Trạng thái</TableHead>
-                <TableHead className="w-48" />
+                <TableHead className="w-48">Trạng thái</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading || !p ? <TableSkeletonRows cols={7} rows={2} /> : p.campuses.length === 0 ? (
-                <TableEmpty colSpan={7} icon={<MapPinned />} title="Trường chưa có điểm trường" />
+              {isLoading || !p ? <TableSkeletonRows cols={6} rows={2} /> : p.campuses.length === 0 ? (
+                <TableEmpty colSpan={6} icon={<MapPinned />} title="Trường chưa có điểm trường" />
               ) : p.campuses.map((c) => {
                 const part = (k: ProfileTodo["part"]) => c.todos.find((t) => t.part === k);
                 const cell = (k: ProfileTodo["part"], text: string) => (
@@ -178,37 +178,22 @@ export function SchoolYearProfileBody() {
                     <TableCell>{cell("rooms", `${num.format(c.rooms)} phòng`)}</TableCell>
                     <TableCell>{cell("equipment", `${num.format(c.equipment)} thiết bị`)}</TableCell>
                     <TableCell>
-                      <Badge variant={PROFILE_STATUS_VARIANTS[closed ? "CLOSED" : c.status]}>
-                        {PROFILE_STATUS_LABELS[closed ? "CLOSED" : c.status]}
-                      </Badge>
+                      {closed ? (
+                        <Badge variant={PROFILE_STATUS_VARIANTS.CLOSED}>{PROFILE_STATUS_LABELS.CLOSED}</Badge>
+                      ) : c.todos.length > 0 ? (
+                        // Còn thiếu: nói còn mấy việc, bấm ra danh sách việc.
+                        <button type="button" onClick={() => setTodos(c)}
+                          className="text-warning-text inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
+                          <CircleAlert className="size-4" />
+                          Còn {c.todos.length} việc
+                        </button>
+                      ) : (
+                        <Badge variant="success"><Check />Đủ dữ liệu</Badge>
+                      )}
                       {c.pendingAdjustments ? (
                         <button type="button" onClick={() => setTodos(c)} className="text-warning-text mt-1 block text-xs hover:underline">
                           {c.pendingAdjustments} điều chỉnh chờ xác nhận lại
                         </button>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {p.canConfirm && c.status === "CONFIRMED" ? (
-                        <Button type="button" variant="outline" size="sm" disabled={!!busy}
-                          onClick={() => void post("unconfirm", { schoolYearId: p.schoolYearId, campusId: c.campusId }, `u${c.campusId}`)}>
-                          {busy === `u${c.campusId}` ? <Loader2 className="animate-spin" /> : null}
-                          Bỏ xác nhận
-                        </Button>
-                      ) : c.todos.length > 0 && !closed ? (
-                        // Chưa đủ dữ liệu: nói còn mấy việc thay cho nút Xác nhận mờ không lời giải thích.
-                        <button type="button" onClick={() => setTodos(c)}
-                          className="text-warning-text inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
-                          <CircleAlert className="size-4" />
-                          Còn {c.todos.length} việc trước khi xác nhận
-                        </button>
-                      ) : p.canConfirm ? (
-                        <Button type="button" size="sm" disabled={!!busy}
-                          onClick={() => void post("confirm", { schoolYearId: p.schoolYearId, campusId: c.campusId }, `c${c.campusId}`, `Đã xác nhận ${c.campusName}`)}>
-                          {busy === `c${c.campusId}` ? <Loader2 className="animate-spin" /> : <Check />}
-                          Xác nhận
-                        </Button>
-                      ) : !closed && c.status !== "CONFIRMED" ? (
-                        <span className="text-muted-foreground text-xs">Đủ dữ liệu, chờ Hiệu trưởng xác nhận</span>
                       ) : null}
                     </TableCell>
                   </TableRow>
@@ -219,12 +204,12 @@ export function SchoolYearProfileBody() {
         </div>
         {p && !closed ? (
           <div className="flex flex-wrap items-center gap-3 border-t px-4 py-3 text-sm">
-            <span className="text-muted-foreground tabular-nums">Đã xác nhận {confirmed}/{p.campuses.length} điểm trường</span>
+            <span className="text-muted-foreground tabular-nums">Đủ dữ liệu {ready}/{p.campuses.length} điểm trường</span>
             <span className="flex-1" />
             {p.canConfirm ? (
               <>
                 {!p.canClose ? (
-                  <span className="text-muted-foreground text-xs">Xác nhận đủ {p.campuses.length} điểm trường thì mới chốt được</span>
+                  <span className="text-muted-foreground text-xs">Khai đủ dữ liệu ở {p.campuses.length} điểm trường thì mới chốt được</span>
                 ) : null}
                 <Button type="button" disabled={!p.canClose || !!busy} onClick={() => setClosing(true)}>
                   <FileCheck2 />
