@@ -95,13 +95,13 @@ export function ManagementOverview({ d, tools }: { d: DashboardData | undefined;
         <Kpi to="/equipment" icon={<Boxes />} label="Thiết bị trong hệ thống"
           value={k ? <WithUnit value={count.format(k.equipment)} unit="thiết bị" /> : "…"} />
         <Kpi to="/equipment-minimum" icon={<Gauge />} tone={k && k.adequacyPercent < 80 ? "warning" : "good"}
-          label="Đáp ứng tối thiểu" value={k ? (thisYear ? `${k.adequacyPercent}%` : "—") : "…"}
+          label="Đáp ứng tối thiểu" value={k ? (thisYear ? `${k.adequacyPercent}%` : NO_DATA) : "…"}
           info={thisYear ? "Tỷ lệ thiết bị đã đủ so với danh mục tối thiểu. Chỉ tính trường đã nhập thiết bị." : NOT_YET}
-          meter={k ? { percent: thisYear ? k.adequacyPercent : 0, label: "" } : undefined} />
+          meter={k && thisYear ? { percent: k.adequacyPercent, label: "" } : undefined} />
         <Kpi to="/reports/facility-standard" icon={<Building2 />} tone={k && k.facilityPercent < 80 ? "warning" : "good"}
-          label="Đạt chuẩn CSVC" value={k ? (thisYear ? `${k.facilityPercent}%` : "—") : "…"}
+          label="Đạt chuẩn CSVC" value={k ? (thisYear ? `${k.facilityPercent}%` : NO_DATA) : "…"}
           info={!thisYear ? NOT_YET : k ? `Tỷ lệ trường đạt chuẩn cơ sở vật chất từ mức tối thiểu trở lên. Chỉ tính ${count.format(k.facilitySchools)} trường đã khai phòng.` : undefined}
-          meter={k ? { percent: thisYear ? k.facilityPercent : 0, label: "" } : undefined} />
+          meter={k && thisYear ? { percent: k.facilityPercent, label: "" } : undefined} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
@@ -188,6 +188,7 @@ const SPANS = [3, 6, 12].map((n) => ({ value: String(n), label: `${n} tháng g�
 
 /** Đáp ứng tối thiểu, chuẩn CSVC tính theo lớp, học sinh, phòng của từng năm học — hiện mới tính cho năm hiện tại. */
 const NOT_YET = "Chưa tính theo năm học này. Chọn năm học hiện tại để xem.";
+const NO_DATA = <span className="text-muted-foreground text-base font-medium">Không có dữ liệu</span>;
 
 const PAGE = 10;
 /** Bỏ dấu để tìm "le hong phong" ra "Lê Hồng Phong". */
