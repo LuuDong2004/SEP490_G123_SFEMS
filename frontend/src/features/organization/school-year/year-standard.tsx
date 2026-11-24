@@ -107,6 +107,8 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
   const pageRows = shown.slice((page - 1) * pageSize, page * pageSize);
   const multi = (d?.campuses.length ?? 0) > 1;
   const showOutside = rows.some((r) => r.outsideNeed != null);
+  // Trường chưa điều chỉnh dòng nào: cột "sau điều chỉnh" trùng số với cột theo thông tư — ẩn đi.
+  const showAdjusted = rows.some((r) => r.requiredAdjusted !== r.requiredTt || r.shortageAdjusted !== r.shortageTt);
   const refresh = () => qc.invalidateQueries({ queryKey: [QK] });
   const needs = (r: YearRow) => (r.shortageAdjusted ?? 0) > 0 || (r.adjustment?.kind === "OUTSIDE" && r.adjustment.status !== "EXPIRED");
   const toProposal = async (normIds: number[]) => {
@@ -169,7 +171,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
   };
 
   if (isError && !d) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
-  const cols = 9 + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
+  const cols = 7 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -225,20 +227,29 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
       {d ? (
         <Card className="gap-0 overflow-hidden py-0">
           <div className="grid divide-y sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
-            <StatTile flat icon={<ListChecks />} label="Thiết bị phải có" value={<WithUnit value={num.format(d.counted)} unit="loại" />} />
-            <StatTile flat tone="success" icon={<CircleCheck />} label="Đáp ứng theo TT · theo điều chỉnh"
-              value={<span className="tabular-nums">{d.percentTt}% · {d.percentAdjusted}%</span>} />
-            <StatTile flat tone="destructive" icon={<CircleAlert />} label="Còn thiếu theo điều chỉnh"
-              value={<WithUnit value={num.format(d.shortageAdjusted)} unit={`chiếc (TT: ${num.format(d.shortageTt)})`} />} />
-            <StatTile flat tone="warning" icon={<SlidersHorizontal />} label="Điều chỉnh · ngoài TT"
-              value={<span className="tabular-nums">{d.adjusted} · {d.outside}</span>} />
+            {/* Mỗi ô một số chính — số trường phải đạt (sau điều chỉnh của trường, chưa điều chỉnh thì chính là thông tư);
+                số theo thông tư chỉ ghi ở dòng phụ khi hai số khác nhau. "0% · 0%" ghép hai số bằng dấu chấm thì khó đọc. */}
+            <StatTile flat icon={<ListChecks />} label="Thiết bị phải có" value={<WithUnit value={num.format(d.counted)} unit="loại" />}
+              hint="theo danh mục tối thiểu của thông tư" />
+            <StatTile flat tone="success" icon={<CircleCheck />} label="Đã đủ"
+              value={<WithUnit value={`${d.percentAdjusted}%`} unit={`${num.format(d.metAdjusted)} / ${num.format(d.counted)} loại`} />}
+              hint={d.percentAdjusted !== d.percentTt ? `Theo thông tư, không tính điều chỉnh: ${d.percentTt}%` : "Số loại có đủ số lượng cần"} />
+            {/* Đếm LOẠI, không cộng số lượng: các dòng khác đơn vị (ml hoá chất, gam, bộ, tờ…) cộng lại thành một số
+                "chiếc" vô nghĩa. Số lượng từng loại xem ở bảng dưới. */}
+            <StatTile flat tone="destructive" icon={<CircleAlert />} label="Còn thiếu"
+              value={<WithUnit value={num.format(d.counted - d.metAdjusted)} unit="loại" />}
+              hint={d.metAdjusted !== d.metTt ? `Theo thông tư, không tính điều chỉnh: ${num.format(d.counted - d.metTt)} loại` : "Số lượng cần mua từng loại xem ở bảng dưới"} />
+            <StatTile flat tone="warning" icon={<SlidersHorizontal />} label="Trường điều chỉnh"
+              value={d.adjusted ? <WithUnit value={num.format(d.adjusted)} unit="thiết bị" /> : <span className="text-muted-foreground text-lg">Chưa có</span>}
+              hint={d.outside ? `Thêm ${num.format(d.outside)} thiết bị ngoài thông tư` : "Tăng, giảm số lượng so với thông tư"} />
           </div>
         </Card>
       ) : null}
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible">
           <Table>
-            <TableHeader>
+            {/* Đầu bảng dính khi cuộn — 569 dòng, cuộn xuống là quên cột nào là "Cần có", cột nào là "Đang có". */}
+            <TableHeader className="bg-surface-subtle sticky top-0 z-10">
               <TableRow>
                 {canPropose ? (
                   <TableHead className="w-10">
@@ -247,14 +258,14 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                   </TableHead>
                 ) : null}
                 <TableHead className="min-w-[14rem]">Thiết bị</TableHead>
-                <TableHead className="text-right">Chuẩn TT</TableHead>
-                <TableHead className="text-right">Theo điều chỉnh</TableHead>
+                <TableHead className="text-right">{showAdjusted ? "Cần theo TT" : "Cần có"}</TableHead>
+                {showAdjusted ? <TableHead className="text-right">Cần sau điều chỉnh</TableHead> : null}
                 {showOutside ? <TableHead className="text-right">Ngoài TT</TableHead> : null}
                 <TableHead className="text-right">Đang có</TableHead>
                 <TableHead className="text-right">Hỏng / mất</TableHead>
                 <TableHead className="text-right">Chờ ghi giảm</TableHead>
-                <TableHead>Theo TT</TableHead>
-                <TableHead>Theo điều chỉnh</TableHead>
+                <TableHead>{showAdjusted ? "Thiếu theo TT" : "Còn thiếu"}</TableHead>
+                {showAdjusted ? <TableHead>Thiếu sau điều chỉnh</TableHead> : null}
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -303,15 +314,17 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                       </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{r.requiredTt == null ? "—" : num.format(r.requiredTt)}</TableCell>
-                    <TableCell className={cn("text-right tabular-nums", r.requiredAdjusted !== r.requiredTt && "text-primary font-semibold")}>
-                      {r.requiredAdjusted == null ? "—" : num.format(r.requiredAdjusted)}
-                    </TableCell>
+                    {showAdjusted ? (
+                      <TableCell className={cn("text-right tabular-nums", r.requiredAdjusted !== r.requiredTt && "text-primary font-semibold")}>
+                        {r.requiredAdjusted == null ? "—" : num.format(r.requiredAdjusted)}
+                      </TableCell>
+                    ) : null}
                     {showOutside ? <TableCell className="text-right tabular-nums">{r.outsideNeed == null ? "" : num.format(r.outsideNeed)}</TableCell> : null}
                     <TableCell className="text-right tabular-nums">{num.format(r.current)}</TableCell>
                     <TableCell className="text-muted-foreground text-right tabular-nums">{r.broken} / {r.lost}</TableCell>
                     <TableCell className="text-muted-foreground text-right tabular-nums">{r.pendingDisposal || ""}</TableCell>
                     <TableCell><Gap value={r.shortageTt} /></TableCell>
-                    <TableCell><Gap value={r.shortageAdjusted} /></TableCell>
+                    {showAdjusted ? <TableCell><Gap value={r.shortageAdjusted} /></TableCell> : null}
                     <TableCell className="py-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

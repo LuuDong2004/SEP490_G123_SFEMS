@@ -316,7 +316,7 @@ export function CatalogPickerDialog({
             Cột cố định (`table-fixed`), tên dài thì cắt bớt — không cuộn ngang (trưởng nhóm 14/11/2026). */}
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
           <Table className="table-fixed">
-            <TableHeader>
+            <TableHeader className="bg-surface-subtle sticky top-0 z-10">
               <TableRow>
                 <TableHead className="w-10">
                   {/* Chỉ cộng / trừ các dòng của TRANG NÀY. Thay cả Map bằng trang hiện tại thì

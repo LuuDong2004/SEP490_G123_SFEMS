@@ -22,7 +22,7 @@ public record LoginRequest(
         @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
         String password,
 
-        /** Mã xác thực hai yếu tố — chỉ khi tài khoản đã bật. */
+        /** Mã 6 số gửi qua email — chỉ khi tài khoản đã bật. */
         @Size(max = 64, message = "Mã xác thực không hợp lệ")
         String code,
 

@@ -22,25 +22,64 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { STANDARD_TIER_LABELS, STANDARD_TIERS, type FacilityStandardRule, type StandardTier } from "@/domains/facility/standard";
+import { STANDARD_TIER_LABELS, STANDARD_TIERS, perClassText, type FacilityStandardRule, type StandardTier } from "@/domains/facility/standard";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { kyInstance } from "@/shared/api/data";
+import { useQuery } from "@tanstack/react-query";
+
+import { LegalDocDialog, type LegalDocDialogState } from "./legal-doc-dialog";
 
 const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 const TIER_VARIANTS: Record<StandardTier, "neutral" | "info" | "success"> = { MIN: "neutral", LEVEL1: "info", LEVEL2: "success" };
 
 type NumKey = "minCount" | "countPerClass" | "minRoomArea" | "areaPerStudent" | "minTotalArea";
-// Tiêu đề ngắn một dòng; tên đầy đủ hiện khi rê chuột.
-// Đơn vị m² giữ chữ thường (tiêu đề bảng viết hoa).
-const M2 = <span className="normal-case">m²</span>;
-const COLS: { key: NumKey; label: ReactNode; title: string; className: string }[] = [
-  { key: "minCount", label: "Số phòng", title: "Số phòng tối thiểu", className: "w-24 text-right" },
-  { key: "countPerClass", label: "Phòng/lớp", title: "Số phòng trên mỗi lớp", className: "w-24 text-right" },
-  { key: "minRoomArea", label: <>{M2}/phòng</>, title: "Diện tích tối thiểu mỗi phòng (m²)", className: "w-24 text-right" },
-  { key: "areaPerStudent", label: <>{M2}/HS</>, title: "Diện tích trên mỗi học sinh (m²)", className: "w-24 text-right" },
-  { key: "minTotalArea", label: <>Tổng {M2}</>, title: "Tổng diện tích tối thiểu (m²)", className: "w-24 text-right" },
+// Tiêu đề viết đủ chữ, ô số ghi kèm đơn vị: "0,6" trơn không nói là phòng hay m², cho mỗi lớp hay cả trường.
+// Rê chuột lên tiêu đề có câu giải thích và ví dụ.
+const COLS: { key: NumKey; label: string; unit: string; title: string }[] = [
+  { key: "minCount", label: "Số phòng tối thiểu", unit: "phòng",
+    title: "Trường phải có ít nhất bấy nhiêu phòng, không phụ thuộc số lớp." },
+  { key: "countPerClass", label: "Số phòng theo số lớp", unit: "",
+    title: "Trường nhiều lớp thì cần nhiều phòng hơn. Ví dụ 1 phòng cho 10 lớp: trường 25 lớp cần 3 phòng (làm tròn lên)." },
+  { key: "minRoomArea", label: "Diện tích mỗi phòng", unit: "m²",
+    title: "Mỗi phòng phải rộng ít nhất bấy nhiêu m²." },
+  { key: "areaPerStudent", label: "Diện tích theo số học sinh", unit: "m² mỗi học sinh",
+    title: "Trường nhiều học sinh thì cần rộng hơn. Ví dụ 0,6 m² mỗi học sinh: trường 1.200 học sinh cần 720 m²." },
+  { key: "minTotalArea", label: "Tổng diện tích tối thiểu", unit: "m²",
+    title: "Tổng diện tích ít nhất của loại phòng này trong trường." },
 ];
 
-const cell = (v: number | null | undefined) => (v == null ? <span className="text-muted-foreground">—</span> : num.format(Number(v)));
+const cell = (key: NumKey, v: number | null | undefined, unit: string) => {
+  if (v == null) return <span className="text-muted-foreground">—</span>;
+  if (key === "countPerClass") return perClassText(v);
+  return <>{num.format(Number(v))}<span className="text-muted-foreground ms-1 text-xs">{unit}</span></>;
+};
+
+/** Số đếm cạnh nhãn dải chọn — viên riêng, để "Mức độ 1" và "2" không đọc liền thành "Mức độ 12". */
+const Count = ({ n }: { n: number }) => (
+  <span className="ms-1.5 rounded-full bg-current/15 px-1.5 text-[0.6875rem] leading-[1.125rem] font-semibold tabular-nums">{n}</span>
+);
+
+const DOC_NO = /\d+\/\d{4}\/[A-ZĐ]+-[A-ZĐ]+/gi;
+
+/** Văn bản căn cứ ghi tự do ("TT 23/2024/TT-BGDĐT, sửa khoản 2…"): số hiệu có trong danh mục Văn bản căn cứ thì bấm mở được. */
+function LegalBasisText({ text, docs, onOpen }: { text: string; docs: Map<string, number>; onOpen: (id: number) => void }) {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(DOC_NO)) {
+    const id = docs.get(m[0].toUpperCase());
+    if (id == null) continue;
+    parts.push(text.slice(last, m.index));
+    parts.push(
+      <button key={m.index} type="button" className="text-primary italic hover:underline" title="Xem văn bản"
+        onClick={(e) => { e.stopPropagation(); onOpen(id); }}>
+        {m[0]}
+      </button>,
+    );
+    last = m.index + m[0].length;
+  }
+  parts.push(text.slice(last));
+  return <>{parts}</>;
+}
 
 /**
  * Màn Chuẩn CSVC (Danh mục chung) — bố trí như Danh mục thiết bị tối thiểu: chọn CẤP HỌC ở dải trên, tìm + lọc theo
@@ -60,6 +99,12 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
   const [tier, setTier] = useState<string | null>(null);
   const [dialog, setDialog] = useState<FormDialogState>({ open: false });
   const [viewing, setViewing] = useState<number | null>(null);
+  const [legalView, setLegalView] = useState<LegalDocDialogState>(null);
+  const { data: legalDocs } = useQuery({
+    queryKey: ["legal_documents", "picker"],
+    queryFn: () => kyInstance.get("legal_documents", { searchParams: { _start: "0", _end: "500" } }).json<{ id: number; code: string }[]>(),
+  });
+  const docByCode = useMemo(() => new Map((legalDocs ?? []).map((d) => [d.code.toUpperCase(), d.id])), [legalDocs]);
 
   // Cả danh mục một lần (vài trăm quy tắc): đếm theo cấp cho dải chọn, lọc / sắp / chia khối ngay trên trình duyệt.
   const { result, query } = useList<FacilityStandardRule>({
@@ -101,7 +146,7 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
           <Segmented label="Cấp học" value={level} onChange={(v) => { setLevel(v); setGroup(null); }}
             options={levels.map((l) => ({
               value: l.code,
-              label: <>{l.name} <span className="font-semibold tabular-nums opacity-80">{all.filter((r) => r.levelCode === l.code).length}</span></>,
+              label: <>{l.name}<Count n={all.filter((r) => r.levelCode === l.code).length} /></>,
               hint: `Chuẩn CSVC cấp ${l.name}`,
             }))} />
         </div>
@@ -117,8 +162,7 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
           options={[{ key: "ALL", short: "Tất cả", label: "Mọi mức" }, ...STANDARD_TIERS].map((t) => ({
             value: t.key,
             hint: t.label,
-            label: <>{t.short} <span className="font-semibold tabular-nums opacity-80">
-              {t.key === "ALL" ? ofLevel.length : ofLevel.filter((r) => r.tier === t.key).length}</span></>,
+            label: <>{t.short}<Count n={t.key === "ALL" ? ofLevel.length : ofLevel.filter((r) => r.tier === t.key).length} /></>,
           }))} />
         <IconFilter labeled icon={<LayoutGrid />} label="khối CSVC" allLabel="Tất cả khối" value={group} onChange={setGroup}
           groups={[{ items: groups.map((g) => ({ key: g, label: g, count: ofLevel.filter((r) => (r.roomType?.groupName ?? "Chưa xếp khối") === g).length })) }]} />
@@ -142,7 +186,9 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
                   <TableHead className="w-12 text-center">STT</TableHead>
                   <TableHead>Loại CSVC</TableHead>
                   <TableHead className="w-28">Mức</TableHead>
-                  {COLS.map((c) => <TableHead key={c.key} title={c.title} className={c.className}>{c.label}</TableHead>)}
+                  {COLS.map((c) => (
+                    <TableHead key={c.key} title={c.title} className="w-32 text-right leading-tight whitespace-normal">{c.label}</TableHead>
+                  ))}
                   <TableHead className="w-64">Văn bản căn cứ</TableHead>
                   <TableHead className="w-20"><span className="sr-only">Thao tác</span></TableHead>
                 </TableRow>
@@ -173,8 +219,12 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
                               {STANDARD_TIER_LABELS[r.tier as StandardTier] ?? r.tier}
                             </Badge>
                           </TableCell>
-                          {COLS.map((c) => <TableCell key={c.key} className="text-right tabular-nums">{cell(r[c.key] as number | null | undefined)}</TableCell>)}
-                          <TableCell className="text-muted-foreground truncate text-xs" title={r.legalBasis ?? ""}>{r.legalBasis ?? "—"}</TableCell>
+                          {COLS.map((c) => (
+                            <TableCell key={c.key} className="text-right whitespace-nowrap tabular-nums">{cell(c.key, r[c.key] as number | null | undefined, c.unit)}</TableCell>
+                          ))}
+                          <TableCell className="text-muted-foreground truncate text-xs italic" title={r.legalBasis ?? ""}>
+                            {r.legalBasis ? <LegalBasisText text={r.legalBasis} docs={docByCode} onOpen={(id) => setLegalView({ mode: "view", id })} /> : "—"}
+                          </TableCell>
                           <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
                               {mayEdit ? (
@@ -201,6 +251,7 @@ export function FacilityStandardRulesPage({ config }: { config: CatalogConfig })
         presets={dialog.id ? undefined : { levelCode: level, tier: tier ?? "" }} />
       <CatalogShowDialog config={config} id={viewing} onOpenChange={(open) => !open && setViewing(null)}
         onEdit={(id) => { setViewing(null); setDialog({ open: true, id }); }} />
+      <LegalDocDialog state={legalView} onClose={() => setLegalView(null)} />
     </ListView>
   );
 }

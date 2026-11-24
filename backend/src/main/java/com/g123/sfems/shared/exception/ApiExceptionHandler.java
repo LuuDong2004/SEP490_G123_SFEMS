@@ -73,7 +73,6 @@ public class ApiExceptionHandler {
         request.setAttribute(MfaRequiredException.PROMPTED, Boolean.TRUE);
         ResponseEntity<Map<String, Object>> response = body(HttpStatus.UNAUTHORIZED, e.getMessage(), Map.of());
         response.getBody().put("mfaRequired", true);
-        response.getBody().put("mfaMethod", e.getMethod());
         return response;
     }
 

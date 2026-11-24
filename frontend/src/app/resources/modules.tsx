@@ -41,7 +41,8 @@ export const MODULES: ModuleDef[] = [
     tabs: [
       ["process_equipment", "Quy trình"],
       ["equipment", "Danh sách thiết bị"],
-      ["school_year_profiles", "Hồ sơ năm học"],
+      // Hồ sơ năm học không ở đây: lớp, phân công, phòng theo điểm trường là dữ liệu của TRƯỜNG — tab "Năm học" của
+      // màn Trường học (`SchoolWorkspace`).
       ["equipment_minimum", "Chuẩn tối thiểu"],
       ["equipment_intakes", "Ghi tăng"],
       ["inventory_campaigns", "Đợt kiểm kê"],

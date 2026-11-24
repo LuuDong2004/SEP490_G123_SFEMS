@@ -61,7 +61,7 @@ class DataChangeRecorder implements PostUpdateEventListener, PostInsertEventList
 
     /** Trường kỹ thuật, tự đổi theo thao tác khác — ghi vào chỉ làm lịch sử rối. */
     private static final Set<String> SKIP = Set.of("updatedAt", "updatedById", "createdAt", "createdById", "version",
-            "lastLoginAt", "failedLoginCount", "loginLockedUntil", "mfaSecret", "mfaFailedAttempts", "mfaLockedUntil",
+            "lastLoginAt", "failedLoginCount", "loginLockedUntil", "mfaFailedAttempts", "mfaLockedUntil",
             "emailCodeHash", "emailCodeExpiresAt", "emailCodeSentAt", "passwordChangedAt");
 
     /** Trường bí mật: chỉ ghi là đã đổi. */

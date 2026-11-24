@@ -16,11 +16,9 @@ import com.g123.sfems.module.security.token.service.RefreshTokenService.Session;
 import com.g123.sfems.module.security.token.service.RefreshTokenService.SessionView;
 import com.g123.sfems.module.security.user.service.EmailMfaService;
 import com.g123.sfems.module.security.user.service.LoginGuard;
-import com.g123.sfems.module.security.user.service.MfaService;
 import com.g123.sfems.module.security.user.service.UserService;
 import com.g123.sfems.shared.security.AdminAccessDeniedException;
 import com.g123.sfems.shared.security.AdminPortalPolicy;
-import com.g123.sfems.shared.security.MfaRequiredException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.JwtService;
@@ -79,7 +77,6 @@ public class AuthService {
     // once again to build the reply.
     private final AuthorizationService authorizationService;
 
-    private final MfaService mfaService;
     private final EmailMfaService emailMfa;
     private final LoginGuard loginGuard;
 
@@ -100,7 +97,6 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        AuthorizationService authorizationService,
                        RowLevelSecurity rowLevel,
-                       MfaService mfaService,
                        EmailMfaService emailMfa,
                        LoginGuard loginGuard,
                        PlatformTransactionManager transactionManager,
@@ -115,7 +111,6 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authorizationService = authorizationService;
         this.rowLevel = rowLevel;
-        this.mfaService = mfaService;
     }
 
     /**
@@ -139,7 +134,7 @@ public class AuthService {
             throw AdminAccessDeniedException.ip();
         }
         // Màn /login chung nhận MỌI loại tài khoản (kể cả quản trị — người dùng không phải nhớ /admin/login); đăng nhập
-        // xong giao diện tự vào cổng của loại. Quản trị vẫn bị chặn theo IP (sau mật khẩu, ngay dưới) và bắt buộc 2 lớp.
+        // xong giao diện tự vào cổng của loại. Quản trị vẫn bị chặn theo IP (sau mật khẩu, ngay dưới) và bắt buộc xác thực qua email.
         // Màn /admin/login chỉ nhận quản trị: tài khoản khác coi như KHÔNG CÓ ở đó — cùng câu, cùng thời gian so BCrypt,
         // không đếm vào khoá tạm.
         Optional<User> found = userService.findForAuthentication(request.username())
@@ -166,16 +161,11 @@ public class AuthService {
             throw AdminAccessDeniedException.ip();
         }
 
-        // Hai yếu tố hỏi SAU mật khẩu: một người không biết mật khẩu không được
-        // biết tài khoản này có bật xác thực hai yếu tố hay không.
+        // Mã qua email hỏi SAU mật khẩu: một người không biết mật khẩu không được
+        // biết tài khoản này có bật xác thực qua email hay không.
         boolean noCode = request.code() == null || request.code().isBlank();
-        if (user.isMfaEnabled()) {
-            if (noCode) {
-                throw new MfaRequiredException();
-            }
-            mfaService.verifyForLogin(user.getId(), request.code());
-        } else if (user.isMfaEmail()) {
-            // Qua email: chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập.
+        if (user.isMfaEmail()) {
+            // Chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập.
             if (noCode) {
                 emailMfa.sendForLogin(user.getId());
             }

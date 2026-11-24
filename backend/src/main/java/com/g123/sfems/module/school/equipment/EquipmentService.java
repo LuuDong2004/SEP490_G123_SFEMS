@@ -356,7 +356,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                 .orElseThrow(() -> new FieldValidationException("catalog",
                         "Chưa cấp được mã chuẩn: trường chưa có mã EMIS hoặc môn của nhóm thiết bị chưa có mã dạy học"));
         item.setCode(codes.reserve(item.getSchool(), parts).orElseThrow(() -> new FieldValidationException(
-                "catalog", "Đã hết số thứ tự 001-999 cho bộ mã %s.%s.%s.%s.xxx.%s trong năm".formatted(
+                "catalog", "Đã hết số thứ tự 0001-9999 cho bộ mã %s.%s.%s.%s.xxx.%s trong năm".formatted(
                         parts.province(), parts.school(), parts.subject(), parts.type(), parts.year()))));
     }
 
@@ -1159,7 +1159,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             if (e.getValue() > left) {
                 throw new FieldValidationException("lines",
                         ("%s: cần %d mã thiết bị nhưng bộ mã %s chỉ còn %d. "
-                                + "Số thứ tự trong mã có ba chữ số nên mỗi bộ chứa tối đa 999 thiết bị một năm. "
+                                + "Số thứ tự trong mã có bốn chữ số nên mỗi bộ chứa tối đa 9.999 thiết bị một năm. "
                                 + "Tách bớt số lượng sang phiếu khác, hoặc khai mã dạy học của môn cho nhóm thiết bị "
                                 + "để nhóm có bộ đếm riêng.")
                                 .formatted(firstLine.get(e.getKey()), e.getValue(), parts.mask(), left));
@@ -1185,7 +1185,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                                 .formatted(line.getLineNo())));
         return codes.reserveBlock(school, parts, count)
                 .orElseThrow(() -> new FieldValidationException("lines",
-                        "Dòng %d: đã hết số thứ tự 001-999 cho bộ mã này, không sinh thêm thiết bị được"
+                        "Dòng %d: đã hết số thứ tự 0001-9999 cho bộ mã này, không sinh thêm thiết bị được"
                                 .formatted(line.getLineNo())));
     }
 
@@ -1197,7 +1197,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                                 .formatted(line.getLineNo())));
         return codes.reserve(school, parts)
                 .orElseThrow(() -> new FieldValidationException("lines",
-                        "Dòng %d: đã hết số thứ tự 001-999 cho bộ mã này, không sinh thêm thiết bị được"
+                        "Dòng %d: đã hết số thứ tự 0001-9999 cho bộ mã này, không sinh thêm thiết bị được"
                                 .formatted(line.getLineNo())));
     }
 

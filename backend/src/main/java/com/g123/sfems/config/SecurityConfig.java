@@ -83,7 +83,7 @@ public class SecurityConfig {
         }
         if (stack.deployed() && JwtProperties.DEV_SECRET.equals(properties.secret())) {
             // Khoá mặc định nằm trong repo: ai có nó tự ký được token của bất kỳ tài khoản nào, và giải mã được
-            // bí mật TOTP, khoá AI (SecretBox dẫn khoá từ đây). Đủ dài nên lọt kiểm tra trên — chặn riêng.
+            // khoá AI, mật khẩu máy chủ thư (SecretBox dẫn khoá từ đây). Đủ dài nên lọt kiểm tra trên — chặn riêng.
             throw new IllegalStateException(
                     "app.security.jwt.secret đang là giá trị mặc định trong mã nguồn — đặt APP_SECURITY_JWT_SECRET cho "
                             + stack.name());
@@ -168,7 +168,7 @@ public class SecurityConfig {
                         .requestMatchers(Portal.ADMIN.pattern()).access(userType(Portal.ADMIN))
                         .requestMatchers(Portal.SO.pattern()).access(userType(Portal.SO))
                         .requestMatchers(Portal.SCHOOL.pattern()).access(userType(Portal.SCHOOL))
-                        // Đăng nhập, phiên, 2 lớp của chính mình: mọi token hợp lệ.
+                        // Đăng nhập, phiên, xác thực qua email của chính mình: mọi token hợp lệ.
                         .requestMatchers("/api/auth/**").authenticated()
                         // Đường cũ không cổng: chỉ khoá API của đối tác (token không phiên `sid`). Người dùng đăng nhập
                         // bắt buộc đi qua cổng của loại mình (docs/kien-truc/11, đợt 7). Mở lại tạm cho người dùng:

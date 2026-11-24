@@ -137,9 +137,9 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
         </div>
       ) : null}
       <div className="bg-card shadow-e1 min-h-0 flex-1 overflow-hidden rounded-lg border">
-        <div className="h-full overflow-auto">
+        <div className="h-full overflow-auto [&>[data-slot=table-container]]:overflow-visible">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-surface-subtle sticky top-0 z-10">
               <TableRow>
                 <TableHead className="w-24">Mã</TableHead>
                 <TableHead>Họ và tên</TableHead>
@@ -290,7 +290,8 @@ function AssignmentDialog({ yearId, record, showCampus, campuses, onClose, onSav
           <DialogTitle>{record ? `Phân công: ${record.staffName}` : "Phân công giáo viên"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={(e) => void submit(e)} className="grid items-start gap-x-4 gap-y-5">
+          {/* Không `items-start`: `.dialog-fixed > form` là cột flex, `items-start` co mọi ô bằng nội dung. */}
+          <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
             {!record ? (
               <FormField control={form.control} name="staff" rules={{ required: "Vui lòng chọn giáo viên" }} render={({ field, fieldState }) => (
                 <FormItem className="max-w-[28rem]">

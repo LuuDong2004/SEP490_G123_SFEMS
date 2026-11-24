@@ -131,7 +131,7 @@ export function lineIssues(line: any, catalog: ReturnType<CatalogOf>, config: Vo
   }
   const serialProblem = serial ? serialError(line) : undefined;
   if (serialProblem) out.push(serialProblem);
-  if (serial && Number(line.receivedQuantity ?? 0) > 999) out.push("Quá 999 cái, hãy tách sang phiếu khác");
+  if (serial && Number(line.receivedQuantity ?? 0) > 9999) out.push("Quá 9.999 cái, hãy tách sang phiếu khác");
   return out;
 }
 
@@ -272,8 +272,8 @@ export function intakeReadiness(
   const dupAcross = crossLineDuplicates(lines);
   const badSerial = serial.filter((x) => serialError(x.l) || dupAcross.has(x.i));
   if (badSerial.length) items.push(item("serial", "Số serial", badSerial));
-  const tooMany = serial.filter((x) => Number(x.l?.receivedQuantity ?? 0) > 999);
-  if (tooMany.length) items.push({ ...item("capacity", "Quá 999 cái một dòng", tooMany), hint: `${hint(tooMany)}. Hãy tách sang phiếu khác` });
+  const tooMany = serial.filter((x) => Number(x.l?.receivedQuantity ?? 0) > 9999);
+  if (tooMany.length) items.push({ ...item("capacity", "Quá 9.999 cái một dòng", tooMany), hint: `${hint(tooMany)}. Hãy tách sang phiếu khác` });
   for (const f of (config?.line ?? []).filter((f) => f.required && !f.stage)) {
     if (lines.length) items.push(item(`line:${f.key}`, f.label, numbered.filter((x) => !filled(x.l?.details?.[f.key]))));
   }

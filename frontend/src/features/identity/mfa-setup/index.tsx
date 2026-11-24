@@ -6,11 +6,11 @@ import { kyInstance } from "@/shared/api/data";
 import { portalBase } from "@/shared/api/portal";
 import { homePath, saveIdentity, type Identity } from "@/shared/api/session";
 import { Button } from "@/shared/ui/button";
-import { TwoFactorCard } from "../profile/mfa-card";
+import { EmailMfaCard } from "../profile/mfa-card";
 
 /**
  * Tài khoản quản trị chưa có lớp xác thực thứ hai (cổng Admin cách ly, `mfaSetupRequired`): máy chủ trả 403 cho mọi
- * API ngoài `/auth/*`, nên thay cả khung ứng dụng bằng màn này — chỉ bật 2 lớp hoặc đăng xuất. Bật xong thì đọc lại
+ * API ngoài `/auth/*`, nên thay cả khung ứng dụng bằng màn này — chỉ bật xác thực qua email hoặc đăng xuất. Bật xong thì đọc lại
  * `/auth/me` và vào trang đầu của cổng.
  */
 export function AdminMfaSetup() {
@@ -39,13 +39,13 @@ export function AdminMfaSetup() {
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
             <ShieldCheck className="text-primary size-5" />
-            Bật xác thực hai lớp
+            Bật xác thực qua email
           </h1>
           <p className="text-muted-foreground text-sm">
-            Tài khoản quản trị phải bật xác thực hai lớp (ứng dụng hoặc email) trước khi dùng hệ thống.
+            Tài khoản quản trị phải bật xác thực qua email trước khi dùng hệ thống.
           </p>
         </div>
-        <TwoFactorCard hideRequiredNote onChange={(on) => void onChange(on)} />
+        <EmailMfaCard onChange={(on) => void onChange(on)} />
         <div className="flex justify-end">
           <Button type="button" variant="outline" disabled={leaving} onClick={() => logout()}>
             <LogOut />

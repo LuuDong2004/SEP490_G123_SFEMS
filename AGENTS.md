@@ -20,8 +20,13 @@ HT-07 cấp tài khoản cho nhân sự trường, HT-08 cấu hình luồng ph�
 cơ sở vật chất theo chuẩn. Hai cấp quản lý: **Sở GD&ĐT** và **trường** — KHÔNG có UBND. Ba loại tài khoản: quản trị
 (`SYSTEM`), Sở (`SO`), trường (`SCHOOL`).
 
-Ngoài phạm vi (sheet 3, đã gỡ khỏi code và menu — không làm lại): xác thực hai yếu tố, phạm vi dữ liệu của vai trò,
-nhật ký hoạt động, tổng quan một trường, cơ sở – điểm trường, khối nhà, in tem QR, danh mục học kỳ. Các nghiệp vụ
+Khi code lệch tài liệu thì **Báo cáo 1 – 5 là chuẩn**, file này có thể chậm hơn. Phân quyền theo ma trận Báo cáo 3 mục
+4.4 (chốt 24/11/2026, changelog 289): vai chỉ mang quyền cổng của loại tài khoản đó mở (`PermissionGrants`), quản trị
+viên chỉ xem, xuất dữ liệu nghiệp vụ, vai `ADMIN` khoá quyền, một vai không vừa lập vừa duyệt cùng loại phiếu, không xoá
+người dùng và trường (chỉ khoá, ngừng dùng). Nhật ký hoạt động chỉ còn lịch sử đăng nhập của tài khoản.
+
+Ngoài phạm vi (sheet 3, đã gỡ khỏi code và menu — không làm lại): xác thực bằng ứng dụng (chỉ còn mã 6 số qua email
+lúc đăng nhập, HT-01), màn nhật ký hoạt động, tình trạng hệ thống, tổng quan một trường, cơ sở – điểm trường, khối nhà, in tem QR, danh mục học kỳ. Các nghiệp vụ
 cấp phát – bàn giao, điều chuyển, mượn – trả, mượn phòng, báo hỏng – sửa chữa – bảo hành – bảo trì, thanh lý – ghi
 giảm, tính hao mòn, tồn kho theo lô, xuất kho – lưu kho – tiêu hao vật tư, sửa chữa công trình, điều chỉnh chuẩn
 kiểu cũ, minh chứng kiểm định, kết nối hệ thống ngoài cũng ngoài phạm vi. Bảng CSDL của chúng (39 bảng, gồm `semesters`) đã xoá ở

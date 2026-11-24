@@ -92,6 +92,8 @@ export const RoleEdit = () => {
 
   const record = query?.data?.data;
   const isSystemRole = record?.systemRole === true;
+  /** Vai Quản trị viên khoá quyền: sửa được thì tự bỏ quyền quản lý vai của mình, không ai mở lại được. */
+  const locked = record?.code === "ADMIN";
 
   const grantedCount = form.watch("permissions")?.length ?? 0;
 
@@ -143,8 +145,9 @@ export const RoleEdit = () => {
               <ShieldIcon className="size-4" />
               <AlertTitle>Vai trò hệ thống</AlertTitle>
               <AlertDescription>
-                Vai trò này không đổi mã và không xoá được. Quyền vẫn sửa được,
-                nhưng cẩn thận kẻo tự bỏ quyền của chính bạn.
+                {locked
+                  ? "Vai Quản trị viên không đổi mã, không xoá và không sửa quyền được. Dữ liệu nghiệp vụ của trường và Sở chỉ xem, xuất."
+                  : "Vai trò này không đổi mã và không xoá được. Quyền vẫn sửa được."}
               </AlertDescription>
             </Alert>
           )}
@@ -290,8 +293,9 @@ export const RoleEdit = () => {
                 <CardHeader>
                   <CardTitle>Vai trò này được làm gì</CardTitle>
                   <CardDescription>
-                    Mỗi hàng là một chức năng, mỗi cột là một thao tác. Lưu
-                    xong là có hiệu lực, người dùng không cần đăng nhập lại.
+                    {locked
+                      ? "Quyền của vai Quản trị viên được khoá, ở đây chỉ xem."
+                      : "Mỗi hàng là một chức năng, mỗi cột là một thao tác. Lưu xong là có hiệu lực, người dùng không cần đăng nhập lại."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -305,6 +309,7 @@ export const RoleEdit = () => {
                             value={field.value}
                             onChange={field.onChange}
                             roleType={(record?.roleType as string | undefined) ?? null}
+                            readOnly={locked}
                           />
                         </FormControl>
                         <FormMessage />

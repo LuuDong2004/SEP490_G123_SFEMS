@@ -36,8 +36,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * Cổng Admin cách ly (docs/kien-truc/11, quyết định 4) khi BẬT bắt buộc 2 lớp và có danh sách IP: khu đăng nhập
- * riêng, 403 cho tài khoản quản trị chưa bật 2 lớp, IP được phép, phiên ngắn.
+ * Cổng Admin cách ly (docs/kien-truc/11, quyết định 4) khi BẬT bắt buộc xác thực qua email và có danh sách IP: khu đăng nhập
+ * riêng, 403 cho tài khoản quản trị chưa bật xác thực qua email, IP được phép, phiên ngắn.
  */
 @SpringBootTest(properties = {
         "app.portal.admin-mfa-required=true",
@@ -118,7 +118,7 @@ class AdminPortalTest {
     @Test
     void adminSignsInAtAdminAreaWithShortSession() throws Exception {
         MockHttpServletResponse response = login("admin", passwordOf("admin"), "admin", ALLOWED_IP);
-        Assumptions.assumeTrue(response.getStatus() == 200, "admin bật 2 lớp ở CSDL này — bỏ qua");
+        Assumptions.assumeTrue(response.getStatus() == 200, "admin bật xác thực qua email ở CSDL này — bỏ qua");
         JsonNode body = read(response);
         assertThat(body.path("expiresIn").asLong()).isEqualTo(Duration.ofMinutes(5).toSeconds());
         assertThat(body.path("user").path("userType").asString()).isEqualTo("SYSTEM");
@@ -155,12 +155,12 @@ class AdminPortalTest {
         assertThat(read(response).path("adminBlock").asString()).isEqualTo("ip");
     }
 
-    // ------------------------------------------------------------------ bắt buộc 2 lớp
+    // ------------------------------------------------------------------ bắt buộc xác thực qua email
 
     @Test
     void adminWithoutSecondFactorReachesOnlyAuthEndpoints() throws Exception {
         User admin = user("admin");
-        Assumptions.assumeFalse(admin.isMfaEnabled() || admin.isMfaEmail(), "admin đã bật 2 lớp ở CSDL này");
+        Assumptions.assumeFalse(admin.isMfaEmail(), "admin đã bật xác thực qua email ở CSDL này");
         String token = jwt.issueAccessToken(admin, Instant.now());
 
         MockHttpServletResponse users = call(get("/api/admin/users"), token, "127.0.0.1");
@@ -180,7 +180,7 @@ class AdminPortalTest {
     @Test
     void adminWithSecondFactorIsAdmitted() throws Exception {
         User admin = user("admin");
-        Assumptions.assumeFalse(admin.isMfaEnabled() || admin.isMfaEmail(), "admin đã bật 2 lớp ở CSDL này");
+        Assumptions.assumeFalse(admin.isMfaEmail(), "admin đã bật xác thực qua email ở CSDL này");
         String token = jwt.issueAccessToken(admin, Instant.now());
         setMfaEmail(admin.getId(), true);
         try {
@@ -207,7 +207,7 @@ class AdminPortalTest {
         assertThat(read(blocked).path("adminBlock").asString()).isEqualTo("ip");
         // Token SYSTEM bị chặn ở mọi đường từ máy ngoài danh sách — kể cả /api/auth/**.
         assertThat(call(get("/api/auth/me"), admin, BLOCKED_IP).getStatus()).isEqualTo(403);
-        // Trong dải CIDR: qua bước IP (tới bước 2 lớp).
+        // Trong dải CIDR: qua bước IP (tới bước xác thực qua email).
         assertThat(call(get("/api/auth/me"), admin, ALLOWED_IP).getStatus()).isEqualTo(200);
         // Tài khoản nghiệp vụ không bị danh sách IP của Admin chạm tới.
         assertThat(call(get("/api/school/rooms"), school, BLOCKED_IP).getStatus()).isEqualTo(200);

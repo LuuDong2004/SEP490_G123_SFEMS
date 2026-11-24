@@ -149,15 +149,15 @@ public class UserService {
                 h[1] == null ? null : ((Number) h[1]).longValue(),
                 h[2] == null ? null : ((Number) h[2]).longValue(),
                 (Instant) h[3],
-                Boolean.TRUE.equals(h[4]) || Boolean.TRUE.equals(h[5]),
-                h[6] == null ? null : ((Number) h[6]).longValue()));
+                Boolean.TRUE.equals(h[4]),
+                h[5] == null ? null : ((Number) h[5]).longValue()));
     }
 
     /** Tài khoản dưới dạng bộ nhớ đệm quyền đọc — xem {@link #authorityFacts}. Các tập đã sắp xếp. */
     public record AuthorityFacts(boolean canSignIn, Set<String> roleCodes, Set<Long> roleIds,
                                  Set<String> permissionCodes, Long schoolId, Long managingBodyId,
                                  Instant passwordChangedAt,
-                                 /* Đã có lớp xác thực thứ hai (ứng dụng hoặc email) — cổng Admin bắt buộc. */
+                                 /* Đã bật xác thực qua email — cổng Admin bắt buộc khi cấu hình đòi. */
                                  boolean secondFactor,
                                  /* Phạm vi cơ sở của tài khoản trường (270); null = cả trường. */
                                  Long campusId) {
@@ -175,9 +175,26 @@ public class UserService {
         return repository.findByUsernameOrEmail(identifier.trim());
     }
 
+    /**
+     * Tài khoản trường mang tên {@code <mã trường>.<tên>} — cùng quy ước với tài khoản cấp từ danh sách cán bộ
+     * ({@code StaffAccountService}) và với màn đăng nhập (chọn trường thì tự ghép tiền tố). Thiếu tiền tố thì tài
+     * khoản không đăng nhập được khi đã chọn đơn vị.
+     */
+    static String schoolLogin(School school, String username) {
+        if (school == null || school.getCode() == null) {
+            return username;
+        }
+        String prefix = java.text.Normalizer.normalize(school.getCode(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").replace('đ', 'd').replace('Đ', 'D')
+                .toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9._-]", "");
+        return prefix.isEmpty() || username.toLowerCase(java.util.Locale.ROOT).startsWith(prefix + ".")
+                ? username : prefix + "." + username;
+    }
+
     @Transactional
     public User create(UserRequest request) {
-        String username = request.username().trim();
+        School school = resolveSchool(request.school(), null);
+        String username = schoolLogin(school, request.username().trim());
         String email = request.email().trim().toLowerCase();
 
         requireUsernameAvailable(username, null);
@@ -191,7 +208,6 @@ public class UserService {
             PasswordPolicy.check("password", password, username, privileged(roles));
         }
 
-        School school = resolveSchool(request.school(), null);
         DepartmentOfEducation managingBody = resolveManagingBody(request.managingBody(), null);
         if (school != null && managingBody != null) {
             throw new FieldValidationException("managingBody", "Tài khoản trường không gắn cơ quan quản lý");
@@ -223,7 +239,8 @@ public class UserService {
         requireMayManage(user);
 
         if (request.username() != null) {
-            String username = request.username().trim();
+            // Đơn vị không đổi khi sửa — tài khoản trường giữ tiền tố mã trường dù người sửa gõ tên trơn.
+            String username = schoolLogin(user.schoolOrNull(), request.username().trim());
             requireUsernameAvailable(username, user.getId());
             user.setUsername(username);
         }

@@ -18,13 +18,12 @@ const CLASS_OPTIONS: { value: InitClasses; label: string; hint: string }[] = [
 ];
 
 /**
- * Khởi tạo năm học mới (màn C): lớp, phân công giáo viên, điều chỉnh chuẩn chép từ năm liền trước. `schoolIds` vắng là
- * trường của người dùng; Sở truyền các trường đang lọc.
+ * Khởi tạo năm học mới (màn C) cho trường của người dùng: lớp, phân công giáo viên, điều chỉnh chuẩn chép từ năm liền trước.
+ * Việc của từng trường — Sở không khởi tạo thay.
  */
-export function InitYearDialog({ fromYear, target, schoolIds, onClose, onDone }: {
+export function InitYearDialog({ fromYear, target, onClose, onDone }: {
   fromYear?: string;
   target: { id: number; name: string };
-  schoolIds?: number[];
   onClose: () => void;
   onDone: (yearId: number) => void;
 }) {
@@ -41,12 +40,12 @@ export function InitYearDialog({ fromYear, target, schoolIds, onClose, onDone }:
     setError(null);
     try {
       const r = await kyInstance.post("school_year_profiles/init", {
-        json: { schoolYearId: target.id, schoolIds, classes, copyAssignments: assignments, copyAdjustments: adjustments },
+        json: { schoolYearId: target.id, classes, copyAssignments: assignments, copyAdjustments: adjustments },
         timeout: 120_000,
       }).json<InitResult>();
       notify?.({
         type: "success",
-        message: `Đã khởi tạo ${target.name.toLowerCase()}${schoolIds ? ` cho ${r.schools} trường` : ""}`,
+        message: `Đã khởi tạo ${target.name.toLowerCase()}`,
         description: `${r.classes} lớp · ${r.assignments} phân công · ${r.adjustments} điều chỉnh`,
       });
       await qc.invalidateQueries();
@@ -62,7 +61,7 @@ export function InitYearDialog({ fromYear, target, schoolIds, onClose, onDone }:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle>Khởi tạo {target.name.toLowerCase()}{schoolIds ? ` · ${schoolIds.length} trường` : ""}</DialogTitle>
+          <DialogTitle>Khởi tạo {target.name.toLowerCase()}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <fieldset className="space-y-2">

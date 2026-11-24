@@ -1,14 +1,12 @@
 package com.g123.sfems.module.school.yearprofile;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.school.procurement.PurchaseProposalService;
 import com.g123.sfems.module.school.procurement.YearAdequacyService;
 import com.g123.sfems.module.school.procurement.YearAdequacyService.Row;
 import com.g123.sfems.module.security.user.repo.UserRepository;
-import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.JwtService;
 import java.time.Instant;
 import java.util.List;
@@ -26,8 +24,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Bước 5 / 7: đề xuất mua sắm lập từ số thiếu (đúng số thiếu theo điều chỉnh), mỗi dòng có căn cứ truy ngược; chỉ trình
- * được khi năm học đã chốt.
+ * Bước 5 / 7: đề xuất mua sắm lập từ số thiếu (đúng số thiếu theo điều chỉnh), mỗi dòng có căn cứ truy ngược; căn cứ
+ * cho biết năm học đã chốt chưa (không chặn trình — trưởng nhóm 23/11/2026).
  */
 @SpringBootTest
 @Transactional
@@ -35,9 +33,6 @@ class YearGapTest {
 
     @Autowired
     YearGapService gaps;
-
-    @Autowired
-    ProposalYearGuard guard;
 
     @Autowired
     YearAdequacyService adequacy;
@@ -63,7 +58,7 @@ class YearGapTest {
     }
 
     @Test
-    void proposalTakesTheShortageAndWaitsForTheClosedYear() {
+    void proposalTakesTheShortageAndFlagsTheOpenYear() {
         signIn("thcs.canbo");
         Long school = jdbc.queryForObject("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id"
                 + " WHERE u.username = 'thcs.canbo'", Long.class);
@@ -81,12 +76,11 @@ class YearGapTest {
         assertThat(traces).hasSize(1);
         assertThat(traces.get(0).requiredTt()).isEqualTo(shortRow.requiredTt());
         assertThat(traces.get(0).campusName()).isEqualTo(shortRow.campusName());
-        assertThatThrownBy(() -> proposals.submit(created.proposalId()))
-                .isInstanceOf(FieldValidationException.class).hasMessageContaining("chưa chốt");
-        // Năm đã chốt: cổng này cho qua (còn hay không các kiểm khác của phiếu là việc của luồng duyệt).
+        // Năm chưa chốt: căn cứ mang cờ để màn hình gắn nhãn — không chặn trình.
+        assertThat(traces.get(0).yearClosed()).isFalse();
         jdbc.update("INSERT INTO school_year_closings (school_id, school_year_id, status) VALUES (?, ?, 'CLOSED')",
                 school, year);
-        guard.beforeSubmit(created.proposalId(), school);
+        assertThat(gaps.traces(created.proposalId(), null).get(0).yearClosed()).isTrue();
     }
 
     private void signIn(String username) {

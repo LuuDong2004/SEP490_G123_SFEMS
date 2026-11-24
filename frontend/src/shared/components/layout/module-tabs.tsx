@@ -269,8 +269,6 @@ const TAB_SHORT: Record<string, string> = {
   school_users: "Tài khoản trường",
   staff_accounts: "Tài khoản cán bộ",
   data_transfer: "Nhập / xuất",
-  system_status: "Tình trạng",
-  activity_logs: "Nhật ký",
   data_changes: "Lịch sử dữ liệu",
   // Thiết bị
   equipment: "Thiết bị",

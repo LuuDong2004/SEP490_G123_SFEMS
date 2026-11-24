@@ -80,7 +80,7 @@ export const authProvider: AuthProvider = {
         return {
           success: false,
           error: {
-            // Mật khẩu đúng, tài khoản bật xác thực hai yếu tố: form đăng nhập
+            // Mật khẩu đúng, tài khoản bật xác thực qua email: form đăng nhập
             // đọc tên lỗi này để hiện ô nhập mã thay vì báo sai mật khẩu.
             name: (error as { mfaRequired?: boolean }).mfaRequired ? "MfaRequired" : "Không đăng nhập được",
             // The API answers every failed sign-in with the same message on

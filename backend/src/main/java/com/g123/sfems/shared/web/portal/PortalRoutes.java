@@ -30,7 +30,7 @@ public final class PortalRoutes {
     public record Rule(Set<Portal> read, Set<Portal> write) {
     }
 
-    /** Không qua cổng — dùng trước khi biết loại tài khoản (đăng nhập, 2 lớp, tra trường lúc đăng nhập, khoá API). */
+    /** Không qua cổng — dùng trước khi biết loại tài khoản (đăng nhập, xác thực qua email, tra trường lúc đăng nhập, khoá API). */
     public static final Set<String> UNGATED = Set.of("auth");
 
     private static final Set<Portal> NONE = EnumSet.noneOf(Portal.class);
@@ -80,7 +80,7 @@ public final class PortalRoutes {
     static {
         // Quản trị hệ thống — chỉ cổng Admin.
         put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies", "ai_settings",
-                "data_changes", "system_status", "notification_type_settings");
+                "data_changes", "notification_type_settings", "mail_config");
         // Luồng phê duyệt (HT-08): chỉ quản trị viên cấu hình; chưa cấu hình thì dùng luồng mặc định trong code.
         put(ADMIN_ONLY, ADMIN_ONLY, "approval_flows");
         // Màn tài khoản của trường đóng ở mọi cổng: lãnh đạo trường cấp tài khoản cho cán bộ từ tab Nhân sự
@@ -88,7 +88,7 @@ public final class PortalRoutes {
         own(NONE, NONE, "school_users");
         // Quy tắc mã: Admin quản lý; mọi form lập mới đọc "mã kế tiếp" (code_rules/next).
         put(ALL, ADMIN_ONLY, "code_rules");
-        // Nhật ký: Admin xem; mọi người ghi lần xuất dữ liệu (activity_logs/exports).
+        // Lịch sử đăng nhập của tài khoản: Admin xem; mọi người ghi lần xuất dữ liệu (activity_logs/exports).
         put(ADMIN_ONLY, ALL, "activity_logs");
         // Mọi người đã đăng nhập.
         put(ALL, ALL, "notifications", "notification_preferences");

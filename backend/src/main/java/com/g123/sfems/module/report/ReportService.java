@@ -738,7 +738,8 @@ public class ReportService {
             row.put("norms", s.norms());
             row.put("met", s.met());
             row.put("unknown", s.unknown());
-            row.put("shortage", s.shortageTotal());
+            // Số LOẠI còn thiếu — cộng số lượng các dòng khác đơn vị (ml, gam, bộ…) ra một con số vô nghĩa.
+            row.put("shortage", s.shortItems());
             row.put("percent", s.percent());
             rows.add(row);
         }
@@ -746,7 +747,7 @@ public class ReportService {
                 List.of(col("school_code", "Mã trường", "text"), col("school", "Trường", "text"),
                         col("level", "Cấp học", "text"), col("norms", "Số định mức", "number"),
                         col("met", "Đã đạt", "number"), col("unknown", "Chưa tính được", "number"),
-                        col("shortage", "Tổng số thiết bị thiếu", "number"), col("percent", "Tỷ lệ đạt (%)", "number")),
+                        col("shortage", "Số loại thiết bị còn thiếu", "number"), col("percent", "Tỷ lệ đạt (%)", "number")),
                 rows);
     }
 

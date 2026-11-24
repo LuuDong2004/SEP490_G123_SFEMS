@@ -43,15 +43,30 @@ export type FacilityStandardRule = {
 
 const num = (v: number | string) => String(Number(v)).replace(".", ",");
 
-/** "≥ 1 phòng; 1 phòng/lớp; ≥ 45 m²/phòng; 0,6 m²/học sinh; tổng ≥ 60 m²" — cùng cách ghi với máy chủ. */
+/**
+ * Tỉ lệ phòng theo lớp viết như thông tư: 0,1 → "1 phòng cho 10 lớp", 0,6 → "3 phòng cho 5 lớp", 1 → "1 phòng mỗi lớp".
+ * Cùng cách ghi với `FacilityStandardService.perClassText` ở máy chủ.
+ */
+export function perClassText(ratio: number | string): string {
+  const v = Number(ratio);
+  if (v > 0 && v < 1) {
+    for (let classes = 2; classes <= 100; classes++) {
+      const rooms = Math.round(v * classes * 1000) / 1000;
+      if (Number.isInteger(rooms)) return `${rooms} phòng cho ${classes} lớp`;
+    }
+  }
+  return `${num(v)} phòng mỗi lớp`;
+}
+
+/** "≥ 1 phòng; 1 phòng cho 10 lớp; ≥ 45 m²/phòng; 0,6 m² mỗi học sinh; tổng ≥ 60 m²" — cùng cách ghi với máy chủ. */
 export function ruleSummary(r: Partial<Pick<FacilityStandardRule,
   "minCount" | "countPerClass" | "minRoomArea" | "areaPerStudent" | "minTotalArea">> | null | undefined): string {
   if (!r) return "—";
   const parts: string[] = [];
   if (r.minCount != null) parts.push(`≥ ${r.minCount} phòng`);
-  if (r.countPerClass != null) parts.push(`${num(r.countPerClass)} phòng/lớp`);
+  if (r.countPerClass != null) parts.push(perClassText(r.countPerClass));
   if (r.minRoomArea != null) parts.push(`≥ ${num(r.minRoomArea)} m²/phòng`);
-  if (r.areaPerStudent != null) parts.push(`${num(r.areaPerStudent)} m²/học sinh`);
+  if (r.areaPerStudent != null) parts.push(`${num(r.areaPerStudent)} m² mỗi học sinh`);
   if (r.minTotalArea != null) parts.push(`tổng ≥ ${num(r.minTotalArea)} m²`);
   return parts.length ? parts.join("; ") : "—";
 }

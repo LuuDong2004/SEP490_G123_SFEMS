@@ -13,13 +13,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Mã hoá đối xứng (AES-256-GCM) cho bí mật phải lưu mà không được để lộ khi cơ
- * sở dữ liệu lộ — hiện là bí mật TOTP.
+ * sở dữ liệu lộ — hiện là khoá AI và mật khẩu máy chủ thư.
  *
  * <p>Khoá dẫn từ {@code app.security.jwt.secret} qua SHA-256 với một nhãn riêng,
  * nên không có thêm một bí mật cấu hình nào phải quản lý, mà khoá này cũng không
- * trùng khoá ký token. Hệ quả cần biết: ĐỔI bí mật JWT thì các bí mật TOTP đã
- * lưu không giải mã được nữa, và mọi người đã bật xác thực hai yếu tố phải được
- * quản trị viên đặt lại.
+ * trùng khoá ký token. Hệ quả cần biết: ĐỔI bí mật JWT thì các bí mật đã
+ * lưu không giải mã được nữa, và quản trị viên phải nhập lại khoá AI, mật khẩu
+ * máy chủ thư.
  */
 @Component
 public class SecretBox {

@@ -1,16 +1,12 @@
 package com.g123.sfems.module.school.yearprofile;
 
-import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.staff.StaffAssignmentService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
-import jakarta.validation.constraints.Size;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,15 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Khởi tạo năm học mới (docs/du-lieu-theo-nam-hoc.md §4, màn C) từ năm học liền trước: lớp (lên lớp tự động / chép nguyên / để
  * trống), phân công giáo viên (bỏ người đã nghỉ), điều chỉnh chuẩn của trường (chờ xác nhận lại, bỏ dòng danh mục đã đổi /
- * ngừng). CSVC, thiết bị liên tục nên không chép. Lãnh đạo trường chạy cho trường mình; Sở chạy được cho nhiều trường.
+ * ngừng). CSVC, thiết bị liên tục nên không chép. Việc của TỪNG TRƯỜNG: lãnh đạo trường chạy cho trường mình. Sở và quản trị
+ * không khởi tạo thay — Sở chỉ xem tiến độ và mở lại năm đã chốt.
  */
 @Service
 public class SchoolYearInitService {
 
     public enum Classes { PROMOTE, COPY, EMPTY }
 
-    public record InitRequest(Long schoolYearId, @Size(max = 2000, message = "Tối đa 2.000 trường một lần") List<Long> schoolIds,
-            Classes classes, Boolean copyAssignments, Boolean copyAdjustments) {
+    public record InitRequest(Long schoolYearId, Classes classes, Boolean copyAssignments, Boolean copyAdjustments) {
     }
 
     public record InitResult(int schools, int classes, int assignments, int adjustments, int skippedAdjustments) {
@@ -44,16 +40,14 @@ public class SchoolYearInitService {
     private static final Pattern LEADING = Pattern.compile("^(\\d{1,2})(.*)$");
 
     private final JdbcTemplate jdbc;
-    private final VisibleSchools visibleSchools;
     private final RowLevelPrincipalResolver principals;
     private final StaffAssignmentService assignments;
     private final SchoolYearLock lock;
     private final List<AdjustmentCopier> copiers;
 
-    public SchoolYearInitService(JdbcTemplate jdbc, VisibleSchools visibleSchools, RowLevelPrincipalResolver principals,
+    public SchoolYearInitService(JdbcTemplate jdbc, RowLevelPrincipalResolver principals,
             StaffAssignmentService assignments, SchoolYearLock lock, List<AdjustmentCopier> copiers) {
         this.jdbc = jdbc;
-        this.visibleSchools = visibleSchools;
         this.principals = principals;
         this.assignments = assignments;
         this.lock = lock;
@@ -70,7 +64,7 @@ public class SchoolYearInitService {
                 SELECT p.id FROM school_years p, school_years y WHERE y.id = ? AND p.start_date < y.start_date
                 ORDER BY p.start_date DESC LIMIT 1""", Long.class, year).stream().findFirst()
                 .orElseThrow(() -> new FieldValidationException("schoolYearId", "Không có năm học trước để chép"));
-        List<Long> schools = schoolsOf(request);
+        List<Long> schools = List.of(ownSchool());
         Classes mode = request.classes() == null ? Classes.PROMOTE : request.classes();
         int classes = 0;
         int staff = 0;
@@ -148,27 +142,14 @@ public class SchoolYearInitService {
         return m.matches() ? (Integer.parseInt(m.group(1)) + 1) + m.group(2) : code;
     }
 
-    private List<Long> schoolsOf(InitRequest request) {
+    private Long ownSchool() {
         RowLevelPrincipal p = principals.current().orElseThrow(() -> new AccessDeniedException("Chưa đăng nhập"));
-        if (p.schoolId() != null) {
-            if (p.campusId() != null) {
-                throw new AccessDeniedException("Tài khoản một điểm trường không khởi tạo được năm học");
-            }
-            return List.of(p.schoolId());
+        if (p.schoolId() == null) {
+            throw new AccessDeniedException("Khởi tạo năm học là việc của từng trường — Sở không khởi tạo thay");
         }
-        if (request.schoolIds() == null || request.schoolIds().isEmpty()) {
-            throw new FieldValidationException("schoolIds", "Chọn trường");
+        if (p.campusId() != null) {
+            throw new AccessDeniedException("Tài khoản một điểm trường không khởi tạo được năm học");
         }
-        Set<Long> visible = visibleSchools.current();
-        List<Long> out = new ArrayList<>();
-        for (Long id : request.schoolIds()) {
-            if (visible == null || visible.contains(id)) {
-                out.add(id);
-            }
-        }
-        if (out.isEmpty()) {
-            throw new FieldValidationException("schoolIds", "Không có trường nào trong phạm vi");
-        }
-        return out;
+        return p.schoolId();
     }
 }

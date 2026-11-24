@@ -264,7 +264,7 @@ public class AuthorityCache {
      * @param campusId    phạm vi cơ sở của tài khoản trường (270), hoặc null = cả trường. Đầu vào của phân quyền
      *                    như schoolId: đổi nó phải xoá entry này ({@code SchoolUserService.assignCampus})
      * @param version     the stamp described on {@link #versionFor(long)}
-     * @param secondFactor đã bật lớp xác thực thứ hai (ứng dụng hoặc email) — {@code AdminPortalGuard} đọc ở mỗi
+     * @param secondFactor đã bật lớp xác thực thứ hai (mã qua email) — {@code AdminPortalGuard} đọc ở mỗi
      *                    yêu cầu của tài khoản SYSTEM. Bật / tắt phát {@code AuthoritiesChanged} nên có hiệu lực ngay
      * @param loadedAt    when this was read, for the expiry
      */

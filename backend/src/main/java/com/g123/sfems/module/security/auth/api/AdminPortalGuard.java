@@ -23,7 +23,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       mang token SYSTEM — kể cả đường cũ {@code /api/**} còn chạy song song ({@code app.portal.legacy-api}), không
  *       thì đường cũ là lối vòng qua khoá.</li>
  *   <li><b>Bắt buộc lớp thứ hai</b> ({@code app.portal.admin-mfa-required}): tài khoản SYSTEM chưa bật chỉ được
- *       {@code /api/auth/**} (bật 2 lớp, hồ sơ của mình, quyền, đổi mật khẩu, đăng xuất); còn lại 403 có câu rõ.</li>
+ *       {@code /api/auth/**} (bật xác thực qua email, hồ sơ của mình, quyền, đổi mật khẩu, đăng xuất); còn lại 403 có câu rõ.</li>
  * </ul>
  *
  * <p>Không phải bean: tạo trong {@code SecurityConfig} để Spring Boot không đăng ký nó thêm một lần làm bộ lọc

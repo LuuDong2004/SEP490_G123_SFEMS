@@ -1,4 +1,4 @@
-import { useCan, useNotification } from "@refinedev/core";
+import { useNotification } from "@refinedev/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarCheck, Gauge, Loader2, LockOpen } from "lucide-react";
 import { useState } from "react";
@@ -13,16 +13,15 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
-import { PROFILE_STATUS_LABELS, type ProgressRow } from "@/domains/school-year/types";
+import { PROFILE_STATUS_LABELS } from "@/domains/school-year/types";
 
-import { InitYearDialog } from "./init-year";
 import { useYearProfile } from "./profile";
 import { yearLabel, useSchoolYear } from "@/shared/hooks/use-school-year";
 
 /**
  * Hồ sơ năm học của MỘT trường trong năm đang làm việc (năm chọn trên header) — dải nhỏ đầu trang trường khi cơ quan
- * quản lý xem: trạng thái, số điểm trường đã xác nhận, ngày chốt; mở lại năm đã chốt (có lý do), khởi tạo năm kế tiếp.
- * Thay cho màn "Tiến độ hồ sơ năm học" đã bỏ.
+ * quản lý xem: trạng thái, số điểm trường đã xác nhận, ngày chốt; mở lại năm đã chốt (có lý do). Khởi tạo năm kế tiếp là
+ * việc của trường (Hồ sơ năm học), Sở không làm thay. Thay cho màn "Tiến độ hồ sơ năm học" đã bỏ.
  */
 export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; schoolName?: string }) {
   const { open: notify } = useNotification();
@@ -33,7 +32,6 @@ export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; s
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [initOpen, setInitOpen] = useState(false);
 
   if (yearId == null) return null;
   const confirmed = p?.campuses.filter((c) => c.status === "CONFIRMED").length ?? 0;
@@ -80,16 +78,6 @@ export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; s
           Mở lại năm học
         </Button>
       ) : null}
-      {p?.canWrite && p.nextYear ? (
-        <Button type="button" variant="outline" size="sm" onClick={() => setInitOpen(true)}>
-          <CalendarCheck />
-          Khởi tạo {p.nextYear.name.replace("Năm học ", "năm học ")}
-        </Button>
-      ) : null}
-      {initOpen && p?.nextYear ? (
-        <InitYearDialog fromYear={p.schoolYearName} target={p.nextYear} schoolIds={[schoolId]}
-          onClose={() => setInitOpen(false)} onDone={() => setInitOpen(false)} />
-      ) : null}
       <AlertDialog open={reopening} onOpenChange={(o) => !o && setReopening(false)}>
         <ConfirmContent tone="warning" title={`Mở lại năm học ${yearLabel(year)}${schoolName ? ` của ${schoolName}` : ""}?`}
           description="Trường sửa được dữ liệu năm này và phải chốt lại; bản chốt cũ giữ làm lịch sử."
@@ -106,44 +94,3 @@ export function SchoolYearStatus({ schoolId, schoolName }: { schoolId: number; s
   );
 }
 
-/**
- * Nút "Khởi tạo năm học …" của cơ quan quản lý ở mục Trường học: khởi tạo năm đang làm việc (header) cho mọi trường
- * trong phạm vi (lên lớp, chép phân công, điều chỉnh từ năm liền trước). Trường đã khởi tạo thì máy chủ bỏ qua.
- */
-export function InitYearForSchoolsButton() {
-  const { open: notify } = useNotification();
-  const { year } = useSchoolYear();
-  const canInit = useCan({ resource: "school_year_profiles", action: "create" }).data?.can ?? false;
-  const [schoolIds, setSchoolIds] = useState<number[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  if (!canInit || !year) return null;
-
-  const open = async () => {
-    setLoading(true);
-    try {
-      const rows = await kyInstance.get("school_year_profiles/progress", { searchParams: { yearId: String(year.id) } }).json<ProgressRow[]>();
-      if (!rows.length) {
-        notify?.({ type: "error", message: "Chưa có trường nào để khởi tạo năm học" });
-        return;
-      }
-      setSchoolIds(rows.map((r) => r.schoolId));
-    } catch (e) {
-      notify?.({ type: "error", message: await errorMessage(e) });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <>
-      <Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void open()}>
-        {loading ? <Loader2 className="animate-spin" /> : <CalendarCheck />}
-        Khởi tạo năm học {yearLabel(year)}
-      </Button>
-      {schoolIds ? (
-        <InitYearDialog target={{ id: year.id, name: year.name }} schoolIds={schoolIds}
-          onClose={() => setSchoolIds(null)} onDone={() => setSchoolIds(null)} />
-      ) : null}
-    </>
-  );
-}

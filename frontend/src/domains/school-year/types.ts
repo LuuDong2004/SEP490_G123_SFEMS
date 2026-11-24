@@ -197,7 +197,8 @@ export type YearOverviewRow = {
   percentAdjusted: number;
   adjusted: number;
   outside: number;
-  shortageTt: number;
-  shortageAdjusted: number;
+  /** Số LOẠI còn thiếu (không phải tổng số lượng — các dòng khác đơn vị). */
+  shortItemsTt: number;
+  shortItemsAdjusted: number;
   hasEquipment: boolean;
 };

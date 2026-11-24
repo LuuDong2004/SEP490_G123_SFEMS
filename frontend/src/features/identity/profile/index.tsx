@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { TwoFactorCard } from "./mfa-card";
+import { EmailMfaCard } from "./mfa-card";
 import { NotificationPreferencesCard } from "./notification-card";
 import { SessionsCard } from "@/shared/components/security/sessions-card";
 import {
@@ -60,7 +60,7 @@ const ACTIONS = [
  */
 export const Profile = () => {
   // `?tab=security|sessions|permissions` mở đúng tab — dải nhắc bảo mật dẫn thẳng tới việc cần làm. Đổi mật khẩu và xác
-  // thực hai lớp gộp một tab "Bảo mật" (theo trưởng nhóm); liên kết cũ `?tab=password|mfa` vẫn mở tab đó.
+  // thực qua email gộp một tab "Bảo mật" (theo trưởng nhóm); liên kết cũ `?tab=password|mfa` vẫn mở tab đó.
   const [search] = useSearchParams();
   const asked = search.get("tab") ?? "";
   const initialTab = asked === "password" || asked === "mfa" ? "security"
@@ -73,9 +73,9 @@ export const Profile = () => {
   const t = useTranslate();
   const { data: mfaData } = useQuery({
     queryKey: ["auth", "mfa"],
-    queryFn: ({ signal }) => kyInstance.get("auth/mfa", { signal }).json<{ enabled: boolean }>(),
+    queryFn: ({ signal }) => kyInstance.get("auth/mfa", { signal }).json<{ email: boolean }>(),
   });
-  const mfaOn = mfaData && "enabled" in mfaData ? mfaData.enabled : undefined;
+  const mfaOn = mfaData && "email" in mfaData ? mfaData.email : undefined;
   // Tài khoản của một trường thì nói luôn trường nào.
   const { result: school } = useOne<{ id: number; name: string }>({
     resource: "schools",
@@ -112,8 +112,8 @@ export const Profile = () => {
     { icon: <KeyRound />, text: <>Được dùng <b className="font-semibold">{rows.length}</b> chức năng</> },
     {
       icon: <ShieldCheck />,
-      text: mfaOn === undefined ? "Xác thực hai yếu tố…" : mfaOn ? "Đã bật xác thực hai yếu tố" : (
-        <span className="text-warning-text">Chưa bật xác thực hai yếu tố</span>
+      text: mfaOn === undefined ? "Xác thực qua email…" : mfaOn ? "Đã bật xác thực qua email" : (
+        <span className="text-warning-text">Chưa bật xác thực qua email</span>
       ),
     },
   ];
@@ -133,7 +133,7 @@ export const Profile = () => {
               {[roleNames.join(", "), school?.name].filter(Boolean).join(" · ") || `@${identity?.username ?? ""}`}
             </p>
           </div>
-          {/* Thông tin nhanh bên phải đầu trang: tên đăng nhập, số chức năng, xác thực hai lớp (nhắc màu cam khi chưa bật). */}
+          {/* Thông tin nhanh bên phải đầu trang: tên đăng nhập, số chức năng, xác thực qua email (nhắc màu cam khi chưa bật). */}
           <div className="hidden flex-wrap justify-end gap-2 md:flex">
             <span className="bg-muted/60 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs">
               <AtSign className="text-muted-foreground size-3.5" />
@@ -148,13 +148,13 @@ export const Profile = () => {
                 ? "bg-success-subtle text-success-text flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
                 : "bg-warning-subtle text-warning-text flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"}>
                 <ShieldCheck className="size-3.5" />
-                {mfaOn ? "Đã bật xác thực hai lớp" : "Chưa bật xác thực hai lớp"}
+                {mfaOn ? "Đã bật xác thực qua email" : "Chưa bật xác thực qua email"}
               </span>
             )}
           </div>
         </div>
         <TabsList className="mx-4 mb-4">
-          {/* Mật khẩu và xác thực hai lớp chung một tab "Bảo mật"; phiên đăng nhập, quyền mỗi thứ một tab riêng. */}
+          {/* Mật khẩu và xác thực qua email chung một tab "Bảo mật"; phiên đăng nhập, quyền mỗi thứ một tab riêng. */}
           <TabsTrigger value="security" className={tab}>
             <ShieldCheck className="size-4" />
             Bảo mật
@@ -192,10 +192,10 @@ export const Profile = () => {
         </Card>
 
         <div className="min-w-0">
-          {/* Hai cột trên màn rộng: mật khẩu bên trái, hai lớp (ứng dụng, email) bên phải — xếp dọc thì nửa phải trống. */}
+          {/* Hai cột trên màn rộng: mật khẩu bên trái, xác thực qua email bên phải — xếp dọc thì nửa phải trống. */}
           <TabsContent value="security" className="mt-0 grid items-start gap-4 xl:grid-cols-2">
             <ChangePasswordCard />
-            <TwoFactorCard />
+            <EmailMfaCard />
           </TabsContent>
           <TabsContent value="sessions" className="mt-0">
             <SessionsCard source="auth/sessions" endPath={(id) => `auth/sessions/${id}`} endOthers="auth/sessions/end-others" />

@@ -22,7 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code GET /api/activity_logs} — nhật ký hoạt động, mới nhất trước. Chỉ đọc.
+ * {@code GET /api/activity_logs} — lịch sử đăng nhập, đăng xuất của tài khoản, mới nhất trước (HT-04). Chỉ đọc.
+ * Nhật ký hoạt động nói chung ngoài phạm vi (Báo cáo 1, LI-08): máy chủ chỉ trả dòng của {@code auth}.
  *
  * <p>Lọc được theo người ({@code actorName}), tài nguyên, thao tác, mã trạng
  * thái và khoảng ngày; {@code q} tìm trong đường dẫn và tên người.
@@ -63,6 +64,7 @@ public class ActivityLogController {
 
     private static Specification<ActivityLog> filters(ListParams params) {
         List<Specification<ActivityLog>> specs = new ArrayList<>();
+        specs.add((root, q, cb) -> cb.equal(root.get("resource"), "auth"));
         for (ListParams.Criterion c : params.filters()) {
             Specification<ActivityLog> spec = switch (c.field()) {
                 case "actorName" -> (root, q, cb) ->

@@ -4,7 +4,7 @@ import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { errorMessage } from "@/shared/lib/api-error";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CircleDashed, BadgeCheck, DoorOpen, Gauge, ListPlus, Hotel, IdCard, School, Warehouse, MapPin, Funnel, UsersRound, X } from "lucide-react";
+import { AlertTriangle, CalendarCheck, CircleDashed, BadgeCheck, DoorOpen, Gauge, ListPlus, Hotel, IdCard, School, Warehouse, MapPin, Funnel, UsersRound, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Badge } from "@/shared/ui/badge";
@@ -367,14 +367,16 @@ const bySchool = (id: number) => [{ field: "school.id", operator: "eq" as const,
 export type FacilityCounts = Partial<Record<"classes" | "rooms" | "buildings" | "campuses" | "works" | "staff" | "teams" | "equipment", number>>;
 
 /**
- * BỐN tab: Hồ sơ trường (TC-01), Cơ sở vật chất — phòng (TC-02), Đánh giá CSVC theo chuẩn, Nhân sự (cán bộ và
- * tổ bộ môn là cùng một nhóm người — một tab, bên trong có ô chọn nhỏ).
+ * Các tab: Hồ sơ trường (TC-01), Cơ sở vật chất — phòng (TC-02), Đánh giá CSVC theo chuẩn, Nhân sự (cán bộ và
+ * tổ bộ môn là cùng một nhóm người — một tab, bên trong có ô chọn nhỏ), và Năm học (hồ sơ năm học: xác nhận từng điểm
+ * trường, chốt năm — chỉ khi bên gọi đưa nội dung, tức tài khoản của chính trường).
  */
 const TAB_DEFS = [
   { value: "profile", label: "Hồ sơ trường", icon: School, count: null },
   { value: "facilities", label: "Cơ sở vật chất", icon: DoorOpen, count: "rooms" },
   { value: "assessment", label: "Đánh giá CSVC", icon: BadgeCheck, count: null },
   { value: "people", label: "Nhân sự", icon: IdCard, count: "staff" },
+  { value: "year", label: "Năm học", icon: CalendarCheck, count: null },
 ] as const;
 
 const FACILITY_PARTS = [
@@ -410,6 +412,7 @@ export function SchoolFacilityTabs({
   counts,
   header,
   profile,
+  year,
 }: {
   schoolId: number;
   tab: string;
@@ -419,7 +422,11 @@ export function SchoolFacilityTabs({
   header?: ReactNode;
   /** Nội dung tab Hồ sơ trường (thông tin, ban giám hiệu, quy mô) — do màn của trường dựng. */
   profile?: ReactNode;
+  /** Nội dung tab Năm học (hồ sơ năm học, chốt năm). Vắng thì không có tab này. */
+  year?: ReactNode;
 }) {
+  const tabs = TAB_DEFS.filter((t) => t.value !== "year" || year);
+  const active = groupOf(tab) === "year" && !year ? "profile" : groupOf(tab);
   const q = `?school.id=${schoolId}`;
   const campusDialog = useQuickDialog("campuses", { school: { id: schoolId } });
   const buildingDialog = useQuickDialog("buildings", { school: { id: schoolId } });
@@ -507,11 +514,11 @@ export function SchoolFacilityTabs({
       {teamDialog.element}
       <QuickAddBuildings schoolId={schoolId} onAddCampus={() => campusDialog.open()} {...quickProps("buildings")} />
       {/* Dải tab đứng đầu màn (như thanh tab của phân hệ), rồi thẻ trường, rồi nội dung của tab trên một tấm. */}
-      <Tabs value={groupOf(tab)} onValueChange={onTab} className="gap-4">
+      <Tabs value={active} onValueChange={onTab} className="gap-4">
         {/* Dải tab và tên trường chung một hàng; hẹp thì tên xuống dòng dưới. */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <TabsList>
-          {TAB_DEFS.map(({ value, label, icon: Icon, count }) => (
+          {tabs.map(({ value, label, icon: Icon, count }) => (
             <TabsTrigger
               key={value}
               value={value}
@@ -534,6 +541,11 @@ export function SchoolFacilityTabs({
         <TabsContent value="profile" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
           {profile}
         </TabsContent>
+        {year ? (
+          <TabsContent value="year" className="flex min-h-0 flex-1 flex-col pt-3">
+            {year}
+          </TabsContent>
+        ) : null}
         <TabsContent value="assessment" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
           <FacilityAssessment schoolId={schoolId} onTab={onTab} onTodo={setTodo}
             onAdd={(roomType) => roomDialog.open(undefined, { roomType })} />

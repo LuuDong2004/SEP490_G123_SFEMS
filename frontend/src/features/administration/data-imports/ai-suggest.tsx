@@ -270,9 +270,9 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                     <p className="text-sm font-semibold">Phòng còn thiếu</p>
                     <p className="text-muted-foreground text-xs">Thêm vào trang Phòng. Khối nhà, tầng, loại chép theo phòng có mã gần nhất.</p>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto [&>[data-slot=table-container]]:overflow-visible">
                     <Table className="table-fixed">
-                      <TableHeader>
+                      <TableHeader className="bg-surface-subtle sticky top-0 z-10">
                         <TableRow>
                           <TableHead className="w-11" />
                           <TableHead>Mã phòng</TableHead>
@@ -338,9 +338,9 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                         </Select>
                       ) : null}
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="min-h-0 flex-1 overflow-y-auto [&>[data-slot=table-container]]:overflow-visible">
                       <Table className="table-fixed">
-                        <TableHeader>
+                        <TableHeader className="bg-surface-subtle sticky top-0 z-10">
                           <TableRow>
                             <TableHead className="w-11" />
                             <TableHead align="right" className="w-16">Dòng</TableHead>

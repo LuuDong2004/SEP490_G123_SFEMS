@@ -26,7 +26,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>Khoá 15 phút sau 5 lần sai ({@code LoginGuard}) đếm theo TÀI KHOẢN, và tên tài khoản đoán được
  * ({@code <mã trường>.<mã cán bộ>}): một script không cần đăng nhập khoá được mọi cán bộ của thành phố, hoặc dò
  * mật khẩu yếu với 4 lần mỗi tài khoản mà không bị khoá. Đếm theo IP chặn cả hai. Chỉ đếm lần BỊ TỪ CHỐI (4xx):
- * cả trường đăng nhập buổi sáng sau cùng một IP NAT không chạm ngưỡng; bước "cần mã hai lớp" cũng là 401 nhưng
+ * cả trường đăng nhập buổi sáng sau cùng một IP NAT không chạm ngưỡng; bước "cần mã xác thực qua email" cũng là 401 nhưng
  * không phải lần sai, nên không đếm. "Quên mật khẩu" luôn trả 200 nên đếm mọi lần. Làm mới token cũng đếm: token cũ
  * bị trình lại là thứ máy chủ phải khoá dòng và đóng phiên để trả lời.
  *

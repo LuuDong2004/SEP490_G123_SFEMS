@@ -60,7 +60,7 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query("select u.status,"
             + " (select su.school.id from SchoolUser su where su.id = u.id),"
             + " (select so.managingBody.id from SoUser so where so.id = u.id),"
-            + " u.passwordChangedAt, u.mfaEnabled, u.mfaEmail,"
+            + " u.passwordChangedAt, u.mfaEmail,"
             + " (select su.campus.id from SchoolUser su where su.id = u.id)"
             + " from User u where u.id = :id")
     List<Object[]> authorityHeader(@Param("id") Long id);

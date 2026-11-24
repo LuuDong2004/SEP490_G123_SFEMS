@@ -44,8 +44,9 @@ public class YearStandardService {
     }
 
     /** Một trường trong bảng tổng hợp của Sở (lọc có điều chỉnh, có dòng ngoài thông tư, chênh lệch lớn). */
+    /** {@code shortItems…}: số LOẠI thiết bị còn thiếu — không cộng số lượng, vì các dòng khác đơn vị (ml, gam, bộ…). */
     public record OverviewRow(Long schoolId, String schoolName, String levelName, String status, int percentTt,
-            int percentAdjusted, int adjusted, int outside, int shortageTt, int shortageAdjusted, boolean hasEquipment) {
+            int percentAdjusted, int adjusted, int outside, int shortItemsTt, int shortItemsAdjusted, boolean hasEquipment) {
     }
 
     private final YearAdequacyService adequacy;
@@ -113,7 +114,7 @@ public class YearStandardService {
             }
             Totals t = YearAdequacyService.totals(r.totalRows());
             out.add(new OverviewRow(p.schoolId(), p.schoolName(), p.levelName(), p.status(), t.percentTt(),
-                    t.percentAdjusted(), t.adjusted(), t.outside(), t.shortageTt(), t.shortageAdjusted(), true));
+                    t.percentAdjusted(), t.adjusted(), t.outside(), t.counted() - t.metTt(), t.counted() - t.metAdjusted(), true));
         }
         return out;
     }

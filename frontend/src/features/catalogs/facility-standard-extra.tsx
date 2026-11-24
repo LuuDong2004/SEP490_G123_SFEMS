@@ -47,12 +47,12 @@ function RuleFields({ control, record }: { control: Control<any>; record?: Facil
         filters={[{ field: "standard", operator: "eq", value: true }, ...(level ? [{ field: "level", operator: "eq" as const, value: level }] : [])]} />
       <TextField control={control} name="minCount" label="Số phòng tối thiểu" type="number" numberRule="COUNT"
         description="Có ít nhất N phòng / hạng mục." />
-      <TextField control={control} name="countPerClass" label="Số phòng mỗi lớp" type="number" step="any"
-        numberRule="DECIMAL_QUANTITY" description="Số phòng ≥ số lớp × tỷ lệ, làm tròn lên." />
+      <TextField control={control} name="countPerClass" label="Số phòng theo số lớp" type="number" step="any"
+        numberRule="DECIMAL_QUANTITY" description="Số phòng cho mỗi lớp. Ví dụ 0,1 là 1 phòng cho 10 lớp, 0,6 là 3 phòng cho 5 lớp." />
       <TextField control={control} name="minRoomArea" label="Diện tích mỗi phòng (m²)" type="number" step="any"
         numberRule="DECIMAL_QUANTITY" description="Mỗi phòng không nhỏ hơn." />
-      <TextField control={control} name="areaPerStudent" label="Diện tích mỗi học sinh (m²)" type="number" step="any"
-        numberRule="DECIMAL_QUANTITY" description="Tổng diện tích ≥ số học sinh × số này." />
+      <TextField control={control} name="areaPerStudent" label="Diện tích theo số học sinh (m²)" type="number" step="any"
+        numberRule="DECIMAL_QUANTITY" description="Số m² cho mỗi học sinh. Ví dụ 0,6: trường 1.200 học sinh cần 720 m²." />
       <TextField control={control} name="minTotalArea" label="Tổng diện tích tối thiểu (m²)" type="number" step="any"
         numberRule="DECIMAL_QUANTITY" description="Tổng diện tích các phòng không nhỏ hơn." />
       <TextField control={control} name="legalBasis" label="Văn bản căn cứ" rule="SHORT_TEXT" className="col-span-2"

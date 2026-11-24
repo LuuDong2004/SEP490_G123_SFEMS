@@ -3,7 +3,7 @@ import type { Control } from "react-hook-form";
 
 import { Badge } from "@/shared/ui/badge";
 import { SwitchRow } from "@/shared/components/form/switch-row";
-import { formatPlainDate } from "@/shared/lib/format";
+import { formatPlainDate, todayLocal } from "@/shared/lib/format";
 import { Input } from "@/shared/ui/input";
 import { DateInput } from "@/shared/components/form/date-input";
 import {
@@ -255,9 +255,11 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
     ],
   },
   school_years: {
+    // Năm học chỉ cần cờ Hiện hành: cờ Đang hoạt động không có nghĩa với năm học.
+    hideActive: true,
     section: { title: "Thời gian" },
     defaults: { startDate: null, endDate: null, current: false },
-    Fields: ({ control }) => (
+    Fields: ({ control, record }) => (
       <div className="form-flow">
         <DateField control={control} name="startDate" label="Ngày bắt đầu" />
         <DateField control={control} name="endDate" label="Ngày kết thúc"
@@ -267,10 +269,20 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         <FormField
           control={control}
           name="current"
+          // Cùng quy tắc `SchoolYearService.requireNotEnded`: năm đã kết thúc không làm hiện hành được.
+          rules={{
+            deps: ["endDate"],
+            validate: (v, values) => {
+              const end = values?.endDate ? String(values.endDate) : null;
+              const unchanged = record?.current === true && end === record?.endDate;
+              return !v || !end || unchanged || end >= todayLocal() || "Năm học đã kết thúc, không chọn làm năm hiện hành được";
+            },
+          }}
           render={({ field }) => (
             <FormItem className="@md:col-span-2">
               <SwitchRow checked={field.value ?? false} onCheckedChange={field.onChange} title="Năm học hiện hành"
-                description="Chỉ một năm được chọn. Chọn năm này thì năm cũ tự bỏ." />
+                description="Chỉ một năm được chọn. Chọn năm này thì năm cũ tự bỏ. Năm đã kết thúc không chọn được." />
+              <FormMessage />
             </FormItem>
           )}
         />

@@ -31,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  *       trường tự chuyển phòng trên hồ sơ thiết bị (hệ thống chưa có phiếu cấp phát nội bộ);</li>
  *   <li><b>Đưa vào đề xuất mua sắm</b> đúng số thiếu (theo điều chỉnh), lúc nào cũng lập được; dòng ngoài thông tư lấy nhu
  *       cầu trường nhập và gắn nhãn riêng. Mỗi dòng lưu căn cứ ({@code proposal_standard_traces}) để kế hoạch truy ngược
- *       (bước 7). Chỉ TRÌNH được khi năm học đã chốt ({@link ProposalYearGuard}).</li>
+ *       (bước 7). Trình lúc nào cũng được; năm học chưa chốt thì căn cứ mang cờ {@code yearClosed = false} để màn hình
+ *       gắn nhãn "Năm học chưa chốt" — số thiếu còn đổi được (trưởng nhóm 23/11/2026, bỏ luật chặn của 20/11).</li>
  * </ul>
  */
 @Service
@@ -53,7 +54,9 @@ public class YearGapService {
     public record Trace(Long proposalId, String proposalCode, String schoolName, String schoolYearName, Long catalogId,
             String catalogCode, String catalogName, String campusName, String normCode, int quantity, Integer requiredTt,
             Integer requiredAdjusted, Integer current, String adjustKind, String adjustReason, String basisText,
-            boolean outsideStandard) {
+            boolean outsideStandard,
+            /** Năm học của dòng đã chốt chưa — chưa chốt thì số thiếu còn đổi được; màn hình gắn nhãn, không chặn trình. */
+            boolean yearClosed) {
     }
 
     private final JdbcTemplate jdbc;
@@ -180,7 +183,9 @@ public class YearGapService {
         String where = proposalId != null ? "p.id = ?" : "p.plan_id = ?";
         return jdbc.query("""
                 SELECT t.*, p.code AS proposal_code, s.name AS school_name, y.name AS year_name, c.code AS catalog_code,
-                       c.name AS catalog_name
+                       c.name AS catalog_name,
+                       EXISTS (SELECT 1 FROM school_year_closings yc WHERE yc.school_id = t.school_id
+                               AND yc.school_year_id = t.school_year_id AND yc.status = 'CLOSED') AS year_closed
                 FROM proposal_standard_traces t JOIN purchase_proposals p ON p.id = t.proposal_id
                 JOIN schools s ON s.id = t.school_id JOIN school_years y ON y.id = t.school_year_id
                 JOIN equipment_catalogs c ON c.id = t.catalog_id
@@ -191,7 +196,8 @@ public class YearGapService {
                 rs.getString("campus_name"), rs.getString("norm_code"), rs.getInt("quantity"),
                 (Integer) rs.getObject("required_tt"), (Integer) rs.getObject("required_adjusted"),
                 (Integer) rs.getObject("current_qty"), rs.getString("adjust_kind"), rs.getString("adjust_reason"),
-                rs.getString("basis_text"), rs.getBoolean("outside_standard")), proposalId != null ? proposalId : planId);
+                rs.getString("basis_text"), rs.getBoolean("outside_standard"), rs.getBoolean("year_closed")),
+                proposalId != null ? proposalId : planId);
     }
 
     private Long ownSchool() {

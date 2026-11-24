@@ -475,7 +475,7 @@ public class Equipment extends SchoolOwnedEntity {
     }
 
     /** Mã chuẩn của Sở: {@code TT.TR.MH.LT.ST.NC}, vd. {@code 79.A1.08.TB.01.25}. */
-    public static final Pattern STANDARD_CODE = Pattern.compile("^\\d{2}\\.[A-Z0-9]{2}\\.\\d{2}\\.(TB|PM|HL)\\.\\d{3}\\.\\d{2}$");
+    public static final Pattern STANDARD_CODE = Pattern.compile("^\\d{2}\\.[A-Z0-9]{2}\\.\\d{2}\\.(TB|PM|HL)\\.\\d{3,4}\\.\\d{2}$");
     /**
      * Thiết bị tính là HỎNG ở mọi số đếm: tình trạng Hỏng, hoặc trạng thái đang ở khâu hỏng / sửa / bảo hành.
      * Tình trạng Kém là xuống cấp, không tính hỏng. Bảo trì không tính: thiết bị vẫn dùng được.
@@ -488,7 +488,7 @@ public class Equipment extends SchoolOwnedEntity {
                 + "status IN ('BROKEN', 'UNREPAIRABLE', 'REPAIRING', 'WARRANTY'))";
     }
 
-    public static final String STANDARD_CODE_SQL = "^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.(TB|PM|HL)\\.[0-9]{3}\\.[0-9]{2}$";
+    public static final String STANDARD_CODE_SQL = "^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.(TB|PM|HL)\\.[0-9]{3,4}\\.[0-9]{2}$";
 
     /**
      * Hồ sơ còn thiếu gì — TÍNH RA, không lưu. Rỗng là hồ sơ chuẩn.

@@ -1,8 +1,7 @@
 import { useCan, useCustom } from "@refinedev/core";
-import { ChevronRight, LayoutGrid, List, ListTree, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 
 import { Button } from "@/shared/ui/button";
 import { FillBox } from "@/shared/components/layout/fill-box";
@@ -10,8 +9,6 @@ import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { ToggleGroup, ToggleGroupItem } from "@/shared/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { customResult } from "@/shared/hooks/use-custom-result";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
@@ -38,7 +35,7 @@ import {
   type TreeNode,
 } from "@/features/organization/explorer/tree";
 import { SchoolDialog } from "@/features/organization/schools/school-dialog";
-import { InitYearForSchoolsButton } from "@/features/organization/school-year/year-status";
+import { SchoolViewSwitch } from "@/features/organization/schools/school-view-switch";
 import { SchoolWorkspace } from "@/features/organization/explorer/school-workspace";
 
 type Overview = {
@@ -266,43 +263,8 @@ export function SchoolExplorer() {
           <div className="flex items-center gap-2 sm:ms-auto">
             {/* Cách hiển thị là thiết lập của cả bảng — đứng mép phải như nút chọn chế độ xem ở các màn khác,
                 không chen giữa ô tìm và ô sắp xếp. */}
-            {/* Ba cách xem trường chung một khung: cây, khối (ngay tại đây) và bảng toàn bộ trường (màn /schools). */}
-            <div className="bg-muted/60 flex h-8 items-center gap-0.5 rounded-lg border p-0.5">
-              <ToggleGroup
-                type="single"
-                size="sm"
-                value={view}
-                onValueChange={(v) => {
-                  if (!v) return;
-                  setView(v as View);
-                  setBodyPage(1);
-                }}
-                className="h-full"
-              >
-                <ToggleGroupItem value="tree" aria-label="Dạng cây" title="Dạng cây" className="h-full rounded-md px-2.5 data-[state=on]:bg-card data-[state=on]:shadow-e1">
-                  <ListTree />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="grid" aria-label="Dạng khối" title="Dạng khối" className="h-full rounded-md px-2.5 data-[state=on]:bg-card data-[state=on]:shadow-e1">
-                  <LayoutGrid />
-                </ToggleGroupItem>
-              </ToggleGroup>
-              {mayListSchools ? (
-                <>
-                  <span aria-hidden className="bg-border mx-0.5 h-4 w-px" />
-                  <Tooltip delayDuration={200}>
-                    <TooltipTrigger asChild>
-                      <Link to="/schools" aria-label="Danh sách trường"
-                        className="text-muted-foreground hover:bg-card/70 hover:text-foreground focus-visible:ring-ring/50 inline-flex h-full items-center rounded-md px-2.5 outline-none focus-visible:ring-[3px] [&_svg]:size-4">
-                        <List />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" sideOffset={4} tone="light" className="font-medium">Danh sách trường</TooltipContent>
-                  </Tooltip>
-                </>
-              ) : null}
-            </div>
-            {/* Danh mục cơ quan quản lý là tab "Cơ quan quản lý" ngay bên cạnh — không lặp lại bằng một nút. */}
-            <InitYearForSchoolsButton />
+            <SchoolViewSwitch current={view} showList={mayListSchools}
+              onPick={(v) => { setView(v); setBodyPage(1); }} />
             {mayCreateSchool ? (
               <Button size="sm" onClick={() => setDialog(true)}>
                 Thêm trường

@@ -15,7 +15,7 @@ import { VoucherFormPage } from "@/shared/components/voucher/voucher-form-page";
 import { VoucherList } from "@/shared/components/voucher/voucher-list";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
 import { LineDetailsButton, lineDetailsText } from "@/shared/components/voucher/voucher-details";
-import { StandardTraceBlock } from "../school-year/standard-trace";
+import { StandardTraceBlock, useStandardTraces } from "../school-year/standard-trace";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatPlainDate, todayLocal } from "@/shared/lib/format";
@@ -512,6 +512,10 @@ export const PurchaseProposalShow = () => {
   // Người duyệt thấy thiết bị nào đang được xin ở đề xuất khác — chỉ khi phiếu còn chờ quyết định.
   const deciding = record?.status === "DRAFT" || record?.status === "PENDING";
   const overlaps = useProposalOverlaps(record?.school?.id, record?.id, !!record && deciding);
+  // Lập từ chuẩn tối thiểu của một năm học CHƯA CHỐT: trình vẫn được (bỏ luật chặn 20/11 — trưởng nhóm 23/11/2026),
+  // nhưng hộp trình nói trước để người trình biết số thiếu còn có thể đổi.
+  const { data: traces } = useStandardTraces({ proposalId: record?.id });
+  const openYear = traces?.find((t) => !t.yearClosed)?.schoolYearName;
   return (
     <VoucherShowShell
       resource={RESOURCE}
@@ -553,6 +557,19 @@ export const PurchaseProposalShow = () => {
       ]}
       actions={{
         text: {
+          ...(openYear ? {
+            submit: {
+              description: (
+                <div className="grid gap-1.5">
+                  <div>Phiếu được chuyển tới người duyệt. Trong lúc chờ duyệt thì không sửa được.</div>
+                  <div className="text-warning-text">
+                    {openYear} trường chưa chốt, nên số thiếu trong đề xuất có thể còn đổi. Phiếu sẽ mang nhãn
+                    "Năm học chưa chốt" để người duyệt biết.
+                  </div>
+                </div>
+              ),
+            },
+          } : {}),
           approve: { description: "Lãnh đạo trường xác nhận nhu cầu. Cơ quan quản lý đồng ý đưa vào kế hoạch mua sắm." },
           reject: { description: "Đề xuất dừng hẳn. Còn nhu cầu thì trường lập đề xuất mới." },
         },

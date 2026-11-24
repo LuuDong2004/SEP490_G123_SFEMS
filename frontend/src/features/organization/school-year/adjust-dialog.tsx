@@ -1,17 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { History, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useForm, type FieldValues } from "react-hook-form";
 
 import { kyInstance } from "@/shared/api/data";
-import { TextareaField, TextField } from "@/shared/components/form/simple-fields";
+import { FormHint } from "@/shared/components/form/help-hint";
+import { TextareaField } from "@/shared/components/form/simple-fields";
 import { LoadingText } from "@/shared/components/spinner";
 import { EmptyState } from "@/shared/components/data-table/table-empty";
 import { errorMessage } from "@/shared/lib/api-error";
+import { mergeRules, numberRules } from "@/shared/lib/field-rules";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
-import { Form } from "@/shared/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
+import { Input } from "@/shared/ui/input";
 import { SCHOOL_ADJUST_LABELS, type SchoolAdjustKind, type YearRow } from "@/domains/school-year/types";
 
 const ACTIONS: Record<string, string> = {
@@ -55,38 +58,60 @@ export function AdjustDialog({ row, yearId, campusId, onClose, onSaved }: {
       setError(await errorMessage(e));
     }
   });
+  const unit = row.unitName ?? "";
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle className="pe-6">{SCHOOL_ADJUST_LABELS[kind]}: {row.name}</DialogTitle>
+          <DialogTitle className="pe-6 leading-snug">{SCHOOL_ADJUST_LABELS[kind]}: {row.name}</DialogTitle>
+          <DialogDescription>{KIND_HELP[kind]}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={(e) => void submit(e)} className="grid items-start gap-x-4 gap-y-5">
-            <dl className="bg-surface grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border px-4 py-3 text-sm">
-              <dt className="text-muted-foreground">Theo thông tư</dt>
-              <dd className="tabular-nums">{row.requiredTt ?? "—"} {row.unitName ?? ""}</dd>
-              {row.allowedText ? (<><dt className="text-muted-foreground">Sở cho</dt><dd>{row.allowedText}</dd></>) : null}
-              {row.basisText ? (<><dt className="text-muted-foreground">Căn cứ</dt><dd className="italic">{row.basisText}</dd></>) : null}
+          {/* Không `items-start`: CSS chung của hộp (`.dialog-fixed > form`) biến form thành cột flex, `items-start` làm
+              mọi ô co lại bằng nội dung (ô số, ô lý do hẹp như cái tem). Để mặc định thì ô trải hết bề ngang hộp. */}
+          <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
+            <dl className="bg-surface-subtle divide-y rounded-lg border text-sm">
+              <Fact label="Theo thông tư">
+                <span className="text-base font-semibold tabular-nums">{row.requiredTt ?? "—"}</span> {unit}
+              </Fact>
+              {row.allowedText ? <Fact label="Sở cho">{row.allowedText}</Fact> : null}
+              {row.basisText ? <Fact label="Căn cứ"><span className="italic">{row.basisText}</span></Fact> : null}
             </dl>
             {kind === "OUTSIDE" ? (
-              <TextField control={form.control} name="outsideNeed" label="Nhu cầu thực tế ngoài thông tư" type="number"
-                numberRule="QUANTITY" rules={{ required: "Vui lòng nhập nhu cầu thực tế" }} className="max-w-[12rem]" />
+              <FormField control={form.control} name="outsideNeed"
+                rules={mergeRules(numberRules("QUANTITY", "Nhu cầu thực tế"), { required: "Vui lòng nhập nhu cầu thực tế" })}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nhu cầu thực tế</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input type="number" inputMode="numeric" min={1} className="w-36 tabular-nums" placeholder="Ví dụ 10"
+                          value={field.value ?? ""} name={field.name} ref={field.ref} onBlur={field.onBlur}
+                          onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
+                      </FormControl>
+                      {unit ? <span className="text-muted-foreground text-sm">{unit}</span> : null}
+                    </div>
+                    <FormHint>
+                      Số lượng trường thực sự cần. Mức theo thông tư ({row.requiredTt ?? "—"} {unit}) giữ nguyên, số này hiện ở
+                      cột Ngoài TT để Sở xem xét.
+                    </FormHint>
+                    <FormMessage />
+                  </FormItem>
+                )} />
             ) : null}
             {/* Thay bằng thiết bị của danh mục: máy chủ kiểm trên sổ; hình thức khác thì trường xác nhận. */}
             {kind === "SUBSTITUTE" && !row.allowedText?.startsWith("Thay bằng thiết bị") ? (
-              <label className="flex items-center gap-3 text-sm">
+              <label className="bg-surface-subtle flex items-center gap-3 rounded-lg border px-4 py-3 text-sm">
                 <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} />
                 Trường đã có thứ thay thế
               </label>
             ) : null}
-            {kind === "CHOOSE_IN_GROUP" ? (
-              <p className="text-sm">Chọn thiết bị này; thiết bị khác cùng nhóm chưa chọn về 0.</p>
-            ) : null}
-            <TextareaField control={form.control} name="reason" label="Lý do" rule="LONG_TEXT" max={1000} rows={2}
+            <TextareaField control={form.control} name="reason" label="Lý do" rule="LONG_TEXT" max={1000} rows={3}
+              className="max-w-none @2xl:max-w-none @4xl:max-w-none"
+              placeholder={kind === "OUTSIDE" ? "Ví dụ: trường có 10 lớp học thực hành, mỗi lớp cần một bộ" : "Ghi rõ vì sao trường điều chỉnh"}
               rules={{ required: "Vui lòng nhập lý do" }} />
-            {error ? <p className="text-destructive-text text-sm">{error}</p> : null}
-            <DialogFooter className="justify-self-end">
+            {error ? <p className="text-destructive-text text-sm" role="alert">{error}</p> : null}
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : null}
@@ -97,6 +122,24 @@ export function AdjustDialog({ row, yearId, campusId, onClose, onSaved }: {
         </Form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Một câu nói hình thức điều chỉnh làm gì — đặt dưới tiêu đề hộp. */
+const KIND_HELP: Record<SchoolAdjustKind, string> = {
+  OUTSIDE: "Sở không cho điều chỉnh thiết bị này. Trường ghi nhu cầu thực tế kèm lý do để Sở xem xét.",
+  REDUCE: "Trường cần ít hơn mức thông tư, trong giới hạn Sở cho.",
+  SUBSTITUTE: "Trường dùng thứ khác thay cho thiết bị này, không cần mua theo thông tư.",
+  SHARED: "Trường dùng chung thiết bị đã có trên sổ, không cần mua riêng.",
+  CHOOSE_IN_GROUP: "Trường chọn thiết bị này trong nhóm. Các thiết bị khác cùng nhóm chưa chọn tính về 0.",
+};
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-4 py-2.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{children}</dd>
+    </div>
   );
 }
 

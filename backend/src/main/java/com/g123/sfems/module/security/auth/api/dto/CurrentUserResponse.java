@@ -2,7 +2,6 @@ package com.g123.sfems.module.security.auth.api.dto;
 
 import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.domain.security.user.User;
-import com.g123.sfems.module.security.user.service.MfaService;
 import com.g123.sfems.shared.security.AdminPortalPolicy;
 import java.time.Instant;
 
@@ -28,11 +27,7 @@ public record CurrentUserResponse(
         String fullName,
         /** Loại tài khoản — khung giao diện người dùng được vào (docs/kien-truc/11). */
         UserType userType,
-        /** Đã bật xác thực hai yếu tố. */
-        boolean mfaEnabled,
-        /** Tài khoản đặc quyền — phải bật; màn hình nhắc cho tới khi bật. */
-        boolean mfaRequired,
-        /** Đã có lớp xác thực thứ hai nào chưa — ứng dụng (TOTP) hoặc mã qua email. */
+        /** Đã bật lớp xác thực thứ hai (mã qua email) chưa. */
         boolean secondFactor,
         /** Lần đổi mật khẩu gần nhất — màn hình nhắc đổi khi quá lâu. */
         Instant passwordChangedAt,
@@ -44,15 +39,13 @@ public record CurrentUserResponse(
 
     /** @param adminPortal luật cổng Admin — để biết tài khoản này còn phải bật lớp thứ hai không */
     public static CurrentUserResponse from(User user, AdminPortalPolicy adminPortal) {
-        boolean secondFactor = user.isMfaEnabled() || user.isMfaEmail();
+        boolean secondFactor = user.isMfaEmail();
         return new CurrentUserResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
                 user.getUserType(),
-                user.isMfaEnabled(),
-                MfaService.required(user),
                 secondFactor,
                 user.getPasswordChangedAt(),
                 adminPortal.secondFactorMissing(user.getUserType(), secondFactor));

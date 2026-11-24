@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>TR — mã EMIS 2 ký tự của trường</li>
  *   <li>MH — mã môn dạy học của môn gắn với nhóm thiết bị; nhóm không gắn môn → 00</li>
  *   <li>LT — TB (vật lý), PM (thiết bị số / phần mềm), HL (hệ thống hỗ trợ học tập)</li>
- *   <li>ST — số thứ tự 001..999 (ba chữ số), đếm riêng theo từng bộ TT.TR.MH.LT.NC trong trường</li>
+ *   <li>ST — số thứ tự 0001..9999 (bốn chữ số), đếm riêng theo từng bộ TT.TR.MH.LT.NC trong trường</li>
  *   <li>NC — 2 số cuối năm cấp phát: ngày tiếp nhận, không có thì ngày mua, không có nữa thì năm nay</li>
  * </ul>
  *
@@ -40,8 +40,8 @@ public class EquipmentCodeService {
     private static final Pattern TWO_DIGITS = Pattern.compile("\\d{2}");
     private static final Pattern SCHOOL_CODE = Pattern.compile("[A-Z0-9]{2}");
     private static final String SHARED_SUBJECT = "00";
-    /** Ba chữ số: 999 tài sản một bộ đếm một năm (trước 082 là hai chữ số, 99 — không đủ cho một lần mua bàn ghế). */
-    private static final int LAST_SEQUENCE = 999;
+    /** Bốn chữ số: 9.999 tài sản một bộ đếm một năm — trường lớn có hơn 999 bàn ghế quản lý từng cái. */
+    private static final int LAST_SEQUENCE = 9999;
 
     private final JdbcTemplate jdbc;
     private final String province;
@@ -61,7 +61,7 @@ public class EquipmentCodeService {
 
         String format(int number) {
             return province + "." + school + "." + subject + "." + type + "."
-                    + String.format("%03d", number) + "." + year;
+                    + String.format("%04d", number) + "." + year;
         }
 
         /** Bộ mã như người dùng nhìn thấy, số thứ tự để trống: {@code 79.JP.00.TB.xx.26}. */
@@ -141,7 +141,7 @@ public class EquipmentCodeService {
     /**
      * Chốt {@code count} số liền nhau trong MỘT câu (cộng bộ đếm một lần, nhận số cuối) — cho một dòng
      * phiếu nhập sinh hàng trăm tài sản cùng bộ mã. Gọi {@link #reserve} từng cái là mỗi tài sản một
-     * lượt đi về, và dòng bộ đếm bị khoá suốt cả loạt. Rỗng khi khối số vượt quá 999 (người gọi
+     * lượt đi về, và dòng bộ đếm bị khoá suốt cả loạt. Rỗng khi khối số vượt quá 9999 (người gọi
      * từ chối, giao dịch lùi lại nên bộ đếm không nhảy).
      */
     @Transactional

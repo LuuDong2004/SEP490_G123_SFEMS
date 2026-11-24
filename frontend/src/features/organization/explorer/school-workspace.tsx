@@ -14,6 +14,7 @@ import { SchoolInfoSections, type OwnProfileField, type SchoolPerson } from "@/f
 import { SchoolFacilityTabs, UncertainDepartment, type SchoolStats } from "@/features/organization/explorer/panels";
 import { FacilityInfoPanel, useFacilityInfo } from "@/features/organization/explorer/facility-info";
 import { SchoolYearStatus } from "@/features/organization/school-year/year-status";
+import { SchoolYearProfileBody } from "@/features/organization/school-year/profile";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -29,6 +30,7 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
   onTab?: (tab: string) => void;
 }) {
   const id = stats.id!;
+  const own = currentPortal() === "school";
   const [savedTab, setSavedTab] = usePersistentState("explorer.schoolTab", "profile");
   const tab = tabProp ?? savedTab;
   const setTab = onTab ?? setSavedTab;
@@ -68,9 +70,9 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
 
       <SchoolDialog open={editOpen} id={id} onOpenChange={setEditOpen} />
 
-      {/* Cơ quan quản lý xem một trường: hồ sơ năm học của trường trong năm đang làm việc (mở lại, khởi tạo năm kế).
-          Tài khoản trường có màn Hồ sơ năm học riêng. */}
-      {currentPortal() !== "school" ? <SchoolYearStatus schoolId={id} schoolName={stats.name} /> : null}
+      {/* Cơ quan quản lý xem một trường: dải trạng thái hồ sơ năm học của trường trong năm đang làm việc (mở lại năm đã
+          chốt). Tài khoản trường làm hồ sơ năm học ở tab "Năm học" bên dưới. */}
+      {own ? null : <SchoolYearStatus schoolId={id} schoolName={stats.name} />}
 
       {/* Dải tab đứng đầu, thẻ trường nằm dưới nó, nội dung của tab trên một tấm (trong SchoolFacilityTabs). */}
       <SchoolFacilityTabs
@@ -80,6 +82,9 @@ export function SchoolWorkspace({ stats, tab: tabProp, onTab }: {
         // Không vẽ thẻ / dòng tên trường: người dùng đã chọn trường mới vào màn này (tên ở đường dẫn, ở đầu hồ sơ).
         // Vẫn giữ h1 ẩn — tiêu đề của cả màn cho trình đọc màn hình (E2E-28).
         header={<h1 className="sr-only">{stats.name}</h1>}
+        // Hồ sơ năm học (xác nhận điểm trường, chốt năm) là dữ liệu của trường — tab của màn Trường học, chỉ ở tài khoản
+        // của chính trường (cơ quan quản lý thấy dải trạng thái ở trên).
+        year={own ? <SchoolYearProfileBody /> : undefined}
         profile={
           // Hồ sơ trường: đầu hồ sơ (ảnh, tên, nút Sửa), dải quy mô, rồi các khối cùng một dáng xếp lưới hai cột —
           // Thông tin trường, Địa bàn, Số liệu chung CSVC, Cơ sở, Ban giám hiệu. Không thẻ lồng thẻ.

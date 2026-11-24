@@ -26,7 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * Cổng API theo loại tài khoản (docs/kien-truc/11): bảng phân cổng phủ mọi controller, đúng loại thì qua, sai loại
  * bị 403 trước mọi kiểm quyền; phương thức không mở ở cổng thì không có đường.
  */
-// Bắt buộc 2 lớp cho Admin tắt ở đây: admin demo chưa bật, test này chỉ kiểm chặn cổng theo loại (AdminPortalTest kiểm 2 lớp).
+// Bắt buộc xác thực qua email cho Admin tắt ở đây: admin demo chưa bật, test này chỉ kiểm chặn cổng theo loại (AdminPortalTest kiểm xác thực qua email).
 @SpringBootTest(properties = "app.portal.admin-mfa-required=false")
 class PortalGateTest {
 

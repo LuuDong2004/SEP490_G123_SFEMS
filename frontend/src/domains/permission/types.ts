@@ -8,6 +8,8 @@
  * any role granting it, a role's grants do not exist without the catalogue.
  */
 
+import { PORTAL_OF, portalAllows, type UserType } from "@/domains/portal/types";
+
 /** Phạm vi của quyền (docs/kien-truc/11 §11) — `PermissionScope` của máy chủ. */
 export type PermissionScope = "SYSTEM" | "ORGANIZATION" | "COMMON";
 
@@ -17,10 +19,33 @@ export const SCOPE_LABELS: Record<PermissionScope, string> = {
   COMMON: "Dùng chung",
 };
 
-/** Vai loại `roleType` có được mang quyền phạm vi `scope` không — như `PermissionScope.fits`. */
-export function scopeFits(scope: PermissionScope, roleType: string): boolean {
-  // Quản trị mang được mọi quyền (dùng được toàn bộ chức năng); vai Sở / UBND / trường không mang quyền quản trị.
-  return scope !== "SYSTEM" || roleType === "SYSTEM";
+/** Quyền đặt tên khác đoạn đường dẫn gác nó — như `PermissionGrants` của máy chủ. */
+const SEGMENT: Record<string, string> = { staff_accounts: "staff" };
+
+/**
+ * Vai loại `roleType` có mang được quyền này không — như `PermissionGrants.grantable` của máy chủ: vai chỉ mang quyền
+ * mà cổng của loại tài khoản đó mở. Vai quản trị vì vậy chỉ xem, xuất dữ liệu nghiệp vụ (Báo cáo 3 mục 4.4).
+ */
+export function grantable(permission: { code: string; scope: PermissionScope }, roleType: string): boolean {
+  if (permission.scope === "SYSTEM" && roleType !== "SYSTEM") return false;
+  if (permission.code === "school_year_profiles:confirm") return roleType === "SCHOOL";
+  const [resource, action] = permission.code.split(":");
+  return portalAllows(PORTAL_OF[roleType as UserType] ?? null, `${SEGMENT[resource] ?? resource}:${action}`);
+}
+
+/** Phiếu có bước duyệt: một vai không vừa lập vừa duyệt cùng loại phiếu (GBR-07). */
+const VOUCHERS: Record<string, string> = {
+  equipment_intakes: "Phiếu ghi tăng",
+  inventory_sessions: "Phiếu kiểm kê",
+  purchase_proposals: "Đề xuất mua sắm",
+  procurement_plans: "Kế hoạch mua sắm",
+};
+
+/** Tên các loại phiếu mà bộ quyền này vừa lập vừa duyệt; rỗng là hợp lệ. */
+export function selfApproving(codes: Set<string>): string[] {
+  return Object.entries(VOUCHERS)
+    .filter(([r]) => codes.has(`${r}:write`) && codes.has(`${r}:approve`))
+    .map(([, label]) => label);
 }
 
 export type Permission = {
@@ -87,7 +112,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   education_levels: "Cấp học",
   tasks: "Công việc",
   acquisition_methods: "Hình thức mua sắm",
-  activity_logs: "Nhật ký hoạt động",
+  activity_logs: "Lịch sử đăng nhập",
   buildings: "Khối nhà",
   campuses: "Cơ sở",
   code_rules: "Quy tắc sinh mã của danh mục chung",
@@ -121,7 +146,6 @@ const RESOURCE_LABELS: Record<string, string> = {
   subject_teams: "Tổ bộ môn",
   subjects: "Môn học",
   ai_settings: "Cấu hình AI",
-  system_status: "Tình trạng hệ thống",
   units: "Đơn vị tính",
   wards: "Phường/xã",
 };

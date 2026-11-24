@@ -48,7 +48,9 @@ public class OnboardingController {
     public record RowPatch(Map<String, String> data, Boolean skipped) {
     }
 
-    public record NewRow(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, Map<String, String> data) {
+    /** {@code source}: tay (mặc định), {@code rule} — sửa nhanh, {@code ai}. */
+    public record NewRow(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, Map<String, String> data,
+            String source) {
     }
 
     public record RowEdits(@Valid List<OnboardingService.RowEdit> edits) {
@@ -175,7 +177,7 @@ public class OnboardingController {
     @PostMapping("/{id}/rows")
     @PreAuthorize("hasAuthority('data_imports:write')")
     public OnboardingService.Batch addRow(@PathVariable long id, @Valid @RequestBody NewRow row) {
-        return service.addRow(id, row.sheet(), row.data());
+        return service.addRow(id, row.sheet(), row.data(), row.source());
     }
 
     /** Xoá hẳn các dòng khỏi lô — chỉ lô chưa ghi. */
@@ -195,6 +197,14 @@ public class OnboardingController {
     @PreAuthorize("hasAuthority('data_imports:write')")
     public OnboardingService.Batch commit(@PathVariable long id) {
         return service.commit(id);
+    }
+
+    /** Tiến độ lượt ghi đang chạy — màn hình hỏi mỗi giây khi đang chờ "Cập nhật". Không có lượt nào thì trả rỗng. */
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("hasAuthority('data_imports:read')")
+    public ResponseEntity<OnboardingService.Progress> progress(@PathVariable long id) {
+        OnboardingService.Progress p = service.progress(id);
+        return p == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(p);
     }
 
     @PostMapping("/{id}/rollback")

@@ -175,7 +175,7 @@ const base = createSimpleRestDataProvider({
 
         /**
          * Cổng Admin cách ly: máy chủ trả 403 `adminBlock: "mfa"` khi tài khoản quản trị không còn lớp thứ hai (vd. bị
-         * đặt lại trong lúc đang mở) — ghi lại danh tính rồi tải lại, giao diện chỉ còn màn bật 2 lớp.
+         * đặt lại trong lúc đang mở) — ghi lại danh tính rồi tải lại, giao diện chỉ còn màn bật xác thực qua email.
          */
         async (_request, _options, response) => {
           if (response.status !== 403) return response;

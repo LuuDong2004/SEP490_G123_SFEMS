@@ -144,10 +144,4 @@ public class UserController {
     public Map<String, Object> endSession(@PathVariable Long id, @PathVariable String sessionId) {
         return Map.of("success", service.endSession(id, sessionId));
     }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('" + Permissions.USERS_DELETE + "')")
-    public UserResponse delete(@PathVariable Long id) {
-        return UserResponse.from(service.delete(id));
-    }
 }

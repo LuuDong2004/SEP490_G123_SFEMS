@@ -21,8 +21,8 @@ import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Cổng Admin khi TẮT bắt buộc 2 lớp ({@code app.portal.admin-mfa-required=false}, máy dev) và không giới hạn IP:
- * tài khoản quản trị chưa bật 2 lớp vẫn dùng được cổng Admin. Cùng thuộc tính với {@code PortalGateTest} để dùng
+ * Cổng Admin khi TẮT bắt buộc xác thực qua email ({@code app.portal.admin-mfa-required=false}, máy dev) và không giới hạn IP:
+ * tài khoản quản trị chưa bật xác thực qua email vẫn dùng được cổng Admin. Cùng thuộc tính với {@code PortalGateTest} để dùng
  * chung một context.
  */
 @SpringBootTest(properties = "app.portal.admin-mfa-required=false")

@@ -28,8 +28,8 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "row_level_policies": { read: ["admin"], write: ["admin"] },
   "ai_settings": { read: ["admin"], write: ["admin"] },
   "data_changes": { read: ["admin"], write: ["admin"] },
-  "system_status": { read: ["admin"], write: ["admin"] },
   "notification_type_settings": { read: ["admin"], write: ["admin"] },
+  "mail_config": { read: ["admin"], write: ["admin"] },
   "approval_flows": { read: ["admin"], write: ["admin"] },
   "school_users": { read: [], write: [] },
   "code_rules": { read: ["admin", "so", "school"], write: ["admin"] },
@@ -105,9 +105,7 @@ export function portalAllows(portal: Portal | null, permission: string): boolean
 /** Màn chỉ có ở giao diện (không có mã quyền riêng) → cổng hiện nó. Ngoài danh sách thì theo mã quyền. */
 const UI_ONLY: Record<string, Portal[]> = {
   dashboard: ["admin", "so", "school"],
-  // Ngoài 42 UC (trưởng nhóm chốt 20/11/2026): không lên menu ở cổng nào. Văn bản căn cứ vẫn chọn được trong danh mục
-  // tối thiểu (DM-03); tài khoản trường đóng cả API. Luồng phê duyệt (HT-08) theo mã quyền: chỉ cổng Admin.
-  legal_documents: [],
+  // Tài khoản trường: ngoài 42 UC, không lên menu ở cổng nào (trưởng nhóm chốt 20/11/2026).
   school_users: [],
   school_explorer: ["admin", "so", "school"],
 };

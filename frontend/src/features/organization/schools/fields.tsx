@@ -1,6 +1,6 @@
-import { useCan, useSelect } from "@refinedev/core";
-import { useMemo } from "react";
-import { useWatch, type Control } from "react-hook-form";
+import { useCan, useList, useSelect } from "@refinedev/core";
+import { useEffect, useMemo } from "react";
+import { useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { Input } from "@/shared/ui/input";
 import { maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
@@ -124,6 +124,27 @@ export function SchoolFields({
     () => mergeCurrent(levelOptions, record?.educationLevel),
     [levelOptions, record?.educationLevel],
   );
+
+  // Thêm mới: ô nào chỉ có MỘT lựa chọn (hệ thống một Sở, một cấp học) thì điền sẵn — không bắt người dùng chọn cái
+  // duy nhất có. Sửa thì giữ đúng giá trị của bản ghi.
+  const mayReadBodies = useCan({ resource: "departments_of_education", action: "list" }).data?.can ?? false;
+  const { result: bodyList } = useList<DepartmentOfEducationRow>({
+    resource: "departments_of_education",
+    pagination: { currentPage: 1, pageSize: 2 },
+    queryOptions: { enabled: mayReadBodies && !record },
+  });
+  const { getValues, setValue } = useFormContext<SchoolFormValues>();
+  const onlyBody = bodyList?.total === 1 ? bodyList.data[0] : undefined;
+  const onlyLevel = levelOptions.length === 1 ? Number(levelOptions[0].value) : undefined;
+  useEffect(() => {
+    if (record) return;
+    if (onlyBody && getValues("departmentOfEducation.id") == null) {
+      setValue("departmentOfEducation.id", Number(onlyBody.id), { shouldDirty: true });
+    }
+    if (onlyLevel != null && getValues("educationLevel.id") == null) {
+      setValue("educationLevel.id", onlyLevel, { shouldDirty: true });
+    }
+  }, [record, onlyBody, onlyLevel, getValues, setValue]);
 
 
   return (

@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 15 phút. Đăng nhập đúng xoá bộ đếm.
  *
  * <p>Lần sai được ghi trong giao dịch RIÊNG ({@code REQUIRES_NEW}): lần đăng nhập ném lỗi làm giao dịch ngoài lùi
- * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code MfaService.verifyForLogin}.
+ * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code EmailMfaService.verifyForLogin}.
  */
 @Service
 @Transactional(readOnly = true)

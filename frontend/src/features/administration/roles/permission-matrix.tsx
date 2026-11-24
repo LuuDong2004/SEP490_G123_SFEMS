@@ -24,7 +24,7 @@ import {
   splitPermissionCode,
   type Permission,
 } from "@/domains/role/types";
-import { scopeFits } from "@/domains/permission/types";
+import { grantable, selfApproving } from "@/domains/permission/types";
 
 /**
  * The permissions a role grants, as a resource x action matrix.
@@ -50,10 +50,11 @@ type PermissionMatrixProps = {
   value: PermissionRef[] | undefined;
   onChange: (value: PermissionRef[]) => void;
   /**
-   * Loại vai — chỉ hiện quyền hợp loại (vai quản trị: quyền quản trị + dùng chung; vai Sở / UBND / trường: nghiệp
-   * vụ + dùng chung; docs/kien-truc/11 §11). null = chưa chọn loại, chưa hiện quyền nào.
+   * Loại vai — chỉ hiện quyền loại vai đó mang được (`grantable`). null = chưa chọn loại, chưa hiện quyền nào.
    */
   roleType: string | null;
+  /** Vai khoá quyền (Quản trị viên): chỉ xem, không tích được. */
+  readOnly?: boolean;
 };
 
 type MatrixRow = {
@@ -125,7 +126,7 @@ function orderActions(actions: Set<string>): string[] {
   return [...known, ...extra];
 }
 
-export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrixProps) {
+export function PermissionMatrix({ value, onChange, roleType, readOnly = false }: PermissionMatrixProps) {
   // The catalogue is fixed and small — it only changes when a migration adds a
   // permission — so one large page is the whole of it.
   const { result, query } = useList<Permission>({
@@ -137,16 +138,16 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
   const [search, setSearch] = useState("");
 
   const permissions = useMemo(
-    () => (roleType ? (result?.data ?? []).filter((p) => scopeFits(p.scope, roleType)) : []),
+    () => (roleType ? (result?.data ?? []).filter((p) => grantable(p, roleType)) : []),
     [result?.data, roleType],
   );
 
   // Đổi loại vai (form tạo) → bỏ quyền đã tích không hợp loại mới.
   useEffect(() => {
-    if (!roleType || !result?.data || !value?.length) return;
+    if (readOnly || !roleType || !result?.data || !value?.length) return;
     const keep = value.filter((ref) => permissions.some((p) => p.id === ref.id));
     if (keep.length !== value.length) onChange(keep);
-  }, [roleType, result?.data, permissions, value, onChange]);
+  }, [readOnly, roleType, result?.data, permissions, value, onChange]);
 
   const { rows, columns } = useMemo(() => {
     const byResource = new Map<string, MatrixRow>();
@@ -198,11 +199,16 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
     [value]
   );
 
-  const emit = (next: Set<number>) => onChange([...next].map((id) => ({ id })));
+  const emit = (next: Set<number>) => {
+    if (!readOnly) onChange([...next].map((id) => ({ id })));
+  };
 
   const setMany = (subject: Permission[], granted: boolean) => {
     const next = new Set(selected);
+    const codes = new Set(subject.map((p) => p.code));
     for (const permission of subject) {
+      // Tích cả nhóm thì bỏ qua quyền duyệt của phiếu mà nhóm đã có quyền lập: một vai không vừa lập vừa duyệt (GBR-07).
+      if (granted && permission.code.endsWith(":approve") && codes.has(permission.code.replace(":approve", ":write"))) continue;
       if (granted) next.add(permission.id);
       else next.delete(permission.id);
     }
@@ -228,6 +234,7 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
   const visibleSubject = visibleRows.flatMap((row) => row.all);
 
   const grantedCount = permissions.filter((p) => selected.has(p.id)).length;
+  const both = selfApproving(new Set(permissions.filter((p) => selected.has(p.id)).map((p) => p.code)));
 
   if (query.isLoading) {
     return (
@@ -265,26 +272,37 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
             <span className="text-foreground font-medium">{grantedCount}</span>/
             {permissions.length} đã cấp
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMany(visibleSubject, true)}
-          >
-            Cấp tất cả
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setMany(visibleSubject, false)}
-          >
-            Bỏ chọn
-          </Button>
+          {readOnly ? null : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMany(visibleSubject, true)}
+              >
+                Cấp tất cả
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setMany(visibleSubject, false)}
+              >
+                Bỏ chọn
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="bg-card overflow-x-auto rounded-lg border">
+      {both.length > 0 ? (
+        <p className="bg-warning-subtle text-warning-text flex items-start gap-2 rounded-md px-3 py-2 text-sm">
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+          Một vai không được vừa lập vừa duyệt: {both.join(", ")}. Bỏ quyền Ghi hoặc quyền Duyệt rồi mới lưu được.
+        </p>
+      ) : null}
+
+      <fieldset disabled={readOnly} className="bg-card min-w-0 overflow-x-auto rounded-lg border">
         <table className="w-full border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
@@ -299,7 +317,7 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
                     label="Cấp mọi quyền đang hiển thị"
                   />
                   <span className="text-muted-foreground text-xs">
-                    Resource
+                    Chức năng
                   </span>
                 </div>
               </th>
@@ -432,7 +450,7 @@ export function PermissionMatrix({ value, onChange, roleType }: PermissionMatrix
             })}
           </tbody>
         </table>
-      </div>
+      </fieldset>
     </div>
   );
 }

@@ -8,7 +8,6 @@ import { cn } from "@/shared/lib/utils";
 /** Phần của `GET /auth/me` mà lời nhắc cần. */
 type Identity = {
   id: number;
-  mfaRequired?: boolean;
   secondFactor?: boolean;
   passwordChangedAt?: string | null;
 };
@@ -40,9 +39,7 @@ function snooze(key: string) {
  * Nhắc bảo mật trên toàn ứng dụng, một dải mỏng trên đầu nội dung:
  *
  * <ul>
- *   <li>Tài khoản đặc quyền (quản trị) chưa có lớp xác thực thứ hai — BẮT BUỘC, không tắt được: máy chủ đã coi đó
- *       là yêu cầu (`mfaRequired`), trước đây chỉ trang Hồ sơ nói ra.</li>
- *   <li>Tài khoản khác chưa bật xác thực hai lớp — gợi ý, tắt được, nhắc lại sau {@link SNOOZE_DAYS} ngày.</li>
+ *   <li>Tài khoản chưa bật xác thực qua email — gợi ý, tắt được, nhắc lại sau {@link SNOOZE_DAYS} ngày.</li>
  *   <li>Mật khẩu đã dùng quá {@link PASSWORD_MAX_AGE_DAYS} ngày — tắt được như trên.</li>
  * </ul>
  *
@@ -56,12 +53,9 @@ export function SecurityReminder() {
 
   const ageDays = me.passwordChangedAt ? Math.floor((Date.now() - Date.parse(me.passwordChangedAt)) / DAY) : null;
   const items: { key: string; tone: "warning" | "info"; icon: typeof ShieldAlert; text: string; action: string; to: string; dismiss: boolean }[] = [];
-  if (me.mfaRequired && !me.secondFactor) {
-    items.push({ key: "mfa-required", tone: "warning", icon: ShieldAlert, dismiss: false,
-      text: "Tài khoản quản trị bắt buộc bật xác thực hai lớp.", action: "Bật ngay", to: "/profile?tab=security" });
-  } else if (me.secondFactor === false && !snoozed(`sec.mfa.${me.id}`)) {
+  if (me.secondFactor === false && !snoozed(`sec.mfa.${me.id}`)) {
     items.push({ key: `sec.mfa.${me.id}`, tone: "info", icon: ShieldAlert, dismiss: true,
-      text: "Tài khoản chưa bật xác thực hai lớp.", action: "Bật", to: "/profile?tab=security" });
+      text: "Tài khoản chưa bật xác thực qua email.", action: "Bật", to: "/profile?tab=security" });
   }
   if (ageDays != null && ageDays >= PASSWORD_MAX_AGE_DAYS && !snoozed(`sec.pwd.${me.id}`)) {
     items.push({ key: `sec.pwd.${me.id}`, tone: "warning", icon: KeyRound, dismiss: true,

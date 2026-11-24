@@ -8,20 +8,25 @@ import com.g123.sfems.domain.security.permission.PermissionScope;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.module.security.permission.repo.PermissionRepository;
+import com.g123.sfems.module.security.permission.service.PermissionGrants;
 import com.g123.sfems.module.security.role.api.dto.PermissionRef;
+import com.g123.sfems.module.security.role.api.dto.RolePatchRequest;
 import com.g123.sfems.module.security.role.api.dto.RoleRequest;
 import com.g123.sfems.module.security.role.service.RoleService;
 import com.g123.sfems.module.security.user.api.dto.RoleRef;
 import com.g123.sfems.module.security.user.api.dto.UserPatchRequest;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.module.security.user.service.UserService;
+import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.web.ListParams;
 import com.g123.sfems.shared.web.portal.Portal;
 import com.g123.sfems.shared.web.portal.PortalRoutes;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +34,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
 
 /**
  * Vai và quyền có loại (docs/kien-truc/11 §11, changelog 235): phạm vi của quyền khớp bảng cổng; vai chỉ mang quyền
@@ -102,6 +108,15 @@ class RoleTypeTest {
         assertThat(adminHas("procurement_plans:approve")).isFalse();
         assertThat(adminHas("inventory_sessions:write")).isFalse();
         assertThat(adminHas("school_year_profiles:confirm")).isFalse();
+        // Mọi vai chỉ mang quyền mà cổng của loại tài khoản đó mở, và không vai nào vừa lập vừa duyệt (289).
+        List<String> useless = new ArrayList<>();
+        roles.list(new ListParams(new LinkedMultiValueMap<>())).getContent().forEach(role -> {
+            role.getPermissions().stream().filter(p -> !PermissionGrants.grantable(p, role.getRoleType()))
+                    .forEach(p -> useless.add(role.getCode() + " " + p.getCode()));
+            PermissionGrants.selfApproving(role.getPermissions().stream().map(Permission::getCode)
+                    .collect(Collectors.toSet())).forEach(v -> useless.add(role.getCode() + " lập và duyệt " + v));
+        });
+        assertThat(useless).isEmpty();
     }
 
     private boolean adminHas(String code) {
@@ -116,12 +131,26 @@ class RoleTypeTest {
         Long equipmentRead = permissionId("equipment:read");
         Long usersRead = permissionId("users:read");
         Long notifications = permissionId("notifications:read");
-        // Vai quản trị mang được quyền nghiệp vụ (237); vai trường không mang quyền quản trị.
+        // Vai quản trị xem được nghiệp vụ nhưng không ghi, không duyệt (289); vai trường không mang quyền quản trị.
         assertThat(roles.create(new RoleRequest("QT_THU", "Quản trị thử", null, UserType.SYSTEM,
                 List.of(new PermissionRef(equipmentRead), new PermissionRef(usersRead)))).getPermissions()).hasSize(2);
+        for (String code : List.of("equipment:write", "equipment_intakes:approve", "school_year_profiles:confirm")) {
+            assertThatThrownBy(() -> roles.create(new RoleRequest("QT_GHI", "Quản trị ghi", null, UserType.SYSTEM,
+                    List.of(new PermissionRef(permissionId(code))))))
+                    .isInstanceOf(FieldValidationException.class);
+        }
         assertThatThrownBy(() -> roles.create(new RoleRequest("TRUONG_THU", "Trường thử", null, UserType.SCHOOL,
                 List.of(new PermissionRef(usersRead)))))
                 .isInstanceOf(FieldValidationException.class);
+        // Một vai không vừa lập vừa duyệt cùng loại phiếu (GBR-07).
+        assertThatThrownBy(() -> roles.create(new RoleRequest("TRUONG_2", "Trường lập và duyệt", null, UserType.SCHOOL,
+                List.of(new PermissionRef(permissionId("equipment_intakes:write")),
+                        new PermissionRef(permissionId("equipment_intakes:approve"))))))
+                .isInstanceOf(FieldValidationException.class).hasMessageContaining("vừa lập vừa duyệt");
+        // Quyền của vai Quản trị viên được khoá.
+        Long admin = jdbc.queryForObject("SELECT id FROM roles WHERE code = 'ADMIN'", Long.class);
+        assertThatThrownBy(() -> roles.update(admin, new RolePatchRequest(null, null, null,
+                List.of(new PermissionRef(usersRead))))).isInstanceOf(ConflictException.class);
         assertThat(roles.create(new RoleRequest("TRUONG_THU", "Trường thử", null, UserType.SCHOOL,
                 List.of(new PermissionRef(equipmentRead), new PermissionRef(notifications)))).getRoleType())
                 .isEqualTo(UserType.SCHOOL);
@@ -144,6 +173,14 @@ class RoleTypeTest {
         Long schoolStaff = jdbc.queryForObject("SELECT id FROM roles WHERE code = 'SCHOOL_STAFF'", Long.class);
         assertRefused("INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)", schoolStaff,
                 permissionId("users:read"));
+        Long admin = jdbc.queryForObject("SELECT id FROM roles WHERE code = 'ADMIN'", Long.class);
+        // Vai quản trị: CSDL từ chối đúng những quyền PermissionGrants từ chối.
+        for (Permission permission : permissions.findAll()) {
+            if (!PermissionGrants.grantable(permission, UserType.SYSTEM)) {
+                assertRefused("INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)", admin,
+                        permission.getId());
+            }
+        }
         assertRefused("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)", schoolUser, soLeader);
         assertRefused("UPDATE roles SET role_type = 'SCHOOL' WHERE id = ?", soLeader);
     }

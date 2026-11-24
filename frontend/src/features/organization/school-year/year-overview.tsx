@@ -69,9 +69,9 @@ export function YearOverview({ onOpenSchool }: { onOpenSchool: (id: number) => v
         ) : null}
       </div>
       <div className="bg-card shadow-e1 min-h-0 flex-1 overflow-hidden rounded-lg border">
-        <div className="h-full overflow-auto">
+        <div className="h-full overflow-auto [&>[data-slot=table-container]]:overflow-visible">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-surface-subtle sticky top-0 z-10">
               <TableRow>
                 <TableHead className="min-w-[12rem]">Trường</TableHead>
                 <TableHead className="w-32">Hồ sơ năm học</TableHead>
@@ -99,7 +99,7 @@ export function YearOverview({ onOpenSchool }: { onOpenSchool: (id: number) => v
                       <TableCell className={cn("text-right tabular-nums", big(r) && "text-warning-text font-semibold")}>{r.percentAdjusted}%</TableCell>
                       <TableCell className="text-right tabular-nums">{r.adjusted || ""}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.outside || ""}</TableCell>
-                      <TableCell className="text-right tabular-nums">{num.format(r.shortageAdjusted)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{num.format(r.shortItemsAdjusted)} loại</TableCell>
                     </>
                   ) : (
                     <TableCell colSpan={5} className="text-muted-foreground text-right">Chưa nhập thiết bị</TableCell>

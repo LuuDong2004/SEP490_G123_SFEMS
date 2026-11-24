@@ -12,7 +12,7 @@ public class AdminAccessDeniedException extends AccessDeniedException {
     public enum Reason { IP, MFA }
 
     public static final String IP_MESSAGE = "Máy này không được phép vào khu quản trị";
-    public static final String MFA_MESSAGE = "Tài khoản quản trị phải bật xác thực hai lớp trước khi dùng hệ thống";
+    public static final String MFA_MESSAGE = "Tài khoản quản trị phải bật xác thực qua email trước khi dùng hệ thống";
 
     private final Reason reason;
 

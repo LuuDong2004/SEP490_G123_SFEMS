@@ -3,7 +3,6 @@ import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/r
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Link, Outlet } from "react-router";
-import { GraduationCap, Landmark, LayoutGrid, Rows3 } from "lucide-react";
 import React, { Suspense } from "react";
 
 import {
@@ -11,18 +10,13 @@ import {
   RESIZABLE_COLUMN_DEFAULTS,
 } from "@/shared/components/data-table/data-table";
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
-import { RefFilter } from "@/shared/components/data-table/ref-filter";
-import {
-  ListToolbar,
-  ListView,
-  ListViewHeader,
-} from "@/shared/components/views/list-view";
+import { ListToolbar, ListView } from "@/shared/components/views/list-view";
+import { CreateButton } from "@/shared/components/buttons/create";
 import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
-import { DeleteButton } from "@/shared/components/buttons/delete";
 import { Badge } from "@/shared/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/shared/ui/toggle-group";
-import { SchoolCards } from "@/features/organization/schools/school-cards";
+import { SchoolViewSwitch } from "@/features/organization/schools/school-view-switch";
+import { SchoolScopeHeader } from "@/features/organization/explorer/scope-header";
 import type { School } from "@/domains/school/types";
 import { STATUS_LABELS } from "@/domains/school/types";
 import { ORG_STATUS_VARIANTS as STATUS_VARIANTS } from "@/shared/lib/status-variants";
@@ -100,7 +94,6 @@ export const SchoolList = () => {
           <RowActions>
             <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
             <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
           </RowActions>
         ),
         enableSorting: false,
@@ -108,11 +101,6 @@ export const SchoolList = () => {
       }),
     ];
   }, []);
-
-  // Bảng trả lời "so sánh và lọc", khối trả lời "lướt qua xem có gì". Hai câu
-  // hỏi khác nhau trên cùng một tập dữ liệu, nên chúng dùng chung `useTable`:
-  // đổi cách nhìn không được làm mất bộ lọc, thứ tự hay trang đang xem.
-  const [view, setView] = React.useState<"table" | "grid">("table");
 
   const table = useTable({
     columns,
@@ -125,7 +113,10 @@ export const SchoolList = () => {
 
   return (
     <ListView>
-      <ListViewHeader />
+      {/* Cùng bố cục với Tổng quan các trường (không tiêu đề to, thẻ đầu, nút cách xem rồi Thêm trường ở hàng công cụ):
+          đây là cách xem "Danh sách" của nhóm đó, chuyển qua lại không xô lệch. */}
+      <h1 className="sr-only">Trường học</h1>
+      <SchoolScopeHeader />
       <DataTable
         table={table}
         toolbar={
@@ -133,32 +124,15 @@ export const SchoolList = () => {
             <ListToolbar
               table={table}
               search={<DataTableQuickFilter table={table} />}
-              filters={
-                <>
-                  <RefFilter table={table} field="departmentOfEducation.id" resource="departments_of_education" all="Mọi cơ quan quản lý" searchPlaceholder="Tìm cơ quan…" icon={<Landmark />} hint="Lọc theo cơ quan quản lý" />
-                  <RefFilter table={table} field="educationLevel.id" resource="education_levels" all="Mọi cấp học" icon={<GraduationCap />} hint="Lọc theo cấp học"
-                    filters={[{ field: "active", operator: "eq", value: true }]} />
-                </>
-              }
               actions={
-                <ToggleGroup
-                  type="single"
-                  size="sm"
-                  value={view}
-                  onValueChange={(v) => v && setView(v as "table" | "grid")}
-                >
-                  <ToggleGroupItem value="table" aria-label="Dạng bảng">
-                    <Rows3 />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="grid" aria-label="Dạng khối">
-                    <LayoutGrid />
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                <div className="flex items-center gap-2">
+                  <SchoolViewSwitch current="list" />
+                  <CreateButton size="sm">Thêm trường</CreateButton>
+                </div>
               }
             />
           </>
         }
-        renderBody={view === "grid" ? (rows) => <SchoolCards schools={rows} /> : undefined}
       />
       {/* Chỗ hộp thoại Thêm / Sửa trường mở ra: danh sách ở lại sau lớp phủ, đóng là về đúng bộ lọc / trang. */}
       <Suspense fallback={null}>

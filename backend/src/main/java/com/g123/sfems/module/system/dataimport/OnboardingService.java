@@ -44,6 +44,8 @@ import com.g123.sfems.shared.office.SpreadsheetReader.NamedSheet;
 import com.g123.sfems.shared.office.XlsxWriter;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -118,6 +121,20 @@ public class OnboardingService {
     };
 
     private final JdbcTemplate jdbc;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    /** Lượt ghi đang chạy: bước, số thứ đã ghi / tổng. Màn hình hỏi mỗi giây để hiện thanh tiến độ. */
+    public record Progress(String step, int done, int total) {
+    }
+
+    /** Tiến độ của lô đang ghi, theo id lô. Chỉ trong bộ nhớ: ghi xong (hay đổ) là gỡ. */
+    private final Map<Long, Progress> progress = new ConcurrentHashMap<>();
+
+    /** Ghi được bao nhiêu thì báo tiến độ / xả bộ đệm Hibernate một lần. */
+    private static final int PROGRESS_EVERY = 25;
+    private static final int CLEAR_EVERY = 200;
     private final ObjectMapper mapper;
     private final OnboardingValidator validator;
     private final VisibleSchools visibleSchools;
@@ -274,7 +291,9 @@ public class OnboardingService {
                 "manager", staff));
         out.put(OnboardingSheet.CLASS.key(), Map.of(
                 "grade", jdbc.queryForList("SELECT name FROM grades WHERE active ORDER BY sort_order, name", String.class),
-                "year", jdbc.queryForList("SELECT code FROM school_years WHERE active ORDER BY code DESC", String.class),
+                // Cặp năm "2026-2027" (lấy từ tên), không phải mã "NH006" — tệp của trường ghi cặp năm.
+                "year", jdbc.query("SELECT code, name FROM school_years WHERE active ORDER BY start_date DESC NULLS LAST, code DESC",
+                        (rs, i) -> OnboardingValidator.schoolYearLabel(rs.getString("code"), rs.getString("name"))),
                 "teacher", staff, "room", rooms));
         List<String> funding = new ArrayList<>(Arrays.stream(FundingSource.values())
                 .filter(FundingSource::selectable).map(FundingSource::label).toList());
@@ -512,9 +531,12 @@ public class OnboardingService {
         return summary(id);
     }
 
-    /** Thêm một dòng ngay trên hệ thống (thiếu một phòng, một cán bộ… thì khỏi sửa tệp gửi lại). */
+    /**
+     * Thêm một dòng ngay trên hệ thống (thiếu một phòng, một cán bộ… thì khỏi sửa tệp gửi lại). Từng ô ghi vào lịch sử
+     * sửa như một lần sửa ({@code source}: tay, sửa nhanh, AI) — lưới gắn nhãn cho dòng vừa thêm, tab Lịch sử có nó.
+     */
     @Transactional
-    public Batch addRow(long id, String sheet, Map<String, String> data) {
+    public Batch addRow(long id, String sheet, Map<String, String> data, String source) {
         requireDraft(id);
         String sheetName = sheetName(id, sheet);
         Integer next = jdbc.queryForObject(
@@ -528,8 +550,11 @@ public class OnboardingService {
                 }
             });
         }
-        jdbc.update("INSERT INTO data_import_rows (batch_id, sheet, row_no, data) VALUES (?, ?, ?, ?::jsonb)", id,
-                sheetName, next, mapper.writeValueAsString(clean));
+        Long rowId = jdbc.queryForObject("INSERT INTO data_import_rows (batch_id, sheet, row_no, data)"
+                + " VALUES (?, ?, ?, ?::jsonb) RETURNING id", Long.class, id, sheetName, next, mapper.writeValueAsString(clean));
+        String src = "rule".equals(source) || "ai".equals(source) ? source : "manual";
+        Long user = CurrentUser.id().orElse(null);
+        clean.forEach((k, v) -> logEdit(id, rowId, sheetName, next, k, null, v, src, user));
         touch(id);
         revalidate(id);
         return summary(id);
@@ -550,8 +575,24 @@ public class OnboardingService {
 
     // ------------------------------------------------------------------ ghi
 
+    /**
+     * Còn dòng lỗi lúc bấm ghi. Ném TRƯỚC khi ghi bất cứ gì, và không rollback: kết quả kiểm vừa chạy phải ở lại
+     * trên các dòng chờ — rollback thì màn hình vẫn hiện "hợp lệ" (kết quả kiểm cũ) trong khi máy chủ báo còn lỗi.
+     */
+    static final class RowsInError extends FieldValidationException {
+        RowsInError(String message) {
+            super("file", message);
+        }
+    }
+
+    /** Tiến độ lượt ghi đang chạy của lô; {@code null} khi không có lượt nào đang ghi (chưa bắt đầu hoặc đã xong). */
+    public Progress progress(long id) {
+        requireVisible(id);
+        return progress.get(id);
+    }
+
     /** Ghi cả lô vào sổ của trường. Còn dòng lỗi thì không ghi gì. */
-    @Transactional
+    @Transactional(noRollbackFor = RowsInError.class)
     public Batch commit(long id) {
         // Khoá TRƯỚC rồi mới kiểm còn nháp: bấm "Ghi" hai lần thì lần sau chờ khoá, và lúc có khoá lô đã là
         // COMMITTED — kiểm trước khi khoá thì cả hai cùng qua, lô được ghi hai lần (tài sản nhân đôi).
@@ -575,28 +616,45 @@ public class OnboardingService {
         persist(results);
         long errors = results.values().stream().filter(r -> OnboardingValidator.ERROR.equals(r.status())).count();
         if (errors > 0) {
-            throw new FieldValidationException("file", "Còn " + errors + " dòng lỗi — sửa hết rồi ghi; chưa dòng nào được ghi");
+            throw new RowsInError("Kiểm lại trước khi ghi thì thấy còn " + errors
+                    + " dòng lỗi (đã đánh dấu đỏ trên bảng). Sửa hết rồi bấm Cập nhật lại. Chưa dòng nào được ghi");
         }
-        Writer w = new Writer(id, schoolId);
-        for (OnboardingSheet s : OnboardingSheet.values()) {
-            for (Staged row : staged) {
-                if (row.sheet() != s) {
-                    continue;
+        // Tổng số thứ sẽ tạo: mỗi dòng một thứ, dòng thiết bị quản lý từng cái thì bằng số cái.
+        int total = 0;
+        for (Staged row : staged) {
+            Result r = results.get(row.id());
+            if (OnboardingValidator.OK.equals(r.status()) || OnboardingValidator.WARNING.equals(r.status())) {
+                total += r.payload() instanceof EquipmentRow e ? e.copies() : 1;
+            }
+        }
+        Writer w = new Writer(id, schoolId, total);
+        try {
+            for (OnboardingSheet s : OnboardingSheet.values()) {
+                w.step = "Đang ghi " + s.title().toLowerCase(java.util.Locale.ROOT);
+                for (Staged row : staged) {
+                    if (row.sheet() != s) {
+                        continue;
+                    }
+                    Result r = results.get(row.id());
+                    if (!OnboardingValidator.OK.equals(r.status()) && !OnboardingValidator.WARNING.equals(r.status())) {
+                        continue;
+                    }
+                    try {
+                        w.write(s, r.payload());
+                    } catch (RuntimeException e) {
+                        throw new FieldValidationException("file", "Trang " + s.title() + ", dòng " + row.rowNo() + ": "
+                                + e.getMessage() + " — chưa dòng nào được ghi");
+                    }
+                    if (!(r.payload() instanceof EquipmentRow)) {
+                        w.tick();
+                    }
                 }
-                Result r = results.get(row.id());
-                if (!OnboardingValidator.OK.equals(r.status()) && !OnboardingValidator.WARNING.equals(r.status())) {
-                    continue;
-                }
-                try {
-                    w.write(s, r.payload());
-                } catch (RuntimeException e) {
-                    throw new FieldValidationException("file", "Trang " + s.title() + ", dòng " + row.rowNo() + ": "
-                            + e.getMessage() + " — chưa dòng nào được ghi");
+                if (s == OnboardingSheet.STAFF) {
+                    w.teams();
                 }
             }
-            if (s == OnboardingSheet.STAFF) {
-                w.teams();
-            }
+        } finally {
+            progress.remove(id);
         }
         Integer history = w.equipmentIds.isEmpty() ? 0 : jdbc.queryForObject(
                 "SELECT COUNT(*) FROM equipment_history WHERE equipment_id = ANY (?)", Integer.class,
@@ -696,11 +754,16 @@ public class OnboardingService {
         final Map<String, Long> teamLeaders = new HashMap<>();
         final Map<String, Long> newItems = new HashMap<>();
         final List<Long> equipmentIds = new ArrayList<>();
+        final int total;
+        int done;
+        String step = "Đang chuẩn bị";
 
-        Writer(long batchId, long schoolId) {
+        Writer(long batchId, long schoolId, int total) {
             this.batchId = batchId;
             this.schoolId = schoolId;
             this.school = new IdRef(schoolId);
+            this.total = total;
+            progress.put(batchId, new Progress(step, 0, total));
             load(OnboardingSheet.CAMPUS, "campuses");
             load(OnboardingSheet.STAFF, "staff");
             load(OnboardingSheet.BUILDING, "buildings");
@@ -725,6 +788,22 @@ public class OnboardingService {
 
         void put(OnboardingSheet s, String code, Long id) {
             ids.get(s).put(OnboardingValidator.upper(code), id);
+        }
+
+        /**
+         * Đã ghi xong một thứ. Định kỳ báo tiến độ, và đẩy rồi xả bộ đệm Hibernate: mỗi truy vấn trong lúc tạo thiết bị
+         * (cấp mã, thứ tự…) làm Hibernate soát lại MỌI thực thể đang giữ — giữ cả nghìn cái thì mỗi cái sau chậm hơn cái
+         * trước, lô vài nghìn thiết bị mất cả chục phút. Writer chỉ giữ id nên xả không mất gì.
+         */
+        void tick() {
+            done++;
+            if (done % PROGRESS_EVERY == 0 || done == total) {
+                progress.put(batchId, new Progress(step, done, total));
+            }
+            if (done % CLEAR_EVERY == 0) {
+                entityManager.flush();
+                entityManager.clear();
+            }
         }
 
         void record(String resource, Long id) {
@@ -815,6 +894,7 @@ public class OnboardingService {
                 Long id = equipment.create(request).getId();
                 equipmentIds.add(id);
                 record("equipment", id);
+                tick();
             }
             if (c.aliasCode() != null) {
                 jdbc.update("INSERT INTO equipment_catalog_aliases (alias, catalog_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
@@ -1192,7 +1272,7 @@ public class OnboardingService {
                            split_part(code, '.', 5)::int AS seq
                     FROM equipment
                     WHERE id = ANY (?)
-                      AND code ~ '^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.[A-Z]{2}\\.[0-9]{3}\\.[0-9]{2}$'
+                      AND code ~ '^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.[A-Z]{2}\\.[0-9]{3,4}\\.[0-9]{2}$'
                 ), span AS (
                     SELECT prefix, MIN(seq) AS lo, MAX(seq) AS hi, COUNT(DISTINCT seq) AS n FROM lot GROUP BY prefix
                 )

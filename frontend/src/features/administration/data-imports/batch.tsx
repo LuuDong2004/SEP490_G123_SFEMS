@@ -89,6 +89,8 @@ export const DataImportBatch = () => {
   const queue = useRef<Promise<void>>(Promise.resolve());
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"commit" | "rollback" | "delete" | null>(null);
+  /** Tiến độ lượt ghi đang chạy (máy chủ báo, `GET data_imports/{id}/progress`) — null khi chưa bắt đầu ghi. */
+  const [writing, setWriting] = useState<{ step: string; done: number; total: number } | null>(null);
   // "So sánh với tệp gốc" của TRANG đang mở: thay bảng bằng diff của đúng trang đó (bấm lại để về bảng).
   const [compare, setCompare] = useState(false);
   /** Dòng cần đến sau khi bấm toast lỗi — lưới của đúng trang cuộn tới và chọn ô lỗi. */
@@ -116,6 +118,10 @@ export const DataImportBatch = () => {
   const hasRows = (batch?.sheets ?? []).some((s) => s.total > 0);
   const present = batch?.status === "DRAFT" ? (batch?.sheets ?? []) : (batch?.sheets ?? []).filter((s) => s.total > 0);
   const active = sheetKey ?? present.find((s) => s.error > 0)?.sheet ?? present[0]?.sheet ?? null;
+  // Ghim trang mở mặc định (trang đầu còn lỗi): sửa hết lỗi trang này thì không tự nhảy sang trang lỗi kế tiếp.
+  useEffect(() => {
+    if (sheetKey == null && active != null) setSheetKey(active);
+  }, [sheetKey, active]);
   const sheet = (Array.isArray(sheets) ? sheets : []).find((s) => s.key === active);
   // Viên của trang đang mở trượt sang trang mới (cùng chuyển động với thanh tab của app).
   const [sheetBox, sheetInd] = useLiquid<HTMLDivElement>(active, { selector: '[role="tab"][aria-selected="true"]' });
@@ -175,6 +181,17 @@ export const DataImportBatch = () => {
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(reloadTimer.current), []);
 
+  /** Ghi cả lô; trong lúc chờ, hỏi tiến độ mỗi giây để hiện thanh tiến độ. */
+  function commitWithProgress() {
+    const timer = setInterval(() => {
+      void kyInstance.get(`data_imports/${id}/progress`)
+        .then(async (res) => { if (res.status === 200) setWriting(await res.json()); })
+        .catch(() => undefined);
+    }, 1000);
+    return kyInstance.post(`data_imports/${id}/commit`, { timeout: 900_000 }).json<ImportBatch>()
+      .finally(() => { clearInterval(timer); setWriting(null); });
+  }
+
   async function act(request: () => Promise<ImportBatch>, success?: string | ((b: ImportBatch) => string), reload: "now" | "later" = "now") {
     setBusy(true);
     try {
@@ -195,8 +212,10 @@ export const DataImportBatch = () => {
       if (success) notify?.({ type: "success", message: typeof success === "function" ? success(updated) : success });
     } catch (error) {
       notifyError(await errorMessage(error));
-      // Lần sửa không lên được: bỏ giá trị đã ghi sẵn vào bộ đệm, đọc lại bản thật.
-      if (reload === "later") void reloadRows();
+      // Lần sửa không lên được: bỏ giá trị đã ghi sẵn vào bộ đệm, đọc lại bản thật. Cập nhật bị từ chối vì còn
+      // lỗi: máy chủ vừa kiểm lại và lưu kết quả — đọc lại số liệu của lô và các dòng để lỗi hiện lên bảng.
+      void queryClient.invalidateQueries({ queryKey: batchKey });
+      void reloadRows();
     } finally {
       setBusy(false);
     }
@@ -267,7 +286,7 @@ export const DataImportBatch = () => {
     queue.current = queue.current.then(() => act(async () => {
       let last: ImportBatch | undefined;
       for (const data of list) {
-        last = await kyInstance.post(`data_imports/${id}/rows`, { json: { sheet: "room", data }, timeout: 60_000 }).json<ImportBatch>();
+        last = await kyInstance.post(`data_imports/${id}/rows`, { json: { sheet: "room", data, source: "rule" }, timeout: 60_000 }).json<ImportBatch>();
       }
       return last!;
     }, `Đã thêm ${list.length} phòng vào trang Phòng`));
@@ -434,8 +453,8 @@ export const DataImportBatch = () => {
                 {SHEET_ICON[s.sheet]}
                 {s.title}
                 <span className="tabular-nums opacity-70">{s.total.toLocaleString("vi-VN")}</span>
-                {s.error ? <span className={cn("text-destructive-text font-semibold tabular-nums", on && "rounded-full bg-white/90 px-1.5")}>{s.error}</span> : null}
-                {s.warning ? <span className={cn("text-warning-text font-semibold tabular-nums", on && "rounded-full bg-white/90 px-1.5")}>{s.warning}</span> : null}
+                {s.error ? <span className={cn("text-destructive-text rounded-full px-1.5 font-semibold tabular-nums", on && "bg-white/90")}>{s.error}</span> : null}
+                {s.warning ? <span className={cn("text-warning-text rounded-full px-1.5 font-semibold tabular-nums", on && "bg-white/90")}>{s.warning}</span> : null}
               </button>
             );
           })}
@@ -471,9 +490,10 @@ export const DataImportBatch = () => {
               {existing ? <div>{existing.toLocaleString("vi-VN")} dòng đã có trên hệ thống giữ nguyên.</div> : null}
               <div>Quá trình có thể mất vài phút, vui lòng không đóng trang.</div>
               <div>Nếu sai, bấm Hoàn tác trong {UNDO_HOURS} giờ để gỡ lại, khi dữ liệu chưa được dùng.</div>
+              {busy ? <WriteProgress writing={writing} /> : null}
             </div>}
             cancelLabel="Chưa, để sau" confirmLabel="Cập nhật" busy={busy} keepOpen
-            onConfirm={() => void act(() => kyInstance.post(`data_imports/${id}/commit`, { timeout: 900_000 }).json<ImportBatch>(),
+            onConfirm={() => void act(commitWithProgress,
               // Nói luôn đã tạo gì — trước đây chỉ thấy khi rê chuột vào dòng "Đã ghi …" ở đầu trang.
               (b) => {
                 const made = Object.entries(b.created ?? {}).filter(([, n]) => n > 0)
@@ -503,3 +523,23 @@ export const DataImportBatch = () => {
     </ShowView>
   );
 };
+
+/** Thanh tiến độ của lượt ghi. Máy chủ chưa báo (đang kiểm lại cả lô trước khi ghi) thì nói đang kiểm. */
+function WriteProgress({ writing }: { writing: { step: string; done: number; total: number } | null }) {
+  const pct = writing && writing.total > 0 ? Math.min(100, Math.round((writing.done / writing.total) * 100)) : 0;
+  return (
+    <div className="mt-1 grid gap-1.5" role="status" aria-live="polite">
+      <div className="text-foreground flex items-baseline justify-between gap-3 text-xs">
+        <span>{writing ? writing.step : "Đang kiểm lại cả lô trước khi ghi…"}</span>
+        {writing ? (
+          <span className="tabular-nums">
+            {writing.done.toLocaleString("vi-VN")} / {writing.total.toLocaleString("vi-VN")} · {pct}%
+          </span>
+        ) : null}
+      </div>
+      <div className="bg-muted h-2 overflow-hidden rounded-full">
+        <div className="bg-primary h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}

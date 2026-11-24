@@ -35,7 +35,7 @@ Cột **UC**: mã trong 42 UC; `—` = chưa UC nào nhận.
 | 1.7 | **Thư mời tự đặt mật khẩu** khi tạo tài khoản (để trống mật khẩu) | `/users/create`, `/reset-password?invite=1` | `POST /api/users` | HT-04 | **Đạt** | Mới 18/11. Cần khai `spring.mail.*` để gửi thật |
 | 1.8 | Quản lý vai trò, gán quyền chức năng | `/roles`, `/permissions` | `/api/roles`, `/api/permissions` | HT-05 | **Đạt** | Test `RoleTypeTest` |
 | 1.9 | Phạm vi dữ liệu theo vai trò (row-level) | (ẩn) | `/api/row_level_policies` | HT-05 | **Lệch** | AGENTS: "phạm vi dữ liệu của vai trò" ngoài phạm vi; nhưng là nền của phân quyền theo trường |
-| 1.10 | Xác thực hai lớp (ứng dụng / email) | màn bật 2 lớp hiện thay mọi màn khi quản trị viên chưa bật; mục 2 lớp ở `/profile` | `/api/auth/mfa/*` | — | **Lệch** | AGENTS: ngoài phạm vi. Code còn, cổng Admin dùng khi bật |
+| 1.10 | Xác thực qua email (mã 6 số lúc đăng nhập) | ô Mã xác thực ở `/login`, mục Xác thực qua email ở `/profile` | `/api/auth/mfa/*` | HT-01 | **Có** | Mã hiệu lực 5 phút, dùng một lần |
 | 1.11 | Tài khoản của trường (lãnh đạo trường cấp tài khoản cấp dưới) | `/school-users` | `/api/school_users` | — | **Lệch** | AGENTS: ngoài phạm vi. Đang dùng thật (cấp tài khoản cán bộ) |
 | 1.12 | Cấp tài khoản cho cán bộ từ danh sách nhân sự | Tổng quan trường › Nhân sự | `/api/staff/{id}/account` | — | **Lệch** | Chạy thử 18/11 (có thư mời). Chưa UC nào nhận |
 | 1.13 | Phạm vi theo cơ sở (tài khoản chỉ thấy một cơ sở) | ô Phạm vi khi cấp tài khoản | `user_schools.campus_id` | — | **Lệch** | Chạy thử 18/11 đúng. AGENTS: "cơ sở – điểm trường" ngoài phạm vi |
@@ -144,7 +144,7 @@ Cột **UC**: mã trong 42 UC; `—` = chưa UC nào nhận.
 
 | Nhóm | Số chức năng | Đạt | Có | Một phần | Lệch |
 |---|---|---|---|---|---|
-| 1. Tài khoản, phân quyền | 13 | 6 | 2 | 0 | 5 |
+| 1. Tài khoản, phân quyền | 13 | 6 | 3 | 0 | 4 |
 | 2. Danh mục | 9 | 1 | 6 | 1 | 1 |
 | 3. Trường, CSVC | 7 | 3 | 0 | 1 | 3 |
 | 4. Thiết bị | 9 | 1 | 8 | 0 | 0 |
@@ -153,12 +153,12 @@ Cột **UC**: mã trong 42 UC; `—` = chưa UC nào nhận.
 | 7. Kiểm kê | 7 | 0 | 7 | 0 | 0 |
 | 8. Báo cáo | 7 | 0 | 6 | 0 | 1 |
 | 9. Hệ thống | 8 | 0 | 1 | 3 | 4 |
-| **Cộng** | **71** | **12** | **40** | **5** | **14** |
+| **Cộng** | **71** | **12** | **41** | **5** | **13** |
 
 **Đối chiếu 42 UC:** cả 42 UC đều có màn hình và API. Có bằng chứng chạy đúng (Đạt) mới ở 8 UC: HT-01, HT-04,
 HT-05, DM-02, TC-01, TC-02, TS-07, PN-01. Còn 34 UC ở mức "Có".
 
-**Code vượt tài liệu:** 14 chức năng "Lệch" — phần lớn rơi vào danh sách *ngoài phạm vi* của `AGENTS.md` nhưng code
+**Code vượt tài liệu:** 13 chức năng "Lệch" — phần lớn rơi vào danh sách *ngoài phạm vi* của `AGENTS.md` nhưng code
 vẫn chạy và có cái đang được dùng thật (tài khoản của trường, cấp tài khoản cán bộ, phạm vi theo cơ sở, nhân sự,
 đánh giá CSVC).
 
@@ -176,7 +176,7 @@ vẫn chạy và có cái đang được dùng thật (tài khoản của trư�
 | Đánh giá CSVC theo chuẩn (danh mục chuẩn, đánh giá, báo cáo) | 2.8, 3.6, 8.7 |
 | Cấu hình luồng phê duyệt | 9.2 |
 | Gộp vào TC-02, không thành UC riêng: lớp học, việc cần làm của trường | 3.4, 3.7 |
-| Ghi là phụ trợ hoặc bỏ: hai lớp, nhật ký, trạng thái hệ thống, AI, xuất toàn bộ dữ liệu, trang Quy trình, tài khoản dùng thử | 1.10, 9.4–9.8 |
+| Ghi là phụ trợ hoặc bỏ: nhật ký, trạng thái hệ thống, AI, xuất toàn bộ dữ liệu, trang Quy trình, tài khoản dùng thử | 9.4–9.8 |
 
 ## Việc cần chốt khi viết lại tài liệu
 
@@ -184,7 +184,7 @@ vẫn chạy và có cái đang được dùng thật (tài khoản của trư�
    - Nên đưa vào UC: tổng quan trường (3.2), cơ sở – khối nhà – lớp như phần của TC-02 (3.3, 3.4), nhân sự (3.5),
      tài khoản của trường và cấp tài khoản cán bộ (1.11, 1.12), phạm vi theo cơ sở (1.13), luồng phê duyệt (9.2).
    - Có thể thêm UC mới: đánh giá CSVC theo chuẩn + báo cáo (2.8, 3.6, 8.7).
-   - Nên ghi là phụ trợ hoặc ẩn: hai lớp (1.10), nhật ký, trạng thái hệ thống, AI, thay đổi dữ liệu (9.5, 9.6),
+   - Nên ghi là phụ trợ hoặc ẩn: nhật ký, trạng thái hệ thống, AI, thay đổi dữ liệu (9.5, 9.6),
      xuất toàn bộ dữ liệu (9.4).
 2. **Mâu thuẫn trong tài liệu hiện tại:** `AGENTS.md` ghi "tổng quan một trường", "cơ sở – điểm trường", "khối nhà"
    ngoài phạm vi và "không có màn quản lý", trong khi ma trận đặt TC-01, TC-02 trên chính màn Tổng quan trường.

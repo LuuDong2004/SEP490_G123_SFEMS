@@ -103,8 +103,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   // Dữ liệu
   data_transfer: "Nhập, xuất dữ liệu bằng tệp",
   // Giám sát
-  system_status: "Máy chủ, CSDL, bộ lưu tệp đang chạy ra sao",
-  activity_logs: "Ai đã làm gì, lúc nào",
   data_changes: "Giá trị cũ, mới của từng lần sửa dữ liệu",
 };
 

@@ -28,7 +28,7 @@ public class SchoolYearProfileController {
         this.init = init;
     }
 
-    /** Khởi tạo năm học mới từ năm liền trước (màn C): trường mình, hoặc Sở chọn nhiều trường. */
+    /** Khởi tạo năm học mới từ năm liền trước (màn C) cho trường của người gọi — chỉ tài khoản trường. */
     @PostMapping("/init")
     @PreAuthorize("hasAuthority('school_year_profiles:write')")
     public SchoolYearInitService.InitResult init(@Valid @RequestBody SchoolYearInitService.InitRequest request) {

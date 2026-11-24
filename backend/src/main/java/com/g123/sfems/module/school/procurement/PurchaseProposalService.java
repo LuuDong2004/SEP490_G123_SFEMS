@@ -64,8 +64,8 @@ public class PurchaseProposalService
 
     private List<ProposalSubmitGuard> submitGuards = List.of();
 
-    /** Kiểm khi trình của hồ sơ năm học — tiêm qua setter (tránh vòng phụ thuộc). */
-    @Autowired
+    /** Kiểm thêm khi trình (chỗ móc) — tiêm qua setter (tránh vòng phụ thuộc); hiện không bean nào cài nên không bắt buộc. */
+    @Autowired(required = false)
     void setSubmitGuards(List<ProposalSubmitGuard> guards) {
         this.submitGuards = guards;
     }

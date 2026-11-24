@@ -78,7 +78,7 @@ export function Layout({ children }: PropsWithChildren) {
           <div className="empty:hidden lg:hidden">
             <Breadcrumb />
           </div>
-          {/* Tạm tắt dải nhắc bảo mật (xác thực hai lớp, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}
+          {/* Tạm tắt dải nhắc bảo mật (xác thực qua email, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}
           {/* <SecurityReminder /> */}
           <ModuleTabs />
           {/* Màn lỗi thay cho trang trắng (500) và cho vùng "Đang tải…" mãi khi máy chủ không phản hồi (503). */}

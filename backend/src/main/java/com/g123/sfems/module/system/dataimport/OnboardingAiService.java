@@ -160,7 +160,8 @@ public class OnboardingAiService {
         switch (sheet) {
             case CLASS -> {
                 allowedLists.put("grade", jdbc.queryForList("SELECT name FROM grades ORDER BY code", String.class));
-                allowedLists.put("year", jdbc.queryForList("SELECT code FROM school_years ORDER BY code", String.class));
+                allowedLists.put("year", jdbc.query("SELECT code, name FROM school_years ORDER BY code",
+                        (rs, i) -> OnboardingValidator.schoolYearLabel(rs.getString("code"), rs.getString("name"))));
                 allowedLists.put("teacher", sorted(codes(batchId, schoolId, "staff", OnboardingSheet.STAFF)));
                 allowedLists.put("room", sorted(rooms));
             }

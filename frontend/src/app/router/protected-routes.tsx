@@ -110,8 +110,8 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
                 không lần lượt chớp màn "Đang tải" có logo rồi mới tới màn chào cũng có logo. */}
             <WelcomeSplash />
             {getIdentity()?.mfaSetupRequired ? (
-              // Quản trị viên chưa bật 2 lớp (cổng Admin cách ly): máy chủ chặn mọi API khác, nên mọi địa chỉ chỉ
-              // mở màn bật 2 lớp — không khung, không menu.
+              // Quản trị viên chưa bật xác thực qua email (cổng Admin cách ly): máy chủ chặn mọi API khác, nên mọi địa chỉ chỉ
+              // mở màn bật xác thực qua email — không khung, không menu.
               <Suspense fallback={<FullPageSpinner label="Đang tải" />}>
                 <AdminMfaSetup />
               </Suspense>

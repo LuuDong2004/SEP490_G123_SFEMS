@@ -87,7 +87,7 @@ public class SchoolImportService {
     private static final Pattern MOET = Pattern.compile("^[0-9A-Za-z-]{4,20}$");
 
     private static final Set<String> SCHOOL_DATA_TABLES =
-            Set.of("users", "staff", "campuses", "rooms", "school_classes", "equipment");
+            Set.of("user_schools", "staff", "campuses", "rooms", "school_classes", "equipment");
 
     private final SchoolRepository repository;
     private final RowLevelSecurity rowLevel;

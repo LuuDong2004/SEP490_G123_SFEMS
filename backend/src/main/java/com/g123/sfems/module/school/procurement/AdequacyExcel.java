@@ -72,10 +72,9 @@ final class AdequacyExcel {
                 new Column("norms", "Thiết bị phải có", "number"),
                 new Column("met", "Đã đủ", "number"),
                 new Column("percent", "Tỷ lệ đáp ứng (%)", "number"),
-                new Column("short_items", "Thiết bị còn thiếu", "number"),
-                new Column("shortage", "Tổng số thiếu", "number"),
-                new Column("surplus_items", "Thiết bị thừa", "number"),
-                new Column("surplus", "Tổng số thừa", "number"),
+                // Đếm loại, không có cột tổng số lượng: các dòng khác đơn vị (ml, gam, bộ…) không cộng được với nhau.
+                new Column("short_items", "Loại còn thiếu", "number"),
+                new Column("surplus_items", "Loại còn thừa", "number"),
                 new Column("unknown", "Chưa tính được", "number"),
                 new Column("state", "Dữ liệu", "text"));
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -89,9 +88,7 @@ final class AdequacyExcel {
             row.put("met", r.met());
             row.put("percent", r.percent());
             row.put("short_items", r.shortItems());
-            row.put("shortage", r.shortageTotal());
             row.put("surplus_items", r.surplusItems());
-            row.put("surplus", r.surplusTotal());
             row.put("unknown", r.unknown());
             row.put("state", r.hasEquipment() ? (r.unknown() > 0 ? "Thiếu dữ liệu nền" : "Đủ dữ liệu")
                     : "Chưa nhập thiết bị");

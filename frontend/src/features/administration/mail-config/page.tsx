@@ -1,6 +1,6 @@
 import { useCan, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, Send, Shield } from "lucide-react";
+import { Loader2, Mail, Send } from "lucide-react";
 import { useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
@@ -10,12 +10,16 @@ import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Switch } from "@/shared/ui/switch";
 
 const KEY = ["mail_config"];
 const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+
+type Security = "STARTTLS" | "SSL" | "NONE";
 
 interface MailConfig {
   host: string | null;
@@ -24,8 +28,9 @@ interface MailConfig {
   hasPassword: boolean;
   passwordHint: string | null;
   fromAddress: string | null;
-  authEnabled: boolean;
-  tlsEnabled: boolean;
+  senderName: string | null;
+  security: Security;
+  enabled: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -38,8 +43,8 @@ interface TestResult {
 type FormState = Partial<Record<string, string | number | boolean>>;
 
 /**
- * `/mail-config` — Cài đặt máy chủ thư SMTP (chỉ quản trị): host, cổng, tên đăng nhập, mật khẩu,
- * địa chỉ gửi, bật/tắt xác thực và STARTTLS; kiểm tra kết nối bằng thư thử.
+ * `/mail-config` — Cài đặt máy chủ thư SMTP (chỉ quản trị): host, cổng, kiểu bảo mật,
+ * tên đăng nhập, mật khẩu, địa chỉ gửi, tên người gửi; bật/tắt dùng cấu hình DB; gửi thư thử.
  */
 export function MailConfigPage() {
   const { open: notify } = useNotification();
@@ -56,17 +61,17 @@ export function MailConfigPage() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
 
-  const strField = (key: keyof MailConfig) =>
-    String((key in form ? form[key] : data?.[key]) ?? "");
-
-  const boolField = (key: keyof MailConfig, def: boolean) =>
+  const str = (key: keyof MailConfig) => String((key in form ? form[key] : data?.[key]) ?? "");
+  const bool = (key: keyof MailConfig, def: boolean) =>
     (key in form ? (form[key] as boolean) : (data?.[key] as boolean | undefined)) ?? def;
+  const security: Security = (form["security"] as Security | undefined) ?? data?.security ?? "STARTTLS";
+
+  const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
   const save = async () => {
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { ...form };
-      const fresh = await kyInstance.put("mail_config", { json: payload }).json<MailConfig>();
+      const fresh = await kyInstance.put("mail_config", { json: { ...form } }).json<MailConfig>();
       qc.setQueryData(KEY, fresh);
       setForm({});
       notify?.({ type: "success", message: "Đã lưu cấu hình máy chủ thư" });
@@ -91,138 +96,170 @@ export function MailConfigPage() {
     }
   };
 
-  const configured = !!(data?.host);
+  const configured = !!(data?.host) && (data?.enabled ?? false);
   const dirty = Object.keys(form).length > 0;
-  const authOn = boolField("authEnabled", true);
 
   return (
     <ListView>
       <ListViewHeader canCreate={false} title="Cài đặt máy chủ thư" />
       {isLoading ? null : (
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <Card className="gap-4 px-5 py-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Mail className="size-4" />
-                Thông số SMTP
-              </h3>
-              {configured ? (
-                <Badge variant="success">Đã cấu hình</Badge>
-              ) : (
-                <Badge variant="warning">Chưa cấu hình</Badge>
-              )}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
-              <div className="grid gap-1.5">
-                <Label htmlFor="smtp-host">Máy chủ (host)</Label>
-                <Input
-                  id="smtp-host"
-                  value={strField("host")}
-                  placeholder="smtp.gmail.com"
-                  disabled={!canWrite}
-                  onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="smtp-port">Cổng (port)</Label>
-                <Input
-                  id="smtp-port"
-                  type="number"
-                  min={1}
-                  max={65535}
-                  value={String("port" in form ? form["port"] : (data?.port ?? 587))}
-                  disabled={!canWrite}
-                  onChange={(e) => setForm((f) => ({ ...f, port: Number(e.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="smtp-from">Địa chỉ gửi (from)</Label>
-              <Input
-                id="smtp-from"
-                value={strField("fromAddress")}
-                placeholder="SFEMS <no-reply@sfems.vn>"
+        <Card className="gap-5 px-5 py-4 max-w-2xl">
+          {/* Toggle bật/tắt */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="smtp-enabled"
+                checked={bool("enabled", true)}
                 disabled={!canWrite}
-                onChange={(e) => setForm((f) => ({ ...f, fromAddress: e.target.value }))}
+                onCheckedChange={(v) => set({ enabled: v })}
+              />
+              <Label htmlFor="smtp-enabled" className="cursor-pointer text-sm font-medium">
+                <Mail className="mr-1.5 inline size-4 align-text-bottom" />
+                Gửi thư qua máy chủ khai ở đây
+              </Label>
+            </div>
+            {configured ? (
+              <Badge variant="success">Đang dùng cấu hình này</Badge>
+            ) : (
+              <Badge variant="warning">Chưa kích hoạt</Badge>
+            )}
+          </div>
+
+          <div className="h-px bg-border" />
+
+          {/* Hàng 1: host / port / bảo mật */}
+          <div className="grid gap-4 sm:grid-cols-[1fr_8rem_11rem]">
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-host">
+                Máy chủ SMTP <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="smtp-host"
+                value={str("host")}
+                placeholder="smtp.gmail.com"
+                disabled={!canWrite}
+                onChange={(e) => set({ host: e.target.value })}
               />
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex items-center gap-3 rounded-md border px-3 py-2">
-                <Switch
-                  id="smtp-auth"
-                  checked={authOn}
-                  disabled={!canWrite}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, authEnabled: v }))}
-                />
-                <Label htmlFor="smtp-auth" className="cursor-pointer">
-                  Xác thực (AUTH)
-                </Label>
-              </div>
-              <div className="flex items-center gap-3 rounded-md border px-3 py-2">
-                <Switch
-                  id="smtp-tls"
-                  checked={boolField("tlsEnabled", true)}
-                  disabled={!canWrite}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, tlsEnabled: v }))}
-                />
-                <Label htmlFor="smtp-tls" className="flex cursor-pointer items-center gap-1.5">
-                  <Shield className="size-3.5" />
-                  STARTTLS
-                </Label>
-              </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-port">
+                Cổng <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="smtp-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={String("port" in form ? form["port"] : (data?.port ?? 587))}
+                disabled={!canWrite}
+                onChange={(e) => set({ port: Number(e.target.value) })}
+              />
             </div>
+            <div className="grid gap-1.5">
+              <Label>Bảo mật kết nối</Label>
+              <Select
+                value={security}
+                onValueChange={(v) => set({ security: v })}
+                disabled={!canWrite}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STARTTLS">STARTTLS</SelectItem>
+                  <SelectItem value="SSL">SSL / TLS</SelectItem>
+                  <SelectItem value="NONE">Không mã hoá</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-            {authOn && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="smtp-user">Tên đăng nhập</Label>
-                  <Input
-                    id="smtp-user"
-                    value={strField("username")}
-                    placeholder="user@gmail.com"
-                    disabled={!canWrite}
-                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+          {/* Hàng 2: tài khoản / mật khẩu */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-user">Tài khoản</Label>
+              <Input
+                id="smtp-user"
+                value={str("username")}
+                placeholder="user@gmail.com"
+                disabled={!canWrite}
+                onChange={(e) => set({ username: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-pass">Mật khẩu</Label>
+              <Input
+                id="smtp-pass"
+                type="password"
+                value={String(form["password"] ?? "")}
+                placeholder={
+                  data?.hasPassword ? (data.passwordHint ? `Đã lưu — để trống là giữ` : "Đã lưu — để trống là giữ") : "Chưa đặt"
+                }
+                disabled={!canWrite}
+                onChange={(e) => set({ password: e.target.value })}
+              />
+              {canWrite && data?.hasPassword && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="smtp-clear-pwd"
+                    checked={form["clearPassword"] === true}
+                    onCheckedChange={(v) => set({ clearPassword: Boolean(v) })}
                   />
+                  <Label htmlFor="smtp-clear-pwd" className="cursor-pointer text-sm font-normal">
+                    Xoá mật khẩu đã lưu
+                  </Label>
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="smtp-pass">Mật khẩu</Label>
-                  <Input
-                    id="smtp-pass"
-                    type="password"
-                    value={String(form["password"] ?? "")}
-                    placeholder={data?.hasPassword ? (data.passwordHint ?? "••••••••") : "Chưa đặt"}
-                    disabled={!canWrite}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  />
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
 
-            {canWrite && (
-              <div className="flex justify-end gap-2">
-                {dirty && (
-                  <Button variant="ghost" onClick={() => setForm({})}>
-                    Huỷ
-                  </Button>
-                )}
-                <Button onClick={() => void save()} disabled={!dirty || saving}>
-                  {saving && <Loader2 className="size-4 animate-spin" />}
-                  Lưu cấu hình
+          {/* Hàng 3: địa chỉ gửi / tên người gửi */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-from">Địa chỉ gửi</Label>
+              <Input
+                id="smtp-from"
+                value={str("fromAddress")}
+                placeholder="no-reply@sfems.vn"
+                disabled={!canWrite}
+                onChange={(e) => set({ fromAddress: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="smtp-sender-name">Tên người gửi</Label>
+              <Input
+                id="smtp-sender-name"
+                value={str("senderName")}
+                placeholder="QLTB"
+                disabled={!canWrite}
+                onChange={(e) => set({ senderName: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {canWrite && (
+            <div className="flex justify-end gap-2">
+              {dirty && (
+                <Button variant="ghost" onClick={() => setForm({})}>
+                  Huỷ
                 </Button>
-              </div>
-            )}
+              )}
+              <Button onClick={() => void save()} disabled={!dirty || saving}>
+                {saving && <Loader2 className="size-4 animate-spin" />}
+                Lưu
+              </Button>
+            </div>
+          )}
 
-            {data?.updatedBy && (
-              <p className="text-muted-foreground text-xs">Cập nhật lần cuối bởi {data.updatedBy}</p>
-            )}
-          </Card>
+          {data?.updatedBy && (
+            <p className="text-muted-foreground text-xs">Cập nhật lần cuối bởi {data.updatedBy}</p>
+          )}
 
-          <Card className="gap-3 px-5 py-4">
-            <h3 className="text-sm font-semibold">Gửi thư thử</h3>
-            <p className="text-muted-foreground text-sm">Kiểm tra kết nối sau khi lưu cấu hình.</p>
+          <div className="h-px bg-border" />
+
+          {/* Gửi thư thử */}
+          <div className="grid gap-2">
+            <p className="text-sm font-medium">Gửi thư thử tới</p>
             <form
               className="flex items-center gap-2"
               onSubmit={(e) => {
@@ -234,7 +271,7 @@ export function MailConfigPage() {
                 type="email"
                 value={testTo}
                 maxLength={254}
-                placeholder="Địa chỉ nhận thư thử"
+                placeholder="email@example.com"
                 className="bg-field min-w-0 flex-1"
                 onChange={(e) => setTestTo(e.target.value)}
                 disabled={!canWrite}
@@ -245,7 +282,7 @@ export function MailConfigPage() {
                 disabled={!canWrite || !EMAIL_RE.test(testTo.trim()) || sending}
               >
                 {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                Gửi thử
+                Gửi thư thử
               </Button>
             </form>
             {result && (
@@ -253,8 +290,8 @@ export function MailConfigPage() {
                 {result.message}
               </p>
             )}
-          </Card>
-        </div>
+          </div>
+        </Card>
       )}
     </ListView>
   );

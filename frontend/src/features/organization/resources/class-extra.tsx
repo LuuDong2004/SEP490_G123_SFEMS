@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SameSchoolRef, TextField, refCell } from "@/features/organization/resources/facility-extra";
 import { SchoolField, schoolColumn } from "@/features/organization/resources/school-field";
 import { SIDE_GROUPS, SideGroup } from "@/features/organization/resources/form-groups";
+import { yearLabel } from "@/shared/hooks/use-school-year";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -536,7 +537,7 @@ export const SCHOOL_CLASS_EXTRA = {
       id: "schoolYear",
       header: "Năm học",
       enableSorting: false,
-      cell: ({ row }) => <span className="tabular-nums">{row.original.schoolYear?.code ?? "—"}</span>,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.schoolYear ? yearLabel(row.original.schoolYear) : "—"}</span>,
     },
     refCell("homeroomTeacher", "GV chủ nhiệm"),
     {

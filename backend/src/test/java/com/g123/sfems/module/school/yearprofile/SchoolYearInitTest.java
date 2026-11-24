@@ -75,7 +75,7 @@ class SchoolYearInitTest {
                 SELECT count(*)::int FROM staff_assignments a JOIN staff st ON st.id = a.staff_id
                 WHERE a.school_id = ? AND a.school_year_id = ? AND st.active AND st.staff_type = 'TEACHER'""",
                 Integer.class, school, current);
-        SchoolYearInitService.InitResult r = init.init(new SchoolYearInitService.InitRequest(target, null,
+        SchoolYearInitService.InitResult r = init.init(new SchoolYearInitService.InitRequest(target,
                 SchoolYearInitService.Classes.PROMOTE, true, true));
         assertThat(r.classes()).isEqualTo(notLast);
         assertThat(r.assignments()).isEqualTo(teachers);
@@ -89,7 +89,7 @@ class SchoolYearInitTest {
             assertThat(codes).contains("9A1:LOP_9");
         }
         // Chạy lại không nhân đôi lớp.
-        assertThat(init.init(new SchoolYearInitService.InitRequest(target, null,
+        assertThat(init.init(new SchoolYearInitService.InitRequest(target,
                 SchoolYearInitService.Classes.PROMOTE, true, true)).classes()).isZero();
     }
 

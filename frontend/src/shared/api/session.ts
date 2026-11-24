@@ -45,7 +45,7 @@ export type Identity = {
   fullName: string;
   /**
    * Tài khoản quản trị chưa có lớp xác thực thứ hai trong khi cổng Admin bắt buộc (`app.portal.admin-mfa-required`):
-   * máy chủ trả 403 cho mọi API ngoài `/auth/*`, nên giao diện chỉ mở màn bật 2 lớp.
+   * máy chủ trả 403 cho mọi API ngoài `/auth/*`, nên giao diện chỉ mở màn bật xác thực qua email.
    */
   mfaSetupRequired?: boolean;
 };
@@ -210,7 +210,7 @@ export function saveSession(tokens: TokenPair) {
   inFlightAuthorities = null;
 }
 
-/** Ghi lại danh tính sau `GET /auth/me` (vd. vừa bật 2 lớp) mà không đụng tới token. */
+/** Ghi lại danh tính sau `GET /auth/me` (vd. vừa bật xác thực qua email) mà không đụng tới token. */
 export function saveIdentity(identity: Identity) {
   write(STORAGE_KEYS.identity, JSON.stringify(identity));
 }

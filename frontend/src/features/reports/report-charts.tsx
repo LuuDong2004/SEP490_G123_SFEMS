@@ -551,7 +551,8 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             <StatTile flat icon={<School />} label="Trường" value={count.format(rows.length)} />
             <StatTile flat icon={<Gauge />} tone={avg >= 80 ? "success" : "warning"} label="Đáp ứng trung bình" value={`${avg}%`}
               info="Trung bình tỷ lệ đạt của các trường. Trường thiếu số lớp, số học sinh thì chưa tính." />
-            <StatTile flat icon={<CircleAlert />} tone="destructive" label="Thiết bị còn thiếu" value={count.format(sum(rows, "shortage"))} />
+            <StatTile flat icon={<CircleAlert />} tone="destructive" label="Trường còn thiếu thiết bị"
+              value={count.format(rows.filter((r) => n(r.shortage) > 0).length)} hint="Có ít nhất một loại chưa đủ số lượng" />
             <StatTile flat icon={<ClipboardList />} label="Định mức chưa tính được" value={count.format(sum(rows, "unknown"))}
               hint="Thiếu số lớp / số học sinh" />
           </Tiles>
@@ -561,7 +562,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
           <Pair>
             <ChartCard bare title="Đáp ứng trung bình" description="Định mức tối thiểu đã đủ">
               <Meter percent={known.length ? avg : null} label={`${count.format(known.length)} trường tính được`}
-                hint={`${count.format(sum(rows, "shortage"))} thiết bị còn thiếu`} />
+                hint={`${count.format(rows.filter((r) => n(r.shortage) > 0).length)} trường còn thiếu thiết bị`} />
             </ChartCard>
             <ChartCard bare title="Phân bố mức đáp ứng" description="Số trường theo tỷ lệ định mức đạt">
               <DonutBreakdown items={bands} unit="trường" onPick={pickList("trường", (r, s) => {

@@ -219,7 +219,7 @@ public class EquipmentController extends CatalogController<Equipment, EquipmentR
         }
         String code = codes.peek(school, parts.get()).orElse(null);
         body.put("code", code);
-        body.put("reason", code == null ? "Đã hết số thứ tự 001-999 cho bộ mã này" : null);
+        body.put("reason", code == null ? "Đã hết số thứ tự 0001-9999 cho bộ mã này" : null);
         return body;
     }
 }

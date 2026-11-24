@@ -60,19 +60,6 @@ const ADMIN_HELP: Record<string, ScreenHelp> = {
     title: "Quy tắc mã của trường",
     summary: "Ký hiệu đầu và độ dài số của mã phòng, khối nhà, điểm trường, cán bộ — theo từng trường.",
   },
-  system_status: {
-    title: "Tình trạng hệ thống",
-    summary: "Cơ sở dữ liệu, dung lượng đĩa, bộ nhớ, sao lưu.",
-    tips: [
-      "\"Sao lưu ngay\" tạo một bản sao lưu cơ sở dữ liệu; bản sao lưu cũ quá 36 giờ thì có cảnh báo.",
-      "Tệp đính kèm nằm ở kho tệp (MinIO), phải sao lưu riêng.",
-    ],
-  },
-  activity_logs: {
-    title: "Nhật ký hoạt động",
-    summary: "Ai đã gọi thao tác gì, lúc nào, kết quả ra sao — mọi lần thêm, sửa, xoá, duyệt, xuất, đăng nhập.",
-    tips: ["Dòng đỏ là thao tác bị từ chối — thường là dòng đáng đọc nhất."],
-  },
   data_changes: {
     title: "Lịch sử thay đổi dữ liệu",
     summary: "Giá trị TRƯỚC và SAU mỗi lần sửa các trường quan trọng (trường, cán bộ, phòng, tài khoản, danh mục…).",

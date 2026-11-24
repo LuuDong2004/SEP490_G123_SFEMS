@@ -28,7 +28,6 @@ import {
 } from "@/shared/ui/form";
 import { ProfileFields, profilePayload, type ProfileKind } from "@/features/administration/users/profile-fields";
 import { RolePicker } from "@/features/administration/users/role-picker";
-import { ResetMfaCard } from "@/features/administration/users/reset-mfa-card";
 import { ResetPasswordCard } from "@/features/administration/users/reset-password-card";
 import { STATUS_OPTIONS, USER_TYPE_LABELS, type User, type UserProfile } from "@/domains/user/types";
 import { Label } from "@/shared/ui/label";
@@ -263,7 +262,6 @@ export const UserEdit = () => {
         </Form>
 
         {userId != null && <ResetPasswordCard userId={userId} email={user?.email ?? null} />}
-        {userId != null && <ResetMfaCard userId={userId} />}
       </div>
     </EditView>
   );

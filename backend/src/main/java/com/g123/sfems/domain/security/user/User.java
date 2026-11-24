@@ -38,13 +38,13 @@ import org.hibernate.annotations.DynamicUpdate;
  * only ever writes an already-encoded value into it.
  *
  * <p>Ba loại tài khoản ({@link UserType}) là ba lớp con JOINED (docs/kien-truc/11, theo khung qlvb-app):
- * {@code users} chỉ giữ phần đăng nhập (tên, mật khẩu, khoá, 2 lớp, vai); phần riêng từng loại ở bảng con —
+ * {@code users} chỉ giữ phần đăng nhập (tên, mật khẩu, khoá, xác thực qua email, vai); phần riêng từng loại ở bảng con —
  * {@link SystemUser} ({@code user_systems}), {@link SoUser} ({@code user_sos}), {@link SchoolUser} ({@code user_schools}). Trường / cơ quan quản lý là cột NOT NULL, không
  * đổi được của bảng con: tài khoản Sở không có ô "trường" để đọc nhầm. {@code users.user_type} là cột phân loại.
  * Loại cố định từ lúc tạo — tạo bằng {@link #create}.
  *
  * <p>{@code @DynamicUpdate}: lưu chỉ ghi những cột đã đổi. Các bước đăng nhập ghi bộ đếm sai, mã email trong
- * giao dịch RIÊNG ({@code LoginGuard}, {@code EmailMfaService}, {@code MfaService}); không có nó, lần lưu
+ * giao dịch RIÊNG ({@code LoginGuard}, {@code EmailMfaService}); không có nó, lần lưu
  * {@code lastLoginAt} của giao dịch đăng nhập ghi đè cả hàng bằng bản trong bộ nhớ — mã email vừa dùng sống lại.
  */
 @Entity
@@ -97,22 +97,12 @@ public abstract class User {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
-    /** Bí mật TOTP, đã mã hoá bằng {@code SecretBox}. Có mà chưa bật = đang thiết lập. */
-    @Column(name = "mfa_secret", length = 255)
-    private String mfaSecret;
-
-    @Column(name = "mfa_enabled", nullable = false)
-    private boolean mfaEnabled;
-
+    /** Số lần nhập sai mã qua email liên tiếp; đủ 5 thì khoá nhập mã 5 phút ({@code mfaLockedUntil}). */
     @Column(name = "mfa_failed_attempts", nullable = false)
     private int mfaFailedAttempts;
 
     @Column(name = "mfa_locked_until")
     private Instant mfaLockedUntil;
-
-    /** Bước thời gian của mã TOTP dùng gần nhất — mã cùng bước hoặc cũ hơn không dùng lại được. */
-    @Column(name = "mfa_last_step")
-    private Long mfaLastStep;
 
     /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0. */
     @Column(name = "failed_login_count", nullable = false)
@@ -121,7 +111,7 @@ public abstract class User {
     @Column(name = "login_locked_until")
     private Instant loginLockedUntil;
 
-    /** Xác thực hai lớp qua email: mã 6 số gửi tới {@code email} mỗi lần đăng nhập. */
+    /** Xác thực qua email: mã 6 số gửi tới {@code email} mỗi lần đăng nhập. */
     @Column(name = "mfa_email", nullable = false)
     private boolean mfaEmail;
 
@@ -183,22 +173,6 @@ public abstract class User {
         this.emailCodeSentAt = emailCodeSentAt;
     }
 
-    public String getMfaSecret() {
-        return mfaSecret;
-    }
-
-    public void setMfaSecret(String mfaSecret) {
-        this.mfaSecret = mfaSecret;
-    }
-
-    public boolean isMfaEnabled() {
-        return mfaEnabled;
-    }
-
-    public void setMfaEnabled(boolean mfaEnabled) {
-        this.mfaEnabled = mfaEnabled;
-    }
-
     public int getMfaFailedAttempts() {
         return mfaFailedAttempts;
     }
@@ -213,14 +187,6 @@ public abstract class User {
 
     public void setMfaLockedUntil(Instant mfaLockedUntil) {
         this.mfaLockedUntil = mfaLockedUntil;
-    }
-
-    public Long getMfaLastStep() {
-        return mfaLastStep;
-    }
-
-    public void setMfaLastStep(Long mfaLastStep) {
-        this.mfaLastStep = mfaLastStep;
     }
 
     protected User() {

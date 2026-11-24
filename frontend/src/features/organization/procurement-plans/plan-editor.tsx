@@ -40,6 +40,7 @@ import {
 import { maxLengthOf } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { yearLabel } from "@/shared/hooks/use-school-year";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -216,7 +217,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
             <ViewFact label="Mã kế hoạch"><span className="font-mono">{plan.code}</span></ViewFact>
             <ViewFact label="Tên kế hoạch" wide>{plan.title}</ViewFact>
             <ViewFact label="Ngày lập">{formatPlainDate(plan.planDate)}</ViewFact>
-            <ViewFact label="Năm học">{plan.schoolYear?.code ?? plan.schoolYear?.name ?? `Năm ngân sách ${plan.budgetYear}`}</ViewFact>
+            <ViewFact label="Năm học">{plan.schoolYear ? `Năm học ${yearLabel(plan.schoolYear)}` : `Năm ngân sách ${plan.budgetYear}`}</ViewFact>
             <ViewFact label="Người lập">{plan.createdBy?.name ?? "—"}</ViewFact>
             {plan.note ? <ViewFact label="Mô tả" wide>{plan.note}</ViewFact> : null}
           </dl>
@@ -229,7 +230,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
           <TextField control={control} name="title" label="Tên kế hoạch" rule="NAME" rules={{ required: "Nhập tên kế hoạch" }}
             className="sm:col-span-2" placeholder="VD: Kế hoạch mua sắm thiết bị dạy học năm học 2026-2027" />
           <DateField control={control} name="planDate" label="Ngày lập" rules={{ required: "Chọn ngày lập" }} />
-          <RefField control={control} name="schoolYear" resource="school_years" label="Năm học" required labelField="code" current={plan?.schoolYear ?? undefined} />
+          <RefField control={control} name="schoolYear" resource="school_years" label="Năm học" required labelField="name" current={plan?.schoolYear ?? undefined} />
           <div className="grid gap-2">
             <Label>Người lập</Label>
             <Input readOnly tabIndex={-1} className="bg-muted/60"

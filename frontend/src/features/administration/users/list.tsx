@@ -20,7 +20,6 @@ import {
 } from "@/shared/components/views/list-view";
 import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
-import { DeleteButton } from "@/shared/components/buttons/delete";
 import { Badge } from "@/shared/ui/badge";
 import type { User } from "@/domains/user/types";
 import { STATUS_LABELS } from "@/domains/user/types";
@@ -118,7 +117,6 @@ export const UserList = () => {
           <RowActions>
             <EditButton recordItemId={row.original.id} iconOnly size="icon-sm" />
             <ShowButton recordItemId={row.original.id} iconOnly size="icon-sm" />
-            <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
           </RowActions>
         ),
         enableSorting: false,

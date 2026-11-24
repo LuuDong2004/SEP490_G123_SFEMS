@@ -154,7 +154,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             throw new MessageDeliveryException("Unknown destination");
         }
         if (secondFactorMissing(accessor)) {
-            // Cùng luật với AdminPortalGuard bên HTTP: tài khoản quản trị chưa bật 2 lớp chỉ được phần "của mình".
+            // Cùng luật với AdminPortalGuard bên HTTP: tài khoản quản trị chưa bật xác thực qua email chỉ được phần "của mình".
             throw new MessageDeliveryException(AdminAccessDeniedException.MFA_MESSAGE);
         }
 

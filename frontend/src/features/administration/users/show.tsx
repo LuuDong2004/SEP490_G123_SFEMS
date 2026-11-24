@@ -98,20 +98,20 @@ export const UserShow = () => {
           </FormSection>
 
           <FormSection title="Phân quyền" compact>
-            <ReadField label="Vai trò">
-              <div className="flex flex-wrap gap-2">
-                {record?.roles?.length ? (
-                  record.roles.map((role) => (
-                    <Badge key={role.id} variant="outline">
-                      {role.name}
-                      <span className="text-muted-foreground ml-1 font-mono text-[0.625rem]">{role.code}</span>
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-muted-foreground">Không có</span>
-                )}
-              </div>
-            </ReadField>
+            <div className={GRID}>
+              {/* Một vai thì ô rộng bằng một cột như các ô trên; nhiều vai hoặc thẻ hẹp thì hai cột cho đủ chỗ. */}
+              <ReadField label="Vai trò" className={(record?.roles?.length ?? 0) > 1 ? "@md:col-span-2" : "@md:col-span-2 @5xl:col-span-1"}>
+                <div className="flex flex-wrap gap-2">
+                  {record?.roles?.length ? (
+                    record.roles.map((role) => (
+                      <Badge key={role.id} variant="outline">{role.name}</Badge>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground">Không có</span>
+                  )}
+                </div>
+              </ReadField>
+            </div>
           </FormSection>
 
           <p className="text-muted-foreground flex flex-wrap gap-x-6 text-xs">

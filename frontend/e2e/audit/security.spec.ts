@@ -176,7 +176,7 @@ test("S8 header bảo mật, CORS, endpoint lộ ra ngoài", async ({ request })
 test("S9 dữ liệu nhạy cảm trong phản hồi", async ({ request }) => {
   const u = await call(request, S.admin, "GET", "users?_start=0&_end=5");
   const txt = JSON.stringify(u.body);
-  rec.check("S9:users-hash", "Lộ thông tin", "Danh sách tài khoản không trả mật khẩu băm / bí mật 2 lớp", !/password(Hash)?"\s*:\s*"\$2|mfaSecret|totpSecret/i.test(txt), "critical", "không có", /passwordHash|mfaSecret/i.test(txt) ? "CÓ trường nhạy cảm" : "không thấy");
+  rec.check("S9:users-hash", "Lộ thông tin", "Danh sách tài khoản không trả mật khẩu băm / mã email băm", !/password(Hash)?"\s*:\s*"\$2|emailCodeHash/i.test(txt), "critical", "không có", /passwordHash|emailCodeHash/i.test(txt) ? "CÓ trường nhạy cảm" : "không thấy");
   const me = await call(request, S.canbo, "GET", "auth/me", undefined, "");
   rec.check("S9:me", "Lộ thông tin", "/api/auth/me không trả mật khẩu băm", !/\$2[aby]\$/.test(JSON.stringify(me.body)), "critical", "không có", "đã kiểm");
   const login = await request.post(`${API}/api/auth/login`, { data: { username: "khong.ton.tai.e2e", password: "x" }, failOnStatusCode: false });

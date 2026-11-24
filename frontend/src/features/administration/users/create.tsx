@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ProfileFields, profilePayload, type AnyControl, type ProfileKind } from "@/features/administration/users/profile-fields";
+import { useOne } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { Loader2, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -76,6 +77,12 @@ const DEFAULT_VALUES: UserFormValues = {
   profile: {},
 };
 
+/** Tiền tố tài khoản của một trường — cùng phép với máy chủ (`UserService.schoolLogin`) và màn đăng nhập. */
+function loginPrefix(code: string): string {
+  return code.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D")
+    .toLowerCase().replace(/[^a-z0-9._-]/g, "");
+}
+
 const GRID = "grid items-start gap-x-4 gap-y-5";
 /** Các phần trong hộp thoại không mang khung thẻ riêng — hộp đã là khung; ngăn nhau bằng một đường kẻ mảnh. */
 const SECTION = "@container grid gap-4 border-t py-5 first:border-t-0";
@@ -116,6 +123,14 @@ export const UserCreate = () => {
   const [placementMode, setPlacementMode] = useState<PlacementMode>("school");
   const [placementError, setPlacementError] = useState<string | null>(null);
   const profileKind: ProfileKind = placementMode === "school" ? "school" : placementMode === "body" ? "agency" : "system";
+  // Tài khoản trường mang tên <mã trường>.<tên> — máy chủ tự ghép; ô tên đăng nhập hiện sẵn tiền tố để người tạo thấy tên đầy đủ.
+  const schoolId = form.watch("school")?.id ?? null;
+  const { result: pickedSchool } = useOne<{ code: string }>({
+    resource: "schools",
+    id: schoolId ?? "",
+    queryOptions: { enabled: placementMode === "school" && schoolId != null },
+  });
+  const prefix = placementMode === "school" && schoolId != null && pickedSchool?.code ? loginPrefix(pickedSchool.code) : null;
 
   function onSubmit(values: UserFormValues) {
     const problem = placementProblem(placementMode, values.school, values.managingBody);
@@ -154,11 +169,22 @@ export const UserCreate = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tên đăng nhập</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="nguyenvana" autoComplete="off" maxLength={maxLengthOf("USERNAME", 100)} />
-                </FormControl>
+                <div className="flex">
+                  {prefix ? (
+                    <span className="bg-muted text-muted-foreground flex max-w-[50%] shrink-0 items-center truncate rounded-s-md border border-e-0 px-3 text-sm"
+                      title={`${prefix}.`}>
+                      {prefix}.
+                    </span>
+                  ) : null}
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ""} placeholder="nguyenvana" autoComplete="off" maxLength={maxLengthOf("USERNAME", 100)}
+                      className={prefix ? "rounded-s-none" : undefined} />
+                  </FormControl>
+                </div>
                 <FormHint>
-                  Dùng để đăng nhập. Không được trùng với tài khoản khác.
+                  {prefix
+                    ? `Tên đầy đủ là ${prefix}.${field.value || "…"} — đăng nhập thì chọn trường rồi gõ phần sau dấu chấm.`
+                    : "Dùng để đăng nhập. Không được trùng với tài khoản khác."}
                 </FormHint>
                 <FormMessage />
               </FormItem>

@@ -354,7 +354,23 @@ public class FacilityStandardService {
         return String.join(", ", parts);
     }
 
-    /** Tóm tắt quy tắc cho người đọc: "≥ 1 phòng; 1 phòng/lớp; ≥ 45 m²/phòng; 0,6 m²/học sinh; tổng ≥ 60 m²". */
+    /**
+     * Tỉ lệ phòng theo lớp viết như thông tư: 0,1 → "1 phòng cho 10 lớp", 0,6 → "3 phòng cho 5 lớp", 1 → "1 phòng mỗi
+     * lớp". "0,1 phòng/lớp" đúng nhưng khó hiểu.
+     */
+    static String perClassText(BigDecimal ratio) {
+        if (ratio.signum() > 0 && ratio.compareTo(BigDecimal.ONE) < 0) {
+            for (int classes = 2; classes <= 100; classes++) {
+                BigDecimal rooms = ratio.multiply(BigDecimal.valueOf(classes)).stripTrailingZeros();
+                if (rooms.scale() <= 0) {
+                    return rooms.toPlainString() + " phòng cho " + classes + " lớp";
+                }
+            }
+        }
+        return plain(ratio) + " phòng mỗi lớp";
+    }
+
+    /** Tóm tắt quy tắc cho người đọc: "≥ 1 phòng; 1 phòng cho 10 lớp; ≥ 45 m²/phòng; 0,6 m² mỗi học sinh; tổng ≥ 60 m²". */
     public static String describe(RuleRow rule) {
         return describe(rule.minCount(), rule.countPerClass(), rule.minRoomArea(), rule.areaPerStudent(),
                 rule.minTotalArea());
@@ -367,13 +383,13 @@ public class FacilityStandardService {
             parts.add("≥ " + minCount + " phòng");
         }
         if (perClass != null) {
-            parts.add(plain(perClass) + " phòng/lớp");
+            parts.add(perClassText(perClass));
         }
         if (roomArea != null) {
             parts.add("≥ " + plain(roomArea) + " m²/phòng");
         }
         if (perStudent != null) {
-            parts.add(plain(perStudent) + " m²/học sinh");
+            parts.add(plain(perStudent) + " m² mỗi học sinh");
         }
         if (totalArea != null) {
             parts.add("tổng ≥ " + plain(totalArea) + " m²");
@@ -382,7 +398,7 @@ public class FacilityStandardService {
     }
 
     /**
-     * Quy tắc tính ra số của ĐÚNG trường đang xem: "≥ 15 phòng (0,6 phòng/lớp × 24 lớp)" thay cho "0,6 phòng/lớp" —
+     * Quy tắc tính ra số của ĐÚNG trường đang xem: "≥ 15 phòng (3 phòng cho 5 lớp, trường có 24 lớp)" thay cho tỉ lệ —
      * tỉ lệ trần không nói trường cần bao nhiêu phòng. Chưa có số lớp / học sinh thì ghi tỉ lệ như {@link #describe}.
      */
     private static String describeFor(RuleRow rule, Integer classes, Integer students) {
@@ -392,14 +408,14 @@ public class FacilityStandardService {
             if (rule.minCount() != null) {
                 need = need.max(BigDecimal.valueOf(rule.minCount()));
             }
-            parts.add("≥ " + need.toPlainString() + " phòng (" + plain(rule.countPerClass()) + " phòng/lớp × "
+            parts.add("≥ " + need.toPlainString() + " phòng (" + perClassText(rule.countPerClass()) + ", trường có "
                     + grouped(classes) + " lớp)");
         } else {
             if (rule.minCount() != null) {
                 parts.add("≥ " + rule.minCount() + " phòng");
             }
             if (rule.countPerClass() != null) {
-                parts.add(plain(rule.countPerClass()) + " phòng/lớp");
+                parts.add(perClassText(rule.countPerClass()));
             }
         }
         if (rule.minRoomArea() != null) {
@@ -411,11 +427,11 @@ public class FacilityStandardService {
             if (rule.minTotalArea() != null) {
                 need = need.max(rule.minTotalArea());
             }
-            parts.add("tổng ≥ " + grouped(need) + " m² (" + plain(rule.areaPerStudent()) + " m²/học sinh × "
+            parts.add("tổng ≥ " + grouped(need) + " m² (" + plain(rule.areaPerStudent()) + " m² mỗi học sinh, trường có "
                     + grouped(students) + " học sinh)");
         } else {
             if (rule.areaPerStudent() != null) {
-                parts.add(plain(rule.areaPerStudent()) + " m²/học sinh");
+                parts.add(plain(rule.areaPerStudent()) + " m² mỗi học sinh");
             }
             if (rule.minTotalArea() != null) {
                 parts.add("tổng ≥ " + plain(rule.minTotalArea()) + " m²");

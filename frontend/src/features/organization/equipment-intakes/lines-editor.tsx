@@ -170,13 +170,13 @@ function pageButtons(page: number, pages: number): (number | null)[] {
 /** `79.T6.08.TB.007.26` → bộ đếm `79.T6.08.TB.26` và số thứ tự 7. */
 function splitCode(code: string): { counter: string; seq: number } | null {
   const parts = code.split(".");
-  if (parts.length !== 6 || !/^\d{3}$/.test(parts[4])) return null;
+  if (parts.length !== 6 || !/^\d{3,4}$/.test(parts[4])) return null;
   return { counter: [...parts.slice(0, 4), parts[5]].join("."), seq: Number(parts[4]) };
 }
 
 function withSeq(code: string, seq: number) {
   const parts = code.split(".");
-  parts[4] = String(seq).padStart(3, "0");
+  parts[4] = String(seq).padStart(4, "0");
   return parts.join(".");
 }
 
@@ -769,7 +769,7 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
     write(next);
   };
   // Vì sao số thứ tự bắt đầu từ số này — một câu: số thiết bị đã có cùng bộ mã (và phần các dòng trên đã chiếm).
-  const pad = (n: number) => String(n).padStart(3, "0");
+  const pad = (n: number) => String(n).padStart(4, "0");
   const why = split && first != null
     ? (split.seq > 1 ? `Đã có ${split.seq - 1} thiết bị cùng loại` : "Chưa có thiết bị nào cùng loại")
       + (offset ? `, dòng trên dùng ${offset} số` : "") + ` và STT sẽ bắt đầu là ${pad(first)}`
@@ -850,7 +850,7 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
               {canPick ? <Checkbox aria-label={`Chọn thiết bị ${i + 1}`} checked={picked.has(i)} onCheckedChange={() => toggle(i)} /> : null}
               <span className="text-muted-foreground text-sm tabular-nums">{i + 1}</span>
               <span className="truncate font-mono text-xs">
-                {split && first != null && first + i <= 999 ? <SeqCode code={withSeq(code!, first + i)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
+                {split && first != null && first + i <= 9999 ? <SeqCode code={withSeq(code!, first + i)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
               </span>
               <Input id={serialId(i)} value={slots[i] ?? ""} aria-label={`Số serial thiết bị ${i + 1}`} placeholder="Quét hoặc nhập serial" maxLength={50}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); nextSerial(i); } }}
@@ -970,7 +970,7 @@ function LotPanel({ control, path, line, catalog, rooms, received, code, reason,
   const chemical = isChemical(line, catalog);
   const split = code ? splitCode(code) : null;
   const first = split ? split.seq + offset : null;
-  const pad = (n: number) => String(n).padStart(3, "0");
+  const pad = (n: number) => String(n).padStart(4, "0");
   const why = split && first != null
     ? (split.seq > 1 ? `Đã có ${split.seq - 1} thiết bị cùng loại` : "Chưa có thiết bị nào cùng loại")
       + (offset ? `, dòng trên dùng ${offset} số` : "") + ` và STT sẽ bắt đầu là ${pad(first)}`
@@ -1012,7 +1012,7 @@ function LotPanel({ control, path, line, catalog, rooms, received, code, reason,
           <div className={cn("grid items-center px-4 py-0.5", cols)}>
             <span className="text-muted-foreground text-sm tabular-nums">1</span>
             <span className="truncate font-mono text-xs">
-              {split && first != null && first <= 999 ? <SeqCode code={withSeq(code!, first)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
+              {split && first != null && first <= 9999 ? <SeqCode code={withSeq(code!, first)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
             </span>
             <FormField
               control={control}

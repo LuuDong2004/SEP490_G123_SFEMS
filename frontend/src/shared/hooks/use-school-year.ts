@@ -43,9 +43,15 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-/** Tên ngắn của năm học: "2026–2027". */
-export const yearLabel = (y: Pick<SchoolYearOption, "code" | "name"> | null | undefined) =>
-  y ? (y.code ?? y.name).replace("-", "–") : "";
+/**
+ * Tên ngắn của năm học: "2026–2027". Lấy cặp năm trong TÊN ("Năm học 2026-2027") trước, rồi tới mã — mã do quy tắc sinh
+ * mã đặt (vd. "NH006") nên không phải lúc nào cũng là cặp năm.
+ */
+export const yearLabel = (y: { code?: string | null; name?: string | null } | null | undefined) => {
+  if (!y) return "";
+  const span = /(\d{4})\s*[-–]\s*(\d{4})/.exec(`${y.name ?? ""} ${y.code ?? ""}`);
+  return span ? `${span[1]}–${span[2]}` : (y.name ?? y.code ?? "");
+};
 
 /** Mọi năm học của danh mục, mới nhất trước. */
 export function useSchoolYears() {

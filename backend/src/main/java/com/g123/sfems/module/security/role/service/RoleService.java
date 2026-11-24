@@ -3,6 +3,7 @@ package com.g123.sfems.module.security.role.service;
 import com.g123.sfems.domain.security.permission.Permission;
 import com.g123.sfems.domain.security.role.Role;
 import com.g123.sfems.domain.security.user.UserType;
+import com.g123.sfems.module.security.permission.service.PermissionGrants;
 import com.g123.sfems.module.security.permission.service.PermissionService;
 import com.g123.sfems.module.security.role.api.dto.PermissionRef;
 import com.g123.sfems.module.security.role.api.dto.RolePatchRequest;
@@ -32,6 +33,9 @@ public class RoleService {
     private static final Set<String> SORTABLE = Set.of("id", "code", "name", "systemRole", "roleType");
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Order.asc("code"));
+
+    /** Vai khoá quyền: sửa được thì quản trị viên tự bỏ quyền quản lý vai của mình, không ai mở lại được. */
+    private static final String ADMIN = "ADMIN";
 
     private final RoleRepository repository;
 
@@ -131,7 +135,10 @@ public class RoleService {
         }
         // null means "leave the grants alone"; an empty list means "revoke all
         // of them", which is a legitimate thing to ask for.
-        if (request.permissions() != null) {
+        if (request.permissions() != null && !samePermissions(role, request.permissions())) {
+            if (ADMIN.equals(role.getCode())) {
+                throw new ConflictException("Quyền của vai Quản trị viên được khoá, không sửa được");
+            }
             role.setPermissions(resolvePermissions(request.permissions(), role.getRoleType()));
             events.publishEvent(new AuthoritiesChanged.ForEveryone());
         }
@@ -164,16 +171,32 @@ public class RoleService {
         return role;
     }
 
-    /** Quyền khác phạm vi của loại vai bị từ chối — vai quản trị không mang quyền nghiệp vụ và ngược lại. */
+    /** Form gửi lại cả bộ quyền dù chỉ đổi tên, mô tả — bộ không đổi thì không coi là sửa quyền. */
+    private static boolean samePermissions(Role role, List<PermissionRef> refs) {
+        Set<Long> current = new LinkedHashSet<>();
+        role.getPermissions().forEach(p -> current.add(p.getId()));
+        Set<Long> asked = new LinkedHashSet<>();
+        refs.forEach(ref -> asked.add(ref.id()));
+        return current.equals(asked);
+    }
+
+    /** Quyền loại vai không mang được ({@link PermissionGrants}) và vai vừa lập vừa duyệt (GBR-07) bị từ chối. */
     private Set<Permission> resolvePermissions(List<PermissionRef> refs, UserType roleType) {
         List<Long> ids = refs.stream().map(PermissionRef::id).toList();
         Set<Permission> permissions = new LinkedHashSet<>(permissionService.resolveAll(ids));
         for (Permission permission : permissions) {
-            if (!permission.getScope().fits(roleType)) {
+            if (!PermissionGrants.grantable(permission, roleType)) {
                 throw new FieldValidationException("permissions", "Quyền %s (%s) không dùng cho vai %s".formatted(
                         permission.getCode(), permission.getScope().label().toLowerCase(Locale.ROOT),
                         roleType.label()));
             }
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        permissions.forEach(p -> codes.add(p.getCode()));
+        List<String> both = PermissionGrants.selfApproving(codes);
+        if (!both.isEmpty()) {
+            throw new FieldValidationException("permissions",
+                    "Một vai không được vừa lập vừa duyệt: %s".formatted(String.join(", ", both)));
         }
         return permissions;
     }

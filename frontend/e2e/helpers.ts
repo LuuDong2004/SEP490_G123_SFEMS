@@ -16,7 +16,7 @@ export type Role = keyof typeof ACCOUNTS;
 /** Đăng xuất sạch rồi đăng nhập qua form, chờ tới khi rời màn đăng nhập. */
 export async function login(page: Page, role: Role) {
   const { username, password } = ACCOUNTS[role];
-  // Mọi vai đăng nhập ở màn chung /login; quản trị viên ở máy local tắt bắt buộc 2 lớp
+  // Mọi vai đăng nhập ở màn chung /login; quản trị viên ở máy local tắt bắt buộc xác thực qua email
   // (APP_PORTAL_ADMIN_MFA_REQUIRED=false) thì vào thẳng được.
   const loginPath = "/login";
   await page.goto(loginPath);

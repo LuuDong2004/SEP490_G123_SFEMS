@@ -288,10 +288,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       icon: <Landmark className="h-4 w-4" />,
       parent: "organization",
       audience: "management",
-      mgmtParent: "mgmt_schools",
-      mgmtLabel: "Cơ quan quản lý",
-      // Tab cuối của nhóm Trường học: danh mục cơ quan, ít khi mở hơn hai tab về trường.
-      mgmtOrder: 3,
+      // Không lên thanh tab: hệ thống chỉ có một Sở. Route giữ cho trang chi tiết và các liên kết tới cơ quan.
     },
   },
   {
@@ -305,9 +302,7 @@ export const resources: ResourceProps[] = withHelp(withModules([
       canDelete: true,
       icon: <SchoolIcon className="h-4 w-4" />,
       parent: "organization",
-      mgmtParent: "mgmt_schools",
-      mgmtLabel: "Danh sách trường",
-      mgmtOrder: 2,
+      // Không lên thanh tab: Tổng quan các trường đã có kiểu xem danh sách. Route giữ cho thêm / sửa / xem trường.
     },
   },
 
@@ -363,11 +358,12 @@ export const resources: ResourceProps[] = withHelp(withModules([
     list: "/staff-assignments",
     meta: { icon: <Users className="h-4 w-4" />, hide: true, label: "Phân công giáo viên" },
   },
-  // Hồ sơ năm học (278): trường xác nhận từng điểm trường, chốt năm học — tab của phân hệ Thiết bị.
+  // Hồ sơ năm học (278): trường xác nhận từng điểm trường, chốt năm học — tab "Năm học" của màn Trường học. Đường
+  // riêng giữ cho thông báo / dấu trang cũ: mở thẳng tab đó (`SchoolYearProfilePage`).
   {
     name: "school_year_profiles",
     list: "/school-year-profile",
-    meta: { icon: <CalendarCheck className="h-4 w-4" />, label: "Hồ sơ năm học" },
+    meta: { icon: <CalendarCheck className="h-4 w-4" />, hide: true, label: "Hồ sơ năm học" },
   },
   // Định mức và nhu cầu mua sắm: màn tổng hợp, mượn quyền `purchase_proposals:read`.
   {

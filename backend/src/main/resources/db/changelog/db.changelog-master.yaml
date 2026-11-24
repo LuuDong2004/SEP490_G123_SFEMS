@@ -528,3 +528,11 @@ databaseChangeLog:
       file: db/changelog/changes/284-quan-tri-vien-chi-xem-nghiep-vu.sql
   - include:
       file: db/changelog/changes/285-xoa-bang-ngoai-pham-vi.sql
+  - include:
+      file: db/changelog/changes/286-mail-config.sql
+  - include:
+      file: db/changelog/changes/287-mail-config-v2.sql
+  - include:
+      file: db/changelog/changes/288-bo-xac-thuc-ung-dung.sql
+  - include:
+      file: db/changelog/changes/289-khoa-quyen-quan-tri.sql
