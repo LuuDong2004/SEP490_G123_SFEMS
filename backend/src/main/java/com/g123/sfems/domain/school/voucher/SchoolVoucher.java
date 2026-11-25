@@ -10,7 +10,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MappedSuperclass;
 import java.time.Instant;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -48,8 +47,8 @@ public abstract class SchoolVoucher extends BaseEntity {
 
     /**
      * Cấp CAO NHẤT phiếu từng đứng chờ duyệt — chỉ tăng, không bao giờ giảm. Khác {@link #approvalStep}: trả
-     * lại, từ chối, duyệt xong đều xoá cấp đang chờ, nhưng phiếu đã từng lên tới cơ quan quản lý thì vẫn là đã
-     * lên. Phạm vi đọc của Sở / UBND dựa vào nó (125): cơ quan chỉ thấy phiếu đã trình tới bàn mình, không
+     * lại, từ chối, duyệt xong đều xoá cấp đang chờ, nhưng phiếu đã từng lên tới Sở thì vẫn là đã
+     * lên. Phạm vi đọc của Sở dựa vào nó (125): Sở chỉ thấy phiếu đã trình tới bàn mình, không
      * thấy phiếu còn nằm ở bàn hiệu trưởng. Chỉ {@link #setApprovalStep} ghi nó, nên không chỗ nào quên được.
      */
     @Enumerated(EnumType.STRING)
@@ -109,14 +108,6 @@ public abstract class SchoolVoucher extends BaseEntity {
      * hàm này để quyết định ai duyệt.
      */
     public abstract List<ApprovalStep> approvalChain();
-
-    /**
-     * Số tiền mà ngưỡng của luồng phê duyệt so với (tổng tiền phiếu, chi phí dự kiến…); {@code null} =
-     * loại phiếu này không có số tiền để so, hoặc phiếu chưa ghi.
-     */
-    public BigDecimal approvalAmount() {
-        return null;
-    }
 
     public School getSchool() {
         return school;

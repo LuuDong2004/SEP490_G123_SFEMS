@@ -69,7 +69,7 @@ export function SideSection({ title, aside, children, className }: {
 export function SideFact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-muted-foreground shrink-0">{label}:</span>
       <span className="min-w-0 text-end font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</span>
     </div>
   );
@@ -79,7 +79,7 @@ export type ChecklistItem = { key: string; label: string; ok: boolean; hint?: st
 
 /**
  * "Cần hoàn thiện". Mặc định chỉ những mục CÒN THIẾU, đủ hết thì một dòng "Đủ để trình". `showDone`: hiện MỌI mục
- * bắt buộc theo thứ tự trên form — mục đã điền có dấu tích xanh và mờ đi, mục còn thiếu bấm được để mở đúng chỗ sửa.
+ * bắt buộc theo thứ tự trên form — mục đã đạt có dấu tích, chữ xanh; mục còn thiếu chữ vàng, bấm được để mở đúng chỗ sửa.
  */
 export function CompletionList({ items, doneText = "Đủ để trình", showDone = false }: {
   items: ChecklistItem[];
@@ -113,14 +113,15 @@ export function CompletionList({ items, doneText = "Đủ để trình", showDon
                 <CircleAlert className="text-warning-text mt-0.5 size-4 shrink-0" />
               )}
               <span className="min-w-0 flex-1">
-                <span className={cn("block text-sm", i.ok ? "text-success-text" : "font-medium")}>{i.label}</span>
+                {/* Đạt: xanh; còn thiếu: vàng — cả hai đậm rõ, không làm mờ mục đã đạt (trông như bị khoá). */}
+                <span className={cn("block text-sm font-medium", i.ok ? "text-success-text" : "text-warning-text")}>{i.label}</span>
                 {i.hint && !i.ok ? <span className="text-muted-foreground block text-xs">{i.hint}</span> : null}
               </span>
-              {i.onClick && !i.ok ? <ChevronRight className="text-muted-foreground mt-0.5 size-4 shrink-0" /> : null}
+              {i.onClick && !i.ok ? <ChevronRight className="text-warning-text mt-0.5 size-4 shrink-0" /> : null}
             </>
           );
           return (
-            <li key={i.key} className={cn(i.ok && "opacity-60")}>
+            <li key={i.key}>
               {i.onClick && !i.ok ? (
                 <button type="button" onClick={i.onClick} className="hover:bg-muted flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-start">
                   {body}

@@ -6,8 +6,6 @@ import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.FacilityCounting;
 import com.g123.sfems.module.school.procurement.YearAdequacyService;
 import com.g123.sfems.module.school.procurement.YearAdequacyService.CampusRef;
-import com.g123.sfems.module.school.procurement.YearAdequacyService.Row;
-import com.g123.sfems.module.school.procurement.YearAdequacyService.SchoolYearResult;
 import com.g123.sfems.module.school.procurement.YearAdequacyService.Year;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.system.notification.service.NotificationService;
@@ -15,8 +13,6 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
-import com.g123.sfems.shared.validation.FieldRule;
-import com.g123.sfems.shared.validation.Text;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,52 +25,54 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Hồ sơ năm học (docs/du-lieu-theo-nam-hoc.md §3, màn A / E / F): mỗi trường × năm học × điểm trường có trạng thái Đang khai → Đã
- * xác nhận; cả trường Đã chốt khi lãnh đạo trường chốt (mọi điểm đã xác nhận, mọi điều chỉnh chép sang đã xác nhận lại)
- * — lưu bản chốt {@code school_year_closings} + dòng {@code school_year_closing_lines}; khoá dữ liệu A của năm đó
- * ({@link SchoolYearLock}). Mở lại: cơ quan quản lý CỦA trường (Sở), bắt buộc lý do; bản chốt cũ giữ làm lịch
- * sử, trường sửa rồi chốt lại.
+ * Hồ sơ năm học của trường (trưởng nhóm 25/11/2026): Sở đặt năm học mới thành hiện hành → mọi trường được báo và có nút
+ * "Khai dữ liệu năm học" (lên lớp, chép phân công, điều chỉnh — {@link SchoolYearInitService}); trường rà soát, sửa rồi
+ * lãnh đạo trường bấm "Xác nhận đã khai" → Sở được báo. Đang khai → Đã xác nhận, KHÔNG khoá: sau khi xác nhận trường vẫn
+ * sửa được, hồ sơ ghi lần sửa cuối ({@link SchoolYearLock#touched}). Thiết bị chỉ vào sổ qua phiếu. Số liệu năm cũ không
+ * chụp lúc xác nhận mà tính theo dữ liệu năm đó, thiết bị lấy sau đợt kiểm kê của năm ({@link YearAdequacyService}).
+ *
+ * <p>Xác nhận là của cả trường: dòng {@code school_year_profiles} có {@code campus_id} trống. Mỗi điểm trường chỉ có
+ * danh sách việc còn thiếu — hết việc thiếu ở mọi điểm thì mới xác nhận được.
  */
 @Service
 @Transactional(readOnly = true)
 public class SchoolYearProfileService {
 
+    public static final String DRAFT = "DRAFT";
+    public static final String CONFIRMED = "CONFIRMED";
+
     public record Todo(String part, String text, int count) {
     }
 
-    public record CampusProfile(Long campusId, String campusName, boolean primary, String status, String confirmedAt,
-            String confirmedBy, int classes, int students, int teachers, int assignedTeachers, int rooms,
-            int equipment, int equipmentNoRoom, int pendingAdjustments, List<Todo> todos) {
+    public record CampusProfile(Long campusId, String campusName, boolean primary, int classes, int students,
+            int teachers, int assignedTeachers, int rooms, int equipment, int equipmentNoRoom, int pendingAdjustments,
+            List<Todo> todos) {
     }
 
-    public record ClosingInfo(Long id, String status, String closedAt, String closedBy, String reopenedAt,
-            String reopenedBy, String reopenReason) {
+    /** Năm học cần khai (năm hiện hành, trường chưa có lớp) và năm liền trước để chép. */
+    public record InitYear(Long id, String name, String fromName) {
     }
 
-    public record NextYear(Long id, String name) {
-    }
-
+    /**
+     * {@code editedAt}: lần sửa cuối SAU khi xác nhận (trống = chưa sửa gì từ lúc xác nhận). {@code canConfirm}: người xem
+     * là lãnh đạo cả trường của trường này, năm chưa xác nhận; {@code ready}: mọi điểm trường hết việc còn thiếu.
+     */
     public record YearProfile(Long schoolId, String schoolName, Long schoolYearId, String schoolYearName,
-            boolean current, String status, ClosingInfo closing, List<ClosingInfo> history,
-            List<CampusProfile> campuses, boolean canConfirm, boolean canClose, boolean canReopen, boolean canWrite,
-            NextYear nextYear) {
+            boolean current, String status, String confirmedAt, String confirmedBy, String editedAt,
+            List<CampusProfile> campuses, boolean ready, boolean canConfirm, boolean canWrite, InitYear initYear) {
     }
 
     public record ProgressRow(Long schoolId, String schoolCode, String schoolName, String levelName, String wardName,
-            int campuses, int confirmed, String status, String closedAt, boolean reopened, boolean canReopen) {
-    }
-
-    public record CampusRequest(Long schoolYearId, Long campusId) {
+            String status, String confirmedAt, String editedAt) {
     }
 
     public record YearRequest(Long schoolYearId) {
     }
 
-    public record ReopenRequest(Long schoolId, Long schoolYearId,
-            @Text(value = FieldRule.LONG_TEXT, label = "Lý do", max = 1000) String reason) {
-    }
-
     private static final String TIME = "'DD/MM/YYYY HH24:MI'";
+
+    /** Sửa trong vòng này kể từ lúc xác nhận coi như cùng lần xác nhận (cùng giao dịch, đồng hồ lệch). */
+    private static final String EDITED_AFTER = "interval '1 minute'";
 
     private final JdbcTemplate jdbc;
     private final VisibleSchools visibleSchools;
@@ -97,179 +95,119 @@ public class SchoolYearProfileService {
         Long school = schoolId != null ? schoolId : ownSchool();
         requireVisible(school);
         Year year = adequacy.year(yearId);
-        Map<String, Object> s = jdbc.queryForMap("SELECT name, department_of_education_id FROM schools WHERE id = ?",
-                school);
-        List<ClosingInfo> closings = closings(school, year.id());
-        ClosingInfo active = closings.stream().filter(c -> "CLOSED".equals(c.status())).findFirst().orElse(null);
+        String schoolName = jdbc.queryForObject("SELECT name FROM schools WHERE id = ?", String.class, school);
         List<CampusProfile> campuses = campusProfiles(school, year);
-        // Một bước (trưởng nhóm 24/11/2026): Đang khai → Đã chốt. Không xác nhận từng điểm trường; lần Sở mở lại nằm ở
-        // lịch sử (closings), không thành trạng thái riêng.
-        String status = active != null ? "CLOSED" : "DRAFT";
         boolean ready = !campuses.isEmpty() && campuses.stream()
                 .allMatch(c -> c.todos().isEmpty() && c.pendingAdjustments() == 0);
+        Map<String, Object> confirmation = confirmation(school, year.id());
+        String status = confirmation == null ? DRAFT : CONFIRMED;
         RowLevelPrincipal p = principals.current().orElse(null);
         boolean own = p != null && Objects.equals(p.schoolId(), school) && p.campusId() == null;
-        boolean canClose = own && active == null && CurrentUser.has("school_year_profiles:confirm");
-        Long body = s.get("department_of_education_id") == null ? null
-                : ((Number) s.get("department_of_education_id")).longValue();
-        boolean canReopen = active != null && mayReopen(p, body);
-        NextYear next = jdbc.query("""
-                SELECT n.id, n.name FROM school_years n, school_years y
-                WHERE y.id = ? AND n.start_date > y.start_date
-                  AND NOT EXISTS (SELECT 1 FROM school_classes k WHERE k.school_id = ? AND k.school_year_id = n.id)
-                ORDER BY n.start_date LIMIT 1""", (rs, i) -> new NextYear(rs.getLong(1), rs.getString(2)), year.id(),
-                school).stream().findFirst().orElse(null);
-        return new YearProfile(school, (String) s.get("name"), year.id(), year.name(), year.current(), status, active,
-                closings, campuses, canClose, canClose && ready, canReopen,
-                own && CurrentUser.has("school_year_profiles:write"), next);
+        boolean canWrite = own && CurrentUser.has("school_year_profiles:write");
+        boolean canConfirm = own && confirmation == null && CurrentUser.has("school_year_profiles:confirm");
+        return new YearProfile(school, schoolName, year.id(), year.name(), year.current(), status,
+                confirmation == null ? null : (String) confirmation.get("confirmed_at"),
+                confirmation == null ? null : (String) confirmation.get("confirmed_by"),
+                confirmation == null ? null : (String) confirmation.get("edited_at"),
+                campuses, ready, canConfirm, canWrite, canWrite ? initYear(school, year) : null);
     }
 
-    /** Năm học đã chốt của trường — lớp, phân công, điều chỉnh chỉ xem. */
-    public boolean closed(Long schoolId, Long yearId) {
-        Long school = schoolId != null ? schoolId : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
-        if (school == null) {
-            return false;
-        }
-        requireVisible(school);
-        return isClosed(school, adequacy.year(yearId).id());
-    }
-
-    boolean isClosed(Long school, Long year) {
-        Integer n = jdbc.queryForObject("SELECT count(*)::int FROM school_year_closings WHERE school_id = ?"
-                + " AND school_year_id = ? AND status = 'CLOSED'", Integer.class, school, year);
-        return n != null && n > 0;
-    }
-
-    /** Tiến độ hồ sơ năm học các trường trong phạm vi người xem (màn E). */
+    /** Tiến độ khai năm học của các trường trong phạm vi người xem. */
     public List<ProgressRow> progress(Long yearId) {
         Year year = adequacy.year(yearId);
-        RowLevelPrincipal p = principals.current().orElse(null);
-        boolean reopenPermission = CurrentUser.has("school_year_profiles:reopen");
         return jdbc.query("""
                 SELECT s.id, s.code, s.name, lv.name AS level_name, COALESCE(w.name, NULLIF(s.ward_text, '')) AS ward,
-                       s.department_of_education_id AS body,
-                       GREATEST((SELECT count(*) FROM campuses c WHERE c.school_id = s.id AND c.active), 1)::int AS campuses,
-                       (SELECT count(*) FROM school_year_profiles pr JOIN campuses c ON c.id = pr.campus_id AND c.active
-                         WHERE pr.school_id = s.id AND pr.school_year_id = ? AND pr.status = 'CONFIRMED')::int
-                       + (SELECT count(*) FROM school_year_profiles pr WHERE pr.school_id = s.id AND pr.school_year_id = ?
-                          AND pr.campus_id IS NULL AND pr.status = 'CONFIRMED'
-                          AND NOT EXISTS (SELECT 1 FROM campuses c WHERE c.school_id = s.id AND c.active))::int AS confirmed,
-                       cl.closed_at, EXISTS (SELECT 1 FROM school_year_closings r WHERE r.school_id = s.id
-                         AND r.school_year_id = ? AND r.status = 'REOPENED') AS reopened
+                       to_char(pr.confirmed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) AS confirmed_at,
+                       CASE WHEN pr.updated_at > pr.confirmed_at + %s
+                            THEN to_char(pr.updated_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) END AS edited_at
                 FROM schools s JOIN education_levels lv ON lv.id = s.education_level_id
                 LEFT JOIN wards w ON w.id = s.ward_id
-                LEFT JOIN LATERAL (SELECT to_char(x.closed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'DD/MM/YYYY') AS closed_at
-                                   FROM school_year_closings x WHERE x.school_id = s.id AND x.school_year_id = ?
-                                     AND x.status = 'CLOSED' LIMIT 1) cl ON TRUE
-                WHERE s.status = 'ACTIVE'""" + visibleSchools.sqlFilter("s.id") + " ORDER BY s.name", (rs, i) -> {
-            int campuses = rs.getInt("campuses");
-            int confirmed = rs.getInt("confirmed");
-            boolean closed = rs.getString("closed_at") != null;
-            boolean reopened = rs.getBoolean("reopened");
-            String status = closed ? "CLOSED" : "DRAFT";
-            Long body = (Long) rs.getObject("body");
-            return new ProgressRow(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
-                    rs.getString("level_name"), rs.getString("ward"), campuses, Math.min(confirmed, campuses), status,
-                    rs.getString("closed_at"), reopened, closed && reopenPermission && bodyMatches(p, body));
-        }, year.id(), year.id(), year.id(), year.id());
+                LEFT JOIN school_year_profiles pr ON pr.school_id = s.id AND pr.school_year_id = ?
+                     AND pr.campus_id IS NULL AND pr.status = 'CONFIRMED'
+                WHERE s.status = 'ACTIVE'""".formatted(TIME, EDITED_AFTER, TIME) + visibleSchools.sqlFilter("s.id")
+                + " ORDER BY s.name", (rs, i) -> new ProgressRow(rs.getLong("id"), rs.getString("code"),
+                        rs.getString("name"), rs.getString("level_name"), rs.getString("ward"),
+                        rs.getString("confirmed_at") == null ? DRAFT : CONFIRMED, rs.getString("confirmed_at"),
+                        rs.getString("edited_at")), year.id());
     }
 
     // ------------------------------------------------------------------ ghi
 
-    /** Chốt năm học (lãnh đạo trường): mọi điểm trường hết việc còn thiếu → lưu bản chốt (dòng chuẩn tối thiểu + số đầu vào), khoá dữ liệu A. */
+    /**
+     * Lãnh đạo trường xác nhận đã khai dữ liệu năm học: mọi điểm trường hết việc còn thiếu. Không khoá gì — chỉ đổi trạng
+     * thái và báo cơ quan quản lý của trường.
+     */
     @Transactional
-    public YearProfile close(YearRequest request) {
+    public YearProfile confirm(YearRequest request) {
         Long school = ownSchool();
-        requireConfirmer();
+        if (!CurrentUser.has("school_year_profiles:confirm")) {
+            throw new AccessDeniedException("Chỉ lãnh đạo trường xác nhận năm học");
+        }
+        if (principals.current().map(RowLevelPrincipal::campusId).orElse(null) != null) {
+            throw new AccessDeniedException("Chỉ lãnh đạo quản lý cả trường xác nhận năm học");
+        }
         Year year = adequacy.year(request == null ? null : request.schoolYearId());
-        requireOpen(school, year.id());
-        List<CampusProfile> campuses = campusProfiles(school, year);
-        CampusProfile draft = campuses.stream().filter(c -> !c.todos().isEmpty()).findFirst().orElse(null);
-        if (draft != null) {
-            throw new FieldValidationException("schoolYearId", draft.campusName() + " còn việc chưa xong: "
-                    + draft.todos().get(0).text());
+        if (confirmation(school, year.id()) != null) {
+            throw new FieldValidationException("schoolYearId", year.name() + " đã xác nhận");
         }
-        CampusProfile pending = campuses.stream().filter(c -> c.pendingAdjustments() > 0).findFirst().orElse(null);
-        if (pending != null) {
-            throw new FieldValidationException("schoolYearId", pending.campusName() + " còn "
-                    + pending.pendingAdjustments() + " điều chỉnh chép từ năm trước chưa xác nhận lại");
+        for (CampusProfile c : campusProfiles(school, year)) {
+            if (!c.todos().isEmpty()) {
+                throw new FieldValidationException("schoolYearId", c.campusName() + " còn việc chưa xong: "
+                        + c.todos().get(0).text());
+            }
         }
-        SchoolYearResult result = adequacy.compute(Set.of(school), year).get(school);
-        Long closing = jdbc.queryForObject("""
-                INSERT INTO school_year_closings (school_id, school_year_id, status, closed_at, closed_by_id)
-                VALUES (?, ?, 'CLOSED', now(), ?) RETURNING id""", Long.class, school, year.id(),
-                CurrentUser.id().orElse(null));
-        List<Object[]> lines = new ArrayList<>();
-        for (Row r : result.campusRows()) {
-            lines.add(new Object[] {closing, r.campusId(), r.campusName(), r.normId(), r.normCode(), r.catalogId(),
-                r.catalogCode(), r.name(), r.subjectName(), r.unitName(), r.allowedKind(), r.basisText(),
-                r.requiredTt(), r.requiredAdjusted(), r.current(), r.lost(),
-                r.shortageTt(), r.shortageAdjusted(), r.surplus(), r.outsideNeed(), r.proposed(),
-                r.adjustment() == null ? null : r.adjustment().kind(),
-                r.adjustment() == null ? null : r.adjustment().status(),
-                r.adjustment() == null ? null : r.adjustment().reason(), clip(r.warning(), 255)});
-        }
-        jdbc.batchUpdate("""
-                INSERT INTO school_year_closing_lines (closing_id, campus_id, campus_name, norm_id, norm_code, catalog_id,
-                    catalog_code, name, subject_name, unit_name, allowed_kind, basis_text, required_tt, required_adjusted,
-                    current_qty, lost, shortage_tt, shortage_adjusted, surplus, outside_need,
-                    proposed, adjust_kind, adjust_status, adjust_reason, warning)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", lines);
-        snapshotInputs(closing, school, year);
-        return profile(school, year.id());
-    }
-
-    /** Mở lại năm đã chốt — chỉ cơ quan quản lý của trường, bắt buộc lý do; trường được báo. */
-    @Transactional
-    public YearProfile reopen(ReopenRequest request) {
-        if (request == null || request.schoolId() == null) {
-            throw new FieldValidationException("schoolId", "Chọn trường");
-        }
-        Long school = request.schoolId();
-        requireVisible(school);
-        Year year = adequacy.year(request.schoolYearId());
-        String reason = request.reason() == null ? "" : request.reason().trim();
-        if (reason.isEmpty()) {
-            throw new FieldValidationException("reason", "Vui lòng nhập lý do mở lại");
-        }
-        Long body = jdbc.queryForObject("SELECT department_of_education_id FROM schools WHERE id = ?", Long.class, school);
-        if (!mayReopen(principals.current().orElse(null), body)) {
-            throw new AccessDeniedException("Chỉ cơ quan quản lý của trường mở lại được năm học đã chốt");
-        }
-        int n = jdbc.update("""
-                UPDATE school_year_closings SET status = 'REOPENED', reopened_at = now(), reopened_by_id = ?,
-                    reopen_reason = ? WHERE school_id = ? AND school_year_id = ? AND status = 'CLOSED'""",
-                CurrentUser.id().orElse(null), reason, school, year.id());
-        if (n == 0) {
-            throw new FieldValidationException("schoolYearId", year.name() + " của trường chưa chốt");
-        }
-        // Mở lại thì trường khai lại: mọi điểm về "Đang khai".
-        jdbc.update("UPDATE school_year_profiles SET status = 'DRAFT', confirmed_at = NULL, confirmed_by_id = NULL,"
-                + " updated_at = now() WHERE school_id = ? AND school_year_id = ?", school, year.id());
-        for (Long user : schoolUsers(school)) {
-            notifications.notify(NotificationType.YEAR_PROFILE, user, NotificationLevel.WARNING,
-                    year.name() + " đã được mở lại", "Lý do: " + reason + ". Sửa dữ liệu rồi chốt lại.",
-                    "/school-year-profile?year=" + year.id());
+        jdbc.update("""
+                INSERT INTO school_year_profiles (school_id, school_year_id, campus_id, status, confirmed_at,
+                    confirmed_by_id, updated_at)
+                VALUES (?, ?, NULL, 'CONFIRMED', now(), ?, now())
+                ON CONFLICT (school_id, school_year_id, (COALESCE(campus_id, 0))) DO UPDATE
+                SET status = 'CONFIRMED', confirmed_at = now(), confirmed_by_id = EXCLUDED.confirmed_by_id,
+                    updated_at = now()""", school, year.id(), CurrentUser.id().orElse(null));
+        String schoolName = jdbc.queryForObject("SELECT name FROM schools WHERE id = ?", String.class, school);
+        for (Long user : bodyUsers(school)) {
+            notifications.notify(NotificationType.YEAR_PROFILE, user, NotificationLevel.INFO,
+                    schoolName + " đã khai dữ liệu " + year.name().toLowerCase(),
+                    "Lớp, sĩ số, phân công giáo viên, phòng đã khai đủ. Trường vẫn cập nhật khi có thay đổi.",
+                    "/schools/show/" + school);
         }
         return profile(school, year.id());
     }
 
     // ------------------------------------------------------------------ nội bộ
 
-    private List<ClosingInfo> closings(Long school, Long year) {
-        return jdbc.query("""
-                SELECT c.id, c.status, to_char(c.closed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) AS closed_at,
-                       cu.full_name AS closed_by, to_char(c.reopened_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) AS reopened_at,
-                       ru.full_name AS reopened_by, c.reopen_reason
-                FROM school_year_closings c LEFT JOIN users cu ON cu.id = c.closed_by_id
-                LEFT JOIN users ru ON ru.id = c.reopened_by_id
-                WHERE c.school_id = ? AND c.school_year_id = ?
-                ORDER BY c.closed_at DESC""".formatted(TIME, TIME),
-                (rs, i) -> new ClosingInfo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                        rs.getString(5), rs.getString(6), rs.getString(7)), school, year);
+    /** Lần xác nhận của cả trường cho một năm (trống = đang khai). */
+    private Map<String, Object> confirmation(Long school, Long year) {
+        return jdbc.queryForList("""
+                SELECT to_char(p.confirmed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) AS confirmed_at,
+                       u.full_name AS confirmed_by,
+                       CASE WHEN p.updated_at > p.confirmed_at + %s
+                            THEN to_char(p.updated_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s) END AS edited_at
+                FROM school_year_profiles p LEFT JOIN users u ON u.id = p.confirmed_by_id
+                WHERE p.school_id = ? AND p.school_year_id = ? AND p.campus_id IS NULL
+                  AND p.status = 'CONFIRMED'""".formatted(TIME, EDITED_AFTER, TIME), school, year)
+                .stream().findFirst().orElse(null);
     }
 
-    /** Từng điểm trường: bốn phần dữ liệu, trạng thái, và việc còn thiếu (phải trống mới xác nhận được). */
+    /**
+     * Năm học trường cần khai: năm đang xem là năm hiện hành mà trường chưa có lớp nào của năm đó. Năm liền trước (nếu
+     * có) là nguồn chép lớp, phân công, điều chỉnh.
+     */
+    private InitYear initYear(Long school, Year year) {
+        if (!year.current()) {
+            return null;
+        }
+        Integer classes = jdbc.queryForObject("SELECT count(*)::int FROM school_classes WHERE school_id = ?"
+                + " AND school_year_id = ?", Integer.class, school, year.id());
+        if (classes != null && classes > 0) {
+            return null;
+        }
+        String from = jdbc.queryForList("""
+                SELECT p.name FROM school_years p, school_years y WHERE y.id = ? AND p.start_date < y.start_date
+                ORDER BY p.start_date DESC LIMIT 1""", String.class, year.id()).stream().findFirst().orElse(null);
+        return new InitYear(year.id(), year.name(), from);
+    }
+
+    /** Từng điểm trường: bốn phần dữ liệu và việc còn thiếu (phải trống mới xác nhận được). */
     List<CampusProfile> campusProfiles(Long school, Year year) {
         List<CampusRef> campuses = jdbc.query("SELECT id, name, is_primary FROM campuses WHERE school_id = ? AND active"
                 + " ORDER BY is_primary DESC, sort_order NULLS LAST, name",
@@ -307,14 +245,6 @@ public class SchoolYearProfileService {
                 WHERE e.school_id = ? AND e.status <> 'LOST'
                 GROUP BY 1""".formatted(FacilityCounting.campusOfRoomSql("e.room_id", "e.school_id")), school);
         Map<Long, int[]> pendingAdj = pendingAdjustments(school, year.id());
-        Map<Long, Object[]> status = new HashMap<>();
-        jdbc.query("""
-                SELECT COALESCE(p.campus_id, 0), p.status,
-                       to_char(p.confirmed_at AT TIME ZONE 'Asia/Ho_Chi_Minh', %s), u.full_name
-                FROM school_year_profiles p LEFT JOIN users u ON u.id = p.confirmed_by_id
-                WHERE p.school_id = ? AND p.school_year_id = ?""".formatted(TIME), rs -> {
-            status.put(rs.getLong(1), new Object[] {rs.getString(2), rs.getString(3), rs.getString(4)});
-        }, school, year.id());
         List<CampusProfile> out = new ArrayList<>();
         for (CampusRef c : campuses) {
             long k = c.id() == null ? 0L : c.id();
@@ -341,10 +271,8 @@ public class SchoolYearProfileService {
             if (pa > 0) {
                 todos.add(new Todo("adjustments", pa + " điều chỉnh chờ xác nhận lại", pa));
             }
-            Object[] st = status.get(k);
-            out.add(new CampusProfile(c.id(), c.name(), c.primary(), st == null ? "DRAFT" : (String) st[0],
-                    st == null ? null : (String) st[1], st == null ? null : (String) st[2], cl[0], cl[1], te[0], te[1],
-                    ro[0], eq[0], eq[1], pa, todos));
+            out.add(new CampusProfile(c.id(), c.name(), c.primary(), cl[0], cl[1], te[0], te[1], ro[0], eq[0], eq[1],
+                    pa, todos));
         }
         return out;
     }
@@ -369,58 +297,12 @@ public class SchoolYearProfileService {
         return out;
     }
 
-    private void snapshotInputs(Long closing, Long school, Year year) {
-        jdbc.update("""
-                INSERT INTO school_year_closing_inputs (closing_id, campus_id, kind, ref_id, ref_name, classes, students)
-                SELECT ?, %s, 'GRADE', g.id, g.name, count(*), COALESCE(sum(k.student_count), 0)
-                FROM school_classes k JOIN grades g ON g.id = k.grade_id
-                WHERE k.active AND k.school_id = ? AND k.school_year_id = ? GROUP BY 2, g.id, g.name""".formatted(
-                FacilityCounting.campusOfRoomSql("k.room_id", "k.school_id")), closing, school, year.id());
-        String assignmentCampus = "(SELECT " + FacilityCounting.EFFECTIVE_CAMPUS + " FROM (SELECT 1) one"
-                + FacilityCounting.campusJoins("a.campus_id", "a.school_id") + ")";
-        jdbc.update("""
-                INSERT INTO school_year_closing_inputs (closing_id, campus_id, kind, ref_id, ref_name, teachers)
-                SELECT ?, %s, 'SUBJECT', sj.id, sj.name, count(DISTINCT a.staff_id)
-                FROM staff_assignments a JOIN staff_assignment_subjects x ON x.assignment_id = a.id
-                JOIN subjects sj ON sj.id = x.subject_id
-                WHERE a.school_id = ? AND a.school_year_id = ? GROUP BY 2, sj.id, sj.name""".formatted(assignmentCampus),
-                closing, school, year.id());
-        jdbc.update("""
-                INSERT INTO school_year_closing_inputs (closing_id, campus_id, kind, ref_id, ref_name, rooms)
-                SELECT ?, rc.campus_id, 'SUBJECT', sj.id, sj.name, count(*) FROM rooms r JOIN (%s) rc ON rc.room_id = r.id
-                JOIN subjects sj ON sj.id = r.subject_id
-                WHERE %s AND r.school_id = ? GROUP BY 2, sj.id, sj.name""".formatted(FacilityCounting.ROOM_CAMPUS,
-                FacilityCounting.COUNTED_ROOM), closing, school);
-    }
-
-    private boolean mayReopen(RowLevelPrincipal p, Long body) {
-        return CurrentUser.has("school_year_profiles:reopen") && bodyMatches(p, body);
-    }
-
-    /** Cơ quan quản lý CỦA trường (Sở), hoặc quản trị. */
-    private static boolean bodyMatches(RowLevelPrincipal p, Long body) {
-        return p != null && (p.roleCodes().contains("ADMIN")
-                || (p.managingBodyId() != null && p.managingBodyId().equals(body)));
-    }
-
-    private List<Long> schoolUsers(Long school) {
+    /** Tài khoản của cơ quan quản lý (Sở) quản lý trường — người nhận báo "đã khai". */
+    private List<Long> bodyUsers(Long school) {
         return jdbc.queryForList("""
-                SELECT DISTINCT u.id FROM users u JOIN user_schools us ON us.id = u.id
-                JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id
-                WHERE us.school_id = ? AND u.status = 'ACTIVE' AND r.code IN ('SCHOOL_LEADER', 'SCHOOL_STAFF')""",
-                Long.class, school);
-    }
-
-    private void requireOpen(Long school, Long year) {
-        if (isClosed(school, year)) {
-            throw new FieldValidationException("schoolYearId", "Năm học đã chốt");
-        }
-    }
-
-    private void requireConfirmer() {
-        if (!CurrentUser.has("school_year_profiles:confirm")) {
-            throw new AccessDeniedException("Chỉ lãnh đạo trường xác nhận, chốt năm học");
-        }
+                SELECT u.id FROM users u JOIN user_sos so ON so.id = u.id
+                JOIN schools s ON s.department_of_education_id = so.managing_body_id
+                WHERE s.id = ? AND u.status = 'ACTIVE'""", Long.class, school);
     }
 
     private void requireVisible(Long school) {
@@ -436,9 +318,5 @@ public class SchoolYearProfileService {
             throw new AccessDeniedException("Chỉ tài khoản của trường");
         }
         return p.schoolId();
-    }
-
-    private static String clip(String s, int max) {
-        return s == null || s.length() <= max ? s : s.substring(0, max);
     }
 }

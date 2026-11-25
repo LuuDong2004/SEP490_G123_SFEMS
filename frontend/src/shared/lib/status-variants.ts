@@ -100,10 +100,10 @@ export const NORM_VALIDITY_VARIANTS: Record<"active" | "stopped" | "expired", Ba
   expired: "destructive",
 };
 
-/** Hồ sơ năm học: Đang khai · Đã chốt (một bước, trưởng nhóm 24/11/2026). */
-export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CLOSED", BadgeVariant> = {
+/** Hồ sơ năm học: Đang khai · Đã xác nhận (không khoá, trưởng nhóm 25/11/2026). */
+export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CONFIRMED", BadgeVariant> = {
   DRAFT: "neutral",
-  CLOSED: "success",
+  CONFIRMED: "success",
 };
 
 /** Kiểu điều chỉnh trường áp dụng (279) — cùng họ màu với mockup danh mục điều chỉnh. */

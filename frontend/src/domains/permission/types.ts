@@ -147,6 +147,15 @@ const RESOURCE_LABELS: Record<string, string> = {
   subjects: "Môn học",
   units: "Đơn vị tính",
   wards: "Phường/xã",
+  approval_flows: "Luồng phê duyệt",
+  data_changes: "Lịch sử thay đổi dữ liệu",
+  data_imports: "Nhập dữ liệu đầu vào",
+  mail_config: "Cấu hình thư",
+  notification_type_settings: "Cài đặt thông báo",
+  school_norm_adjustments: "Điều chỉnh chuẩn của trường",
+  school_profile: "Hồ sơ trường",
+  school_year_profiles: "Hồ sơ năm học",
+  staff_assignments: "Phân công giáo viên",
 };
 
 /**

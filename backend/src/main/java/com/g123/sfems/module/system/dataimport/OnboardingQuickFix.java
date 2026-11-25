@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.dataimport;
 
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.catalog.enums.StaffPosition;
 import com.g123.sfems.domain.catalog.originsource.OriginRule;
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -146,6 +147,24 @@ public class OnboardingQuickFix {
                     if (to != null && !to.equals(v.trim())) {
                         out.add(new Suggestion(r.id(), "phone", v, to, PHONE_FIX));
                     }
+                } else if (sheet == OnboardingSheet.STAFF && "type".equals(m.field())) {
+                    out.add(staffTypeFix(r));
+                } else if (sheet == OnboardingSheet.STAFF && "position".equals(m.field())) {
+                    Suggestion s = staffPositionFix(r, m.text());
+                    if (s != null) {
+                        out.add(s);
+                    }
+                } else if (sheet == OnboardingSheet.STAFF && "subjects".equals(m.field())
+                        && m.text().startsWith("Cán bộ không mang môn")) {
+                    out.add(new Suggestion(r.id(), "type", Objects.toString(r.data().get("type"), ""), TEACHER,
+                            "Có môn giảng dạy nên là Giáo viên (hoặc xoá môn nếu đúng là cán bộ)", null, null, true,
+                            STAFF_TYPES));
+                } else if ("email".equals(m.field())) {
+                    String v = Objects.toString(r.data().get("email"), "");
+                    String to = emailFix(v);
+                    if (to != null && !to.equals(v.trim())) {
+                        out.add(new Suggestion(r.id(), "email", v, to, EMAIL_FIX));
+                    }
                 } else if ("quantity".equals(m.field()) && m.text().startsWith("Số lượng phải lớn hơn 0")) {
                     out.add(new Suggestion(r.id(), SKIP, Objects.toString(r.data().get("quantity"), ""), "Bỏ dòng",
                             "Số lượng bằng 0 — không còn thiết bị này"));
@@ -160,7 +179,97 @@ public class OnboardingQuickFix {
             followRenames(batchId, rows, out, OnboardingSheet.ROOM, "building", "Mã khối nhà ở trang Phòng");
         }
         List<NewRoom> newRooms = ROOM_REFS.contains(sheet) ? roomRefFixes(batchId, rows, out) : List.of();
+        // Một ô chỉ một gợi ý (vd. loại cán bộ bị cả chức vụ lẫn môn dạy gợi đổi): giữ gợi ý đầu.
+        Set<String> seen = new HashSet<>();
+        out.removeIf(s -> !SKIP.equals(s.field()) && !KEEP.equals(s.field()) && s.rowNo() == null
+                && !seen.add(s.rowId() + "|" + s.field()));
         return new Result(out, newRooms);
+    }
+
+    // ------------------------------------------------------------------ trang Cán bộ – giáo viên
+
+    static final String TEACHER = "Giáo viên";
+    static final String STAFF_MEMBER = "Cán bộ";
+    private static final List<String> STAFF_TYPES = List.of(TEACHER, STAFF_MEMBER);
+    private static final List<String> POSITIONS = Arrays.stream(StaffPosition.values())
+            .map(StaffPosition::label).toList();
+    private static final Pattern TEACHER_WORDS = Pattern.compile("(^|_)(GV|GVBM|GVCN|GIAO_VIEN|GIANG_VIEN|TEACHER)(_|$)");
+    private static final Pattern STAFF_WORDS = Pattern.compile("(^|_)(CB|CBQL|CBNV|NV|CAN_BO|NHAN_VIEN|KE_TOAN|VAN_THU"
+            + "|THU_VIEN|THU_KHO|THIET_BI|Y_TE|BAO_VE|PHUC_VU|LAO_CONG|TAP_VU|QUAN_LY|HIEU_TRUONG|HIEU_PHO|STAFF)(_|$)");
+
+    /**
+     * Loại cán bộ ghi khác "Giáo viên" / "Cán bộ" (GV, nhân viên, kế toán…): đoán theo chữ; không đoán được thì theo cột
+     * môn — có môn là giáo viên — và để người dùng xem lại.
+     */
+    private static Suggestion staffTypeFix(OnboardingService.StagedRow r) {
+        String v = Objects.toString(r.data().get("type"), "");
+        String f = ImportValues.fold(v);
+        String to = TEACHER_WORDS.matcher(f).find() ? TEACHER : STAFF_WORDS.matcher(f).find() ? STAFF_MEMBER : null;
+        boolean guess = to == null;
+        if (guess) {
+            boolean teaches = r.data().get("mainSubject") != null || r.data().get("subjects") != null;
+            to = teaches ? TEACHER : STAFF_MEMBER;
+        }
+        return new Suggestion(r.id(), "type", v, to, guess
+                ? "Loại chỉ nhận Giáo viên hoặc Cán bộ — đoán theo cột môn, xem lại"
+                : "Loại chỉ nhận Giáo viên hoặc Cán bộ — \"" + v + "\" là " + to.toLowerCase(), null, null, guess,
+                STAFF_TYPES);
+    }
+
+    /**
+     * Chức vụ: ghi tắt / khác tên (HT, PHT, TT, "thiết bị"…) → đúng tên trong danh sách; chức vụ không hợp với loại → đổi
+     * loại cho khớp.
+     */
+    private static Suggestion staffPositionFix(OnboardingService.StagedRow r, String error) {
+        String v = Objects.toString(r.data().get("position"), "");
+        String type = Objects.toString(r.data().get("type"), "");
+        if (error.contains("chỉ dành cho Giáo viên")) {
+            return new Suggestion(r.id(), "type", type, TEACHER, "Chức vụ " + v + " là của giáo viên — đổi loại thành "
+                    + "Giáo viên", null, null, true, STAFF_TYPES);
+        }
+        if (error.startsWith("Giáo viên không mang chức vụ")) {
+            return new Suggestion(r.id(), "type", type, STAFF_MEMBER, "Chức vụ " + v + " không phải của giáo viên — đổi "
+                    + "loại thành Cán bộ", null, null, true, STAFF_TYPES);
+        }
+        if (!error.contains("không hợp lệ")) {
+            return null;
+        }
+        String to = staffPosition(v);
+        boolean guess = to == null;
+        return new Suggestion(r.id(), "position", v, guess ? StaffPosition.KHAC.label() : to, guess
+                ? "Chức vụ không có trong danh sách — chọn đúng chức vụ, không rõ thì Khác"
+                : "Chức vụ ghi tắt / khác tên — đưa về tên trong danh sách", null, null, guess, POSITIONS);
+    }
+
+    /** Tên chức vụ trong danh sách theo cách ghi thường gặp; {@code null} khi không đoán được. */
+    static String staffPosition(String text) {
+        String f = "_" + ImportValues.fold(text) + "_";
+        StaffPosition p = f.matches(".*_(PHO_HIEU_TRUONG|PHT|HIEU_PHO)_.*") ? StaffPosition.PHO_HIEU_TRUONG
+                : f.matches(".*_(HIEU_TRUONG|HT)_.*") ? StaffPosition.HIEU_TRUONG
+                : f.matches(".*_(TO_TRUONG|TT|TTCM|TO_PHO)_.*") ? StaffPosition.TO_TRUONG
+                : f.contains("_THIET_BI_") ? StaffPosition.CAN_BO_THIET_BI
+                : f.contains("_THU_VIEN_") ? StaffPosition.NHAN_VIEN_THU_VIEN
+                : f.contains("_KE_TOAN_") ? StaffPosition.KE_TOAN
+                : f.contains("_THU_KHO_") ? StaffPosition.THU_KHO
+                : f.contains("_VAN_THU_") ? StaffPosition.VAN_THU
+                : f.matches(".*_(GV|GVBM|GVCN|GIAO_VIEN)_.*") ? StaffPosition.GIAO_VIEN
+                : f.matches(".*_(NV|NHAN_VIEN|BAO_VE|Y_TE|PHUC_VU|LAO_CONG|TAP_VU)_.*") ? StaffPosition.NHAN_VIEN
+                : null;
+        return p == null ? null : p.label();
+    }
+
+    private static final String EMAIL_FIX = "Email có dấu cách, chữ hoa, chữ có dấu hoặc dấu phẩy — đưa về dạng chuẩn";
+    private static final Pattern EMAIL = Pattern.compile("^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$");
+
+    /** Email gõ lẫn dấu cách / hoa / có dấu / dấu phẩy thay dấu chấm; {@code null} khi chuẩn hoá xong vẫn không hợp lệ. */
+    static String emailFix(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String s = Normalizer.normalize(raw, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .replace('đ', 'd').replace('Đ', 'D').replaceAll("\\s+", "").replace(',', '.')
+                .toLowerCase(java.util.Locale.ROOT).replaceAll("\\.+$", "");
+        return EMAIL.matcher(s).matches() ? s : null;
     }
 
     /**

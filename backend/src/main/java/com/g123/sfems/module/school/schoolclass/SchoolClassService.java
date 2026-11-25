@@ -81,7 +81,7 @@ public class SchoolClassService
 
     @Override
     protected void applyUpdateOwned(SchoolClass item, SchoolClassPatchRequest request) {
-        // Năm học đã chốt khoá lớp của năm đó (docs/du-lieu-theo-nam-hoc.md §3) — kiểm cả năm cũ lẫn năm chuyển sang.
+        // Ghi lần sửa cuối vào hồ sơ năm học đã xác nhận — cả năm cũ lẫn năm chuyển sang.
         guardYear(item);
         if (request.grade() != null && request.grade().id() != null) {
             item.setGrade(grades.get(request.grade().id()));
@@ -111,14 +111,13 @@ public class SchoolClassService
         guardYear(item);
     }
 
-    /** Lớp là dữ liệu loại A: năm đã chốt thì không ghi; điểm trường đã xác nhận của lớp về "Đang khai". */
+    /** Lớp là dữ liệu của năm học: không khoá, hồ sơ năm học đã xác nhận ghi lần sửa cuối. */
     private void guardYear(SchoolClass item) {
         if (yearLock == null || item.getSchool() == null || item.getSchoolYear() == null) {
             return;
         }
         Long school = item.getSchool().getId();
         Long year = item.getSchoolYear().getId();
-        yearLock.requireOpen(school, year);
         yearLock.touched(school, year, yearLock.campusOfRoom(item.getRoom() == null ? null : item.getRoom().getId(),
                 school));
     }

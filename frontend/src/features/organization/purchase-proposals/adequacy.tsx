@@ -24,16 +24,16 @@ const ALL = "__all__";
 
 /**
  * Tổng hợp đề xuất mua sắm theo năm ngân sách — phần riêng của phân hệ Mua sắm, chỉ có nghĩa với
- * cơ quan quản lý (một trường thì xem đề xuất của mình ở tab Đề xuất mua sắm).
+ * Sở (một trường thì xem đề xuất của mình ở tab Đề xuất mua sắm).
  *
  * <p>Một thẻ đầu: chọn năm ngân sách và bốn con số (cùng khuôn dải chỉ số ở các màn khác). Bên dưới
- * hai bảng có tiêu đề: thiết bị cần mua (phần chính) và theo cơ quan quản lý.
+ * hai bảng có tiêu đề: thiết bị cần mua (phần chính) và theo Sở.
  */
 function ProcurementSummaryCard() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(String(thisYear + 1));
-  // Mỗi cơ quan lập kế hoạch mua sắm của RIÊNG mình (Sở cho trường THPT, UBND cho trường trên địa bàn):
-  // mặc định xem cơ quan của chính người đăng nhập, chọn được cơ quan khác hoặc "Mọi cơ quan".
+  // Mỗi Sở lập kế hoạch mua sắm cho các trường THPT mình quản lý: mặc định xem Sở của chính người đăng nhập, chọn
+  // được Sở khác hoặc "Mọi Sở".
   const ownBody = getAuthorities()?.managingBodyId ?? null;
   const [body, setBody] = useState<string>(ownBody != null ? String(ownBody) : ALL);
   const all = useQuery({
@@ -48,7 +48,7 @@ function ProcurementSummaryCard() {
   const bodies = all.data && "bodies" in all.data ? all.data.bodies : [];
   const source = body === ALL ? all.data : one.data;
   const p = source && "bodies" in source ? source : undefined;
-  const bodyName = body === ALL ? "mọi cơ quan" : (bodies.find((b) => String(b.bodyId) === body)?.bodyName ?? p?.bodies[0]?.bodyName);
+  const bodyName = body === ALL ? "mọi Sở" : (bodies.find((b) => String(b.bodyId) === body)?.bodyName ?? p?.bodies[0]?.bodyName);
   const sum = (key: "proposals" | "pending" | "approved" | "planned") => (p?.bodies ?? []).reduce((n, b) => n + b[key], 0);
   // Tên trùng (máy chiếu của danh mục THCS và THPT là hai thiết bị) thì kèm mã để phân biệt.
   const dupNames = new Set((p?.catalogs ?? []).map((c) => c.catalogName).filter((n, i, all) => all.indexOf(n) !== i));
@@ -68,14 +68,14 @@ function ProcurementSummaryCard() {
               ))}
             </SelectContent>
           </Select>
-          <span className="text-sm font-medium">Cơ quan</span>
+          <span className="text-sm font-medium">Sở</span>
           <Select value={body} onValueChange={setBody}>
-            <SelectTrigger className="h-8 w-80 max-w-full" aria-label="Cơ quan quản lý"><SelectValue placeholder="Vui lòng chọn cơ quan" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-80 max-w-full" aria-label="Sở"><SelectValue placeholder="Vui lòng chọn Sở" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Mọi cơ quan</SelectItem>
-              {/* Cơ quan của người xem luôn có trong danh sách, kể cả khi năm này nó chưa có đề xuất nào. */}
+              <SelectItem value={ALL}>Mọi Sở</SelectItem>
+              {/* Sở của người xem luôn có trong danh sách, kể cả khi năm này nó chưa có đề xuất nào. */}
               {ownBody != null && !bodies.some((b) => b.bodyId === ownBody) ? (
-                <SelectItem value={String(ownBody)}>Cơ quan của tôi</SelectItem>
+                <SelectItem value={String(ownBody)}>Sở của tôi</SelectItem>
               ) : null}
               {bodies.map((b) => (
                 <SelectItem key={b.bodyId ?? "none"} value={String(b.bodyId)}>{b.bodyName}</SelectItem>
@@ -126,12 +126,12 @@ function ProcurementSummaryCard() {
 
         <Card className="gap-0 overflow-hidden py-0">
           <div className="border-b px-4 py-3">
-            <StepTitle title="Theo cơ quan quản lý" />
+            <StepTitle title="Theo Sở" />
           </div>
           <Table>
             <TableHeader className="bg-surface-subtle">
               <TableRow>
-                <TableHead className={cn(head, "ps-4")}>Cơ quan</TableHead>
+                <TableHead className={cn(head, "ps-4")}>Sở</TableHead>
                 <TableHead className={cn(head, "w-20 text-right")} title="Chờ duyệt / đã duyệt / vào kế hoạch">Đề xuất</TableHead>
                 <TableHead className={cn(head, "w-36 pe-4 text-right")}>Dự toán</TableHead>
               </TableRow>
@@ -141,7 +141,7 @@ function ProcurementSummaryCard() {
                 <TableEmpty colSpan={3} loading={!all.data} title="Chưa có đề xuất cho năm này." />
               ) : bodies.map((b) => (
                 <TableRow key={b.bodyId ?? 0} className={cn("group/row", LIFT_ROW, "cursor-pointer", String(b.bodyId) === body && "bg-primary/10 hover:bg-primary/10")}
-                  onClick={() => setBody(String(b.bodyId))} title="Xem đề xuất của cơ quan này">
+                  onClick={() => setBody(String(b.bodyId))} title="Xem đề xuất của Sở này">
                   <TableCell className="ps-4 whitespace-normal">
                     <span className="block font-medium">{b.bodyName}</span>
                     <span className="text-muted-foreground text-xs">
@@ -175,8 +175,8 @@ function Figure({ icon, label, value, hint, tone }: { icon: ReactNode; label: st
 
 /**
  * Mức đáp ứng định mức và nhu cầu mua sắm (phân hệ Mua sắm): cùng màn Thiết bị dạy học tối thiểu của
- * phân hệ Thiết bị — một trường thấy chuẩn của mình, cơ quan quản lý thấy tổng hợp địa bàn — và với
- * cơ quan quản lý thêm bảng tổng hợp đề xuất mua sắm theo năm ngân sách ở dưới.
+ * phân hệ Thiết bị — một trường thấy chuẩn của mình, Sở thấy tổng hợp các trường — và với
+ * Sở thêm bảng tổng hợp đề xuất mua sắm theo năm ngân sách ở dưới.
  */
 export const EquipmentAdequacy = () => {
   const { perspective } = usePerspective();

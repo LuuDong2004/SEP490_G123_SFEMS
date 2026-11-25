@@ -50,9 +50,8 @@ const ADMIN_HELP: Record<string, ScreenHelp> = {
   },
   approval_flows: {
     title: "Luồng phê duyệt",
-    summary: "Mỗi loại phiếu đi qua những cấp duyệt nào: trường, cơ quan quản lý, cơ quan của trường nhận.",
+    summary: "Mỗi loại phiếu đi qua những cấp duyệt nào: trường, Sở. Đề xuất mua sắm luôn qua lãnh đạo trường rồi lãnh đạo Sở, không đổi được.",
     tips: [
-      "Đặt ngưỡng tiền để phiếu từ mức đó trở lên đi theo luồng khác.",
       "Đổi luồng có hiệu lực ở lần trình / duyệt kế tiếp; phiếu đang chờ đi tiếp từ cấp nó đang đứng.",
     ],
   },

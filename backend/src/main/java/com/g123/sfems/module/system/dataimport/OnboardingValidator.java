@@ -50,6 +50,10 @@ public class OnboardingValidator {
     public static final String WARNING = "WARNING";
     public static final String ERROR = "ERROR";
     public static final String EXISTS = "EXISTS";
+
+    /** Lời của dòng thiết bị khi trường đã khoá khai thiết bị ban đầu. */
+    static final String EQUIPMENT_LOCKED = "Trường đã khoá khai thiết bị ban đầu — dòng này không ghi. Thiết bị mới lập "
+            + "phiếu ghi tăng";
     public static final String SKIPPED = "SKIPPED";
 
     /** Thiết bị bền khai gộp tối đa ngần này cái một dòng — quá thì gần như chắc là gõ nhầm. */
@@ -367,6 +371,10 @@ public class OnboardingValidator {
 
     public Map<Long, Result> validate(long schoolId, List<Staged> rows) {
         Context ctx = new Context(schoolId);
+        // Trường đã khoá khai thiết bị ban đầu (chốt số dư đầu kỳ): dòng thiết bị không ghi nữa, nhưng không chặn cả lô —
+        // phòng, cán bộ, lớp vẫn ghi được. Thiết bị mới vào sổ qua phiếu ghi tăng.
+        boolean locked = Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM school_opening_balances WHERE school_id = ?)", Boolean.class, schoolId));
         Map<Long, Result> results = new LinkedHashMap<>();
         Map<OnboardingSheet, List<Staged>> bySheet = new LinkedHashMap<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
@@ -415,6 +423,11 @@ public class OnboardingValidator {
             for (Staged r : bySheet.get(s)) {
                 if (r.skipped()) {
                     results.put(r.id(), new Result(SKIPPED, List.of(), Map.of(), null));
+                    continue;
+                }
+                if (locked && s == OnboardingSheet.EQUIPMENT) {
+                    results.put(r.id(), new Result(SKIPPED, List.of(new Message("warning", null, EQUIPMENT_LOCKED)),
+                            Map.of(), null));
                     continue;
                 }
                 Row row = new Row(r, ctx);

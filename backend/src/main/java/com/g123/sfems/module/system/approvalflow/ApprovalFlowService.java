@@ -7,10 +7,7 @@ import com.g123.sfems.domain.system.approvalflow.ApprovalFlow;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.validation.FieldRule;
-import com.g123.sfems.shared.validation.Num;
-import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.shared.validation.Text;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -33,8 +30,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * hỏi nó ở mỗi lần trình / duyệt. Thứ tự quyết định:
  *
  * <ol>
- *   <li>Sở đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên — hoặc chưa
- *       biết số tiền (có dòng chưa ghi đơn giá) — thì theo các bước "từ ngưỡng trở lên";</li>
+ *   <li>loại phiếu có luồng cố định (đề xuất mua sắm: lãnh đạo trường rồi lãnh đạo Sở) → luồng mặc định, bỏ qua mọi
+ *       cấu hình;</li>
+ *   <li>quản trị viên đã cấu hình loại phiếu này → các bước đã cấu hình;</li>
  *   <li>chưa cấu hình → luồng mặc định.</li>
  * </ol>
  *
@@ -66,9 +64,8 @@ public class ApprovalFlowService {
             String module,
             List<ApprovalStep> defaultSteps,
             List<ApprovalStep> steps,
-            String amountLabel,
-            BigDecimal amountThreshold,
-            List<ApprovalStep> stepsAbove,
+            /** {@code false}: luồng cố định theo nghiệp vụ, màn cấu hình chỉ hiện để xem. */
+            boolean configurable,
             boolean customized,
             String note,
             Instant updatedAt,
@@ -76,8 +73,6 @@ public class ApprovalFlowService {
     }
 
     public record FlowRequest(List<ApprovalStep> steps,
-            @Num(value = NumberRule.MONEY, label = "Ngưỡng tiền") BigDecimal amountThreshold,
-            List<ApprovalStep> stepsAbove,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note) {
     }
 
@@ -89,19 +84,8 @@ public class ApprovalFlowService {
         if (type == null) {
             return voucher.approvalChain();
         }
-        ApprovalFlow flow = current().get(type.resource());
-        if (flow == null) {
-            return type.defaultSteps();
-        }
-        // Loại phiếu có số tiền mà phiếu trả null = số tiền CHƯA BIẾT (vd. đề xuất có dòng chưa ghi đơn giá): coi như từ
-        // ngưỡng trở lên — bỏ trống giá không được là đường né các bước duyệt của phiếu lớn.
-        if (flow.getAmountThreshold() != null && type.amountLabel() != null) {
-            BigDecimal amount = voucher.approvalAmount();
-            if (amount == null || amount.compareTo(flow.getAmountThreshold()) >= 0) {
-                return parse(flow.getStepsAbove());
-            }
-        }
-        return parse(flow.getSteps());
+        ApprovalFlow flow = type.configurable() ? current().get(type.resource()) : null;
+        return flow == null ? type.defaultSteps() : parse(flow.getSteps());
     }
 
     /**
@@ -112,7 +96,7 @@ public class ApprovalFlowService {
      */
     public Optional<List<ApprovalStep>> stepsOf(String resource) {
         return ApprovalFlowType.of(resource).map(type -> {
-            ApprovalFlow flow = current().get(type.resource());
+            ApprovalFlow flow = type.configurable() ? current().get(type.resource()) : null;
             return flow == null ? type.defaultSteps() : parse(flow.getSteps());
         });
     }
@@ -123,37 +107,19 @@ public class ApprovalFlowService {
         Map<String, ApprovalFlow> byResource = flows.findAll().stream()
                 .collect(Collectors.toMap(ApprovalFlow::getResource, Function.identity()));
         return Arrays.stream(ApprovalFlowType.values())
-                .map(t -> view(t, byResource.get(t.resource()))).toList();
+                .map(t -> view(t, t.configurable() ? byResource.get(t.resource()) : null)).toList();
     }
 
     @Transactional
     public FlowView save(String resource, FlowRequest request) {
-        ApprovalFlowType type = typeOf(resource);
+        ApprovalFlowType type = configurableType(resource);
         List<ApprovalStep> steps = normalize(request.steps());
-        BigDecimal threshold = request.amountThreshold();
-        List<ApprovalStep> above = null;
-        if (threshold != null) {
-            if (type.amountLabel() == null) {
-                throw new FieldValidationException("amountThreshold",
-                        "%s không có số tiền để đặt ngưỡng".formatted(type.label()));
-            }
-            if (threshold.signum() <= 0) {
-                throw new FieldValidationException("amountThreshold", "Ngưỡng tiền phải lớn hơn 0");
-            }
-            above = normalize(request.stepsAbove());
-            if (above.equals(steps)) {
-                throw new FieldValidationException("stepsAbove",
-                        "Các bước từ ngưỡng trở lên đang giống hệt các bước thường — bỏ ngưỡng, hoặc chọn bước khác");
-            }
-        }
         ApprovalFlow flow = flows.findByResource(type.resource()).orElseGet(() -> {
             ApprovalFlow created = new ApprovalFlow();
             created.setResource(type.resource());
             return created;
         });
         flow.setSteps(join(steps));
-        flow.setAmountThreshold(threshold);
-        flow.setStepsAbove(above == null ? null : join(above));
         flow.setNote(request.note() == null || request.note().isBlank() ? null : request.note().trim());
         ApprovalFlow saved = flows.save(flow);
         reloadAfterCommit();
@@ -163,7 +129,7 @@ public class ApprovalFlowService {
     /** Bỏ cấu hình — loại phiếu về luồng mặc định. */
     @Transactional
     public FlowView reset(String resource) {
-        ApprovalFlowType type = typeOf(resource);
+        ApprovalFlowType type = configurableType(resource);
         flows.findByResource(type.resource()).ifPresent(flows::delete);
         reloadAfterCommit();
         return view(type, null);
@@ -175,10 +141,7 @@ public class ApprovalFlowService {
         return new FlowView(
                 type.resource(), type.label(), type.module(), type.defaultSteps(),
                 flow == null ? type.defaultSteps() : parse(flow.getSteps()),
-                type.amountLabel(),
-                flow == null ? null : flow.getAmountThreshold(),
-                flow == null || flow.getStepsAbove() == null ? null : parse(flow.getStepsAbove()),
-                
+                type.configurable(),
                 flow != null,
                 flow == null ? null : flow.getNote(),
                 flow == null ? null : (flow.getUpdatedAt() != null ? flow.getUpdatedAt() : flow.getCreatedAt()),
@@ -190,9 +153,18 @@ public class ApprovalFlowService {
                 .orElseThrow(() -> new ResourceNotFoundException("Luồng phê duyệt", resource));
     }
 
+    private static ApprovalFlowType configurableType(String resource) {
+        ApprovalFlowType type = typeOf(resource);
+        if (!type.configurable()) {
+            throw new FieldValidationException("steps",
+                    "%s luôn qua lãnh đạo trường rồi lãnh đạo Sở, không đổi được luồng".formatted(type.label()));
+        }
+        return type;
+    }
+
     /**
-     * Bỏ trùng và xếp theo thứ tự CẤP (trường → cơ quan quản lý): một phiếu không
-     * thể lên cơ quan quản lý trước khi trường duyệt.
+     * Bỏ trùng và xếp theo thứ tự CẤP (trường → Sở): một phiếu không thể lên Sở
+     * trước khi trường duyệt.
      */
     private static List<ApprovalStep> normalize(List<ApprovalStep> steps) {
         return steps == null ? List.of()

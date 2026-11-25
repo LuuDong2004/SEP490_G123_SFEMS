@@ -32,13 +32,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/shared/ui/textarea";
 import {
   PLAN_STATUS_LABELS,
-  PRIORITY_LABELS,
   type PlanCandidate,
   type PlanLine,
   type ProcurementPlan,
   type ProcurementPlanStatus,
 } from "@/domains/procurement/types";
-import { maxLengthOf } from "@/shared/lib/field-rules";
+import { maxLengthOf, numberMax } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { yearLabel } from "@/shared/hooks/use-school-year";
@@ -53,7 +52,6 @@ const PLAN_VARIANT: Record<ProcurementPlanStatus, "neutral" | "warning" | "succe
   PENDING: "warning",
   APPROVED: "success",
 };
-const PRIORITY_VARIANT: Record<number, "destructive" | "warning" | "neutral"> = { 1: "destructive", 2: "warning", 3: "neutral" };
 
 export function PlanStatusBadge({ status }: { status: ProcurementPlanStatus }) {
   return <Badge variant={PLAN_VARIANT[status]}>{PLAN_STATUS_LABELS[status]}</Badge>;
@@ -67,7 +65,7 @@ const today = () => todayLocal();
  * Màn kế hoạch mua sắm — MỘT màn cho lập, sửa và xem. Kế hoạch đi theo DÒNG THIẾT BỊ của các đề xuất đã duyệt:
  * chọn đề xuất là mọi dòng của nó vào bảng với đủ số đề nghị, rồi bớt số lượng hay bỏ dòng (0) khi ngân sách
  * không đủ. Tiền tính theo số ĐƯA VÀO KẾ HOẠCH, và phiếu ghi tăng lập từ đề xuất sau khi duyệt cũng đọc số này.
- * Không sửa được (đã trình / đã duyệt, hoặc không phải cơ quan lập) thì mọi ô bị khoá.
+ * Không sửa được (đã trình / đã duyệt, hoặc không thuộc Sở lập) thì mọi ô bị khoá.
  */
 export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChanged?: () => void }) {
   const creating = !plan;
@@ -270,7 +268,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
     <Card className="gap-0 py-0">
       <SideSection title="Kế hoạch mua sắm" aside={plan ? <PlanStatusBadge status={plan.status} /> : null}>
         <SideFact label="Mã">{plan?.code ? <span className="font-mono">{plan.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi lưu</span>}</SideFact>
-        {plan ? <SideFact label="Cơ quan">{plan.managingBody.name}</SideFact> : null}
+        {plan ? <SideFact label="Sở">{plan.managingBody.name}</SideFact> : null}
         {plan?.approvedAt ? <SideFact label="Duyệt lúc">{formatDateTime(plan.approvedAt)}</SideFact> : null}
       </SideSection>
       <SideSection title="Tổng giá trị dự toán">
@@ -303,7 +301,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
             </Button>
           </div>
           {included.length === 0 ? (
-            <p className="text-muted-foreground text-xs">Thêm đề xuất đã duyệt của các trường, trước khi trình lãnh đạo cơ quan.</p>
+            <p className="text-muted-foreground text-xs">Thêm đề xuất đã duyệt của các trường, trước khi trình lãnh đạo Sở.</p>
           ) : unpriced.length ? (
             <p className="text-warning-text flex items-start gap-1.5 text-xs">
               <TriangleAlert className="mt-px size-3.5 shrink-0" />
@@ -324,7 +322,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
         <ConfirmContent
           icon={<Send />}
           title="Trình kế hoạch mua sắm?"
-          description={`${included.length} thiết bị, tổng ${money.format(totalAmount)} đ. Lãnh đạo cơ quan sẽ duyệt hoặc trả lại; trong lúc chờ không sửa được kế hoạch.`}
+          description={`${included.length} thiết bị, tổng ${money.format(totalAmount)} đ. Lãnh đạo Sở sẽ duyệt hoặc trả lại; trong lúc chờ không sửa được kế hoạch.`}
           cancelLabel="Chưa, để sau"
           confirmLabel="Trình duyệt"
           busy={busy === "submit"}
@@ -351,7 +349,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
   editable: boolean;
   onPlanned: (lineId: number, value: number) => void;
   /**
-   * Cơ quan nhập / sửa đơn giá DỰ TOÁN — trường không bắt buộc ghi giá lúc đề xuất. Giá thật (nguyên giá tài sản) do
+   * Sở nhập / sửa đơn giá DỰ TOÁN — trường không bắt buộc ghi giá lúc đề xuất. Giá thật (nguyên giá tài sản) do
    * trường ghi theo chứng từ ở phiếu ghi tăng.
    */
   onPrice: (lineId: number, value: number | null) => void;
@@ -364,7 +362,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
     for (const l of lines) m.set(l.proposalId, [...(m.get(l.proposalId) ?? []), l]);
     return [...m.values()];
   }, [lines]);
-  const cols = editable ? 7 : 6;
+  const cols = editable ? 6 : 5;
   return (
     <Table>
       <TableHeader className="bg-surface-subtle">
@@ -374,8 +372,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
           <TableHead className="text-overline text-muted-foreground w-24 text-right">SL đề nghị</TableHead>
           <TableHead className="text-overline text-muted-foreground w-32 text-right">SL đưa vào KH</TableHead>
           <TableHead className="text-overline text-muted-foreground w-44 text-right">Đơn giá dự toán</TableHead>
-          <TableHead className="text-overline text-muted-foreground w-36 text-right">Thành tiền</TableHead>
-          <TableHead className="text-overline text-muted-foreground w-24 pe-4">Ưu tiên</TableHead>
+          <TableHead className="text-overline text-muted-foreground w-36 pe-4 text-right">Thành tiền</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -419,7 +416,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
                   <TableCell className={cn("whitespace-normal", !editable && "ps-4")}>
                     <span className={cn("font-medium", off && "line-through")}>{l.name}</span>
                     <span className="text-muted-foreground block text-xs">
-                      {[l.catalog.code, l.specification].filter(Boolean).join(" · ")}
+                      {l.catalog.code}
                     </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -440,10 +437,10 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
                     {editable ? (
                       <MoneyInput value={l.unitPrice} onChange={(v) => onPrice(l.lineId, v)} placeholder="Nhập giá"
                         aria-label="Đơn giá dự toán" aria-invalid={!off && !price ? true : undefined}
-                        className="ms-auto h-8 w-32 text-right" />
+                        maxValue={numberMax("MONEY")} className="ms-auto h-8 w-full text-right" />
                     ) : l.unitPrice != null ? money.format(l.unitPrice) : "—"}
                     {editable && l.proposedUnitPrice != null && Number(l.unitPrice) !== Number(l.proposedUnitPrice) ? (
-                      <span className="text-muted-foreground mt-1 block text-[0.6875rem]">Trường ghi {money.format(l.proposedUnitPrice)}</span>
+                      <span className="text-muted-foreground mt-1 block text-[0.6875rem]">Trường tham khảo {money.format(l.proposedUnitPrice)}</span>
                     ) : null}
                     {editable && price && sameOthers.length ? (
                       <button type="button" className="text-primary mt-1 block w-full text-right text-[0.6875rem] font-medium hover:underline"
@@ -452,10 +449,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
                       </button>
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{money.format((l.unitPrice ?? 0) * l.plannedQuantity)}</TableCell>
-                  <TableCell className="pe-4">
-                    <Badge variant={PRIORITY_VARIANT[l.priority] ?? "neutral"}>{PRIORITY_LABELS[l.priority] ?? l.priority}</Badge>
-                  </TableCell>
+                  <TableCell className="pe-4 text-right font-medium tabular-nums">{money.format((l.unitPrice ?? 0) * l.plannedQuantity)}</TableCell>
                 </TableRow>
               );
             }),
@@ -467,7 +461,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
 }
 
 /**
- * Chọn đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý — cùng năm ngân sách với
+ * Chọn đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường Sở lập kế hoạch quản lý — cùng năm ngân sách với
  * năm học đang chọn trên màn (máy chủ lọc, lúc lưu cũng kiểm).
  */
 function CandidatesDialog({ planId, schoolYearId, exclude, extra, onAdd, open, onOpenChange: setOpen }: {
@@ -516,7 +510,7 @@ function CandidatesDialog({ planId, schoolYearId, exclude, extra, onAdd, open, o
                   <TableHead className="text-overline text-muted-foreground">Số phiếu</TableHead>
                   <TableHead className="text-overline text-muted-foreground">Trường</TableHead>
                   <TableHead className="text-overline text-muted-foreground text-right">Thiết bị</TableHead>
-                  <TableHead className="text-overline text-muted-foreground text-right">Dự toán</TableHead>
+                  <TableHead className="text-overline text-muted-foreground text-right">Giá tham khảo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

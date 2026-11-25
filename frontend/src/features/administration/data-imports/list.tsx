@@ -1,13 +1,17 @@
-import { useCan, useGo, useList } from "@refinedev/core";
+import { useCan, useGo, useList, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CloudUpload, Download, FileSpreadsheet, Inbox, Upload, X } from "lucide-react";
+import { CloudUpload, Download, FileSpreadsheet, Inbox, LockKeyhole, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { CrossLink } from "@/shared/components/cross-link";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
+import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { errorMessage } from "@/shared/lib/api-error";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDate, formatDateTime } from "@/shared/lib/format";
+import { useOpeningBalance } from "@/shared/hooks/use-opening-balance";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -228,6 +232,12 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
 export const DataImports = () => {
   const go = useGo();
   const mayWrite = useCan({ resource: "data_imports", action: "create" }).data?.can ?? false;
+  const mayDelete = useCan({ resource: "data_imports", action: "delete" }).data?.can ?? false;
+  const { open: notify } = useNotification();
+  const queryClient = useQueryClient();
+  // Lô đang chờ ghi muốn xoá (hộp xác nhận); lô đã ghi thì hoàn tác trong lô, không xoá ở đây.
+  const [removing, setRemoving] = useState<ImportBatch | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const kinds = useKinds();
   // Tab loại dữ liệu: lọc bảng, và là loại của "Tải tệp mẫu" / "Tải tệp lên" — không chọn lại trong menu nút.
   const [tab, setTab] = useState<ImportKind>("school_data");
@@ -252,6 +262,8 @@ export const DataImports = () => {
     queryFn: ({ signal }) => kyInstance.get("data_imports/counts", { signal }).json<Partial<Record<ImportKind, number>>>(),
   });
   const batches = data?.rows ?? [];
+  // Trường đã khoá khai thiết bị ban đầu: trang Thiết bị của tệp không ghi nữa (máy chủ đánh dấu bỏ qua từng dòng).
+  const lockedAt = useOpeningBalance().data?.closedAt ?? null;
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   // Xoá lô cuối của trang cuối: lùi về trang còn dòng.
@@ -259,7 +271,21 @@ export const DataImports = () => {
     if (data && page > pageCount) setPage(pageCount);
   }, [data, page, pageCount]);
   const schoolCol = kind === "school_data";
-  const cols = schoolCol ? 6 : 5;
+  const cols = (schoolCol ? 6 : 5) + (mayDelete ? 1 : 0);
+  const remove = async () => {
+    if (!removing) return;
+    setRemoveBusy(true);
+    try {
+      await kyInstance.delete(`data_imports/${removing.id}`);
+      notify?.({ type: "success", message: `Đã xoá lô ${removing.fileName}` });
+      await queryClient.invalidateQueries({ queryKey: BATCHES_KEY });
+      setRemoving(null);
+    } catch (error) {
+      notify?.({ type: "error", message: await errorMessage(error) });
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
 
   return (
     <ListView>
@@ -276,6 +302,19 @@ export const DataImports = () => {
         </>
       } />
       <FillBox>
+      {lockedAt && kind === "school_data" ? (
+        <div className="bg-info-subtle text-info-text mb-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+          <LockKeyhole className="size-4 shrink-0" />
+          <span>
+            Trường đã khoá khai thiết bị ban đầu từ {formatDate(lockedAt)}. Hệ thống không nhận trang Thiết bị của tệp tải
+            lên, chỉ ghi cơ sở, cán bộ, khối nhà, phòng, lớp. Thiết bị mới lập{" "}
+            <CrossLink to="/equipment-intakes/create" resource="equipment_intakes" action="create" plain
+              className="font-medium underline">
+              phiếu ghi tăng
+            </CrossLink>.
+          </span>
+        </div>
+      ) : null}
       {kinds.length > 1 ? (
         <Tabs value={kind} onValueChange={(v) => setTab(v as ImportKind)} className="pb-3">
           <TabsList aria-label="Loại dữ liệu">
@@ -291,6 +330,13 @@ export const DataImports = () => {
           </TabsList>
         </Tabs>
       ) : null}
+      <AlertDialog open={!!removing} onOpenChange={(o) => !o && !removeBusy && setRemoving(null)}>
+        {removing ? (
+          <ConfirmContent tone="danger" title={`Xoá lô ${removing.fileName}?`}
+            description="Chỉ xoá dữ liệu đang chờ của lô này, hệ thống không có gì thay đổi. Xoá rồi không lấy lại được."
+            cancelLabel="Không xoá" confirmLabel="Xoá" busy={removeBusy} keepOpen onConfirm={() => void remove()} />
+        ) : null}
+      </AlertDialog>
       <Card className="min-h-0 flex-1 gap-0 py-0">
         <CardContent className="flex min-h-0 flex-1 flex-col overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b px-0">
           <Table>
@@ -302,6 +348,7 @@ export const DataImports = () => {
                 <TableHead>Thời gian</TableHead>
                 <TableHead>Kết quả</TableHead>
                 <TableHead>Trạng thái</TableHead>
+                {mayDelete ? <TableHead className="w-12"><span className="sr-only">Xoá</span></TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -325,6 +372,18 @@ export const DataImports = () => {
                     <TableCell>
                       <Badge variant={b.status === "COMMITTED" ? "success" : "info"}>{IMPORT_BATCH_STATUS[b.status]}</Badge>
                     </TableCell>
+                    {mayDelete ? (
+                      <TableCell className="w-12 text-right">
+                        {/* Chỉ lô đang chờ ghi xoá được; lô đã ghi thì vào lô bấm Hoàn tác. */}
+                        {b.status === "DRAFT" ? (
+                          <Button type="button" variant="ghost" size="icon-sm" title="Xoá lô" aria-label={`Xoá lô ${b.fileName}`}
+                            className="text-muted-foreground hover:text-destructive-text"
+                            onClick={(e) => { e.stopPropagation(); setRemoving(b); }}>
+                            <Trash2 />
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}

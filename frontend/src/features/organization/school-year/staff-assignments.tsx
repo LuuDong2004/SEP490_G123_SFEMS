@@ -25,7 +25,6 @@ import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import type { AssignmentCandidate, CopyResult, Ref, StaffAssignment } from "@/domains/school-year/types";
 
-import { useYearLock } from "./year-lock";
 import { yearLabel, useSchoolYear } from "@/shared/hooks/use-school-year";
 
 const RESOURCE = "staff_assignments";
@@ -42,8 +41,7 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
   const { id: yearId, years, year } = useSchoolYear();
   const canWrite = useCan({ resource: RESOURCE, action: "create" }).data?.can ?? false;
   const canDelete = useCan({ resource: RESOURCE, action: "delete" }).data?.can ?? false;
-  const lock = useYearLock(schoolId ?? null, yearId);
-  const editable = canWrite && !lock.closed;
+  const editable = canWrite;
   const pinned = usePinnedCampusId();
   const campuses = useCampusOptions(schoolId, true);
   const [campus, setCampus] = useState<string | null>(null);
@@ -133,11 +131,6 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
           </Button>
         ) : null}
       </div>
-      {lock.closed ? (
-        <div className="bg-success-subtle text-success-text rounded-lg px-4 py-2 text-sm">
-          Năm học {yearLabel(year)} đã chốt — phân công chỉ xem.
-        </div>
-      ) : null}
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div ref={paged.boxRef} className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible">
           <Table>

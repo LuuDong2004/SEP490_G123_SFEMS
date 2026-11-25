@@ -18,10 +18,11 @@ import {
 } from "@/shared/components/voucher/voucher-timeline";
 import { detailFacts, VoucherDetailsView } from "@/shared/components/voucher/voucher-details";
 import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
+import { useVoucherApprovers } from "@/shared/hooks/use-voucher-events";
 import { formatDateTime } from "@/shared/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
 import { Card } from "@/shared/ui/card";
-import type { EquipmentLine, VoucherBase } from "@/domains/voucher/types";
+import { APPROVAL_STEP_LABELS, type EquipmentLine, type VoucherApprovers, type VoucherBase } from "@/domains/voucher/types";
 
 export type Fact = { label: string; value: ReactNode };
 
@@ -52,7 +53,13 @@ export function VoucherShowShell({
   attachmentsHint,
   print,
   timeline,
+  sideFacts,
 }: {
+  /**
+   * Thông tin riêng của loại phiếu trên thẻ tóm tắt bên phải (năm ngân sách, số dòng, kế hoạch…) — đứng sau Trường,
+   * trước các mốc thời gian. Mục để trống / "—" không hiện.
+   */
+  sideFacts?: Fact[];
   /** Chữ riêng cho phần quá trình (phiếu không qua duyệt): tên phần, nhãn mốc gửi, tên từng việc. */
   timeline?: TimelineWording;
   resource: string;
@@ -85,6 +92,8 @@ export function VoucherShowShell({
   const [timelineOpen, setTimelineOpen] = useState(false);
   const wording = { ...DEFAULT_TIMELINE_WORDING, ...timeline };
   const eventCount = useVoucherEventCount(resource, record?.id);
+  const { data: approvers } = useVoucherApprovers(resource, record?.id, record?.status);
+  const approverText = approversText(approvers);
   // Huỷ phiếu và Xoá nằm trong menu ⚙ — menu báo việc được chọn, `VoucherActions` mở hộp hỏi lại.
   const [menuAction, setMenuAction] = useState<TuckedAction | null>(null);
   const tucked = useMemo(() => ({ request: menuAction, clear: () => setMenuAction(null) }), [menuAction]);
@@ -173,7 +182,13 @@ export function VoucherShowShell({
                       {record ? <VoucherStatusBadge status={record.status} step={record.approvalStep} returned={!!record.returnNote} /> : null}
                     </div>
                     <SideFact label="Trường">{record?.school?.name}</SideFact>
+                    {approverText ? <SideFact label="Người duyệt">{approverText}</SideFact> : null}
+                    {(sideFacts ?? []).filter((f) => !blankFact(f.value)).map((f) => (
+                      <SideFact key={f.label} label={f.label}>{f.value}</SideFact>
+                    ))}
+                    {record?.createdAt ? <SideFact label="Ngày lập">{formatDateTime(record.createdAt)}</SideFact> : null}
                     {record?.submittedAt ? <SideFact label={wording.submittedAt}>{formatDateTime(record.submittedAt)}</SideFact> : null}
+                    {record?.completedAt ? <SideFact label="Hoàn tất lúc">{formatDateTime(record.completedAt)}</SideFact> : null}
                     {/* Quá trình duyệt mở trong hộp thoại: phiếu nháp chưa trình thì chưa có gì để xem, một thẻ
                         riêng cho một dòng "chưa trình lần nào" chỉ chiếm chỗ. */}
                     <SideFact label={wording.title}>
@@ -196,13 +211,31 @@ export function VoucherShowShell({
   );
 }
 
+/**
+ * Dòng "Người duyệt" của thẻ tóm tắt. Đang chờ: tên những người duyệt được bước này (nhiều người thì hai tên đầu và
+ * "+N"); chưa ai có quyền thì nói rõ để người lập báo quản trị viên. Đã quyết: tên người đã duyệt từng bước, nối "→".
+ * Phiếu nháp / huỷ: không có dòng này.
+ */
+function approversText(a: VoucherApprovers | undefined): ReactNode {
+  if (!a) return null;
+  if (a.pending || a.upcoming) {
+    if (!a.people.length) {
+      return <span className="text-warning-text">Chưa có tài khoản {a.step ? APPROVAL_STEP_LABELS[a.step] : "duyệt"}</span>;
+    }
+    const names = a.people.map((p) => p.name);
+    const text = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", ");
+    return a.upcoming ? <>{text} <span className="text-muted-foreground font-normal">(khi trình)</span></> : text;
+  }
+  return a.people.length ? a.people.map((p) => p.name).join(" → ") : null;
+}
+
 /** Ô chưa khai: trống, hoặc màn của loại phiếu đã tự đổi thành dấu gạch. */
 const blankFact = (v: ReactNode) => v === null || v === undefined || v === "" || v === "—" || v === "-";
 
 function Fact({ label, value }: Fact) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dt className="text-muted-foreground text-sm">{label}:</dt>
       <dd className="text-foreground text-sm font-medium">{value ?? "—"}</dd>
     </div>
   );

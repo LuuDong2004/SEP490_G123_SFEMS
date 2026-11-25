@@ -73,7 +73,7 @@ public class VoucherLinks {
     }
 
     /**
-     * Phiếu con qua đúng phạm vi dòng của loại phiếu đó, không chỉ lọc theo trường: Sở / UBND không thấy phiếu chưa
+     * Phiếu con qua đúng phạm vi dòng của loại phiếu đó, không chỉ lọc theo trường: Sở không thấy phiếu chưa
      * trình tới mình (nháp, đang chờ hiệu trưởng — {@code reachedStep}), nên cũng không được thấy số và trạng thái
      * của nó ở đây.
      */

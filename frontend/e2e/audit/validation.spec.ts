@@ -24,8 +24,8 @@ test.beforeAll(async ({ request }) => {
 });
 test.afterAll(() => rec.flush());
 
-const base = () => ({ proposalDate: "2026-11-20", budgetYear: 2027, fundingSource: "STATE_BUDGET", reason: "E2E-AUDIT validate", note: null });
-const line = (over: Record<string, unknown>) => ({ catalog: { id: catalogId }, kind: "NEW", quantity: 2, unitPrice: 100000, priority: 2, ...over });
+const base = () => ({ proposalDate: "2026-11-20", budgetYear: 2027, reason: "E2E-AUDIT validate", note: null });
+const line = (over: Record<string, unknown>) => ({ catalog: { id: catalogId }, kind: "NEW", quantity: 2, unitPrice: 100000, ...over });
 
 test("V1 đề xuất mua sắm: số lượng, đơn giá, năm, độ dài", async ({ request }) => {
   test.skip(!catalogId, "không lấy được mã thiết bị mẫu");
@@ -36,7 +36,6 @@ test("V1 đề xuất mua sắm: số lượng, đơn giá, năm, độ dài", a
     ["số lượng thập phân 1.5", { ...base(), lines: [line({ quantity: 1.5 })] }, false],
     ["đơn giá âm", { ...base(), lines: [line({ unitPrice: -1000 })] }, false],
     ["đơn giá 10^16", { ...base(), lines: [line({ unitPrice: 1e16 })] }, false],
-    ["mức ưu tiên 9", { ...base(), lines: [line({ priority: 9 })] }, false],
     ["năm ngân sách 1900", { ...base(), budgetYear: 1900, lines: [line({})] }, false],
     ["lý do 5000 ký tự", { ...base(), reason: "x".repeat(5000), lines: [line({})] }, false],
     ["thiếu ngày đề xuất", { ...base(), proposalDate: null, lines: [line({})] }, false],

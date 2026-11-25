@@ -6,7 +6,7 @@ package com.g123.sfems.module.school.procurement;
  * ({@link PurchaseProposalService#overlaps}) đếm cùng một luật:
  * <ul>
  *   <li>đề xuất chưa hoàn tất (nháp, chờ duyệt, đã duyệt — kể cả đang nằm ở kế hoạch chưa duyệt): số trường đề nghị;</li>
- *   <li>đề xuất hoàn tất (kế hoạch chứa nó đã duyệt): số ĐƯA VÀO KẾ HOẠCH — dòng cơ quan bỏ (0) không còn là "đang
+ *   <li>đề xuất hoàn tất (kế hoạch chứa nó đã duyệt): số ĐƯA VÀO KẾ HOẠCH — dòng Sở bỏ (0) không còn là "đang
  *       xin";</li>
  *   <li>trừ phần đã về theo phiếu ghi tăng HOÀN TẤT lập từ đề xuất (cùng thiết bị): phần đó đã thành thiết bị trên sổ,
  *       nằm ở cột "Đang có". Phiếu ghi tăng còn nháp / chờ duyệt chưa trừ — hàng chưa lên sổ. Đề xuất nhập một phần vẫn

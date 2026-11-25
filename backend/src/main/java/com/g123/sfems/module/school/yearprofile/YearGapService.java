@@ -33,8 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <ul>
  *   <li><b>Đưa vào đề xuất mua sắm</b> đúng số thiếu (theo điều chỉnh), lúc nào cũng lập được; dòng ngoài thông tư lấy nhu
  *       cầu trường nhập và gắn nhãn riêng. Mỗi dòng lưu căn cứ ({@code proposal_standard_traces}) để kế hoạch truy ngược
- *       (bước 7). Trình lúc nào cũng được; năm học chưa chốt thì căn cứ mang cờ {@code yearClosed = false} để màn hình
- *       gắn nhãn "Năm học chưa chốt" — số thiếu còn đổi được (trưởng nhóm 23/11/2026, bỏ luật chặn của 20/11).</li>
+ *       (bước 7). Trình lúc nào cũng được; trường chưa xác nhận khai năm học thì căn cứ mang cờ
+ *       {@code yearConfirmed = false} để màn hình gắn nhãn "Trường chưa xác nhận năm học" — lớp, sĩ số còn đang khai
+ *       nên số thiếu có thể đổi (trưởng nhóm 23/11/2026, bỏ luật chặn của 20/11).</li>
  * </ul>
  */
 @Service
@@ -54,8 +55,8 @@ public class YearGapService {
             String catalogCode, String catalogName, String campusName, String normCode, int quantity, Integer requiredTt,
             Integer requiredAdjusted, Integer current, String adjustKind, String adjustReason, String basisText,
             boolean outsideStandard,
-            /** Năm học của dòng đã chốt chưa — chưa chốt thì số thiếu còn đổi được; màn hình gắn nhãn, không chặn trình. */
-            boolean yearClosed) {
+            /** Trường đã xác nhận khai năm học của dòng chưa — chưa thì số thiếu còn đổi; màn hình gắn nhãn, không chặn trình. */
+            boolean yearConfirmed) {
     }
 
     private final JdbcTemplate jdbc;
@@ -140,11 +141,11 @@ public class YearGapService {
             }
             String note = String.join("; ", parts);
             lines.add(new PurchaseProposalApi.LineInput(new IdRef(first.catalogId()), PurchaseProposalLine.Kind.NEW,
-                    first.name(), null, first.unitName(), quantity, null, 2,
+                    first.name(), first.unitName(), quantity, null,
                     note.length() > 255 ? note.substring(0, 255) : note, null));
         }
         PurchaseProposal created = proposals.create(new PurchaseProposalApi.Request(new IdRef(school), LocalDate.now(),
-                null, null, "Bổ sung thiết bị còn thiếu theo chuẩn tối thiểu " + year.name().toLowerCase(), null,
+                null, "Bổ sung thiết bị còn thiếu theo chuẩn tối thiểu " + year.name().toLowerCase(), null,
                 lines, null), new IdRef(school));
         for (Pick p : picks) {
             Row row = p.row();
@@ -173,8 +174,9 @@ public class YearGapService {
         return jdbc.query("""
                 SELECT t.*, p.code AS proposal_code, s.name AS school_name, y.name AS year_name, c.code AS catalog_code,
                        c.name AS catalog_name,
-                       EXISTS (SELECT 1 FROM school_year_closings yc WHERE yc.school_id = t.school_id
-                               AND yc.school_year_id = t.school_year_id AND yc.status = 'CLOSED') AS year_closed
+                       EXISTS (SELECT 1 FROM school_year_profiles yp WHERE yp.school_id = t.school_id
+                               AND yp.school_year_id = t.school_year_id AND yp.campus_id IS NULL
+                               AND yp.status = 'CONFIRMED') AS year_confirmed
                 FROM proposal_standard_traces t JOIN purchase_proposals p ON p.id = t.proposal_id
                 JOIN schools s ON s.id = t.school_id JOIN school_years y ON y.id = t.school_year_id
                 JOIN equipment_catalogs c ON c.id = t.catalog_id
@@ -185,7 +187,7 @@ public class YearGapService {
                 rs.getString("campus_name"), rs.getString("norm_code"), rs.getInt("quantity"),
                 (Integer) rs.getObject("required_tt"), (Integer) rs.getObject("required_adjusted"),
                 (Integer) rs.getObject("current_qty"), rs.getString("adjust_kind"), rs.getString("adjust_reason"),
-                rs.getString("basis_text"), rs.getBoolean("outside_standard"), rs.getBoolean("year_closed")),
+                rs.getString("basis_text"), rs.getBoolean("outside_standard"), rs.getBoolean("year_confirmed")),
                 proposalId != null ? proposalId : planId);
     }
 

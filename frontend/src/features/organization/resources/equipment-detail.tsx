@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- bản ghi thiết bị đến từ bộ màn danh mục chung, kiểu `any` như `CatalogExtra.show`. */
 import { useQuery } from "@tanstack/react-query";
 import {
-  BookCheck, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
+  BookCheck, CircleAlert, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -200,9 +200,23 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
               Tình trạng: {EQUIPMENT_CONDITION_LABELS[r.condition] ?? "Chưa đánh giá"}
             </Badge>
             {r.profileComplete === false ? (
-              <Badge variant="warning" title={(r.missingProfile ?? []).length ? `Thiếu: ${r.missingProfile.join(", ")}` : undefined}>Hồ sơ chưa chuẩn</Badge>
+              <Badge variant="warning">Hồ sơ chưa chuẩn</Badge>
             ) : <Badge variant="success">Hồ sơ chuẩn</Badge>}
           </div>
+          {/* Hồ sơ chưa chuẩn thì nói luôn thiếu gì, không bắt rê chuột vào nhãn. */}
+          {r.profileComplete === false && (r.missingProfile ?? []).length > 0 ? (
+            <div className="mt-3 text-sm">
+              <p className="text-warning-text font-medium">Hồ sơ còn thiếu</p>
+              <ul className="mt-1.5 space-y-1">
+                {(r.missingProfile as string[]).map((m) => (
+                  <li key={m} className="flex items-start gap-1.5">
+                    <CircleAlert className="text-warning-text mt-0.5 size-3.5 shrink-0" />
+                    <span className="block first-letter:uppercase">{m}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
     </Card>

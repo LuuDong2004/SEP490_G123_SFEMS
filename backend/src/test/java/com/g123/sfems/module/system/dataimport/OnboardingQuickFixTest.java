@@ -41,6 +41,25 @@ class OnboardingQuickFixTest {
     }
 
     @Test
+    void staffPositionFromShortForms() {
+        assertThat(OnboardingQuickFix.staffPosition("PHT")).isEqualTo("Phó hiệu trưởng");
+        assertThat(OnboardingQuickFix.staffPosition("Hiệu phó")).isEqualTo("Phó hiệu trưởng");
+        assertThat(OnboardingQuickFix.staffPosition("HT")).isEqualTo("Hiệu trưởng");
+        assertThat(OnboardingQuickFix.staffPosition("TT chuyên môn")).isEqualTo("Tổ trưởng chuyên môn");
+        assertThat(OnboardingQuickFix.staffPosition("Phụ trách thiết bị")).isEqualTo("Cán bộ thiết bị");
+        assertThat(OnboardingQuickFix.staffPosition("GVBM")).isEqualTo("Giáo viên");
+        assertThat(OnboardingQuickFix.staffPosition("Bảo vệ")).isEqualTo("Nhân viên");
+        assertThat(OnboardingQuickFix.staffPosition("Ai biết")).isNull();
+    }
+
+    @Test
+    void emailIsCleanedOrLeftAlone() {
+        assertThat(OnboardingQuickFix.emailFix(" Nguyen.An @Gmail,com ")).isEqualTo("nguyen.an@gmail.com");
+        assertThat(OnboardingQuickFix.emailFix("trần.bình@thpt.edu.vn")).isEqualTo("tran.binh@thpt.edu.vn");
+        assertThat(OnboardingQuickFix.emailFix("khong-phai-email")).isNull();
+    }
+
+    @Test
     void recorderIsNotOil() {
         assertThat(OnboardingValidator.chemicalName("Đầu ghi hình Kivision")).isFalse();
         assertThat(OnboardingValidator.chemicalName("Đâu ghi AHD HYBRID 16 kênh")).isFalse();

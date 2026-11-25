@@ -15,11 +15,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * Kế hoạch mua sắm của một cơ quan quản lý cho một năm ngân sách: UBND gom đề
- * xuất đã duyệt của các trường trên địa bàn, Sở gom đề xuất của các trường THPT.
+ * Kế hoạch mua sắm của Sở cho một năm ngân sách: Sở gom đề xuất đã duyệt của các trường THPT.
  *
  * <p>Kế hoạch không có dòng của riêng nó — nội dung của nó là các đề xuất được
- * đưa vào, cộng theo nhóm thiết bị. Chuyên viên lập và trình, lãnh đạo cơ quan
+ * đưa vào, cộng theo nhóm thiết bị. Chuyên viên Sở lập và trình, lãnh đạo Sở
  * duyệt; duyệt xong thì mọi đề xuất trong kế hoạch hoàn tất.
  */
 @Entity

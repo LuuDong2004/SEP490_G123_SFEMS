@@ -66,7 +66,7 @@ class SchoolNormAdjustmentTest {
         school = jdbc.queryForObject("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id"
                 + " WHERE u.username = 'thcs.canbo'", Long.class);
         year = jdbc.queryForObject("SELECT id FROM school_years WHERE is_current", Long.class);
-        jdbc.update("DELETE FROM school_year_closings WHERE school_id = ? AND school_year_id = ?", school, year);
+        jdbc.update("DELETE FROM school_year_profiles WHERE school_id = ? AND school_year_id = ?", school, year);
         // Hai thiết bị chỉ có MỘT dòng danh mục THCS — dòng của nó chắc chắn là dòng được tính.
         List<Map<String, Object>> single = jdbc.queryForList("""
                 SELECT min(n.id) AS id, n.catalog_id FROM equipment_norms n
@@ -131,11 +131,13 @@ class SchoolNormAdjustmentTest {
     }
 
     @Test
-    void closedYearRejectsAdjustments() {
-        jdbc.update("INSERT INTO school_year_closings (school_id, school_year_id, status) VALUES (?, ?, 'CLOSED')",
-                school, year);
-        assertThatThrownBy(() -> adjustments.save(input(reduceNorm, "REDUCE", null, "Chưa đủ phòng")))
-                .isInstanceOf(FieldValidationException.class).hasMessageContaining("đã chốt");
+    void confirmedYearStillTakesAdjustments() {
+        // Xác nhận đã khai không khoá (trưởng nhóm 25/11/2026): điều chỉnh vẫn lưu được.
+        jdbc.update("""
+                INSERT INTO school_year_profiles (school_id, school_year_id, campus_id, status, confirmed_at)
+                VALUES (?, ?, NULL, 'CONFIRMED', now())""", school, year);
+        adjustments.save(input(reduceNorm, "REDUCE", null, "Chưa đủ phòng"));
+        assertThat(row(reduceCatalog).adjustment()).isNotNull();
     }
 
     private SchoolNormAdjustmentService.Input input(Long norm, String kind, Integer outside, String reason) {

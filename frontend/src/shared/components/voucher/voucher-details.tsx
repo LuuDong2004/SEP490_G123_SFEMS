@@ -228,7 +228,7 @@ function FieldControl({ field, value, onChange, config, lookups }: {
 
 function visibleSections(config: VoucherFormConfig | undefined, variant?: string | null) {
   return (config?.sections ?? []).filter(
-    (s) => !s.when || (variant != null && s.when.in.includes(variant)),
+    (s) => !s.inline && (!s.when || (variant != null && s.when.in.includes(variant))),
   );
 }
 
@@ -453,8 +453,7 @@ export function VoucherDetailsView({ config, details, variant, draft, title = "T
 /** Các trường chứng từ đã điền, phẳng — cho bản in. */
 export function detailFacts(config: VoucherFormConfig | undefined, details: Details | undefined, variant?: string | null) {
   if (!config || !details) return [];
-  return (config.sections ?? [])
-    .filter((s) => !s.when || (variant != null && s.when.in.includes(variant)))
+  return visibleSections(config, variant)
     .flatMap((s) => s.fields)
     .filter((f) => details[f.key] != null && details[f.key] !== "")
     .map((f) => ({ label: f.label, value: formatDetail(f, details[f.key], config) }));

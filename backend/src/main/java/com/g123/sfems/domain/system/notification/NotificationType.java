@@ -18,8 +18,11 @@ public enum NotificationType {
     VOUCHER_RESULT("Kết quả duyệt phiếu", true, true, EnumSet.of(UserType.SCHOOL, UserType.SO)),
     /** Sở phát động đợt kiểm kê. */
     INVENTORY_CAMPAIGN("Đợt kiểm kê", true, true, EnumSet.of(UserType.SCHOOL)),
-    /** Hồ sơ năm học được mở lại, điều chỉnh chuẩn tối thiểu hết hiệu lực. */
-    YEAR_PROFILE("Hồ sơ năm học, chuẩn tối thiểu", true, true, EnumSet.of(UserType.SCHOOL)),
+    /**
+     * Năm học mới thành hiện hành (trường khai dữ liệu đầu năm), trường xác nhận đã khai (báo Sở), điều chỉnh chuẩn tối
+     * thiểu hết hiệu lực.
+     */
+    YEAR_PROFILE("Hồ sơ năm học, chuẩn tối thiểu", true, true, EnumSet.of(UserType.SCHOOL, UserType.SO)),
     /** Cảnh báo vận hành (thư thông báo gửi lỗi…) — không tắt được trên hệ thống. */
     SYSTEM_ALERT("Cảnh báo vận hành", true, false, EnumSet.of(UserType.SYSTEM)),
     /** Quản trị gửi tay — luôn tới nơi. */

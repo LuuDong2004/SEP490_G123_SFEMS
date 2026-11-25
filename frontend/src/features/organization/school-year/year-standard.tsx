@@ -12,7 +12,6 @@ import {
   Gauge,
   History,
   ListChecks,
-  Lock,
   MapPin,
   Filter,
   Search,
@@ -80,8 +79,8 @@ function Gap({ value }: { value: number | null }) {
 
 /**
  * Chuẩn tối thiểu theo năm học của MỘT trường (màn D): ô chọn năm học và điểm trường; hai cột theo thông tư / theo điều
- * chỉnh, tỷ lệ đáp ứng hai số. Cả trường = cộng các điểm trường. Năm đã chốt đọc bản chốt (dải xanh), năm cũ chưa chốt
- * tính lại (dải vàng). Trường áp dụng điều chỉnh trên từng dòng (khi đã chọn một điểm trường).
+ * chỉnh, tỷ lệ đáp ứng hai số. Cả trường = cộng các điểm trường. Năm đã qua tính lại theo dữ liệu năm đó, thiết bị
+ * sau đợt kiểm kê (dải xanh). Trường áp dụng điều chỉnh trên từng dòng (khi đã chọn một điểm trường).
  */
 /** Cột số của bảng chuẩn: cùng bề rộng, căn phải. */
 const NUM_COL = "w-32 text-right";
@@ -264,15 +263,11 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
           Xuất Excel
         </Button>
       </div>
-      {d?.source === "CLOSED" ? (
-        <div className="bg-success-subtle text-success-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
-          <Lock className="size-4" />
-          Đã chốt {d.closedAt} — số liệu theo bản chốt
-        </div>
-      ) : d?.source === "RECOMPUTED" ? (
-        <div className="bg-warning-subtle text-warning-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+      {d?.source === "RECOMPUTED" ? (
+        <div className="bg-info-subtle text-info-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
           <TriangleAlert className="size-4" />
-          Chưa chốt — tính lại theo lớp, phân công của năm học và thiết bị tại ngày cuối năm học; phòng theo hiện tại
+          Năm học đã qua — tính theo lớp, phân công của năm học đó và thiết bị sau đợt kiểm kê cuối cùng trong năm (chưa
+          kiểm kê thì tại ngày cuối năm học); phòng theo hiện tại
         </div>
       ) : null}
       {d ? (

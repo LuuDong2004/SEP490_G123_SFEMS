@@ -159,7 +159,8 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
             : <span className="text-muted-foreground text-xs">khai đầu kỳ</span>,
       }),
       h.display({
-        id: "profileComplete", header: "Hồ sơ", size: 100,
+        // Đủ rộng cho cả nhãn "Chưa chuẩn" (100 thì nhãn bị cắt).
+        id: "profileComplete", header: "Hồ sơ", size: 124,
         meta: { exportValue: (r: ItemRow) => (r.profileComplete === false ? "Chưa chuẩn" : "Chuẩn") },
         cell: ({ row }) =>
           row.original.profileComplete === false ? (

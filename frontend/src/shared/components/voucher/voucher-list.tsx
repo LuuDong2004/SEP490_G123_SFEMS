@@ -70,7 +70,7 @@ export function VoucherList<T extends VoucherBase>({
           <span className="text-warning-text text-xs">Chưa cấp số</span>
         ),
     },
-    // Cơ quan quản lý đọc phiếu của nhiều trường: "của trường nào" đứng ngay sau số phiếu.
+    // Sở đọc phiếu của nhiều trường: "của trường nào" đứng ngay sau số phiếu.
     ...(perspective === "school"
       ? []
       : [{

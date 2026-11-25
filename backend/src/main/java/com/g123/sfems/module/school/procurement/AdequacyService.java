@@ -55,7 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>theo trường: đúng số lượng.</li>
  * </ul>
  * Có nhiều hơn số phải có thì phần dư là THỪA ({@code surplus}) — cùng một con số, nhìn từ phía kia;
- * cơ quan quản lý dùng nó để cân đối: thiết bị trường này thừa là thứ trường khác đang thiếu.
+ * Sở dùng nó để cân đối: thiết bị trường này thừa là thứ trường khác đang thiếu.
  * Số lớp / học sinh CHỈ lấy từ lớp năm học hiện hành ({@code FacilityCounting}); trường chưa có lớp
  * năm nay thì định mức theo lớp / học sinh không tính được. Không tính được thì trả
  * {@code required = null} kèm lý do, không đoán 0.

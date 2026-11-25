@@ -54,9 +54,6 @@ public class PurchaseProposalLine {
     @Column(nullable = false, length = 255)
     private String name;
 
-    @Column(length = 1000)
-    private String specification;
-
     @Column(name = "unit_name", length = 50)
     private String unitName;
 
@@ -66,19 +63,15 @@ public class PurchaseProposalLine {
     @Column(name = "unit_price", precision = 18, scale = 2)
     private BigDecimal unitPrice;
 
-    /** 1 = cấp thiết, 2 = cần, 3 = nên có. */
-    @Column(nullable = false)
-    private Integer priority = 2;
-
     /**
-     * Số ĐƯA VÀO KẾ HOẠCH mua sắm, từ 0 (bỏ dòng) tới {@link #quantity} — cơ quan bớt khi ngân sách không đủ
+     * Số ĐƯA VÀO KẾ HOẠCH mua sắm, từ 0 (bỏ dòng) tới {@link #quantity} — Sở bớt khi ngân sách không đủ
      * (126). {@code null}: đề xuất chưa vào kế hoạch nào. Phiếu ghi tăng lập từ đề xuất đọc số này.
      */
     @Column(name = "planned_quantity")
     private Integer plannedQuantity;
 
     /**
-     * Đơn giá do cơ quan lập kế hoạch xác định (270). {@code null}: theo đơn giá trường ghi — trường không bắt buộc
+     * Đơn giá do Sở xác định khi lập kế hoạch (270). {@code null}: theo đơn giá trường ghi — trường không bắt buộc
      * ghi giá lúc đề xuất. Xem {@link #effectiveUnitPrice()}.
      */
     @Column(name = "planned_unit_price", precision = 18, scale = 2)
@@ -93,7 +86,7 @@ public class PurchaseProposalLine {
     @Column(length = 255)
     private String note;
 
-    /** Trường chứng từ theo app Jmix cũ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định. */
+    /** Trường chứng từ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định (dòng đề xuất hiện không có trường nào, 301). */
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
     private String details = "{}";
@@ -106,7 +99,7 @@ public class PurchaseProposalLine {
         this.details = details == null ? "{}" : details;
     }
 
-    /** Thành tiền theo số trường đề nghị; giá là giá kế hoạch khi cơ quan đã đặt (trường không bắt buộc ghi giá). */
+    /** Thành tiền theo số trường đề nghị; giá là giá kế hoạch khi Sở đã đặt (trường không bắt buộc ghi giá). */
     public BigDecimal amount() {
         BigDecimal price = effectiveUnitPrice();
         return price == null || quantity == null ? null : price.multiply(BigDecimal.valueOf(quantity));
@@ -117,7 +110,7 @@ public class PurchaseProposalLine {
         return plannedQuantity != null ? plannedQuantity : quantity == null ? 0 : quantity;
     }
 
-    /** Đơn giá sẽ mua: giá cơ quan đặt trên kế hoạch nếu có, không thì giá trường ghi (có thể {@code null}). */
+    /** Đơn giá sẽ mua: giá Sở đặt trên kế hoạch nếu có, không thì giá trường ghi (có thể {@code null}). */
     public BigDecimal effectiveUnitPrice() {
         return plannedUnitPrice != null ? plannedUnitPrice : unitPrice;
     }
@@ -180,14 +173,6 @@ public class PurchaseProposalLine {
         this.name = name;
     }
 
-    public String getSpecification() {
-        return specification;
-    }
-
-    public void setSpecification(String specification) {
-        this.specification = specification;
-    }
-
     public String getUnitName() {
         return unitName;
     }
@@ -212,20 +197,12 @@ public class PurchaseProposalLine {
         this.unitPrice = unitPrice;
     }
 
-    public Integer getPriority() {
-        return priority;
-    }
-
     public Integer getPlannedQuantity() {
         return plannedQuantity;
     }
 
     public void setPlannedQuantity(Integer plannedQuantity) {
         this.plannedQuantity = plannedQuantity;
-    }
-
-    public void setPriority(Integer priority) {
-        this.priority = priority == null ? 2 : priority;
     }
 
     public Integer getCurrentQuantity() {

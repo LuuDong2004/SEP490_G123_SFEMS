@@ -66,7 +66,7 @@ public class YearStandardController {
     }
 
     private static final Map<String, String> STATUS = Map.of(
-            "DRAFT", "Đang khai", "CONFIRMED", "Đã xác nhận", "CLOSED", "Đã chốt", "REOPENED", "Mở lại");
+            "DRAFT", "Đang khai", "CONFIRMED", "Đã xác nhận");
 
     /** Bảng các trường của {@link #overview} ra tệp Excel — cùng cột với màn Chuẩn tối thiểu của Sở. */
     @GetMapping("/overview.xlsx")

@@ -218,7 +218,6 @@ public class SchoolNormAdjustmentService implements YearAdequacyService.Adjustme
             throw new FieldValidationException("normId", "Chọn thiết bị");
         }
         Long year = in.schoolYearId() != null ? in.schoolYearId() : currentYear();
-        lock.requireOpen(school, year);
         Long campus = campusOf(school, in.campusId());
         Map<String, Object> n = jdbc.queryForList("""
                 SELECT n.*, %s AS fp, COALESCE(c.name, n.name) AS label FROM equipment_norms n
@@ -344,7 +343,7 @@ public class SchoolNormAdjustmentService implements YearAdequacyService.Adjustme
     }
 
     /**
-     * Dòng danh mục đổi / ngừng / xoá (bước 9): điều chỉnh còn hiệu lực trên dòng đó của năm chưa chốt hết hiệu lực khi dấu
+     * Dòng danh mục đổi / ngừng / xoá (bước 9): điều chỉnh còn hiệu lực trên dòng đó hết hiệu lực khi dấu
      * của dòng khác dấu lúc lưu (hoặc dòng bị xoá / ngừng). Trả về các trường bị ảnh hưởng để nhắc chọn lại.
      */
     @Transactional
@@ -356,9 +355,7 @@ public class SchoolNormAdjustmentService implements YearAdequacyService.Adjustme
                 LEFT JOIN equipment_norms en ON en.id = a.norm_id
                 WHERE a.norm_id = ? AND a.status <> 'EXPIRED'
                   -- Ngừng từ một năm học: năm học kết thúc trước ngày thôi áp dụng vẫn giữ điều chỉnh.
-                  AND NOT (en.effective_to IS NOT NULL AND y.end_date < en.effective_to)
-                  AND NOT EXISTS (SELECT 1 FROM school_year_closings c WHERE c.school_id = a.school_id
-                                  AND c.school_year_id = a.school_year_id AND c.status = 'CLOSED')""".formatted(
+                  AND NOT (en.effective_to IS NOT NULL AND y.end_date < en.effective_to)""".formatted(
                 FINGERPRINT), normId);
         List<Long> schools = new ArrayList<>();
         for (Map<String, Object> a : rows) {
@@ -422,7 +419,6 @@ public class SchoolNormAdjustmentService implements YearAdequacyService.Adjustme
         Map<String, Object> a = jdbc.queryForList("SELECT * FROM school_norm_adjustments WHERE id = ? AND school_id = ?",
                 id, school).stream().findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("SchoolNormAdjustment", id));
-        lock.requireOpen(school, ((Number) a.get("school_year_id")).longValue());
         Long pinned = principals.current().map(RowLevelPrincipal::campusId).orElse(null);
         if (pinned != null && !Objects.equals(pinned, a.get("campus_id"))) {
             throw new FieldValidationException("campusId", "Không thuộc cơ sở của tài khoản");

@@ -243,23 +243,6 @@ class ProcurementPlanFlowTest {
                 .isEqualTo(plan);
     }
 
-    // ------------------------------------------------------------------ #3 ngưỡng tiền của luồng duyệt
-
-    @Test
-    void amountIsUnknownWhenALineHasNoPrice() {
-        PurchaseProposal p = new PurchaseProposal();
-        PurchaseProposalLine priced = new PurchaseProposalLine();
-        priced.setQuantity(2);
-        priced.setUnitPrice(new BigDecimal("1000"));
-        p.replaceLines(List.of(priced));
-        assertThat(p.approvalAmount()).isEqualByComparingTo(new BigDecimal("2000"));
-        // Bỏ trống giá một dòng: số tiền chưa biết (null) — luồng duyệt coi như từ ngưỡng trở lên, không phải 2.000 đ.
-        PurchaseProposalLine unpriced = new PurchaseProposalLine();
-        unpriced.setQuantity(50);
-        p.replaceLines(List.of(priced, unpriced));
-        assertThat(p.approvalAmount()).isNull();
-    }
-
     // ------------------------------------------------------------------ dữ liệu thử
 
     private long plan(String status, int year) {

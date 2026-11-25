@@ -49,10 +49,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code /api/procurement_plans} — kế hoạch mua sắm của UBND / Sở. Ngoài hợp
+ * {@code /api/procurement_plans} — kế hoạch mua sắm của Sở. Ngoài hợp
  * đồng data provider:
  * <ul>
- *   <li>{@code GET /summary?year=} — tổng hợp đề xuất theo cơ quan và nhóm thiết bị;</li>
+ *   <li>{@code GET /summary?year=} — tổng hợp đề xuất theo Sở và nhóm thiết bị;</li>
  *   <li>{@code GET /{id}/export.xlsx} — tệp Excel của kế hoạch;</li>
  *   <li>{@code GET /{id}/candidates} — đề xuất đã duyệt, chưa vào kế hoạch nào, cùng năm ngân sách;</li>
  *   <li>{@code PUT /{id}/proposals} — thay tập đề xuất trong kế hoạch nháp;</li>
@@ -76,20 +76,19 @@ public class ProcurementPlanController {
 
     /**
      * Một dòng thiết bị của một đề xuất trong kế hoạch: số trường đề nghị, số đưa vào kế hoạch và thành tiền
-     * theo số đưa vào kế hoạch. {@code unitPrice}: đơn giá kế hoạch (cơ quan đặt, không thì giá trường ghi);
+     * theo số đưa vào kế hoạch. {@code unitPrice}: đơn giá kế hoạch (Sở đặt, không thì giá trường ghi);
      * {@code proposedUnitPrice}: giá trường ghi trên đề xuất (có thể trống).
      */
     public record PlanLine(Long lineId, Long proposalId, String proposalCode, RefSummary school, Integer lineNo,
-            RefSummary catalog, String name, String specification, String unitName, int requestedQuantity,
-            int plannedQuantity, BigDecimal unitPrice, BigDecimal proposedUnitPrice, BigDecimal amount,
-            Integer priority) {
+            RefSummary catalog, String name, String unitName, int requestedQuantity,
+            int plannedQuantity, BigDecimal unitPrice, BigDecimal proposedUnitPrice, BigDecimal amount) {
 
         static PlanLine of(PurchaseProposal p, PurchaseProposalLine l) {
             var c = l.getCatalog();
             return new PlanLine(l.getId(), p.getId(), p.getCode(), VoucherHeader.school(p.getSchool()), l.getLineNo(),
-                    new RefSummary(c.getId(), c.getCode(), c.getName()), l.getName(), l.getSpecification(),
+                    new RefSummary(c.getId(), c.getCode(), c.getName()), l.getName(),
                     l.getUnitName(), l.getQuantity() == null ? 0 : l.getQuantity(), l.effectiveQuantity(),
-                    l.effectiveUnitPrice(), l.getUnitPrice(), l.plannedAmount(), l.getPriority());
+                    l.effectiveUnitPrice(), l.getUnitPrice(), l.plannedAmount());
         }
     }
 

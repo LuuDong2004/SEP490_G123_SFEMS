@@ -51,15 +51,14 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Kế hoạch mua sắm của một cơ quan quản lý.
+ * Kế hoạch mua sắm của Sở.
  *
  * <p>Ai thấy kế hoạch nào: Sở và quản trị viên thấy mọi kế hoạch (tổng hợp toàn
- * ngành); UBND thấy kế hoạch của mình; TRƯỜNG chỉ thấy kế hoạch ĐÃ DUYỆT có đề xuất
- * của chính mình, và trong đó chỉ thấy đề xuất của mình ({@code 115}). Chỉ chuyên viên của CHÍNH cơ quan lập kế
- * hoạch mới sửa, trình được; chỉ lãnh đạo của chính cơ quan đó mới duyệt.
+ * ngành); TRƯỜNG chỉ thấy kế hoạch ĐÃ DUYỆT có đề xuất của chính mình, và trong đó chỉ thấy đề xuất của mình
+ * ({@code 115}). Chỉ chuyên viên của Sở lập kế hoạch mới sửa, trình được; chỉ lãnh đạo Sở đó mới duyệt.
  *
- * <p>Một kế hoạch chỉ nhận đề xuất ĐÃ DUYỆT của các trường mà cơ quan đó quản lý
- * — cùng cơ quan đã duyệt đề xuất ở bước "cơ quan quản lý". Một đề xuất nằm trong
+ * <p>Một kế hoạch chỉ nhận đề xuất ĐÃ DUYỆT của các trường mà Sở đó quản lý
+ * — cùng Sở đã duyệt đề xuất ở bước "lãnh đạo Sở". Một đề xuất nằm trong
  * nhiều nhất một kế hoạch.
  */
 @Service
@@ -173,14 +172,14 @@ public class ProcurementPlanService {
         }
         rows.forEach(p -> p.getLines().size());
         List<CatalogTotal> totals = totals(rows);
-        // Theo số ĐƯA VÀO KẾ HOẠCH, không theo số đề nghị: phần cơ quan bớt đi không phải là tiền sẽ chi.
+        // Theo số ĐƯA VÀO KẾ HOẠCH, không theo số đề nghị: phần Sở bớt đi không phải là tiền sẽ chi.
         BigDecimal amount = rows.stream().flatMap(p -> p.getLines().stream())
                 .map(PurchaseProposalLine::plannedAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new Detail(plan, rows, totals, amount);
     }
 
     /**
-     * Đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý, CÙNG NĂM NGÂN SÁCH với kế
+     * Đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường Sở lập kế hoạch quản lý, CÙNG NĂM NGÂN SÁCH với kế
      * hoạch. {@code schoolYearId}: năm học đang chọn trên màn (chưa lưu) — có thì năm ngân sách theo năm học đó.
      */
     public List<PurchaseProposal> candidates(Long id, Long schoolYearId) {
@@ -190,8 +189,8 @@ public class ProcurementPlanService {
     }
 
     /**
-     * Như {@link #candidates(Long, Long)} nhưng cho kế hoạch CHƯA LƯU: cơ quan là cơ quan của người lập (quản trị
-     * viên thì cơ quan được chọn) — màn lập kế hoạch chọn đề xuất trước khi lưu lần đầu. Chưa chọn năm học thì không
+     * Như {@link #candidates(Long, Long)} nhưng cho kế hoạch CHƯA LƯU: Sở là Sở của người lập (quản trị
+     * viên thì Sở được chọn) — màn lập kế hoạch chọn đề xuất trước khi lưu lần đầu. Chưa chọn năm học thì không
      * lọc năm (lúc lưu vẫn kiểm).
      */
     public List<PurchaseProposal> candidatesForNew(Long requestedBody, Long schoolYearId) {
@@ -220,15 +219,15 @@ public class ProcurementPlanService {
     }
 
     /**
-     * Tổng hợp theo năm ngân sách: mỗi cơ quan quản lý bao nhiêu đề xuất, bao
+     * Tổng hợp theo năm ngân sách: mỗi Sở bao nhiêu đề xuất, bao
      * nhiêu tiền, bao nhiêu đã duyệt / đã vào kế hoạch; và cộng theo nhóm thiết
-     * bị. Sở thấy toàn ngành, UBND thấy địa bàn mình.
+     * bị.
      */
     public Summary summary(Integer year) {
         return summary(year, null);
     }
 
-    /** {@code bodyId}: chỉ trường của MỘT cơ quan quản lý — mỗi cơ quan lập kế hoạch mua sắm của riêng mình. */
+    /** {@code bodyId}: chỉ trường của MỘT Sở — mỗi Sở lập kế hoạch mua sắm của riêng mình. */
     public Summary summary(Integer year, Long bodyId) {
         Set<Long> visible = visibleSchools.current();
         if (visible != null && visible.isEmpty()) {
@@ -248,7 +247,7 @@ public class ProcurementPlanService {
         // Luật đếm của màn tổng hợp:
         // - "Tổng dự toán đề xuất": số TRƯỜNG ĐỀ NGHỊ × đơn giá.
         // - "Đã được duyệt" và bảng "Thiết bị cần mua": số ĐƯA VÀO KẾ HOẠCH khi đề xuất đã nằm trong một kế hoạch
-        //   (planned_quantity chỉ có giá trị lúc đó), không thì số đề nghị — phần cơ quan bớt không phải là thứ sẽ mua.
+        //   (planned_quantity chỉ có giá trị lúc đó), không thì số đề nghị — phần Sở bớt không phải là thứ sẽ mua.
         // - Đơn giá kế hoạch (planned_unit_price) chỉ tính khi kế hoạch ĐÃ DUYỆT (đề xuất hoàn tất); kế hoạch còn nháp /
         //   chờ duyệt thì giá đó chưa là quyết định, dùng giá trường ghi. Nhờ vậy số "đã duyệt" không vượt "tổng dự toán".
         // - "Đã vào kế hoạch": đề xuất đang nằm trong một kế hoạch (nháp, chờ duyệt hay đã duyệt) hoặc đã hoàn tất — cùng
@@ -257,7 +256,7 @@ public class ProcurementPlanService {
                 + " ELSE COALESCE(l.unit_price, 0) END";
         String planned = "COALESCE(l.planned_quantity, l.quantity)";
         List<BodyTotal> byBody = jdbc.query("""
-                SELECT d.id, COALESCE(d.name, 'Chưa có cơ quan quản lý'),
+                SELECT d.id, COALESCE(d.name, 'Chưa có Sở quản lý'),
                        COUNT(DISTINCT p.school_id), COUNT(*),
                        COUNT(*) FILTER (WHERE p.status = 'PENDING'),
                        COUNT(*) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')),
@@ -270,7 +269,7 @@ public class ProcurementPlanService {
                 WHERE""".formatted(price, planned)) + " GROUP BY d.id, d.name ORDER BY 8 DESC",
                 (rs, n) -> new BodyTotal((Long) rs.getObject(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
                         rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getBigDecimal(8), rs.getBigDecimal(9)));
-        // Dòng cơ quan bỏ (số đưa vào kế hoạch 0) không phải thiết bị cần mua, và không làm tăng "số trường".
+        // Dòng Sở bỏ (số đưa vào kế hoạch 0) không phải thiết bị cần mua, và không làm tăng "số trường".
         List<CatalogTotal> byCatalog = jdbc.query("""
                 SELECT c.id, c.code, c.name, MAX(l.unit_name), SUM(%2$s),
                        COALESCE(SUM(%2$s * %1$s), 0), COUNT(DISTINCT p.school_id)
@@ -363,7 +362,7 @@ public class ProcurementPlanService {
                                     p.getCode(), line.getName(), requested));
                 }
                 line.setPlannedQuantity(value);
-                // Giá cơ quan đặt; trùng giá trường ghi (hoặc để trống) thì không giữ bản riêng — theo giá trường.
+                // Giá Sở đặt; trùng giá trường ghi (hoặc để trống) thì không giữ bản riêng — theo giá trường.
                 BigDecimal price = prices.get(line.getId());
                 line.setPlannedUnitPrice(price == null || price.signum() <= 0
                         || (line.getUnitPrice() != null && price.compareTo(line.getUnitPrice()) == 0) ? null : price);
@@ -416,7 +415,7 @@ public class ProcurementPlanService {
             }
         }
         if (!wanted.isEmpty()) {
-            // Khoá các đề xuất (theo id) và đọc kế hoạch đang giữ chúng NGAY trong câu khoá: hai cơ quan lưu hai kế
+            // Khoá các đề xuất (theo id) và đọc kế hoạch đang giữ chúng NGAY trong câu khoá: hai chuyên viên lưu hai kế
             // hoạch nháp cùng một đề xuất thì người sau chờ người trước commit rồi thấy đề xuất đã thuộc kế hoạch kia.
             // Đọc qua entity thì có thể nhận lại bản đã nạp trong giao dịch này, chưa có plan_id mới.
             Map<Long, Long> lockedPlan = new HashMap<>();
@@ -446,11 +445,11 @@ public class ProcurementPlanService {
                 }
                 if (!Objects.equals(managedSchools.bodyOf(p.getSchool().getId()), bodyId)) {
                     throw new FieldValidationException("proposals",
-                            "Đề xuất %s của %s không thuộc cơ quan lập kế hoạch".formatted(p.getCode(),
+                            "Đề xuất %s của %s không thuộc Sở lập kế hoạch".formatted(p.getCode(),
                                     p.getSchool().getName()));
                 }
                 p.setPlan(plan);
-                // Vào kế hoạch thì mặc định đưa đủ số đề nghị; cơ quan bớt sau trên màn kế hoạch.
+                // Vào kế hoạch thì mặc định đưa đủ số đề nghị; Sở bớt sau trên màn kế hoạch.
                 p.getLines().forEach(l -> {
                     l.setPlannedQuantity(l.getQuantity());
                     l.setPlannedUnitPrice(null);
@@ -507,7 +506,7 @@ public class ProcurementPlanService {
     }
 
     /**
-     * Lãnh đạo cơ quan duyệt: đề xuất trong kế hoạch hoàn tất — trừ đề xuất mà MỌI dòng đều để 0 (cơ quan không mua gì
+     * Lãnh đạo Sở duyệt: đề xuất trong kế hoạch hoàn tất — trừ đề xuất mà MỌI dòng đều để 0 (Sở không mua gì
      * của nó). Đề xuất đó rời kế hoạch, về lại "Đã duyệt" (bỏ số / giá kế hoạch như khi rút ra) để vào được kế hoạch sau,
      * kèm một dòng trong quá trình duyệt và thông báo cho trường. Hoàn tất nó thì trường thấy "Hoàn tất" mà không có gì để
      * nhập, và nhu cầu đó không vào được kế hoạch nào nữa.
@@ -567,7 +566,7 @@ public class ProcurementPlanService {
     /**
      * Mọi thiết bị đưa vào kế hoạch (số đưa vào > 0) phải có đơn giá dự kiến — kế hoạch là quyết định chi tiền, dự toán
      * 0 đ ("Bằng chữ: Không đồng") thì người duyệt không biết duyệt bao nhiêu. Trường không bắt buộc ghi giá lúc đề
-     * xuất; cơ quan nhập đơn giá ngay trên kế hoạch ({@code planned_unit_price}, trống thì theo giá trường ghi).
+     * xuất; Sở nhập đơn giá ngay trên kế hoạch ({@code planned_unit_price}, trống thì theo giá trường ghi).
      */
     private void requirePriced(Long planId) {
         List<String> unpriced = jdbc.queryForList("""
@@ -629,7 +628,7 @@ public class ProcurementPlanService {
         for (PurchaseProposal p : rows) {
             for (var l : p.getLines()) {
                 var c = l.getCatalog();
-                // Dòng cơ quan bỏ (0) không tính trường đó vào "số trường" của thiết bị.
+                // Dòng Sở bỏ (0) không tính trường đó vào "số trường" của thiết bị.
                 if (l.effectiveQuantity() == 0) {
                     continue;
                 }
@@ -678,7 +677,7 @@ public class ProcurementPlanService {
     private ProcurementPlan ownedDraft(Long id) {
         ProcurementPlan plan = get(id);
         if (!canManage(plan)) {
-            throw new FieldValidationException("managingBody", "Chỉ cơ quan lập kế hoạch mới sửa được kế hoạch này");
+            throw new FieldValidationException("managingBody", "Chỉ Sở lập kế hoạch mới sửa được kế hoạch này");
         }
         if (plan.getStatus() != Status.DRAFT) {
             throw new FieldValidationException("status", "Chỉ sửa được kế hoạch nháp");
@@ -690,7 +689,7 @@ public class ProcurementPlanService {
         ProcurementPlan plan = get(id);
         if (!canManage(plan)) {
             throw new FieldValidationException("managingBody",
-                    "Chỉ lãnh đạo của cơ quan lập kế hoạch mới duyệt được kế hoạch này");
+                    "Chỉ lãnh đạo Sở lập kế hoạch mới duyệt được kế hoạch này");
         }
         if (plan.getStatus() != Status.PENDING) {
             throw new FieldValidationException("status", "Kế hoạch không ở trạng thái chờ duyệt");

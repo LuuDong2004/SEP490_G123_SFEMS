@@ -259,8 +259,9 @@
      `secondary` and stops being distinguishable from a button. */
   --neutral: oklch(0.554 0.041 var(--preset-h));
   --neutral-foreground: oklch(0.99 0.003 var(--preset-h));
-  --neutral-subtle: oklch(0.962 0.009 var(--preset-h));
-  --neutral-text: oklch(0.446 0.037 var(--preset-h));
+  /* Đậm hơn nền thẻ / hộp thoại (0.968 – 1) đủ để nhãn xám vẫn thấy rõ. */
+  --neutral-subtle: oklch(0.915 0.018 var(--preset-h));
+  --neutral-text: oklch(0.4 0.04 var(--preset-h));
 
   /* `--input` sits a step darker than `--border`: a divider only has to be
      seen, a field edge has to say where the control ends. It is also the

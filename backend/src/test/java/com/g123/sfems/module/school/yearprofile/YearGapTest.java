@@ -63,7 +63,7 @@ class YearGapTest {
         Long school = jdbc.queryForObject("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id"
                 + " WHERE u.username = 'thcs.canbo'", Long.class);
         Long year = jdbc.queryForObject("SELECT id FROM school_years WHERE is_current", Long.class);
-        jdbc.update("DELETE FROM school_year_closings WHERE school_id = ? AND school_year_id = ?", school, year);
+        jdbc.update("DELETE FROM school_year_profiles WHERE school_id = ? AND school_year_id = ?", school, year);
         Row shortRow = adequacy.compute(Set.of(school), adequacy.year(year)).get(school).campusRows().stream()
                 .filter(r -> r.catalogId() != null && r.shortageAdjusted() != null && r.shortageAdjusted() > 0)
                 .findFirst().orElse(null);
@@ -76,11 +76,12 @@ class YearGapTest {
         assertThat(traces).hasSize(1);
         assertThat(traces.get(0).requiredTt()).isEqualTo(shortRow.requiredTt());
         assertThat(traces.get(0).campusName()).isEqualTo(shortRow.campusName());
-        // Năm chưa chốt: căn cứ mang cờ để màn hình gắn nhãn — không chặn trình.
-        assertThat(traces.get(0).yearClosed()).isFalse();
-        jdbc.update("INSERT INTO school_year_closings (school_id, school_year_id, status) VALUES (?, ?, 'CLOSED')",
-                school, year);
-        assertThat(gaps.traces(created.proposalId(), null).get(0).yearClosed()).isTrue();
+        // Trường chưa xác nhận đã khai năm học: căn cứ mang cờ để màn hình gắn nhãn — không chặn trình.
+        assertThat(traces.get(0).yearConfirmed()).isFalse();
+        jdbc.update("""
+                INSERT INTO school_year_profiles (school_id, school_year_id, campus_id, status, confirmed_at)
+                VALUES (?, ?, NULL, 'CONFIRMED', now())""", school, year);
+        assertThat(gaps.traces(created.proposalId(), null).get(0).yearConfirmed()).isTrue();
     }
 
     private void signIn(String username) {

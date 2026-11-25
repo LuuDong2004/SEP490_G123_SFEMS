@@ -683,6 +683,12 @@
       "list": "Cài đặt thông báo"
     }
   },
+  "mail_config": {
+    "mail_config": "Cấu hình thư",
+    "titles": {
+      "list": "Cấu hình thư"
+    }
+  },
   "system_status": {
     "system_status": "Tình trạng hệ thống",
     "titles": {

@@ -27,7 +27,7 @@ const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/�
 const BIG_GAP = 30;
 
 /** Lọc theo hồ sơ năm học và theo kết quả đối chiếu — đúng các cột còn trên bảng. */
-type Pick = "draft" | "closed" | "full" | "short" | "noData";
+type Pick = "draft" | "confirmed" | "full" | "short" | "noData";
 
 /**
  * Chuẩn tối thiểu theo năm học của các trường (Sở): tỷ lệ đáp ứng theo thông tư và theo điều chỉnh, số dòng điều
@@ -36,8 +36,8 @@ type Pick = "draft" | "closed" | "full" | "short" | "noData";
  */
 function matches(r: YearOverviewRow, pick: Pick) {
   switch (pick) {
-    case "draft": return r.status !== "CLOSED";
-    case "closed": return r.status === "CLOSED";
+    case "draft": return r.status !== "CONFIRMED";
+    case "confirmed": return r.status === "CONFIRMED";
     case "full": return r.hasEquipment && r.shortItemsAdjusted === 0;
     case "short": return r.hasEquipment && r.shortItemsAdjusted > 0;
     case "noData": return !r.hasEquipment;
@@ -105,7 +105,7 @@ export function YearOverview({ onOpenSchool }: { onOpenSchool: (id: number) => v
           groups={[
             { items: [
               { key: "draft", label: "Đang khai", count: rows.filter((r) => matches(r, "draft")).length },
-              { key: "closed", label: "Đã chốt", count: rows.filter((r) => matches(r, "closed")).length },
+              { key: "confirmed", label: "Đã xác nhận", count: rows.filter((r) => matches(r, "confirmed")).length },
             ] },
             { items: [
               { key: "full", label: "Đủ chuẩn", count: rows.filter((r) => matches(r, "full")).length },

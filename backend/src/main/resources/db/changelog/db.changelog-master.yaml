@@ -552,3 +552,13 @@ databaseChangeLog:
       file: db/changelog/changes/296-kiem-ke-giu-dong-khi-xoa-thiet-bi.sql
   - include:
       file: db/changelog/changes/297-de-xuat-theo-co-so.sql
+  - include:
+      file: db/changelog/changes/298-xac-nhan-khai-nam-hoc.sql
+  - include:
+      file: db/changelog/changes/299-ten-tep-nhap-khong-trung.sql
+  - include:
+      file: db/changelog/changes/300-can-bo-sua-ma-cua-truong.sql
+  - include:
+      file: db/changelog/changes/301-de-xuat-bo-truong-ngoai-nghiep-vu.sql
+  - include:
+      file: db/changelog/changes/302-luong-de-xuat-co-dinh-truong-so.sql

@@ -34,7 +34,7 @@ export const ProcurementPlanList = () => {
     return [
       h.accessor("code", { id: "code", header: "Mã", size: 140, cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span> }),
       h.accessor("title", { id: "title", header: "Kế hoạch", enableSorting: true }),
-      h.display({ id: "body", header: "Cơ quan", cell: ({ row }) => row.original.managingBody.name }),
+      h.display({ id: "body", header: "Sở", cell: ({ row }) => row.original.managingBody.name }),
       h.display({ id: "schoolYear", header: "Năm học", cell: ({ row }) => row.original.schoolYear?.name.replace(/^Năm học\s*/i, "") ?? row.original.budgetYear }),
       h.accessor("status", { id: "status", header: "Trạng thái", enableSorting: false, cell: ({ getValue }) => <PlanStatusBadge status={getValue()} /> }),
       h.display({
@@ -70,9 +70,9 @@ export const ProcurementPlanList = () => {
             search={<DataTableQuickFilter table={table} />}
             filters={
               <>
-                {/* Cơ quan: chỉ Sở thấy kế hoạch của nhiều cơ quan; UBND chỉ có của mình nên ô này thừa. */}
+                {/* Sở: chỉ hiện khi hệ thống có nhiều Sở. */}
                 {perspective === "school" ? null : (
-                  <RefFilter table={table} field="managingBody.id" resource="departments_of_education" all="Mọi cơ quan" searchPlaceholder="Tìm cơ quan…" icon={<Landmark />} hint="Lọc theo cơ quan" />
+                  <RefFilter table={table} field="managingBody.id" resource="departments_of_education" all="Mọi Sở" searchPlaceholder="Tìm Sở…" icon={<Landmark />} hint="Lọc theo Sở" />
                 )}
                 <OptionFilter table={table} field="status" all="Mọi trạng thái" className="w-40"
                   options={Object.entries(PLAN_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
@@ -94,8 +94,8 @@ export const ProcurementPlanCreate = () => (
 );
 
 /**
- * Xem và sửa là CÙNG một màn: kế hoạch nháp mà người xem là cơ quan lập thì các ô mở để sửa ngay tại đây; còn
- * lại (đã trình, đã duyệt, cơ quan khác, trường) thì chỉ xem. Đường dẫn `edit` đưa về đúng màn này.
+ * Xem và sửa là CÙNG một màn: kế hoạch nháp mà người xem thuộc Sở lập thì các ô mở để sửa ngay tại đây; còn
+ * lại (đã trình, đã duyệt, Sở khác, trường) thì chỉ xem. Đường dẫn `edit` đưa về đúng màn này.
  */
 export const ProcurementPlanShow = () => {
   const { result: plan, query } = useShow<ProcurementPlan>({});

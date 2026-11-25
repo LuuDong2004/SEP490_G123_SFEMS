@@ -678,7 +678,7 @@ public class ReportService {
         return adequacyTable(p, rows);
     }
 
-    /** Năm học đã qua: năm đã chốt đọc bản chốt, chưa chốt thì tính theo dữ liệu năm đó — cùng số với màn chuẩn theo năm. */
+    /** Năm học đã qua: tính theo dữ liệu năm đó, thiết bị lấy sau đợt kiểm kê của năm — cùng số với màn chuẩn theo năm. */
     private Report adequacyOfYear(Params p) {
         Set<Long> schools = new HashSet<>(jdbc.queryForList("SELECT DISTINCT e.school_id FROM equipment e WHERE TRUE"
                 + scope("e.school_id", p), Long.class));

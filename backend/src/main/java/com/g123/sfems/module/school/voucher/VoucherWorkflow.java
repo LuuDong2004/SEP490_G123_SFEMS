@@ -44,8 +44,8 @@ import org.springframework.stereotype.Component;
  * <ol>
  *   <li>mã quyền {@code <loại phiếu>:approve} — kiểm ở controller;</li>
  *   <li>tài khoản thuộc đúng CẤP của bước đang chờ ({@link ApprovalStep}) —
- *       kiểm ở đây. Lãnh đạo UBND phường A có mã quyền duyệt, nhưng không duyệt
- *       được phiếu của trường thuộc phường B.</li>
+ *       kiểm ở đây. Lãnh đạo trường A có mã quyền duyệt, nhưng không duyệt
+ *       được phiếu của trường B.</li>
  * </ol>
  * Chỉ có mã quyền thì một lãnh đạo trường duyệt được phiếu của trường khác; chỉ
  * có cấp thì cán bộ thiết bị — cũng thuộc trường — tự duyệt phiếu mình lập.
@@ -341,10 +341,10 @@ public class VoucherWorkflow {
     /**
      * Bước kế tiếp sau {@code current} trong chuỗi duyệt của phiếu.
      *
-     * <p>Bỏ qua bước không có ai để duyệt: trường chưa gán cơ quan quản lý thì
-     * không có bước cơ quan quản lý.
+     * <p>Bỏ qua bước không có ai để duyệt: trường chưa gán Sở thì không có bước Sở. Đề xuất mua sắm chặn trình
+     * trong trường hợp này (luồng cố định trường → Sở), các phiếu khác không có bước Sở.
      *
-     * <p>Chuỗi do Sở cấu hình ({@link ApprovalFlowService#chainOf}) và có thể đổi trong lúc phiếu đang chờ
+     * <p>Chuỗi do quản trị viên cấu hình ({@link ApprovalFlowService#chainOf}) và có thể đổi trong lúc phiếu đang chờ
      * duyệt — bước hiện tại khi đó có thể không còn trong chuỗi. Vì vậy "sau" nghĩa là CẤP cao hơn cấp
      * hiện tại (chuỗi luôn xếp theo thứ tự cấp), không phải "vị trí sau trong danh sách": tìm theo vị trí
      * thì một bước vừa bị bỏ cho {@code indexOf = -1} và phiếu quay về trường duyệt lại từ đầu.
@@ -441,7 +441,7 @@ public class VoucherWorkflow {
         }
         return switch (step) {
             case SCHOOL -> "lãnh đạo trường";
-            case MANAGING_BODY -> "cơ quan quản lý của trường";
+            case MANAGING_BODY -> "lãnh đạo Sở";
         };
     }
 

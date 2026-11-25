@@ -1,6 +1,5 @@
 package com.g123.sfems.domain.school.procurement;
 
-import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
@@ -9,8 +8,6 @@ import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -27,9 +24,9 @@ import org.hibernate.annotations.BatchSize;
 /**
  * Đề xuất mua sắm của một trường.
  *
- * <p>Hai bước duyệt: lãnh đạo trường, rồi cơ quan quản lý (UBND với Tiểu học,
- * THCS; Sở với THPT). Duyệt xong đề xuất CHƯA có tiền — nó chờ được đưa vào kế
- * hoạch mua sắm của cơ quan quản lý. Kế hoạch được duyệt thì đề xuất hoàn tất, và
+ * <p>Trường xin Sở cấp kinh phí: nêu thiết bị, số lượng, giá tham khảo và lý do đề xuất. Nguồn kinh phí do Sở
+ * quyết định khi lập kế hoạch, không do trường chọn (301). Hai bước duyệt: lãnh đạo trường, rồi Sở. Duyệt xong
+ * đề xuất CHƯA có tiền — nó chờ được đưa vào kế hoạch mua sắm của Sở. Kế hoạch được duyệt thì đề xuất hoàn tất, và
  * từ đó trường lập phiếu nhập khi hàng về.
  */
 @RowLevelResource("purchase_proposals")
@@ -42,10 +39,6 @@ public class PurchaseProposal extends SchoolVoucher {
 
     @Column(name = "budget_year")
     private Integer budgetYear;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "funding_source", length = 30)
-    private FundingSource fundingSource;
 
     @Column(length = 1000)
     private String reason;
@@ -83,19 +76,6 @@ public class PurchaseProposal extends SchoolVoucher {
         return ApprovalFlowType.PURCHASE_PROPOSALS.defaultSteps();
     }
 
-
-    /**
-     * Số tiền so với ngưỡng của luồng phê duyệt (HT-08). Có dòng chưa ghi đơn giá (hoặc giá 0) thì số tiền CHƯA BIẾT —
-     * {@code null}, không phải tổng các dòng có giá: trường không bắt buộc ghi giá, nhưng bỏ trống giá không được là
-     * đường né ngưỡng. {@code ApprovalFlowService.chainOf} coi số chưa biết như từ ngưỡng trở lên.
-     */
-    @Override
-    public BigDecimal approvalAmount() {
-        boolean unknown = lines.stream().anyMatch(l -> l.effectiveUnitPrice() == null
-                || l.effectiveUnitPrice().signum() <= 0);
-        return unknown ? null : totalAmount();
-    }
-
     public BigDecimal totalAmount() {
         return lines.stream().map(PurchaseProposalLine::amount).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -115,14 +95,6 @@ public class PurchaseProposal extends SchoolVoucher {
 
     public void setBudgetYear(Integer budgetYear) {
         this.budgetYear = budgetYear;
-    }
-
-    public FundingSource getFundingSource() {
-        return fundingSource;
-    }
-
-    public void setFundingSource(FundingSource fundingSource) {
-        this.fundingSource = fundingSource;
     }
 
     public String getReason() {
