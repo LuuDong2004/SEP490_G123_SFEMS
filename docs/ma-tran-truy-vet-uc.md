@@ -54,7 +54,7 @@ Quy ước:
 | TS-04 | Xem lịch sử thay đổi thiết bị | NghiaNV | Hồ sơ thiết bị › Lịch sử | `GET /api/equipment/{id}/history` | `equipment:read` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (dòng vào sổ, dòng đổi sang mã chuẩn), `security` S3 |
 | TS-05 | Cấp mã chuẩn cho thiết bị mang mã cũ | NghiaNV | Hồ sơ thiết bị › nút Cấp mã chuẩn | `GET /api/equipment/{id}/standard`, `POST /api/equipment/{id}/standard-code` | `equipment:write` | ✅ `OpeningBalanceTest`; e2e `flow-exceptions` E7 (mã cũ giữ làm mã hiện hành, bấm Cấp mã chuẩn, chặn cấp lần hai) |
 | TS-06 | Sinh mã thiết bị | NghiaNV | (gọi qua ghi tăng, cấp mã chuẩn) | `GET /api/equipment/next-code`; service sinh mã khi duyệt phiếu | — | ✅ e2e `flow-procurement` A7, `flow-exceptions` E7 (mã đúng mẫu TT.TR.MH.LT.ST.NC) |
-| TS-07 | Nhập dữ liệu thiết bị ban đầu từ tệp | NghiaNV | `/data-imports`, `/data-imports/:id` | `/api/data_imports` (`/template`, `/sheets`, `/{id}/choices`…), `/api/data_transfer` | `data_imports:*`, `data_transfer:*` | ✅ `OnboardingParsingTest`, `OnboardingValidatorTest`, `OnboardingQuickFixTest`, `OnboardingAiServiceTest`, `SpreadsheetReaderTest` |
+| TS-07 | Nhập dữ liệu thiết bị ban đầu từ tệp | NghiaNV | `/data-imports`, `/data-imports/:id` | `/api/data_imports` (`/template`, `/sheets`, `/{id}/choices`…), `/api/data_transfer` | `data_imports:*`, `data_transfer:*` | ✅ `OnboardingParsingTest`, `OnboardingValidatorTest`, `OnboardingQuickFixTest`, `SpreadsheetReaderTest` |
 
 ## Nhu cầu và kế hoạch mua sắm (NC)
 
@@ -156,7 +156,7 @@ Thiết kế và các chỗ khác thiết kế gốc ở `docs/du-lieu-theo-nam-
 | Cơ sở, khối nhà, lớp học | `/api/campuses`, `/api/buildings`, `/api/school_classes` | Ghi là một phần của TC-02 trong SRS |
 
 Đã xử lý ngày 22/11/2026: nhân sự thành TC-03, đánh giá CSVC theo chuẩn thành TC-04, tài khoản của trường thành HT-07, luồng phê duyệt thành HT-08. Bảng của các chức năng ngoài phạm vi (cấp phát, điều chuyển, mượn – trả, báo hỏng, sửa chữa, bảo trì, thanh lý…) và danh mục học kỳ đã xoá ở changelog 285. Báo cáo ẩn ngoài phạm vi và `/api/voucher_holds` đã gỡ khỏi backend.
-| Nhật ký, trạng thái hệ thống, cài đặt AI, thay đổi dữ liệu | `/api/activity_logs`, `/api/system_status`, `/api/ai_settings`, `/api/data_changes` | Controller còn, menu đã ẩn — bỏ hẳn hoặc ghi là chức năng phụ trợ |
+| Nhật ký, trạng thái hệ thống, thay đổi dữ liệu | `/api/activity_logs`, `/api/system_status`, `/api/data_changes` | Controller còn, menu đã ẩn — bỏ hẳn hoặc ghi là chức năng phụ trợ |
 
 ### 4. Quyền của quản trị viên
 

@@ -281,7 +281,6 @@ const TAB_SHORT: Record<string, string> = {
   code_rules: "Quy tắc sinh mã",
   school_code_rules: "Mã của trường",
   approval_flows: "Luồng duyệt",
-  ai_settings: "AI",
   // Quản trị — tài khoản, dữ liệu, giám sát
   row_level_policies: "Phạm vi dữ liệu",
   school_users: "Tài khoản trường",

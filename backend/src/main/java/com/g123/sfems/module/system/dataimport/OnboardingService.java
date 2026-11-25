@@ -225,7 +225,7 @@ public class OnboardingService {
         return jdbc.query("""
                 SELECT id, row_no, data::text AS data, skipped, status, messages::text AS messages,
                        resolved::text AS resolved, edit_source,
-                       -- Từng ô đã sửa → cách sửa GẦN NHẤT (tay / sửa nhanh / AI): lưới tô đúng ô đó.
+                       -- Từng ô đã sửa → cách sửa GẦN NHẤT (tay / sửa nhanh): lưới tô đúng ô đó.
                        (SELECT jsonb_object_agg(x.field, x.source)::text FROM (
                             SELECT DISTINCT ON (e.field) e.field, e.source FROM data_import_edits e
                             WHERE e.row_id = r.id AND e.field <> '_skip'
@@ -437,7 +437,7 @@ public class OnboardingService {
 
     /**
      * Một ô / một dòng sửa trong lần sửa nhiều dòng. {@code source}: sửa tay (vắng / {@code manual}), sửa nhanh theo
-     * luật ({@code rule}) hay AI ({@code ai}) — ghi vào lịch sử và tô lên dòng.
+     * luật ({@code rule}) — ghi vào lịch sử và tô lên dòng.
      */
     public record RowEdit(long rowId, Map<String, String> data, Boolean skipped,
             @Size(max = 40, message = "Nguồn sửa không hợp lệ") String source) {
@@ -464,7 +464,7 @@ public class OnboardingService {
     }
 
     private void applyEdit(long id, long rowId, Map<String, String> data, Boolean skipped, String source) {
-        String src = "rule".equals(source) || "ai".equals(source) ? source : "manual";
+        String src = "rule".equals(source) ? source : "manual";
         record Current(Map<String, String> data, boolean skipped, String sheet, int rowNo) {
         }
         Current cur = jdbc.query(
@@ -533,7 +533,7 @@ public class OnboardingService {
 
     /**
      * Thêm một dòng ngay trên hệ thống (thiếu một phòng, một cán bộ… thì khỏi sửa tệp gửi lại). Từng ô ghi vào lịch sử
-     * sửa như một lần sửa ({@code source}: tay, sửa nhanh, AI) — lưới gắn nhãn cho dòng vừa thêm, tab Lịch sử có nó.
+     * sửa như một lần sửa ({@code source}: tay, sửa nhanh) — lưới gắn nhãn cho dòng vừa thêm, tab Lịch sử có nó.
      */
     @Transactional
     public Batch addRow(long id, String sheet, Map<String, String> data, String source) {
@@ -552,7 +552,7 @@ public class OnboardingService {
         }
         Long rowId = jdbc.queryForObject("INSERT INTO data_import_rows (batch_id, sheet, row_no, data)"
                 + " VALUES (?, ?, ?, ?::jsonb) RETURNING id", Long.class, id, sheetName, next, mapper.writeValueAsString(clean));
-        String src = "rule".equals(source) || "ai".equals(source) ? source : "manual";
+        String src = "rule".equals(source) ? source : "manual";
         Long user = CurrentUser.id().orElse(null);
         clean.forEach((k, v) -> logEdit(id, rowId, sheetName, next, k, null, v, src, user));
         touch(id);

@@ -28,7 +28,7 @@ import {
   UNDO_HOURS,
 } from "@/domains/data-import/types";
 
-import { AiSuggestButton } from "./ai-suggest";
+import { QuickFixButton } from "./quick-fix";
 import { CatalogPreviewBar } from "./catalog-preview";
 import { EditHistory } from "./edit-history";
 import { BATCHES_KEY, download } from "./download";
@@ -431,7 +431,7 @@ export const DataImportBatch = () => {
             }
             toolbar={<>
               {isFetching || busy ? <span className="text-muted-foreground text-xs">Đang kiểm tra…</span> : null}
-              {editable && !catalog && sheet.key !== "staff" ? <AiSuggestButton batchId={id!} sheet={sheet} rows={rows} onApply={editRows} onAddRooms={addRooms} /> : null}
+              {editable && !catalog && sheet.key !== "staff" ? <QuickFixButton batchId={id!} sheet={sheet} rows={rows} onApply={editRows} onAddRooms={addRooms} /> : null}
               <Button type="button" size="sm" variant="outline" className="px-2" onClick={() => setCompare(true)}
                 title="So sánh với tệp gốc — xem trang này đã đổi gì" aria-label="So sánh với tệp gốc">
                 <History />

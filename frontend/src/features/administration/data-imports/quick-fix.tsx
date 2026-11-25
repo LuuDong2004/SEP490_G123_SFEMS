@@ -1,7 +1,6 @@
 import { useNotification } from "@refinedev/core";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Sparkles, Square, Wand2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Wand2 } from "lucide-react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 
 import { kyInstance } from "@/shared/api/data";
@@ -15,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { HelpHint } from "@/shared/components/form/help-hint";
 import { Spinner } from "@/shared/components/spinner";
-import type { ImportAiInfo, ImportAiSuggestion, ImportRow, ImportSheetInfo } from "@/domains/data-import/types";
+import type { ImportFixSuggestion, ImportRow, ImportSheetInfo } from "@/domains/data-import/types";
 
 import type { RowEdit } from "./import-grid";
 
@@ -25,26 +24,19 @@ const SKIP = "_skip";
 const KEEP = "_keep";
 /** Gợi ý có làm gì không — dòng giữ nguyên không tích, không đếm, áp dụng thì bỏ qua. */
 const acts = (it: { field: string }) => it.field !== KEEP;
-/** Dòng thiết bị chưa ghép được danh mục (lưu ý `OnboardingAiService.OUT_OF_CATALOG`) — AI thử ghép. */
-const outOfCatalog = (r: ImportRow) =>
-  r.messages.some((m) => m.level === "warning" && m.field === "catalog" && m.text.startsWith("Không có trong danh mục"));
-/** Nhóm chung cho mọi gợi ý ghép danh mục của AI — lý do từng dòng hiện dưới mã. */
-const CATALOG_GROUP = "Ghép vào danh mục thiết bị";
-
-type Source = "rule" | "ai";
 /** Mục "Phòng còn thiếu" ở danh sách vấn đề. */
 const ROOMS_KEY = "__rooms";
 const PAGE_SIZE = 10;
-type Item = ImportAiSuggestion & { source: Source };
+type Item = ImportFixSuggestion;
 type NewRoom = { code: string; building: string | null; floor: string | null; roomType: string | null; basedOn: string; usedBy: number };
 
 /**
- * Nút "AI sửa lỗi" trên hàng công cụ của lưới. Bấm là: (1) SỬA NHANH theo luật ở máy chủ — mã trùng / sai dạng, phòng
- * viết khác, phòng còn thiếu, năm, số lượng 0 — luôn chạy, không tốn gì; (2) nếu AI đang bật và trang dùng được AI,
- * hỏi AI tiếp cho các dòng lỗi / lưu ý còn lại (tối đa `maxRows`). Hộp thoại gộp cả hai: tích chọn rồi Áp dụng — sửa
- * ô qua PATCH như sửa tay, phòng còn thiếu thì thêm dòng vào trang Phòng. Máy chủ kiểm lại cả lô sau khi sửa.
+ * Nút "Sửa nhanh" trên hàng công cụ của lưới: chuẩn hoá dữ liệu theo LUẬT ở máy chủ (`OnboardingQuickFix`) — mã trùng /
+ * sai dạng, phòng viết khác, phòng còn thiếu, năm, số lượng 0, tình trạng, đơn vị tính, nguồn kinh phí. Không gọi dịch
+ * vụ ngoài, cùng dữ liệu thì ra cùng gợi ý. Hộp thoại: tích chọn rồi Áp dụng — sửa ô qua PATCH như sửa tay, phòng còn
+ * thiếu thì thêm dòng vào trang Phòng. Máy chủ kiểm lại cả lô sau khi sửa.
  */
-export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
+export function QuickFixButton({ batchId, sheet, rows, onApply, onAddRooms }: {
   batchId: string | number;
   sheet: ImportSheetInfo;
   /** MỌI dòng của trang (không theo bộ lọc) — gợi ý xét hết dòng lỗi trong một lần bấm. */
@@ -53,35 +45,16 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
   onAddRooms: (rooms: Record<string, string>[]) => void;
 }) {
   const { open: notify } = useNotification();
-  const { data: info } = useQuery({
-    queryKey: ["data_imports", "ai"],
-    staleTime: 60_000,
-    queryFn: ({ signal }) => kyInstance.get("data_imports/ai", { signal }).json<ImportAiInfo>(),
-  });
-  const [busy, setBusy] = useState<"rule" | "ai" | null>(null);
-  /** Tiến độ AI khi chia đợt: đã xem / tổng số dòng lỗi. */
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [busy, setBusy] = useState(false);
   const [items, setItems] = useState<Item[] | null>(null);
   const [rooms, setRooms] = useState<NewRoom[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [pickedRooms, setPickedRooms] = useState<Set<string>>(new Set());
-  /** Giá trị người dùng gõ đè lên gợi ý (theo chỉ số gợi ý) — áp dụng lấy giá trị này thay kết quả của AI. */
+  /** Giá trị người dùng gõ đè lên gợi ý (theo chỉ số gợi ý) — áp dụng lấy giá trị này thay gợi ý. */
   const [typed, setTyped] = useState<Map<number, string>>(new Map());
   /** Vấn đề đang xem ở cột trái, và trang của bảng bên phải. */
   const [active, setActive] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  /** Huỷ các đợt AI còn lại: bấm Dừng, hoặc rời màn — không để vòng lặp chạy tiếp và tốn tiền khi không ai xem. */
-  const abortRef = useRef<AbortController | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      abortRef.current?.abort();
-    };
-  }, []);
-
-  const aiOn = !!info?.enabled && info.sheets.includes(sheet.key);
   const rowOf = new Map(rows.map((r) => [r.id, r]));
   const labelOf = (field: string) => (field === SKIP ? "Dòng" : sheet.columns.find((c) => c.key === field)?.label ?? field);
 
@@ -89,57 +62,16 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
     let list: Item[] = [];
     let missing: NewRoom[] = [];
     try {
-      setBusy("rule");
+      setBusy(true);
       const quick = await kyInstance.post(`data_imports/${batchId}/quick-fixes`, { json: { sheet: sheet.key }, timeout: 60_000 })
-        .json<{ suggestions: ImportAiSuggestion[]; newRooms: NewRoom[]; covered?: number[] }>();
-      list = quick.suggestions.map((s) => ({ ...s, source: "rule" as const }));
+        .json<{ suggestions: ImportFixSuggestion[]; newRooms: NewRoom[] }>();
+      list = quick.suggestions;
       missing = quick.newRooms;
-      if (aiOn && info) {
-        // AI xem MỌI dòng LỖI mà sửa nhanh chưa đụng tới, cộng dòng thiết bị "Không có trong danh mục" (để ghép danh
-        // mục) — dòng lỗi trước. Chia đợt `maxRows` dòng, gọi lần lượt; đợt lỗi thì dừng, giữ những gì đã có.
-        const covered = new Set([...list.map((s) => s.rowId), ...(quick.covered ?? [])]);
-        const open = rows.filter((r) => !r.skipped && !covered.has(r.id));
-        const all = [
-          ...open.filter((r) => r.status === "ERROR"),
-          ...open.filter((r) => r.status !== "ERROR" && outOfCatalog(r)),
-        ];
-        // Một lần bấm xem tối đa `maxRowsPerClick` dòng — trần chi phí của một cú bấm; còn thì bấm lại.
-        const targets = all.slice(0, info.maxRowsPerClick);
-        if (targets.length) {
-          setBusy("ai");
-          const ctrl = new AbortController();
-          abortRef.current = ctrl;
-          for (let i = 0; i < targets.length && !ctrl.signal.aborted; i += info.maxRows) {
-            setProgress({ done: i, total: targets.length });
-            const chunk = targets.slice(i, i + info.maxRows);
-            try {
-              const ai = await kyInstance
-                .post(`data_imports/${batchId}/ai-suggest`, {
-                  json: { sheet: sheet.key, rowIds: chunk.map((r) => r.id) }, timeout: 150_000, signal: ctrl.signal,
-                })
-                .json<ImportAiSuggestion[]>();
-              list = [...list, ...ai.map((s) => ({ ...s, source: "ai" as const }))];
-            } catch (error) {
-              if (ctrl.signal.aborted) break;
-              notify?.({ type: "error", message: await errorMessage(error), description: "AI dừng giữa chừng — giữ các gợi ý đã có" });
-              break;
-            }
-          }
-          abortRef.current = null;
-          // Rời màn giữa chừng thì thôi, không mở hộp thoại trên màn đã đóng.
-          if (!mounted.current) return;
-          if (all.length > targets.length && !ctrl.signal.aborted) {
-            notify?.({ type: "success", message: `AI đã xem ${targets.length}/${all.length} dòng`,
-              description: "Áp dụng các gợi ý này rồi bấm AI sửa lỗi lần nữa để xem tiếp." });
-          }
-        }
-      }
     } catch (error) {
       notify?.({ type: "error", message: await errorMessage(error), description: "Không lấy được gợi ý" });
       return;
     } finally {
-      setBusy(null);
-      setProgress(null);
+      setBusy(false);
     }
     if (!list.length && !missing.length) {
       notify?.({ type: "success", message: rows.some((r) => r.status === "ERROR") ? "Chưa có gợi ý cho trang này. Sửa trực tiếp trên bảng." : "Trang này không còn lỗi." });
@@ -160,9 +92,7 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
     const manual = new Set<number>();
     items.forEach((s, k) => {
       if (!picked.has(k) || !acts(s)) return;
-      // Dòng có cả gợi ý AI lẫn sửa nhanh thì ghi là AI — cái đáng để người xem kiểm lại hơn.
-      const e = byRow.get(s.rowId) ?? { rowId: s.rowId, source: s.source };
-      if (s.source === "ai") e.source = "ai";
+      const e = byRow.get(s.rowId) ?? { rowId: s.rowId, source: "rule" };
       // Người dùng đã đổi giá trị gợi ý thì đó là sửa tay (máy chủ ghi "manual" khi không có nguồn).
       const own = typed.get(k);
       if (own !== undefined && own.trim() !== s.to) manual.add(s.rowId);
@@ -183,7 +113,6 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
   };
 
   const total = (items?.filter(acts).length ?? 0) + rooms.length;
-  const seen = progress ? Math.min(progress.done + (info?.maxRows ?? 0), progress.total) : 0;
   const chosen = picked.size + pickedRooms.size;
   const groups = items ? groupsOf(items) : [];
   const activeKey = active ?? (rooms.length ? ROOMS_KEY : groups[0]?.key ?? null);
@@ -197,33 +126,22 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
 
   return (
     <>
-      <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void ask()}
-        title={aiOn ? "Sửa nhanh theo luật, rồi hỏi AI cho các dòng còn lại" : "Sửa nhanh theo luật: mã trùng, mã sai dạng, phòng còn thiếu…"}>
-        {aiOn ? <Sparkles className="text-primary" /> : <Wand2 className="text-primary" />}
-        {/* Chưa bật AI thì chỉ có sửa theo luật — gọi đúng tên, khỏi tưởng là AI. */}
-        {aiOn ? "AI sửa lỗi" : "Sửa nhanh"}
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void ask()}
+        title="Sửa nhanh theo luật: mã trùng, mã sai dạng, phòng còn thiếu…">
+        <Wand2 className="text-primary" />
+        Sửa nhanh
       </Button>
-      {/* Đang xem: màn chờ giữa màn hình (như lúc tải trang), không nhét chữ tiến độ vào nút trên thanh công cụ. */}
-      {busy ? createPortal(<AiBusy busy={busy} seen={seen} total={progress?.total ?? 0} onStop={() => abortRef.current?.abort()} />, document.body) : null}
+      {/* Đang tìm: màn chờ giữa màn hình (như lúc tải trang), không nhét chữ tiến độ vào nút trên thanh công cụ. */}
+      {busy ? createPortal(<QuickFixBusy />, document.body) : null}
       <Dialog open={items !== null} onOpenChange={(o) => !o && setItems(null)}>
         <DialogContent size="wide" className="flex flex-col gap-0 p-0">
           <DialogHeader className="border-b px-6 pt-5 pb-4 text-left">
             <DialogTitle className="flex items-center gap-2">
               <Wand2 className="text-primary size-5" />
-              {aiOn ? "AI sửa lỗi" : "Sửa nhanh"} · {sheet.title}
-              <HelpHint>Sửa nhanh theo luật chạy ngay trên dữ liệu hiện tại, không gọi AI; AI xem các dòng lỗi luật chưa sửa được và thiết bị chưa ghép được danh mục. Xem lại trước khi áp dụng.</HelpHint>
+              Sửa nhanh · {sheet.title}
+              <HelpHint>Gợi ý chuẩn hoá theo luật, chạy ngay trên dữ liệu hiện tại: cùng dữ liệu thì ra cùng gợi ý. Xem lại trước khi áp dụng.</HelpHint>
             </DialogTitle>
-            {/* Chỉ còn một dòng số đếm theo nguồn — lời giải thích nằm trong dấu "?". */}
-            <DialogDescription className="text-xs">
-              {/* Nói rõ gợi ý từ đâu: sửa nhanh theo luật chạy ngay trên dữ liệu hiện tại (không gọi AI) — cùng dữ liệu
-                  thì ra cùng gợi ý; AI chỉ được hỏi cho dòng lỗi luật chưa sửa được. */}
-              {(() => {
-                const acting = items?.filter(acts) ?? [];
-                const rule = acting.filter((i) => i.source === "rule").length + rooms.length;
-                const ai = acting.filter((i) => i.source === "ai").length;
-                return <>{rule ? `${rule} sửa nhanh` : ""}{rule && ai ? " · " : ""}{ai ? `${ai} từ AI` : ""}</>;
-              })()}
-            </DialogDescription>
+            <DialogDescription className="text-xs">{total} gợi ý</DialogDescription>
           </DialogHeader>
           {/* Trái: danh sách vấn đề. Phải: MỘT bảng của vấn đề đang chọn, có phân trang — không xếp chồng cả chục bảng. */}
           <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[17rem_minmax(0,1fr)] sm:grid-rows-1">
@@ -256,7 +174,6 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                       <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs tabular-nums">
                         Chọn {count}/{keys.length}
                         {g.keys.some((k) => items![k].review) ? <span className="text-warning-text font-medium">Cần chọn</span> : null}
-                        {g.ai ? <span className="text-primary font-medium">AI</span> : null}
                       </span>
                     </button>
                   </li>
@@ -401,10 +318,6 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                                         }} />
                                     </span>
                                   )}
-                                  {/* Ghép danh mục: tên thiết bị trong danh mục + vì sao — mã thôi thì không kiểm được. */}
-                                  {it.source === "ai" && it.field === "catalog" && it.reason ? (
-                                    <span className="text-muted-foreground mt-0.5 block truncate text-xs" title={it.reason}>{it.reason}</span>
-                                  ) : null}
                                 </TableCell>
                               </TableRow>
                             );
@@ -450,15 +363,11 @@ export function AiSuggestButton({ batchId, sheet, rows, onApply, onAddRooms }: {
  * thứ tự dòng đầu tiên của nhóm, giữ nguyên chỉ số `k` để tích / bỏ tích trỏ đúng gợi ý.
  */
 function groupsOf(items: Item[]) {
-  const map = new Map<string, { key: string; reason: string; ai: boolean; keys: number[] }>();
+  const map = new Map<string, { key: string; reason: string; keys: number[] }>();
   items.forEach((it, k) => {
-    const catalog = it.source === "ai" && it.field === "catalog";
-    const reason = catalog ? CATALOG_GROUP : it.reason || (it.field === SKIP ? "Bỏ dòng" : `Sửa ${it.field}`);
-    const key = reason;
-    if (!map.has(key)) map.set(key, { key, reason, ai: false, keys: [] });
-    const g = map.get(key)!;
-    g.keys.push(k);
-    if (it.source === "ai") g.ai = true;
+    const reason = it.reason || (it.field === SKIP ? "Bỏ dòng" : `Sửa ${it.field}`);
+    if (!map.has(reason)) map.set(reason, { key: reason, reason, keys: [] });
+    map.get(reason)!.keys.push(k);
   });
   // Nhóm cần người dùng chọn lên đầu: đó là việc chưa thể áp dụng ngay.
   const needsChoice = (g: { keys: number[] }) => (g.keys.some((k) => items[k].review) ? 0 : 1);
@@ -482,31 +391,20 @@ function explainOf(g: Group, items: Item[]) {
       : "Dòng giống hệt thì bỏ, dòng khác nhau thì đặt mã riêng.";
 }
 
-/** Màn chờ giữa màn hình lúc đang tìm gợi ý: vòng quay quanh biểu tượng AI, số dòng đã xem, thanh tiến độ, nút Dừng. */
-function AiBusy({ busy, seen, total, onStop }: { busy: "rule" | "ai"; seen: number; total: number; onStop: () => void }) {
+/** Màn chờ giữa màn hình lúc đang tìm gợi ý. */
+function QuickFixBusy() {
   return (
     <div role="status" aria-live="polite"
       className="bg-background/70 fixed inset-0 z-50 flex items-center justify-center px-4 backdrop-blur-sm">
       <div className="bg-card shadow-e2 flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border px-8 py-7 text-center">
         <div className="relative flex size-28 items-center justify-center">
           <Spinner size="2xl" label="Đang tìm gợi ý" className="absolute inset-0" />
-          <Sparkles className="text-primary relative size-9" />
+          <Wand2 className="text-primary relative size-9" />
         </div>
         <div className="space-y-1">
-          <p className="text-base font-semibold">{busy === "rule" ? "Đang tìm lỗi sửa được…" : "AI đang xem các dòng lỗi…"}</p>
-          <p className="text-muted-foreground text-sm tabular-nums">{busy === "ai" && total ? `Đang xem ${seen}/${total} dòng` : "Chờ một chút"}</p>
+          <p className="text-base font-semibold">Đang tìm lỗi sửa được…</p>
+          <p className="text-muted-foreground text-sm">Chờ một chút</p>
         </div>
-        {busy === "ai" && total ? (
-          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-            <div className="bg-brand-gradient h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(8, (seen / total) * 100)}%` }} />
-          </div>
-        ) : null}
-        {busy === "ai" ? (
-          <Button type="button" size="sm" variant="outline" onClick={onStop} title="Dừng hỏi AI, giữ các gợi ý đã có">
-            <Square className="fill-current" />
-            Dừng
-          </Button>
-        ) : null}
       </div>
     </div>
   );

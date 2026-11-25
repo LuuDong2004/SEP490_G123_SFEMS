@@ -83,7 +83,7 @@ public class SecurityConfig {
         }
         if (stack.deployed() && JwtProperties.DEV_SECRET.equals(properties.secret())) {
             // Khoá mặc định nằm trong repo: ai có nó tự ký được token của bất kỳ tài khoản nào, và giải mã được
-            // khoá AI, mật khẩu máy chủ thư (SecretBox dẫn khoá từ đây). Đủ dài nên lọt kiểm tra trên — chặn riêng.
+            // mật khẩu máy chủ thư (SecretBox dẫn khoá từ đây). Đủ dài nên lọt kiểm tra trên — chặn riêng.
             throw new IllegalStateException(
                     "app.security.jwt.secret đang là giá trị mặc định trong mã nguồn — đặt APP_SECURITY_JWT_SECRET cho "
                             + stack.name());

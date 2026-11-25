@@ -289,7 +289,7 @@ public class OnboardingValidator {
 
     /**
      * Năm học như người dùng đọc và ghi trong tệp — cặp năm "2026-2027" lấy từ tên ("Năm học 2026-2027"), không phải mã
-     * do quy tắc sinh mã đặt ("NH006"). Dùng cho danh sách chọn ở ô Năm học và cho gợi ý AI.
+     * do quy tắc sinh mã đặt ("NH006"). Dùng cho danh sách chọn ở ô Năm học.
      */
     static String schoolYearLabel(String code, String name) {
         String key = name == null ? null : schoolYearKey(name);

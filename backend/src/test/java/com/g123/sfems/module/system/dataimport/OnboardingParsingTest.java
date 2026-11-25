@@ -95,17 +95,6 @@ class OnboardingParsingTest {
     }
 
     @Test
-    void findsCatalogCandidatesForAbbreviatedNames() {
-        List<OnboardingAiService.Catalog> all = List.of(
-                new OnboardingAiService.Catalog("THCS-1", "Bộ thí nghiệm Vật lý 6", null, null, null),
-                new OnboardingAiService.Catalog("THCS-2", "Máy tính để bàn", null, null, null),
-                new OnboardingAiService.Catalog("THCS-3", "Bàn ghế học sinh", null, null, null));
-        assertEquals("THCS-1", OnboardingAiService.candidates(all, "Bộ TN Lý 6", null).get(0).code());
-        assertEquals("THCS-2", OnboardingAiService.candidates(all, "MT để bàn Dell", null).get(0).code());
-        assertEquals(0, OnboardingAiService.candidates(all, "Xe đạp", null).size());
-    }
-
-    @Test
     void templateHeaderStillWorks() {
         List<List<String>> rows = List.of(
                 row("Tên lớp (*)", "Khối lớp (*)", "Năm học (*)", "Sĩ số (*)"),

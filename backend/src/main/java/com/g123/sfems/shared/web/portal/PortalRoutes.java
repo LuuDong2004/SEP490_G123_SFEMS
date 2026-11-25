@@ -80,7 +80,7 @@ public final class PortalRoutes {
 
     static {
         // Quản trị hệ thống — chỉ cổng Admin.
-        put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies", "ai_settings",
+        put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies",
                 "data_changes", "notification_type_settings", "mail_config");
         // Luồng phê duyệt (HT-08): chỉ quản trị viên cấu hình; chưa cấu hình thì dùng luồng mặc định trong code.
         put(ADMIN_ONLY, ADMIN_ONLY, "approval_flows");

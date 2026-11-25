@@ -48,7 +48,7 @@ public class OnboardingController {
     public record RowPatch(Map<String, String> data, Boolean skipped) {
     }
 
-    /** {@code source}: tay (mặc định), {@code rule} — sửa nhanh, {@code ai}. */
+    /** {@code source}: tay (mặc định), {@code rule} — sửa nhanh. */
     public record NewRow(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, Map<String, String> data,
             String source) {
     }
@@ -59,45 +59,22 @@ public class OnboardingController {
     public record RowIds(List<Long> rowIds) {
     }
 
-    public record AiRequest(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, List<Long> rowIds) {
-    }
-
-    /** Màn hình hỏi trước khi vẽ nút "AI gợi ý": có bật không, trang nào dùng được, mỗi lần bao nhiêu dòng. */
-    public record AiInfo(boolean enabled, List<String> sheets, int maxRows, int maxRowsPerClick) {
-    }
-
     public record SheetRequest(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet) {
     }
 
     private final OnboardingService service;
-    private final OnboardingAiService ai;
     private final OnboardingQuickFix quickFix;
 
-    public OnboardingController(OnboardingService service, OnboardingAiService ai, OnboardingQuickFix quickFix) {
+    public OnboardingController(OnboardingService service, OnboardingQuickFix quickFix) {
         this.service = service;
-        this.ai = ai;
         this.quickFix = quickFix;
     }
 
-    /** Sửa nhanh theo luật (mã trùng / sai dạng, phòng viết khác / còn thiếu, năm, số lượng 0) — không cần AI. */
+    /** Sửa nhanh theo luật (mã trùng / sai dạng, phòng viết khác / còn thiếu, năm, số lượng 0). */
     @PostMapping("/{id}/quick-fixes")
     @PreAuthorize("hasAuthority('data_imports:write')")
     public OnboardingQuickFix.Result quickFixes(@PathVariable long id, @Valid @RequestBody SheetRequest body) {
         return quickFix.fixes(id, body.sheet());
-    }
-
-    @GetMapping("/ai")
-    @PreAuthorize("hasAuthority('data_imports:write')")
-    public AiInfo aiInfo() {
-        return new AiInfo(ai.available(), OnboardingAiService.SHEETS.stream().map(OnboardingSheet::key).toList(),
-                OnboardingAiService.MAX_ROWS, OnboardingAiService.MAX_ROWS_PER_CLICK);
-    }
-
-    /** AI gợi ý sửa các dòng đã chọn — chỉ gợi ý, nhận thì đi qua PATCH /{id}/rows như sửa tay. */
-    @PostMapping("/{id}/ai-suggest")
-    @PreAuthorize("hasAuthority('data_imports:write')")
-    public List<OnboardingAiService.Suggestion> aiSuggest(@PathVariable long id, @Valid @RequestBody AiRequest body) {
-        return ai.suggest(id, body.sheet(), body.rowIds());
     }
 
     @GetMapping

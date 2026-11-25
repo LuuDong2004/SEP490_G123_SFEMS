@@ -145,7 +145,6 @@ const RESOURCE_LABELS: Record<string, string> = {
   subject_groups: "Tổ chuyên môn",
   subject_teams: "Tổ bộ môn",
   subjects: "Môn học",
-  ai_settings: "Cấu hình AI",
   units: "Đơn vị tính",
   wards: "Phường/xã",
 };

@@ -96,7 +96,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   code_rules: "Cách sinh mã tự động cho danh mục chung",
   school_code_rules: "Cách sinh mã phòng, khối nhà, cán bộ của trường",
   approval_flows: "Ai duyệt từng loại phiếu, theo thứ tự nào",
-  ai_settings: "Kết nối AI dùng khi nhập dữ liệu",
   // Dữ liệu
   data_transfer: "Nhập, xuất dữ liệu bằng tệp",
   // Giám sát

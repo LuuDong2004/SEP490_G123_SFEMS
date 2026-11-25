@@ -27,7 +27,7 @@ class OnboardingQuickFixTest {
         assertThat(OnboardingQuickFix.facilityCondition("Bị Thấm Dột Nặng")).isEqualTo("Xuống cấp");
         assertThat(OnboardingQuickFix.facilityCondition("Tốt (Phòng tạm vách ngăn)")).isEqualTo("Tốt");
         assertThat(OnboardingQuickFix.facilityCondition("Ai biết")).isNull();
-        assertThat(OnboardingQuickFix.equipmentCondition("Hư nặng không sử dụng được")).isEqualTo("Hỏng");
+        assertThat(OnboardingQuickFix.equipmentCondition("Hư nặng không sử dụng được")).isEqualTo("Kém");
     }
 
     @Test

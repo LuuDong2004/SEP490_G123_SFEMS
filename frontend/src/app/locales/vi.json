@@ -677,12 +677,6 @@
       "show": "Nhập dữ liệu đầu vào"
     }
   },
-  "ai_settings": {
-    "ai_settings": "Cấu hình AI",
-    "titles": {
-      "list": "Cấu hình AI"
-    }
-  },
   "notification_type_settings": {
     "notification_type_settings": "Cài đặt thông báo",
     "titles": {
