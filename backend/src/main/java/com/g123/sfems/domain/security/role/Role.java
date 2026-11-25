@@ -1,8 +1,11 @@
 package com.g123.sfems.domain.security.role;
 
 import com.g123.sfems.domain.security.permission.Permission;
+import com.g123.sfems.domain.security.user.UserType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -51,6 +54,14 @@ public class Role {
     @Column(name = "system_role", nullable = false)
     private boolean systemRole;
 
+    /**
+     * Loại tài khoản dùng vai này (docs/kien-truc/11 §11). Cố định từ lúc tạo; CSDL chặn gán vai cho tài khoản khác
+     * loại và gán quyền khác phạm vi (changelog 235).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role_type", nullable = false, length = 16, updatable = false)
+    private UserType roleType;
+
     // Eager: a role is essentially never useful without knowing what it grants
     // — the token minted at login needs every permission of every role the user
     // holds, and the role list view renders the count on each row.
@@ -65,7 +76,8 @@ public class Role {
         // for JPA
     }
 
-    public Role(String code, String name, String description, boolean systemRole) {
+    public Role(String code, String name, String description, boolean systemRole, UserType roleType) {
+        this.roleType = roleType;
         this.code = code;
         this.name = name;
         this.description = description;
@@ -102,6 +114,10 @@ public class Role {
 
     public boolean isSystemRole() {
         return systemRole;
+    }
+
+    public UserType getRoleType() {
+        return roleType;
     }
 
     public Set<Permission> getPermissions() {

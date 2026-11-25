@@ -28,3 +28,12 @@ _.ntvs_
 _.njsproj
 _.sln
 \*.sw?
+
+# Kết quả chạy E2E (npm run e2e)
+e2e-report/
+e2e-results/
+e2e-onboarding/
+
+# Kết quả chạy bộ kiểm thử đánh giá (e2e/audit)
+e2e-audit/
+e2e-results*/

@@ -5,6 +5,8 @@ import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.security.permission.Permission;
 import com.g123.sfems.domain.security.role.Role;
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,6 +14,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -33,14 +37,22 @@ import org.hibernate.annotations.DynamicUpdate;
  * leaves this class in any other form: no DTO exposes it, and the service layer
  * only ever writes an already-encoded value into it.
  *
+ * <p>Ba loại tài khoản ({@link UserType}) là ba lớp con JOINED (docs/kien-truc/11, theo khung qlvb-app):
+ * {@code users} chỉ giữ phần đăng nhập (tên, mật khẩu, khoá, xác thực qua email, vai); phần riêng từng loại ở bảng con —
+ * {@link SystemUser} ({@code user_systems}), {@link SoUser} ({@code user_sos}), {@link SchoolUser} ({@code user_schools}). Trường / cơ quan quản lý là cột NOT NULL, không
+ * đổi được của bảng con: tài khoản Sở không có ô "trường" để đọc nhầm. {@code users.user_type} là cột phân loại.
+ * Loại cố định từ lúc tạo — tạo bằng {@link #create}.
+ *
  * <p>{@code @DynamicUpdate}: lưu chỉ ghi những cột đã đổi. Các bước đăng nhập ghi bộ đếm sai, mã email trong
- * giao dịch RIÊNG ({@code LoginGuard}, {@code EmailMfaService}, {@code MfaService}); không có nó, lần lưu
+ * giao dịch RIÊNG ({@code LoginGuard}, {@code EmailMfaService}); không có nó, lần lưu
  * {@code lastLoginAt} của giao dịch đăng nhập ghi đè cả hàng bằng bản trong bộ nhớ — mã email vừa dùng sống lại.
  */
 @Entity
 @DynamicUpdate
 @Table(name = "users")
-public class User {
+@Inheritance(strategy = InheritanceType.JOINED)
+@DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING, length = 16)
+public abstract class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,7 +67,7 @@ public class User {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    /** Lần đặt / đổi mật khẩu gần nhất — nhắc đổi định kỳ (QLTB-243). Đặt cùng lúc với {@link #passwordHash}. */
+    /** Lần đặt / đổi mật khẩu gần nhất — nhắc đổi định kỳ. Đặt cùng lúc với {@link #passwordHash}. */
     @Column(name = "password_changed_at")
     private Instant passwordChangedAt;
 
@@ -76,60 +88,6 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new LinkedHashSet<>();
 
-    /**
-     * Trường mà tài khoản này thuộc về. Cho phép rỗng.
-     *
-     * <p>Rỗng được vì một tài khoản là cách đăng nhập trước khi là một người
-     * trong sơ đồ tổ chức: tài khoản quản trị seed sẵn, tài khoản dịch vụ, hay
-     * một người chưa xác định nơi công tác. Bắt buộc sẽ đồng nghĩa với việc
-     * phải bịa ra một trường cho mọi tài khoản đã tồn tại.
-     *
-     * <p><b>Đây là cột mà toàn bộ phân quyền dòng dựa vào.</b> Nó đi lên
-     * {@code AuthorityCache.Entry} rồi thành {@code RowLevelPrincipal}, và từ
-     * đó thành khoá ngữ cảnh {@code user.schoolId} mà mọi chính sách "chỉ thấy
-     * dữ liệu trường mình" đọc. Rỗng nghĩa là KHÔNG thuộc trường nào, và dưới
-     * {@code defaultScope = NONE} thì điều đó có nghĩa là không thấy gì — fail
-     * closed, ngược hẳn với bẫy {@code tenantId = NULL} của bản Jmix nơi rỗng
-     * nghĩa là thấy tất cả.
-     *
-     * <p>Eager, như {@code roles}: màn danh sách tài khoản hiển thị nó trên mọi
-     * dòng, nên một proxy lazy chỉ biến một truy vấn thành N. Là quan hệ
-     * to-one nên nó nới rộng dòng chứ không nhân dòng lên.
-     */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "school_id")
-    private School school;
-
-    /**
-     * Cơ quan quản lý mà tài khoản này thuộc về — Sở hoặc UBND. Cho phép rỗng.
-     *
-     * <p>Đi song song với {@link #school}, không thay thế nó, vì hai cột trả
-     * lời hai câu hỏi khác nhau:
-     *
-     * <ul>
-     *   <li>người của trường — {@code school} khác rỗng, {@code managingBody} rỗng</li>
-     *   <li>người của Sở hoặc UBND — ngược lại</li>
-     *   <li>quản trị viên hệ thống — cả hai rỗng, phạm vi do vai trò quyết định</li>
-     * </ul>
-     *
-     * <p>Không có ràng buộc "đúng một trong hai khác rỗng": tài khoản quản trị
-     * hợp lệ mà cả hai đều rỗng, và một người kiêm nhiệm cả hai phía là chuyện
-     * có thật.
-     *
-     * <p><b>Đây là cột làm cho "Sở quản lý thông qua UBND" viết ra được.</b>
-     * Không có nó thì chính sách "UBND chỉ thấy trường trên địa bàn mình"
-     * không có gì để so sánh với {@code schools.department_of_education_id}.
-     * Nó đi lên {@code AuthorityCache.Entry} rồi thành
-     * {@code RowLevelPrincipal}, và từ đó thành khoá ngữ cảnh
-     * {@code user.managingBodyId}.
-     *
-     * <p>Eager cùng lý do với {@code school}: màn danh sách tài khoản hiển thị
-     * nó trên mọi dòng.
-     */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "managing_body_id")
-    private DepartmentOfEducation managingBody;
-
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -139,27 +97,21 @@ public class User {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
-    /** Bí mật TOTP, đã mã hoá bằng {@code SecretBox}. Có mà chưa bật = đang thiết lập. */
-    @Column(name = "mfa_secret", length = 255)
-    private String mfaSecret;
-
-    @Column(name = "mfa_enabled", nullable = false)
-    private boolean mfaEnabled;
-
+    /** Số lần nhập sai mã qua email liên tiếp; đủ 5 thì khoá nhập mã 5 phút ({@code mfaLockedUntil}). */
     @Column(name = "mfa_failed_attempts", nullable = false)
     private int mfaFailedAttempts;
 
     @Column(name = "mfa_locked_until")
     private Instant mfaLockedUntil;
 
-    /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0 (QLTB-509). */
+    /** Số lần sai mật khẩu liên tiếp; đủ 5 thì khoá tạm ({@code loginLockedUntil}) và đếm lại từ 0. */
     @Column(name = "failed_login_count", nullable = false)
     private int failedLoginCount;
 
     @Column(name = "login_locked_until")
     private Instant loginLockedUntil;
 
-    /** Xác thực hai lớp qua email: mã 6 số gửi tới {@code email} mỗi lần đăng nhập. */
+    /** Xác thực qua email: mã 6 số gửi tới {@code email} mỗi lần đăng nhập. */
     @Column(name = "mfa_email", nullable = false)
     private boolean mfaEmail;
 
@@ -221,22 +173,6 @@ public class User {
         this.emailCodeSentAt = emailCodeSentAt;
     }
 
-    public String getMfaSecret() {
-        return mfaSecret;
-    }
-
-    public void setMfaSecret(String mfaSecret) {
-        this.mfaSecret = mfaSecret;
-    }
-
-    public boolean isMfaEnabled() {
-        return mfaEnabled;
-    }
-
-    public void setMfaEnabled(boolean mfaEnabled) {
-        this.mfaEnabled = mfaEnabled;
-    }
-
     public int getMfaFailedAttempts() {
         return mfaFailedAttempts;
     }
@@ -257,7 +193,28 @@ public class User {
         // for JPA
     }
 
-    public User(String username, String email, String passwordHash, String fullName, UserStatus status) {
+    /**
+     * Tài khoản mới đúng lớp của {@code type}, gắn đúng đơn vị của loại đó: SCHOOL cần {@code school}, SO cần
+     * {@code managingBody}, SYSTEM không cần gì. Đơn vị thừa / thiếu so với loại là lỗi lập trình — báo ngay.
+     */
+    public static User create(UserType type, String username, String email, String passwordHash, String fullName,
+            UserStatus status, School school, DepartmentOfEducation managingBody) {
+        boolean needsSchool = type == UserType.SCHOOL;
+        boolean needsBody = type == UserType.SO;
+        if (needsSchool != (school != null) || needsBody != (managingBody != null)) {
+            throw new IllegalArgumentException("Đơn vị không khớp loại tài khoản " + type);
+        }
+        return switch (type) {
+            case SYSTEM -> new SystemUser(username, email, passwordHash, fullName, status);
+            case SO -> new SoUser(username, email, passwordHash, fullName, status, managingBody);
+            case SCHOOL -> new SchoolUser(username, email, passwordHash, fullName, status, school);
+        };
+    }
+
+    /** Loại tài khoản — cố định theo lớp con. */
+    public abstract UserType getUserType();
+
+    protected User(String username, String email, String passwordHash, String fullName, UserStatus status) {
         this.username = username;
         this.email = email;
         this.passwordHash = passwordHash;
@@ -367,22 +324,20 @@ public class User {
         this.roles.addAll(roles);
     }
 
-    public School getSchool() {
-        return school;
+    /**
+     * Trường của tài khoản — chỉ {@link SchoolUser} có, loại khác trả null. Dành cho chỗ phải đọc đơn vị của MỌI loại
+     * tài khoản (token, bộ đệm quyền, danh sách tài khoản); code chỉ làm việc với tài khoản trường dùng
+     * {@link SchoolUser#getSchool()}.
+     */
+    public School schoolOrNull() {
+        return null;
     }
 
-    public void setSchool(School school) {
-        this.school = school;
+    /** Cơ quan quản lý (Sở) — chỉ {@link SoUser} có, loại khác trả null. */
+    public DepartmentOfEducation managingBodyOrNull() {
+        return null;
     }
 
-
-    public DepartmentOfEducation getManagingBody() {
-        return managingBody;
-    }
-
-    public void setManagingBody(DepartmentOfEducation managingBody) {
-        this.managingBody = managingBody;
-    }
     public Instant getCreatedAt() {
         return createdAt;
     }

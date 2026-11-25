@@ -1,18 +1,22 @@
 package com.g123.sfems.module.security.auth.service;
 
-import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.shared.data.rls.RowSecurityDataSource;
 import com.g123.sfems.module.security.user.service.UserService;
-import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.rowlevel.RowLevelGeneration;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.GrantedAuthority;
@@ -59,6 +63,9 @@ public class AuthorityCache {
 
     private static final Duration TTL = Duration.ofSeconds(TTL_SECONDS);
 
+    /** Hạn của từng entry rải ngẫu nhiên trong khoảng này (rút ngắn), xem {@code Entry.jitter}. */
+    static final long JITTER_SECONDS = 20;
+
     /**
      * Bounds the memory an unusually large user base can take.
      *
@@ -70,6 +77,12 @@ public class AuthorityCache {
     private static final int MAX_ENTRIES = 50_000;
 
     private final ConcurrentHashMap<Long, Entry> entries = new ConcurrentHashMap<>();
+
+    /** Lần nạp đang chạy theo tài khoản — các yêu cầu cùng trượt chờ chung một lần nạp. */
+    private final ConcurrentHashMap<Long, CompletableFuture<Entry>> loading = new ConcurrentHashMap<>();
+
+    /** Tăng mỗi lần xoá: bản nạp xong sau một lần xoá không được ghi đè lên nó. */
+    private final AtomicLong generation = new AtomicLong();
 
     private final UserService userService;
 
@@ -106,20 +119,45 @@ public class AuthorityCache {
             return Optional.of(cached);
         }
 
-        // A miss races harmlessly: two threads may both load, and both write
-        // the same value. Locking to prevent that would cost more than the
-        // duplicate read it saves.
-        Entry loaded = load(userId);
-        if (loaded == null) {
-            entries.remove(userId);
-            return Optional.empty();
+        // Một lần nạp cho mỗi tài khoản tại một thời điểm: một trang mở ra bắn vài yêu cầu song
+        // song, và sau một lần xoá sạch chúng cùng trượt — không gộp lại thì mỗi yêu cầu tự nạp.
+        CompletableFuture<Entry> mine = new CompletableFuture<>();
+        CompletableFuture<Entry> running = loading.putIfAbsent(userId, mine);
+        if (running != null) {
+            return Optional.ofNullable(await(running));
         }
+        try {
+            // Đọc thế hệ TRƯỚC khi nạp: một lần xoá xảy ra giữa chừng thì bản vừa nạp có thể đã
+            // cũ, nên vẫn trả cho yêu cầu này nhưng không giữ lại trong bộ nhớ đệm.
+            long generationAtStart = generation.get();
+            Entry loaded = load(userId);
+            if (loaded == null) {
+                entries.remove(userId);
+            } else if (generation.get() == generationAtStart) {
+                if (entries.size() >= MAX_ENTRIES) {
+                    entries.clear();
+                }
+                entries.put(userId, loaded);
+            }
+            mine.complete(loaded);
+            return Optional.ofNullable(loaded);
+        } catch (RuntimeException | Error e) {
+            mine.completeExceptionally(e);
+            throw e;
+        } finally {
+            loading.remove(userId, mine);
+        }
+    }
 
-        if (entries.size() >= MAX_ENTRIES) {
-            entries.clear();
+    private static Entry await(CompletableFuture<Entry> running) {
+        try {
+            return running.join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw e;
         }
-        entries.put(userId, loaded);
-        return Optional.of(loaded);
     }
 
     /**
@@ -143,11 +181,13 @@ public class AuthorityCache {
 
     /** Drops one account's entry. */
     public void evict(long userId) {
+        generation.incrementAndGet();
         entries.remove(userId);
     }
 
     /** Drops everything. */
     public void evictAll() {
+        generation.incrementAndGet();
         entries.clear();
     }
 
@@ -188,12 +228,12 @@ public class AuthorityCache {
     }
 
     private Entry load(long userId) {
-        try {
-            User user = userService.get(userId);
-            return Entry.of(user, policies.generation());
-        } catch (ResourceNotFoundException e) {
-            return null;
-        }
+        // Ba câu chiếu hẹp (mã quyền, vai, chỗ công tác), không nạp cả đồ thị User.
+        // Không gắn phạm vi trường cho kết nối của lần nạp này (RowSecurityDataSource.unscoped): dò phạm vi lại cần
+        // chính các quyền đang nạp — không cắt thì luồng tự chờ nó mãi.
+        return RowSecurityDataSource.unscoped(() -> userService.authorityFacts(userId)
+                .map(facts -> Entry.of(facts, policies.generation()))
+                .orElse(null));
     }
 
     /**
@@ -221,7 +261,11 @@ public class AuthorityCache {
      *                    về, hoặc null. Đi cùng schoolId vì hai cột trả lời hai
      *                    câu hỏi khác nhau, và chính sách phạm vi dòng của tài
      *                    khoản cấp Sở hoặc UBND đọc cột này
+     * @param campusId    phạm vi cơ sở của tài khoản trường (270), hoặc null = cả trường. Đầu vào của phân quyền
+     *                    như schoolId: đổi nó phải xoá entry này ({@code SchoolUserService.assignCampus})
      * @param version     the stamp described on {@link #versionFor(long)}
+     * @param secondFactor đã bật lớp xác thực thứ hai (mã qua email) — {@code AdminPortalGuard} đọc ở mỗi
+     *                    yêu cầu của tài khoản SYSTEM. Bật / tắt phát {@code AuthoritiesChanged} nên có hiệu lực ngay
      * @param loadedAt    when this was read, for the expiry
      */
     public record Entry(
@@ -232,14 +276,17 @@ public class AuthorityCache {
             Set<Long> roleIds,
             Long schoolId,
             Long managingBodyId,
+            Long campusId,
             String version,
+            Instant passwordChangedAt,
+            boolean secondFactor,
             long loadedAt) {
 
-        static Entry of(User user, String policyGeneration) {
+        static Entry of(UserService.AuthorityFacts user, String policyGeneration) {
             // Sorted so the stamp does not depend on the order the database
             // happened to return rows in; two nodes must agree on it.
             List<String> codes = List.copyOf(new TreeSet<>(user.permissionCodes()));
-            List<String> roleCodes = List.copyOf(user.roleCodes());
+            List<String> roleCodes = List.copyOf(new TreeSet<>(user.roleCodes()));
 
             Collection<GrantedAuthority> granted = new ArrayList<>(codes.size() + roleCodes.size());
             for (String permission : codes) {
@@ -249,8 +296,7 @@ public class AuthorityCache {
                 granted.add(new SimpleGrantedAuthority("ROLE_" + role));
             }
 
-            Set<Long> roleIds = new TreeSet<>();
-            user.getRoles().forEach(role -> roleIds.add(role.getId()));
+            Set<Long> roleIds = new TreeSet<>(user.roleIds());
 
             // String.hashCode is specified by the language, so it is the same
             // number on every JVM and every node — which is the property this
@@ -261,8 +307,11 @@ public class AuthorityCache {
             // and this stamp is already on every response. Adding a second
             // header would mean a second thing to expose through CORS and a
             // second silent failure when somebody forgets.
+            // Cơ sở cũng vào dấu: đổi phạm vi cơ sở thì giao diện phải đọc lại /auth/permissions (ẩn / hiện bộ lọc
+            // Cơ sở) dù mã quyền không đổi.
             String stamp = Integer.toHexString(
-                    (String.join(",", codes) + "|" + policyGeneration).hashCode());
+                    (String.join(",", codes) + "|" + policyGeneration
+                            + (user.campusId() == null ? "" : "|c" + user.campusId())).hashCode());
 
             return new Entry(
                     user.canSignIn(),
@@ -270,14 +319,26 @@ public class AuthorityCache {
                     roleCodes,
                     codes,
                     Set.copyOf(roleIds),
-                    user.getSchool() == null ? null : user.getSchool().getId(),
-                    user.getManagingBody() == null ? null : user.getManagingBody().getId(),
+                    user.schoolId(),
+                    user.managingBodyId(),
+                    user.campusId(),
                     stamp,
-                    System.nanoTime());
+                    user.passwordChangedAt(),
+                    user.secondFactor(),
+                    System.nanoTime() + jitter());
         }
 
         boolean isExpired() {
             return System.nanoTime() - loadedAt > TTL.toNanos();
+        }
+
+        /**
+         * Lùi mốc nạp một khoảng ngẫu nhiên tới {@value #JITTER_SECONDS} giây: sau một lần xoá sạch,
+         * mọi tài khoản đang hoạt động nạp lại cùng lúc, và với cùng một hạn chúng lại cùng hết hạn
+         * — cứ mỗi phút một đợt trượt đồng loạt. Rải ra thì hạn đến lần lượt.
+         */
+        private static long jitter() {
+            return -ThreadLocalRandom.current().nextLong(Duration.ofSeconds(JITTER_SECONDS).toNanos());
         }
     }
 }

@@ -32,7 +32,12 @@ type FormFieldContextValue<
 const RequiredFieldsContext = React.createContext<ReadonlySet<string>>(new Set());
 
 function RequiredFieldsProvider({ names, children }: { names: ReadonlySet<string>; children: React.ReactNode }) {
-  return <RequiredFieldsContext.Provider value={names}>{children}</RequiredFieldsContext.Provider>;
+  // Trang lập phiếu dựng tập này lại ở mỗi lần vẽ (mỗi phím gõ): giữ nguyên định danh khi NỘI DUNG không đổi,
+  // nếu không mọi nhãn trên form vẽ lại theo từng phím.
+  const key = [...names].sort().join("|");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const value = React.useMemo(() => names, [key]);
+  return <RequiredFieldsContext.Provider value={value}>{children}</RequiredFieldsContext.Provider>;
 }
 
 /** `rules.required` có thể là chuỗi lời nhắc, `true`, hoặc `{ value, message }`. */
@@ -48,15 +53,74 @@ const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue
 );
 
+type Validator = (value: unknown, values: unknown) => unknown;
+
+/** Ô trống theo đúng nghĩa `required` của react-hook-form (ô dùng Controller, không phải checkbox thật). */
+const isEmptyValue = (v: unknown) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
+
+function requiredMessage(required: unknown): string {
+  if (typeof required === "string") return required;
+  if (required && typeof required === "object" && "message" in required) {
+    return String((required as { message?: unknown }).message ?? "");
+  }
+  return "";
+}
+
+/**
+ * Luật `required` / `validate` đọc theo lần vẽ MỚI NHẤT.
+ *
+ * react-hook-form chỉ đăng ký `rules` của Controller một lần lúc ô gắn vào form (và gộp chứ không thay), nên
+ * ô bắt buộc theo điều kiện — `required={loại phòng là bộ môn}` — giữ mãi luật của lần đầu: chọn loại bộ môn
+ * rồi đổi về phòng học thường, dấu * mất mà lưu vẫn báo "Chọn môn". Ở đây hai luật đó đi qua một hàm
+ * `validate` cố định, hàm này đọc luật hiện tại qua ref; các luật khác (min, max, pattern…) giữ nguyên.
+ */
+function useLiveRules(rules: ControllerProps["rules"]) {
+  const latest = React.useRef(rules);
+  latest.current = rules;
+  // Ổn định suốt đời ô: react-hook-form chỉ đăng ký một lần, phần thay đổi đi qua ref.
+  const [stable] = React.useState(() => {
+    const run = (value: unknown, values: unknown): unknown => {
+      const r = latest.current as { required?: unknown; validate?: Validator | Record<string, Validator> } | undefined;
+      if (rulesRequire(r) && isEmptyValue(value)) return requiredMessage(r?.required) || false;
+      const v = r?.validate;
+      if (!v) return true;
+      const fns = typeof v === "function" ? [v] : Object.values(v);
+      for (let i = 0; i < fns.length; i++) {
+        const res = fns[i](value, values);
+        if (res instanceof Promise) {
+          // Có luật bất đồng bộ: chạy tiếp phần còn lại theo thứ tự.
+          return (async () => {
+            const first = await res;
+            if (first !== true && first !== undefined) return first;
+            for (const fn of fns.slice(i + 1)) {
+              const next = await fn(value, values);
+              if (next !== true && next !== undefined) return next;
+            }
+            return true;
+          })();
+        }
+        if (res !== true && res !== undefined) return res;
+      }
+      return true;
+    };
+    const rest: Record<string, unknown> = { ...(rules ?? {}) };
+    delete rest.required;
+    delete rest.validate;
+    return { ...rest, validate: run } as ControllerProps["rules"];
+  });
+  return stable;
+}
+
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
+  const rules = useLiveRules(props.rules as ControllerProps["rules"]);
   return (
     <FormFieldContext.Provider value={{ name: props.name, required: rulesRequire(props.rules) }}>
-      <Controller {...props} />
+      <Controller {...props} rules={rules as ControllerProps<TFieldValues, TName>["rules"]} />
     </FormFieldContext.Provider>
   );
 };
@@ -72,7 +136,7 @@ const useFormField = () => {
     throw new Error("useFormField should be used within <FormField>");
   }
 
-  const { id } = itemContext;
+  const { id, typing } = itemContext;
 
   return {
     id,
@@ -81,25 +145,43 @@ const useFormField = () => {
     formDescriptionId: `${id}-form-item-description`,
     formMessageId: `${id}-form-item-message`,
     ...fieldState,
+    // Đang gõ trong ô thì chưa báo lỗi (chữ đỏ, viền đỏ) — rời ô mới báo (trưởng nhóm 14/11/2026).
+    error: typing ? undefined : fieldState.error,
   };
 };
 
 type FormItemContextValue = {
   id: string;
+  /** Người dùng đang gõ trong ô này (từ lần gõ đầu tới khi con trỏ rời ô). */
+  typing?: boolean;
 };
 
 const FormItemContext = React.createContext<FormItemContextValue>(
   {} as FormItemContextValue
 );
 
-function FormItem({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Một ô của form. Lỗi của ô KHÔNG hiện khi người dùng đang gõ trong đó — chỉ hiện khi con trỏ rời ô (trưởng nhóm
+ * 14/11/2026). "Đang gõ" tính từ lần gõ đầu (`input`), không từ lúc con trỏ vào ô: lưu hỏng thì form đưa con trỏ tới ô
+ * sai và lỗi vẫn phải hiện ở đó.
+ */
+function FormItem({ className, onInput, onBlur, ...props }: React.ComponentProps<"div">) {
   const id = React.useId();
+  const [typing, setTyping] = React.useState(false);
 
   return (
-    <FormItemContext.Provider value={{ id }}>
+    <FormItemContext.Provider value={{ id, typing }}>
       <div
         data-slot="form-item"
         className={cn("grid gap-2", className)}
+        onInput={(e) => {
+          if (!typing) setTyping(true);
+          onInput?.(e);
+        }}
+        onBlur={(e) => {
+          if (typing && !e.currentTarget.contains(e.relatedTarget as Node | null)) setTyping(false);
+          onBlur?.(e);
+        }}
         {...props}
       />
     </FormItemContext.Provider>

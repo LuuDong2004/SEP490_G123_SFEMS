@@ -118,7 +118,7 @@ export function SignInSchoolPicker({ value, onChange }: { value: SignInSchool | 
           <CommandList className="max-h-80">
             <CommandGroup>
               <CommandItem value="__none__" onSelect={() => pick(null)} className="py-2">
-                {row(!value, <Landmark />, "Sở, UBND hoặc quản trị", "Không thuộc trường — gõ đủ tên đăng nhập")}
+                {row(!value, <Landmark />, "Sở hoặc quản trị", "Không thuộc trường — gõ đủ tên đăng nhập")}
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading={term.trim() ? "Kết quả" : "Trường học"}>

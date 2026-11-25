@@ -38,7 +38,7 @@ export function HelpHint({ children, className, label = "Giải thích" }: {
             setOpen((o) => !o);
           }}
           className={cn(
-            "text-muted-foreground hover:text-primary -my-0.5 inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full align-middle transition-colors",
+            "text-muted-foreground hover:text-primary -mx-1 -my-1.5 inline-flex size-6 shrink-0 cursor-help items-center justify-center rounded-full align-middle transition-colors",
             "focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none",
             className,
           )}

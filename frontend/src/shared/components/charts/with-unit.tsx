@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * Con số kèm ĐƠN VỊ trên dải chỉ số, bảng điều khiển (QLTB-510): "627 thiết bị", "12 phiếu" — một con số
+ * Con số kèm ĐƠN VỊ trên dải chỉ số, bảng điều khiển: "627 thiết bị", "12 phiếu" — một con số
  * trần không nói nó đếm cái gì. Đơn vị nhỏ và mờ hơn số để mắt vẫn bắt vào số trước.
  */
 export function WithUnit({ value, unit }: { value: ReactNode; unit: string }) {

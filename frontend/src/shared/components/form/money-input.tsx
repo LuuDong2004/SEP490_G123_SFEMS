@@ -19,7 +19,14 @@ type Props = Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type"> &
   value: unknown;
   /** Số đồng, hoặc `null` khi ô trống. */
   onChange: (value: number | null) => void;
+  /**
+   * Số lớn nhất nhận được — gõ thêm chữ số làm vượt thì phím đó không ăn (ô không bao giờ chứa số tràn khỏi ô và
+   * tràn cả bảng). Truyền `numberMax("UNIT_PRICE")`…; mặc định 15 chữ số, trần số nguyên chính xác của JavaScript.
+   */
+  maxValue?: number;
 };
+
+const SAFE_MAX = 999_999_999_999_999;
 
 /**
  * Ô nhập số tiền: chèn dấu chấm hàng nghìn ngay khi gõ, nhưng giá trị của form vẫn là SỐ — máy chủ không
@@ -29,7 +36,7 @@ type Props = Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type"> &
  * ký tự — nếu không, gõ vào giữa "1.500.000" là con trỏ nhảy về cuối sau mỗi phím.
  */
 export const MoneyInput = forwardRef<HTMLInputElement, Props>(function MoneyInput(
-  { value, onChange, placeholder = "Nhập số tiền", ...rest },
+  { value, onChange, placeholder = "Nhập số tiền", maxValue = SAFE_MAX, ...rest },
   forwarded,
 ) {
   const inner = useRef<HTMLInputElement | null>(null);
@@ -73,6 +80,8 @@ export const MoneyInput = forwardRef<HTMLInputElement, Props>(function MoneyInpu
         const raw = e.target.value;
         const caret = e.target.selectionStart ?? raw.length;
         const digits = raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+        // Vượt trần: giữ nguyên số cũ (React vẽ lại đúng chữ cũ), không cắt bớt số người dùng vừa dán.
+        if (digits !== "" && Number(digits) > maxValue) return;
         caretDigits.current = Math.min(raw.slice(0, caret).replace(/\D/g, "").length, digits.length);
         onChange(digits === "" ? null : Number(digits));
       }}

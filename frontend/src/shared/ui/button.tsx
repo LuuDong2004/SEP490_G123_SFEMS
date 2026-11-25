@@ -23,8 +23,9 @@ import { cn } from "@/shared/lib/utils";
 const buttonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap",
-    "rounded-md text-sm font-medium",
-    "transition-colors duration-150",
+    // Bo tròn hẳn (viên) như thanh tab và nút chọn — cùng một dáng trên cả app; lún nhẹ khi nhấn cho cảm giác bấm.
+    "rounded-full text-sm font-medium",
+    "transition-[color,background-color,border-color,box-shadow,scale] duration-200 active:scale-[0.97]",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     // `outline-none` suppresses the global `:focus-visible` outline from

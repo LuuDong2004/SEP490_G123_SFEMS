@@ -23,7 +23,7 @@ import { ENUM_CATALOG_RESOURCES } from "@/domains/enum-catalog/types";
  */
 
 /** Hành động mà một mã quyền có thể kết thúc bằng. */
-export type PermissionAction = "read" | "write" | "delete" | "approve" | "export" | "configure";
+export type PermissionAction = "read" | "write" | "delete" | "approve" | "export" | "configure" | "assign_leadership";
 
 /**
  * Refine's six actions, mapped onto the actions the API grants.
@@ -53,8 +53,10 @@ export const ACTION_TO_PERMISSION: Record<string, PermissionAction> = {
   delete: "delete",
   approve: "approve",
   export: "export",
-  /** Khai cấu hình của một nghiệp vụ (vd. tiêu chí minh chứng — `evidence:configure`). */
+  /** Khai cấu hình của một nghiệp vụ (`<tài nguyên>:configure`). */
   configure: "configure",
+  /** Bổ nhiệm / thôi giữ chức vụ lãnh đạo trên hồ sơ nhân viên (`staff:assign_leadership`). */
+  assign_leadership: "assign_leadership",
 };
 
 /**
@@ -85,16 +87,16 @@ const UNGUARDED_RESOURCES = new Set([
 
 /**
  * Màn hình không có tài nguyên riêng mà làm việc trên dữ liệu của tài nguyên
- * khác — in tem và tra cứu đọc thiết bị. Chúng mượn mã quyền của tài nguyên đó
- * thay vì bịa ra `equipment_labels:read` mà không migration nào cấp.
+ * khác — tra cứu hạng mục đọc phòng. Chúng mượn mã quyền của tài nguyên đó
+ * thay vì bịa ra `equipment_lookup:read` mà không migration nào cấp.
  */
 const PERMISSION_ALIASES: Record<string, string> = {
-  equipment_labels: "equipment",
-  equipment_lookup: "equipment",
+  facility_lookup: "rooms",
   // Bảng Chi tiết của màn Thiết bị (và "Thiết bị trong phòng" của hồ sơ phòng) — máy chủ gác bằng `equipment:read`.
   equipment_items: "equipment",
   equipment_adequacy: "purchase_proposals",
   equipment_minimum: "purchase_proposals",
+  // Số lượng tối thiểu: cách xem / sửa khác của các dòng `equipment_norms`.
 };
 
 /**

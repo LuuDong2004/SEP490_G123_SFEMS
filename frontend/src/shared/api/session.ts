@@ -14,6 +14,7 @@
  * access token is short-lived and the refresh token is revocable server-side.
  */
 
+import type { UserType } from "@/domains/portal/types";
 import type { API_URL } from "@/shared/api/constants";
 
 /** Keys are namespaced the same way the theme's are, so one glance at devtools tells you what owns what. */
@@ -42,6 +43,11 @@ export type Identity = {
   username: string;
   email: string;
   fullName: string;
+  /**
+   * Tài khoản quản trị chưa có lớp xác thực thứ hai trong khi cổng Admin bắt buộc (`app.portal.admin-mfa-required`):
+   * máy chủ trả 403 cho mọi API ngoài `/auth/*`, nên giao diện chỉ mở màn bật xác thực qua email.
+   */
+  mfaSetupRequired?: boolean;
 };
 
 /**
@@ -87,6 +93,11 @@ export type Authorities = {
    */
   schoolId?: number | null;
   managingBodyId?: number | null;
+  /**
+   * Phạm vi cơ sở của tài khoản trường: có = chỉ thấy, chỉ sửa dữ liệu của cơ sở này (máy chủ đã lọc); trống = cả
+   * trường. Màn hình ẩn bộ lọc Cơ sở khi đã bị giới hạn.
+   */
+  campusId?: number | null;
 };
 
 /** The token pair as `/api/auth/login` and `/api/auth/refresh` return it. */
@@ -172,6 +183,11 @@ export function getAuthorities(): Authorities | null {
   return readJson<Authorities>(STORAGE_KEYS.authorities);
 }
 
+/** Cơ sở mà tài khoản bị giới hạn trong, hoặc `null` = cả trường. */
+export function getPinnedCampusId(): number | null {
+  return getAuthorities()?.campusId ?? null;
+}
+
 /**
  * Whether this account's view of a resource is narrowed by a data scope.
  *
@@ -194,7 +210,25 @@ export function saveSession(tokens: TokenPair) {
   inFlightAuthorities = null;
 }
 
+/** Ghi lại danh tính sau `GET /auth/me` (vd. vừa bật xác thực qua email) mà không đụng tới token. */
+export function saveIdentity(identity: Identity) {
+  write(STORAGE_KEYS.identity, JSON.stringify(identity));
+}
+
+/** Ai vừa rời phiên trong tab này — màn đăng nhập chỉ đưa về trang cũ (`?to=`) khi đúng người đó đăng nhập lại. */
+const LAST_USER_KEY = "sfems.lastUser";
+
+export function lastSignedOutUser(): string | null {
+  try {
+    return window.sessionStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function clearSession() {
+  // Không có ai đang đăng nhập (Refine `check` gọi lại khi mở trang lúc đã đăng xuất) thì giữ dấu người rời trước.
+  const leaving = getIdentity()?.username ?? lastSignedOutUser();
   remove(STORAGE_KEYS.accessToken);
   remove(STORAGE_KEYS.refreshToken);
   remove(STORAGE_KEYS.identity);
@@ -210,6 +244,7 @@ export function clearSession() {
   // lâu dài (dạng xem, giao diện) ở localStorage thì giữ.
   try {
     window.sessionStorage.clear();
+    if (leaving) window.sessionStorage.setItem(LAST_USER_KEY, leaving);
   } catch {
     // bộ nhớ bị chặn — không có gì để dọn
   }
@@ -226,10 +261,42 @@ export function clearSession() {
  */
 export type Perspective = "school" | "management" | "full";
 
+/**
+ * Loại tài khoản trong access token (claim `userType`, docs/kien-truc/11) — đúng thứ máy chủ dùng để chặn cổng.
+ * Chưa đăng nhập hoặc token cũ chưa có claim → null.
+ */
+export function getUserType(token: string | null = getAccessToken()): UserType | null {
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1];
+    const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    return (json.userType as UserType) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function getPerspective(): Perspective {
+  // Theo loại tài khoản (cổng): Admin chỉ quản trị, trường nhìn trường mình, Sở / UBND nhìn nhiều trường.
+  const type = getUserType();
+  if (type === "SYSTEM") return "full";
+  if (type === "SCHOOL") return "school";
+  if (type === "SO") return "management";
   const authorities = getAuthorities();
   if (authorities?.roles?.includes("ADMIN")) return "full";
   return authorities?.schoolId != null ? "school" : "management";
+}
+
+/**
+ * Màn mở đầu sau khi đăng nhập. Cán bộ thiết bị (chỉ có vai SCHOOL_STAFF) vào thẳng danh sách thiết bị — việc
+ * làm hằng ngày; lãnh đạo, Sở, UBND, quản trị vào Tổng hợp, nơi có việc chờ duyệt và tình hình chung.
+ */
+export function homePath(): string {
+  // Admin chỉ quản trị (docs/kien-truc/11): vào thẳng danh sách người dùng.
+  if (getUserType() === "SYSTEM") return "/users";
+  const roles = getAuthorities()?.roles ?? [];
+  const staffOnly = roles.includes("SCHOOL_STAFF") && !roles.some((r) => r.endsWith("_LEADER") || r === "ADMIN");
+  return staffOnly ? "/equipment" : "/dashboard";
 }
 
 /**

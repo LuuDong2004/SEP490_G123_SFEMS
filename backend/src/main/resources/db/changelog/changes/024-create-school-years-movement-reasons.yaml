@@ -1,0 +1,188 @@
+# Phase 3 danh mục: Năm học và Lý do biến động. Khuôn CatalogEntity chép từ
+# 018, thêm các cột riêng.
+databaseChangeLog:
+  - changeSet:
+      id: 024-create-school-years-movement-reasons
+      author: dth
+      changes:
+        - createTable:
+            tableName: school_years
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_school_years
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_school_years_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: start_date
+                  type: date
+                  constraints:
+                    nullable: false
+              - column:
+                  name: end_date
+                  type: date
+                  constraints:
+                    nullable: false
+              # Tên is_current như bản Jmix: current là từ khoá SQL.
+              - column:
+                  name: is_current
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: school_years
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_school_years_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: school_years
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_school_years_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: school_years
+            indexName: idx_school_years_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        # Database cũng từ chối khoảng ngày ngược, không chỉ service: một dòng
+        # nhập thẳng bằng SQL hay một changelog seed sai không được lọt qua.
+        - sql:
+            sql: >-
+              ALTER TABLE school_years
+              ADD CONSTRAINT ck_school_years_range CHECK (end_date > start_date)
+        # CHỈ MỘT năm học hiện hành. Unique index có điều kiện: mọi dòng
+        # is_current = true đều mang cùng giá trị, nên index chỉ chứa được một.
+        # Liquibase createIndex không diễn đạt được WHERE, nên viết bằng SQL.
+        - sql:
+            sql: >-
+              CREATE UNIQUE INDEX uq_school_years_current
+              ON school_years (is_current) WHERE is_current
+        - createTable:
+            tableName: movement_reasons
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_movement_reasons
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_movement_reasons_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: reason_type
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: movement_reasons
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_movement_reasons_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: movement_reasons
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_movement_reasons_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: movement_reasons
+            indexName: idx_movement_reasons_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createIndex:
+            tableName: movement_reasons
+            indexName: idx_movement_reasons_type
+            columns:
+              - column:
+                  name: reason_type

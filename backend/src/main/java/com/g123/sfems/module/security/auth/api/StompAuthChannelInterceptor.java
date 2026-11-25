@@ -1,11 +1,20 @@
 package com.g123.sfems.module.security.auth.api;
 
+import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.domain.security.user.UserType;
+import com.g123.sfems.module.security.auth.service.AuthorityCache;
 import com.g123.sfems.module.security.auth.service.AuthorizationService;
+import com.g123.sfems.module.security.user.service.UserService;
+import com.g123.sfems.shared.data.rls.RowSecurityDataSource;
+import com.g123.sfems.shared.security.AdminAccessDeniedException;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
+import com.g123.sfems.shared.security.JwtService;
 import java.util.Collection;
+import java.util.Map;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageDeliveryException;
-import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
@@ -65,8 +74,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtDecoder jwtDecoder;
     private final AuthorizationService authorizationService;
+    private final AdminPortalPolicy adminPortal;
+    private final UserService users;
 
-    public StompAuthChannelInterceptor(JwtDecoder jwtDecoder, AuthorizationService authorizationService) {
+    public StompAuthChannelInterceptor(JwtDecoder jwtDecoder, AuthorizationService authorizationService,
+            AdminPortalPolicy adminPortal, @Lazy UserService users) {
+        this.adminPortal = adminPortal;
+        this.users = users;
         this.jwtDecoder = jwtDecoder;
         this.authorizationService = authorizationService;
     }
@@ -112,6 +126,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         Collection<GrantedAuthority> authorities = resolve(token.getSubject());
+        requireAdminIp(token, accessor);
 
         // The principal's name is the user id, because that is what
         // `convertAndSendToUser` matches a message against. Anything else here
@@ -137,6 +152,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
         if (required == null) {
             throw new MessageDeliveryException("Unknown destination");
+        }
+        if (secondFactorMissing(accessor)) {
+            // Cùng luật với AdminPortalGuard bên HTTP: tài khoản quản trị chưa bật xác thực qua email chỉ được phần "của mình".
+            throw new MessageDeliveryException(AdminAccessDeniedException.MFA_MESSAGE);
         }
 
         // Resolved now, not reused from CONNECT. A subscription opened three
@@ -187,6 +206,45 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return null;
         }
         return SELF.equals(segments[2]) ? SELF : segments[2] + ":read";
+    }
+
+    /**
+     * Tài khoản quản trị chỉ mở kết nối từ IP được phép — danh sách chung của khu quản trị và IP riêng của người đó
+     * ({@code user_systems.allowed_ips}), cùng luật với đăng nhập và làm mới token. Kiểm một lần ở CONNECT: kết nối
+     * sống lâu, nhưng máy không đổi IP giữa chừng mà vẫn giữ được cùng một socket.
+     */
+    private void requireAdminIp(Jwt token, StompHeaderAccessor accessor) {
+        if (!UserType.SYSTEM.name().equals(token.getClaimAsString(JwtService.CLAIM_USER_TYPE))) {
+            return;
+        }
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        String ip = attributes == null ? null : (String) attributes.get(ClientIpHandshakeInterceptor.CLIENT_IP);
+        User user;
+        try {
+            user = RowSecurityDataSource.unscoped(() -> users.get(Long.parseLong(token.getSubject())));
+        } catch (RuntimeException e) {
+            throw new MessageDeliveryException("This account is no longer active");
+        }
+        if (!adminPortal.ipAllowed(user, ip)) {
+            throw new MessageDeliveryException(AdminAccessDeniedException.ip().getMessage());
+        }
+    }
+
+    private boolean secondFactorMissing(StompHeaderAccessor accessor) {
+        if (!(accessor.getUser() instanceof JwtAuthenticationToken token)) {
+            return false;
+        }
+        if (!UserType.SYSTEM.name().equals(token.getToken().getClaimAsString(JwtService.CLAIM_USER_TYPE))) {
+            return false;
+        }
+        boolean secondFactor;
+        try {
+            secondFactor = authorizationService.entryOf(Long.parseLong(token.getName()))
+                    .map(AuthorityCache.Entry::secondFactor).orElse(false);
+        } catch (NumberFormatException e) {
+            return true;
+        }
+        return adminPortal.secondFactorMissing(UserType.SYSTEM, secondFactor);
     }
 
     private Collection<GrantedAuthority> resolve(String subject) {

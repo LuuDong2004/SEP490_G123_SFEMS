@@ -43,7 +43,7 @@ export function UndoableNotification({
         "shadow-e4",
         "border",
         "border-border",
-        "min-w-[320px]",
+        "min-w-[20rem]",
         "max-w-md"
       )}
     >

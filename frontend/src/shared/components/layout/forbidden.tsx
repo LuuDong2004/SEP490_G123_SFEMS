@@ -1,8 +1,7 @@
-import { useGo, useTranslate } from "@refinedev/core";
-import { ShieldAlertIcon } from "lucide-react";
+import { useTranslate } from "@refinedev/core";
+import { ShieldAlert } from "lucide-react";
 
-import { Button } from "@/shared/ui/button";
-import { cn } from "@/shared/lib/utils";
+import { StatusScreen } from "@/shared/components/layout/status-screen";
 
 /**
  * What a signed-in user sees when they reach a screen their roles do not cover.
@@ -15,38 +14,14 @@ import { cn } from "@/shared/lib/utils";
  * leads to. The API refuses the same request independently, so this is a
  * courtesy, not the boundary.
  */
-export function Forbidden({ resource }: { resource?: string }) {
-  const go = useGo();
+// `resource` giữ trong chữ ký cho các chỗ gọi cũ; câu phụ không còn nêu tên màn (là mã kỹ thuật, vd. data_imports).
+export function Forbidden(props: { resource?: string }) {
+  void props;
   const t = useTranslate();
-
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-4",
-        "min-h-[60vh] px-6 text-center",
-        "screen-enter"
-      )}
-    >
-      <div className="bg-muted text-muted-foreground rounded-full p-4">
-        <ShieldAlertIcon className="size-8" />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {t("pages.error.forbiddenTitle", "You do not have access to this page")}
-        </h1>
-        <p className="text-muted-foreground max-w-md text-sm">
-          {resource
-            ? t("pages.error.forbiddenDescriptionResource", { resource }, `Your roles do not include permission to view ${resource}.`)
-            : t("pages.error.forbiddenDescription", "Your roles do not include permission to view this page.")}{" "}
-          {t("pages.error.forbiddenAskAdmin", "Ask an administrator if you need it.")}
-        </p>
-      </div>
-
-      <Button variant="outline" onClick={() => go({ to: "/" })}>
-        {t("pages.error.forbiddenBack", "Back to the dashboard")}
-      </Button>
-    </div>
+    <StatusScreen code="403" icon={<ShieldAlert />}
+      title={t("pages.error.forbiddenTitle", "You do not have access to this page")}
+      description={t("pages.error.forbiddenAskAdmin", "Ask an administrator if you need it.")} />
   );
 }
 

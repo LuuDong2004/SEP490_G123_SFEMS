@@ -45,7 +45,12 @@ async function get<T>(path: string): Promise<T> {
   return kyInstance.get(`notifications/${path}`).json<T>();
 }
 
-export function useNotifications() {
+/**
+ * `live`: gắn kênh trực tiếp (cộng số chưa đọc, hiện toast). CHỈ chuông trên
+ * header bật nó — hook còn được gọi ở màn Thông báo, và hai handler cùng chạy
+ * cho một tin thì số chưa đọc tăng 2.
+ */
+export function useNotifications({ live = false }: { live?: boolean } = {}) {
   const queryClient = useQueryClient();
   const { open } = useNotification();
 
@@ -73,7 +78,7 @@ export function useNotifications() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !live) return;
 
     return subscribe(NOTIFICATIONS, (body) => {
       const arrived = body as Notification;
@@ -82,13 +87,17 @@ export function useNotifications() {
       // the server for a list that is about to say the same thing would put a
       // request in the path of every notification — which is the cost this
       // channel exists to avoid.
+      // Tin đã có trong danh sách (giao lại sau khi kết nối lại) thì không đếm lần nữa.
+      const seen = (queryClient.getQueryData<Notification[]>(RECENT_KEY) ?? []).some((n) => n.id === arrived.id);
       queryClient.setQueryData<Notification[]>(RECENT_KEY, (current) => {
         const rest = (current ?? []).filter((n) => n.id !== arrived.id);
         return [arrived, ...rest].slice(0, 20);
       });
-      queryClient.setQueryData<{ unread: number }>(UNREAD_KEY, (current) => ({
-        unread: (current?.unread ?? 0) + 1,
-      }));
+      if (!seen && !arrived.read) {
+        queryClient.setQueryData<{ unread: number }>(UNREAD_KEY, (current) => ({
+          unread: (current?.unread ?? 0) + 1,
+        }));
+      }
 
       // The same toast the rest of the app uses, so a notification looks like
       // everything else that has ever appeared in that corner.
@@ -99,7 +108,7 @@ export function useNotifications() {
         key: `notification-${arrived.id}`,
       });
     });
-  }, [enabled, queryClient, open]);
+  }, [enabled, live, queryClient, open]);
 
   const markRead = useCallback(
     async (id: number) => {

@@ -13,18 +13,21 @@ import {
 import {
   applyColorPreset,
   applyDensity,
+  applyMotion,
   applyMode,
   applyRadius,
   applySidebarTone,
   DEFAULTS,
   getStoredColorPreset,
   getStoredDensity,
+  getStoredMotion,
   getStoredMode,
   getStoredRadius,
   getStoredSidebarTone,
   resolveMode,
   type ColorPreset,
   type Density,
+  type Motion,
   type Radius,
   type ResolvedMode,
   type SidebarTone,
@@ -49,6 +52,9 @@ type ThemeProviderState = {
 
   density: Density;
   setDensity: (density: Density) => void;
+
+  motion: Motion;
+  setMotion: (motion: Motion) => void;
 
   /** Back to the shipped defaults (navy / system / md / dark rail / cozy). */
   reset: () => void;
@@ -99,6 +105,7 @@ export function ThemeProvider({
   const [density, setDensityState] = useState<Density>(
     () => getStoredDensity(defaultDensity)
   );
+  const [motion, setMotionState] = useState<Motion>(() => getStoredMotion());
   const [resolvedMode, setResolvedMode] = useState<ResolvedMode>(() =>
     resolveMode(mode)
   );
@@ -111,6 +118,7 @@ export function ThemeProvider({
     applyRadius(radius);
     applySidebarTone(sidebarTone);
     applyDensity(density);
+    applyMotion(motion);
     setResolvedMode(resolveMode(mode));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -128,6 +136,15 @@ export function ThemeProvider({
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, [mode]);
+
+  // "Theo máy": Windows bật / tắt hiệu ứng lúc đang mở app thì đổi theo ngay.
+  useEffect(() => {
+    if (motion !== "system" || !window.matchMedia) return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => applyMotion("system");
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [motion]);
 
   const setMode = useCallback((next: ThemeMode) => {
     applyMode(next);
@@ -155,13 +172,19 @@ export function ThemeProvider({
     setDensityState(next);
   }, []);
 
+  const setMotion = useCallback((next: Motion) => {
+    applyMotion(next);
+    setMotionState(next);
+  }, []);
+
   const reset = useCallback(() => {
     setMode(DEFAULTS.mode);
     setColorPreset(DEFAULTS.colorPreset);
     setRadius(DEFAULTS.radius);
     setSidebarTone(DEFAULTS.sidebarTone);
     setDensity(DEFAULTS.density);
-  }, [setColorPreset, setDensity, setMode, setRadius, setSidebarTone]);
+    setMotion(DEFAULTS.motion);
+  }, [setColorPreset, setDensity, setMode, setMotion, setRadius, setSidebarTone]);
 
   const value = useMemo<ThemeProviderState>(
     () => ({
@@ -176,6 +199,8 @@ export function ThemeProvider({
       setSidebarTone,
       density,
       setDensity,
+      motion,
+      setMotion,
       reset,
       theme: mode,
       setTheme: setMode,
@@ -192,6 +217,8 @@ export function ThemeProvider({
       setSidebarTone,
       density,
       setDensity,
+      motion,
+      setMotion,
       reset,
     ]
   );

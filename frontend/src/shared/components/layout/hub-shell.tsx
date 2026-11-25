@@ -112,8 +112,8 @@ function HubRow({ item, label, active, withCount }: { item: TreeMenuItem; label:
       to={item.route!}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors [&_svg]:size-4",
-        active ? "bg-primary/10 text-primary font-medium shadow-[inset_2px_0_0_var(--primary)]" : "text-foreground hover:bg-muted/70"
+        "flex h-8 items-center gap-2 rounded-lg px-2 text-sm transition-colors [&_svg]:size-4",
+        active ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted/70"
       )}
     >
       <span className={cn("shrink-0", active ? "text-primary" : "text-muted-foreground")}>{item.meta?.icon as React.ReactNode}</span>
@@ -142,7 +142,7 @@ function CountBadge({ resource, extra }: { resource: string; extra?: { field: st
   const total = result?.total;
   if (total === undefined) return null;
   if (total === 0) {
-    return <span className="bg-warning-subtle text-warning-text shrink-0 rounded px-1.5 text-[11px] font-medium">trống</span>;
+    return <span className="bg-warning-subtle text-warning-text shrink-0 rounded px-1.5 text-[0.6875rem] font-medium">trống</span>;
   }
   return <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{total}</span>;
 }

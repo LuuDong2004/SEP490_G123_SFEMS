@@ -37,4 +37,14 @@ public class CallerSchoolLevel {
         return jdbc.query("SELECT education_level_id FROM schools WHERE id = ?",
                 rs -> rs.next() ? (Long) rs.getObject(1, Long.class) : null, visible.iterator().next());
     }
+
+    /** Như {@link #educationLevelId()} nhưng trả MÃ cấp (TH, THCS, THPT) — cho danh mục lưu cấp bằng mã. */
+    public String educationLevelCode() {
+        Long id = educationLevelId();
+        if (id == null) {
+            return null;
+        }
+        return jdbc.query("SELECT code FROM education_levels WHERE id = ?",
+                rs -> rs.next() ? rs.getString(1) : null, id);
+    }
 }

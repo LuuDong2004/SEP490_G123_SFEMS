@@ -30,6 +30,8 @@ export type DataTableQuickFilterProps<TData extends BaseRecord> = {
    */
   debounceMs?: number;
   className?: string;
+  /** Bấm Enter trong ô (vd. màn Thiết bị: gõ đúng một mã thiết bị thì mở thẳng hồ sơ). */
+  onEnter?: (value: string) => void;
 };
 
 export function DataTableQuickFilter<TData extends BaseRecord>({
@@ -38,6 +40,7 @@ export function DataTableQuickFilter<TData extends BaseRecord>({
   searchField = "q",
   debounceMs = 400,
   className,
+  onEnter,
 }: DataTableQuickFilterProps<TData>) {
   const t = useTranslate();
   const { setColumnFilters, getState } = table.reactTable;
@@ -115,6 +118,9 @@ export function DataTableQuickFilter<TData extends BaseRecord>({
         placeholder={placeholder ?? t("table.search.placeholder", "Search by ID or title...")}
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onKeyDown={onEnter ? (event) => {
+          if (event.key === "Enter" && value.trim()) onEnter(value.trim());
+        } : undefined}
       />
       {value && (
         <button

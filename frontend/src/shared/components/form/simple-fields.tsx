@@ -1,5 +1,6 @@
 import type { Control } from "react-hook-form";
 
+import { TimeInput } from "@/shared/components/form/time-input";
 import { DateInput } from "@/shared/components/form/date-input";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { MoneyInput } from "@/shared/components/form/money-input";
@@ -8,8 +9,44 @@ import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Textarea } from "@/shared/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import {
+  dateRules,
+  inputModeOf,
+  maxLengthOf,
+  mergeRules,
+  numberRules,
+  textRules,
+  type DateRule,
+  type NumberRule,
+  type TextRule,
+} from "@/shared/lib/field-rules";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * Kiểu trường chuẩn (`shared/lib/field-rules.ts`) — ô tự có trần độ dài, ký tự cho phép, bàn phím phù hợp và câu
+ * báo lỗi giống hệt máy chủ. `rule` cho ô chữ, `numberRule` cho ô số / tiền, `dateRule` cho ô ngày. `max` chỉ
+ * khai khi cột ngắn hơn trần của kiểu. `rules` riêng của ô (bắt buộc, so với ô khác) vẫn gộp vào.
+ */
+type RuleProps = { rule?: TextRule; max?: number; min?: number; numberRule?: NumberRule };
+
+const ruled = (label: string, rules: any, rule?: TextRule, max?: number, numberRule?: NumberRule, min?: number) =>
+  notBlank(rule ? mergeRules(textRules(rule, label, { max, min }), rules)
+    : numberRule ? mergeRules(numberRules(numberRule, label), rules)
+      : rules);
+
+/** Ô bắt buộc mà chỉ gõ dấu cách cũng tính là trống — báo ngay ở form, không đợi máy chủ trả 422. */
+function notBlank(rules: any) {
+  const required = rules?.required;
+  if (!required) return rules;
+  const message = typeof required === "string" ? required : required?.message ?? "Vui lòng nhập";
+  const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? message : true);
+  const validate = rules.validate;
+  return {
+    ...rules,
+    validate: typeof validate === "function" ? { blank, own: validate } : { blank, ...(validate ?? {}) },
+  };
+}
 
 /**
  * Các ô nhập đơn giản mà form phiếu nào cũng cần — chữ, số, ngày, đoạn văn, chọn
@@ -25,8 +62,9 @@ type Base = {
   className?: string;
 };
 
-export function TextField({ control, name, label, description, rules, className, placeholder, type = "text", step }:
-  Base & {
+export function TextField({ control, name, label, description, rules, className, placeholder, type = "text", step,
+  rule, max, min, numberRule }:
+  Base & RuleProps & {
     placeholder?: string;
     /** `"money"`: số tiền, hiện dấu chấm hàng nghìn khi gõ, giá trị vẫn là số. */
     type?: "text" | "number" | "money" | "time";
@@ -36,7 +74,7 @@ export function TextField({ control, name, label, description, rules, className,
     <FormField
       control={control}
       name={name}
-      rules={rules}
+      rules={ruled(label, rules, rule, max, numberRule ?? (type === "money" ? "MONEY" : undefined), min)}
       render={({ field }) => (
         <FormItem className={className}>
           <FormLabel>{label}</FormLabel>
@@ -44,6 +82,9 @@ export function TextField({ control, name, label, description, rules, className,
             {type === "money" ? (
               <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur}
                 name={field.name} ref={field.ref} placeholder={placeholder} />
+            ) : type === "time" ? (
+              // Ô giờ của dự án (24 giờ, hộp chọn theo theme), không phải ô giờ của trình duyệt.
+              <TimeInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
             ) : (
             <Input
               type={type}
@@ -57,9 +98,12 @@ export function TextField({ control, name, label, description, rules, className,
               ref={field.ref}
               placeholder={placeholder}
               step={step}
+              maxLength={rule ? maxLengthOf(rule, max) : undefined}
+              inputMode={inputModeOf(rule)}
             />
             )}
           </FormControl>
+          {rule && type === "text" ? <LengthCounter value={field.value} max={maxLengthOf(rule, max)} /> : null}
           {description ? <FormHint>{description}</FormHint> : null}
           <FormMessage />
         </FormItem>
@@ -68,12 +112,13 @@ export function TextField({ control, name, label, description, rules, className,
   );
 }
 
-export function DateField({ control, name, label, description, rules, className }: Base) {
+export function DateField({ control, name, label, description, rules, className, dateRule = "ANY" }:
+  Base & { /** `PAST_OR_TODAY` cho việc đã xảy ra (ngày hoá đơn, ngày sinh). */ dateRule?: DateRule }) {
   return (
     <FormField
       control={control}
       name={name}
-      rules={rules}
+      rules={mergeRules(dateRules(dateRule, label), rules)}
       render={({ field }) => (
         <FormItem className={className}>
           <FormLabel>{label}</FormLabel>
@@ -93,8 +138,9 @@ export function DateField({ control, name, label, description, rules, className 
  * khi nằm trong lưới), cao bằng một ô và tự giãn theo chữ gõ vào — không chiếm cả bề ngang thẻ, không
  * cao sẵn ba dòng cho một ô phần lớn để trống.
  */
-export function TextareaField({ control, name, label, description, rules, className, rows = 1, inGrid, placeholder }:
-  Base & {
+export function TextareaField({ control, name, label, description, rules, className, rows = 1, inGrid, placeholder,
+  rule, max, min, boxClassName }:
+  Base & Omit<RuleProps, "numberRule"> & {
     rows?: number;
     placeholder?: string;
     /**
@@ -102,18 +148,22 @@ export function TextareaField({ control, name, label, description, rules, classN
      * "Ghi chú" một dòng đi cùng hàng với ô cuối của lưới, không chiếm riêng một hàng gần như trống.
      */
     inGrid?: boolean;
+    /** Lớp cho chính ô nhập (vd. cao cố định để form vừa một màn). */
+    boxClassName?: string;
   }) {
   return (
     <FormField
       control={control}
       name={name}
-      rules={rules}
+      rules={ruled(label, rules, rule, max, undefined, min)}
       render={({ field }) => (
         <FormItem className={cn(inGrid ? "@md:col-span-2" : "max-w-xl @2xl:max-w-[calc((100%-2rem)*2/3+1rem)] @4xl:max-w-[calc((100%-3rem)/2+1rem)]", className)}>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Textarea rows={rows} placeholder={placeholder} className={rows === 1 ? "min-h-9" : undefined} value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
+            <Textarea rows={rows} placeholder={placeholder} className={cn(rows === 1 && "min-h-9", boxClassName)} value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
+              maxLength={rule ? maxLengthOf(rule, max) : undefined} />
           </FormControl>
+          {rule ? <LengthCounter value={field.value} max={maxLengthOf(rule, max)} /> : null}
           {description ? <FormHint>{description}</FormHint> : null}
           <FormMessage />
         </FormItem>
@@ -154,5 +204,19 @@ export function SelectField({ control, name, label, description, rules, classNam
         </FormItem>
       )}
     />
+  );
+}
+
+/**
+ * Số ký tự đã gõ / trần — chỉ hiện khi đã gõ quá 80% trần, để ô bình thường không thêm chữ thừa. Mọi ô chữ có luật
+ * (`TextField` / `TextareaField` có `rule`) tự có; ô tự dựng đặt nó ngay dưới `FormControl`.
+ */
+export function LengthCounter({ value, max }: { value: unknown; max: number }) {
+  const length = typeof value === "string" ? [...value].length : 0;
+  if (length < max * 0.8) return null;
+  return (
+    <p data-slot="form-counter" className={cn("text-end text-xs tabular-nums", length >= max ? "text-destructive" : "text-muted-foreground")}>
+      {length}/{max}
+    </p>
   );
 }

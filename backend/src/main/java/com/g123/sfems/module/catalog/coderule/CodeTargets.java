@@ -15,7 +15,6 @@ public final class CodeTargets {
             "education_levels",
             "room_types",
             "school_years",
-            "semesters",
             "grades",
             "subject_groups",
             "subjects",

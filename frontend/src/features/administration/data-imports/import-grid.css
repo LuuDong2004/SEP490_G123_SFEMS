@@ -1,0 +1,20 @@
+/* Thanh trượt của lưới nhập dữ liệu: mảnh, luôn hiện, kéo được bằng chuột.
+   Chrome / Firefox đọc `scrollbar-width` + `scrollbar-color`; Safari đọc phần `::-webkit-scrollbar`. */
+.import-grid .dvn-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent) transparent;
+}
+.import-grid .dvn-scroller::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.import-grid .dvn-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.import-grid .dvn-scroller::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  border-radius: 999px;
+}
+.import-grid .dvn-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}

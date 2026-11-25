@@ -1,7 +1,8 @@
 "use client";
 
+import { useLocation } from "react-router";
 import { Fragment, useMemo } from "react";
-import { Home } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import {
   matchResourceFromRoute,
   useBreadcrumb,
@@ -17,8 +18,14 @@ import {
 } from "@/shared/ui/breadcrumb";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 
+/** Tên trên thanh đường dẫn của các màn không thuộc resource nào. */
+const STATIC_CRUMBS: Record<string, string> = {
+  "/profile": "Tài khoản của tôi",
+};
+
 export function Breadcrumb() {
   const Link = useLink();
+  const { pathname } = useLocation();
   const { breadcrumbs } = useBreadcrumb();
   const { resources, resource, action } = useResourceParams();
   const { perspective } = usePerspective();
@@ -35,9 +42,9 @@ export function Breadcrumb() {
       key: "breadcrumb-item-home",
       href: rootRouteResource.matchedRoute ?? "/",
       Component: (
-        <Link to={rootRouteResource.matchedRoute ?? "/"}>
+        <Link to={rootRouteResource.matchedRoute ?? "/"} className="inline-flex size-6 items-center justify-center">
           {rootRouteResource?.resource?.meta?.icon ?? (
-            <Home className="h-4 w-4" />
+            <LayoutDashboard className="h-4 w-4" />
           )}
         </Link>
       ),
@@ -70,23 +77,32 @@ export function Breadcrumb() {
       list.push({
         key: `breadcrumb-item-${i}`,
         href: href ?? "",
-        Component: href ? <Link to={href}>{label}</Link> : <span>{label}</span>,
+        Component: href
+          ? <Link to={href} className="block truncate py-0.5" title={label}>{label}</Link>
+          : <span className="block truncate" title={label}>{label}</span>,
       });
     }
 
     return list;
   }, [breadcrumbs, Link, rootRouteResource, resources, resource, action, perspective]);
 
-  // Chỉ có "Trang chủ" (tổng quan, trang không thuộc resource nào): không có gì để chỉ đường.
-  if (breadCrumbItems.length <= 1) return null;
+  // Màn ngoài cây resource (vd. Tài khoản của tôi) vẫn có tên trên thanh đường dẫn — không để thanh trống.
+  const staticLabel = STATIC_CRUMBS[pathname];
+  const items = breadCrumbItems.length <= 1 && staticLabel
+    ? [...breadCrumbItems, { key: "breadcrumb-item-static", href: pathname, Component: <span className="block truncate" title={staticLabel}>{staticLabel}</span> }]
+    : breadCrumbItems;
+  // Chỉ có "Trang chủ" (tổng quan): không có gì để chỉ đường.
+  if (items.length <= 1) return null;
 
   return (
-    <ShadcnBreadcrumb data-print="hide">
-      <ShadcnBreadcrumbList>
-        {breadCrumbItems.map((item, index) => {
-          if (index === breadCrumbItems.length - 1) {
+    <ShadcnBreadcrumb data-print="hide" className="min-w-0 overflow-hidden">
+      {/* Luôn một hàng trong thanh đầu trang cao cố định: thiếu chỗ thì các mục giữa cắt "…" trước, mục cuối (đang ở đâu)
+          cắt sau cùng; rê chuột xem đủ tên. */}
+      <ShadcnBreadcrumbList className="flex-nowrap whitespace-nowrap">
+        {items.map((item, index) => {
+          if (index === items.length - 1) {
             return (
-              <ShadcnBreadcrumbPage key={item.key}>
+              <ShadcnBreadcrumbPage key={item.key} className="min-w-0">
                 {item.Component}
               </ShadcnBreadcrumbPage>
             );
@@ -94,10 +110,10 @@ export function Breadcrumb() {
 
           return (
             <Fragment key={item.key}>
-              <ShadcnBreadcrumbItem key={item.key}>
+              <ShadcnBreadcrumbItem key={item.key} className={index === 0 ? "shrink-0" : "min-w-8 shrink-[100]"}>
                 {item.Component}
               </ShadcnBreadcrumbItem>
-              <ShadcnBreadcrumbSeparator />
+              <ShadcnBreadcrumbSeparator className="shrink-0" />
             </Fragment>
           );
         })}

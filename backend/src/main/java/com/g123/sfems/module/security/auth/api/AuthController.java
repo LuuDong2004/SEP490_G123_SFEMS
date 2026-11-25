@@ -13,6 +13,7 @@ import com.g123.sfems.shared.security.PasswordPolicy;
 import com.g123.sfems.shared.security.ActivityActor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -50,18 +51,31 @@ public class AuthController {
         this.passwordReset = passwordReset;
     }
 
-    public record ForgotPasswordRequest(String login) {
+    public record ForgotPasswordRequest(
+            @Size(max = 254, message = "Tên đăng nhập hoặc email tối đa 254 ký tự")
+            String login) {
     }
 
-    public record ResetPasswordRequest(String token, String newPassword) {
+    public record ResetPasswordRequest(
+            @Size(max = 512, message = "Mã đặt lại mật khẩu không hợp lệ")
+            String token,
+
+            @Size(max = 128, message = "Mật khẩu tối đa 128 ký tự")
+            String newPassword) {
+    }
+
+    /** Đăng xuất: không đòi token — đăng xuất phải chạy được cả khi token đã chết hoặc không còn. */
+    public record LogoutRequest(
+            @Size(max = 512, message = "Mã làm mới phiên đăng nhập không hợp lệ")
+            String refreshToken) {
     }
 
     /**
-     * Quên mật khẩu (QLTB-509) — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
+     * Quên mật khẩu — MỞ, không cần đăng nhập. Luôn trả cùng một câu, dù tài khoản có tồn tại hay
      * không: form này không được thành chỗ dò tài khoản.
      */
     @PostMapping("/forgot-password")
-    public Map<String, Object> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+    public Map<String, Object> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         passwordReset.request(request.login());
         return Map.of("success", true,
                 "message", "Nếu tài khoản có email, link đặt lại mật khẩu đã được gửi tới đó. Kiểm tra hộp thư trong vài phút.");
@@ -69,7 +83,7 @@ public class AuthController {
 
     /** Đặt mật khẩu mới bằng link trong thư — MỞ; token là thứ chứng minh quyền. */
     @PostMapping("/reset-password")
-    public Map<String, Object> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public Map<String, Object> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         passwordReset.reset(request.token(), PasswordPolicy.strip(request.newPassword()));
         return Map.of("success", true);
     }
@@ -94,7 +108,7 @@ public class AuthController {
         return service.refresh(request.refreshToken(), client(http));
     }
 
-    /** Phiên đăng nhập đang mở của chính mình (QLTB-242). */
+    /** Phiên đăng nhập đang mở của chính mình. */
     @GetMapping("/sessions")
     public List<AuthService.MySession> sessions() {
         return service.mySessions();
@@ -112,11 +126,13 @@ public class AuthController {
         return Map.of("ended", service.endOtherSessions());
     }
 
-    /** IP (qua proxy thì phần đầu của X-Forwarded-For) và trình duyệt của request — ghi lên phiên. */
+    /**
+     * IP và trình duyệt của request — ghi lên phiên. Sau proxy, {@code getRemoteAddr()} đã là IP thật do Tomcat
+     * đọc {@code X-Forwarded-For} từ proxy tin cậy ({@code server.forward-headers-strategy}); đọc thẳng phần đầu
+     * của header là tin chữ client tự khai.
+     */
     static Client client(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        String ip = forwarded != null && !forwarded.isBlank() ? forwarded.split(",")[0].trim() : http.getRemoteAddr();
-        return new Client(ip, http.getHeader("User-Agent"));
+        return new Client(http.getRemoteAddr(), http.getHeader("User-Agent"));
     }
 
     /**
@@ -126,7 +142,7 @@ public class AuthController {
      * every call it makes, and an empty one reads as a failure.
      */
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout(@RequestBody(required = false) RefreshRequest request,
+    public ResponseEntity<Map<String, Object>> logout(@Valid @RequestBody(required = false) LogoutRequest request,
             HttpServletRequest http) {
         ActivityActor.id(http, service.logout(request == null ? null : request.refreshToken()));
         return ResponseEntity.ok(Map.of("success", true));

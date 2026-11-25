@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Khoá tạm sau nhiều lần sai mật khẩu (QLTB-509): sai {@value #MAX_FAILURES} lần liên tiếp thì tài khoản khoá
+ * Khoá tạm sau nhiều lần sai mật khẩu: sai {@value #MAX_FAILURES} lần liên tiếp thì tài khoản khoá
  * 15 phút. Đăng nhập đúng xoá bộ đếm.
  *
  * <p>Lần sai được ghi trong giao dịch RIÊNG ({@code REQUIRES_NEW}): lần đăng nhập ném lỗi làm giao dịch ngoài lùi
- * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code MfaService.verifyForLogin}.
+ * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code EmailMfaService.verifyForLogin}.
  */
 @Service
 @Transactional(readOnly = true)
@@ -42,7 +42,7 @@ public class LoginGuard {
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void recordFailure(Long userId, String message) {
         Instant now = Instant.now();
-        User user = repository.findById(userId).orElse(null);
+        User user = repository.lockById(userId).orElse(null);
         if (user != null) {
             int failures = user.getFailedLoginCount() + 1;
             if (failures >= MAX_FAILURES) {

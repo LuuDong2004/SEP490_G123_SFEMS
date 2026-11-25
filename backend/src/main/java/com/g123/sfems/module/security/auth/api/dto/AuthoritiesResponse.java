@@ -43,6 +43,8 @@ import java.util.List;
  *                    or at none the management screens. Placement, not role
  *                    names, because it is what row-level scopes key on too
  * @param managingBodyId the managing body the account is placed in, or null
+ * @param campusId    phạm vi cơ sở của tài khoản trường, hoặc null = cả trường. Giao diện ẩn bộ lọc / cột Cơ sở
+ *                    khi tài khoản đã bị giới hạn trong một cơ sở
  */
 public record AuthoritiesResponse(
         List<String> roles,
@@ -50,11 +52,12 @@ public record AuthoritiesResponse(
         String version,
         List<String> scopedResources,
         Long schoolId,
-        Long managingBodyId) {
+        Long managingBodyId,
+        Long campusId) {
 
     public static AuthoritiesResponse from(AuthorityCache.Entry entry, List<String> scopedResources) {
         return new AuthoritiesResponse(
                 entry.roles(), entry.permissions(), entry.version(), scopedResources,
-                entry.schoolId(), entry.managingBodyId());
+                entry.schoolId(), entry.managingBodyId(), entry.campusId());
     }
 }

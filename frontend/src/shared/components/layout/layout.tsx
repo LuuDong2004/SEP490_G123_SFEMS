@@ -8,7 +8,8 @@ import { Sidebar } from "@/shared/components/layout/sidebar";
 import { ModuleTabs } from "@/shared/components/layout/module-tabs";
 import { HubShell } from "@/shared/components/layout/hub-shell";
 import { Breadcrumb } from "@/shared/components/layout/breadcrumb";
-import { SecurityReminder } from "@/shared/components/layout/security-reminder";
+import { ScreenErrorBoundary, ServerDownGate } from "@/shared/components/layout/error-guards";
+// import { SecurityReminder } from "@/shared/components/layout/security-reminder";
 import { SidebarInset, SidebarProvider } from "@/shared/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
 
@@ -72,14 +73,20 @@ export function Layout({ children }: PropsWithChildren) {
             "gap-4 px-(--shell-gutter-x) py-(--shell-gutter-y)"
           )}
         >
-          {/* Breadcrumb nằm trên thanh header (md trở lên); màn hẹp header không đủ chỗ nên nó
+          {/* Breadcrumb nằm trên thanh header (lg trở lên); hẹp hơn header không đủ chỗ nên nó
               về đầu trang, trên thanh tab phân hệ. */}
-          <div className="empty:hidden md:hidden">
+          <div className="empty:hidden lg:hidden">
             <Breadcrumb />
           </div>
-          <SecurityReminder />
+          {/* Tạm tắt dải nhắc bảo mật (xác thực qua email, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}
+          {/* <SecurityReminder /> */}
           <ModuleTabs />
-          <HubShell>{children}</HubShell>
+          {/* Màn lỗi thay cho trang trắng (500) và cho vùng "Đang tải…" mãi khi máy chủ không phản hồi (503). */}
+          <ScreenErrorBoundary>
+            <ServerDownGate>
+              <HubShell>{children}</HubShell>
+            </ServerDownGate>
+          </ScreenErrorBoundary>
         </main>
       </SidebarInset>
     </SidebarProvider>

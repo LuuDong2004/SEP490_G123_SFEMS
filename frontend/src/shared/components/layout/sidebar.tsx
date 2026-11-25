@@ -1,14 +1,12 @@
 "use client";
 
-import { initialsOf } from "@/shared/lib/format";
+import { currentPortal } from "@/shared/api/portal";
+import { menuAllows, portalAllows } from "@/domains/portal/types";
 import React from "react";
 import {
   useMenu,
   useLink,
   useRefineOptions,
-  useActiveAuthProvider,
-  useGetIdentity,
-  useLogout,
   usePermissions,
   useResourceParams,
   useTranslate,
@@ -18,11 +16,8 @@ import {
 import {
   ChevronRight,
   ListIcon,
-  LogOutIcon,
   PanelLeftIcon,
-  UserRoundIcon,
 } from "lucide-react";
-import { Link } from "react-router";
 import { permissionFor } from "@/shared/lib/permissions";
 import { usePerspective } from "@/shared/hooks/use-perspective";
 
@@ -53,16 +48,7 @@ import {
   TooltipTrigger,
 } from "@/shared/ui/tooltip";
 import { Button } from "@/shared/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar";
 import { cn } from "@/shared/lib/utils";
-
-type Identity = {
-  fullName?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  avatar?: string;
-};
 
 /* --------------------------------------------------------------------------
    Shared class recipes. Every nav row — link, collapsible trigger, dropdown
@@ -76,9 +62,9 @@ type Identity = {
  * gốc trông bé hơn con, thứ bậc đọc ngược.
  */
 function depthClass(depth: number) {
-  if (depth <= 0) return "text-sm font-semibold";
-  if (depth === 1) return "text-[13px] font-medium";
-  return "text-[13px] font-normal";
+  if (depth <= 0) return "text-[0.9375rem] font-semibold";
+  if (depth === 1) return "text-sm font-medium";
+  return "text-[0.8125rem] font-medium";
 }
 
 function navRowClass({
@@ -91,10 +77,12 @@ function navRowClass({
   depth?: number;
 }) {
   return cn(
-    "group/nav relative flex w-full items-center gap-3 rounded-md",
+    "group/nav relative flex w-full items-center gap-3 rounded-xl",
     depthClass(depth),
-    "transition-colors duration-150",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+    // Lún nhẹ khi nhấn — cùng cảm giác bấm với thanh tab và nút chọn chế độ xem.
+    "transition-[color,background-color,box-shadow,scale] duration-200 active:scale-[0.98]",
+    // Không viền focus (vòng vàng quanh mục vừa bấm trông như lỗi) — bàn phím vẫn thấy mục đang đứng qua nền sáng.
+    "focus-visible:outline-none focus-visible:bg-sidebar-accent/60",
     isCollapsed ? "h-10 justify-center px-0" : depth >= 2 ? "px-3 py-1.5" : "px-3 py-2",
     isSelected
       ? [
@@ -103,13 +91,11 @@ function navRowClass({
           // label instead is what makes an active row read as a link rather
           // than a position — and on the light rail there is no accent that
           // stays legible as body text on a pale surface anyway.
-          "bg-sidebar-accent text-sidebar-accent-foreground nav-active",
+          // Viên nền bo mềm có lớp sáng mép trên và bóng — cùng kiểu viên màu của thanh tab; không còn vạch ở
+          // mép trái (thô cạnh mục bo tròn).
+          "bg-sidebar-accent text-sidebar-accent-foreground nav-active font-semibold",
+          "shadow-[inset_0_1px_0_rgb(255_255_255/.1),0_6px_16px_-6px_rgb(0_0_0/.35)]",
           "[&_svg]:text-sidebar-primary",
-          // The tick in the gutter. It is what survives the row being read
-          // peripherally, when the fill is too quiet to register.
-          "before:absolute before:inset-y-1.5 before:left-0 before:w-[3px]",
-          "before:rounded-r-full before:bg-sidebar-primary",
-          isCollapsed && "before:inset-y-2",
         ]
       : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
   );
@@ -144,6 +130,7 @@ function getIcon(item: TreeMenuItem) {
  */
 export function useAccessibleMenuItems(items: TreeMenuItem[]): TreeMenuItem[] {
   const { data: permissions } = usePermissions<string[]>({});
+  const portal = currentPortal();
 
   return React.useMemo(() => {
     if (!permissions) return items;
@@ -163,11 +150,13 @@ export function useAccessibleMenuItems(items: TreeMenuItem[]): TreeMenuItem[] {
         if (!node.route) return [];
 
         const required = permissionFor(node.name, "list");
-        return !required || permissions.includes(required) ? [node] : [];
+        // Cổng theo loại tài khoản (docs/kien-truc/11): màn cổng này không mở thì không lên menu.
+        if (!menuAllows(portal, node.name, required)) return [];
+        return !required || (permissions.includes(required) && portalAllows(portal, required)) ? [node] : [];
       });
 
     return filter(items);
-  }, [items, permissions]);
+  }, [items, permissions, portal]);
 }
 
 /* --------------------------------------------------------------------------
@@ -246,6 +235,24 @@ export function useManagementMenu(accessible: TreeMenuItem[]): TreeMenuItem[] {
  * Cây menu tài khoản này đang thấy: đã lọc quyền và theo góc nhìn (trường / quản lý / đầy đủ). Thanh bên
  * vẽ nó, ô tìm màn trên thanh đầu trang tìm trong nó — để hai nơi không gợi ý hai bộ màn khác nhau.
  */
+const TOP_ORDER: Record<string, number> = {
+  dashboard: 0,
+  organization: 1,
+  equipment_mgmt: 2,
+  mod_procurement: 6,
+  reports: 8,
+  catalog: 9,
+  administration: 10,
+  notifications: 11,
+};
+function sortTopLevel(items: TreeMenuItem[]): TreeMenuItem[] {
+  // Mục không có trong bảng giữ chỗ tương đối của nó (sau nhóm nghiệp vụ).
+  return items
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => (TOP_ORDER[a.it.name] ?? 7.5) - (TOP_ORDER[b.it.name] ?? 7.5) || a.i - b.i)
+    .map((x) => x.it);
+}
+
 export function useVisibleMenuItems(): TreeMenuItem[] {
   const { menuItems } = useMenu();
   const accessible = useAccessibleMenuItems(menuItems);
@@ -253,7 +260,10 @@ export function useVisibleMenuItems(): TreeMenuItem[] {
   const schoolItems = React.useMemo(() => withoutAudience(accessible, "management"), [accessible]);
   const managementItems = useManagementMenu(accessible);
   // ADMIN (`full`): cây đầy đủ của Refine — mọi phân hệ, mọi mục quản lý — không lọc.
-  return perspective === "management" ? managementItems : perspective === "full" ? accessible : schoolItems;
+  const items = perspective === "management" ? managementItems : perspective === "full" ? accessible : schoolItems;
+  // Thứ tự theo cách làm việc: tổng hợp → hồ sơ trường → các phân hệ nghiệp vụ (thứ tự khai ở modules.tsx) → báo
+  // cáo đọc kết quả → cấu hình (danh mục, quản trị) → thông báo. Góc nhìn quản lý có thứ tự riêng (`mgmt`).
+  return perspective === "management" ? items : sortTopLevel(items);
 }
 
 export function Sidebar() {
@@ -290,7 +300,7 @@ export function Sidebar() {
         ))}
       </ShadcnSidebarContent>
 
-      <SidebarUser isCollapsed={isCollapsed} />
+      <SidebarVersion isCollapsed={isCollapsed} />
     </ShadcnSidebar>
   );
 }
@@ -308,7 +318,7 @@ function SidebarBrand() {
   return (
     <ShadcnSidebarHeader
       className={cn(
-        "h-12 shrink-0 flex-row items-center gap-3 overflow-hidden",
+        "h-14 shrink-0 flex-row items-center gap-3 overflow-hidden",
         "border-b border-r border-sidebar-border p-0",
         isCollapsed ? "justify-center px-2" : "px-4"
       )}
@@ -327,11 +337,11 @@ function SidebarBrand() {
               tách hai dòng: dòng chính là tên ngắn của hệ thống, dòng phụ là
               đơn vị chủ quản. Tên đầy đủ nằm ở tooltip và tiêu đề tab. */}
           <div className="flex min-w-0 flex-1 flex-col gap-0.5" title={typeof title.text === "string" ? title.text : undefined}>
-            <span className="truncate text-[15px] font-bold leading-tight tracking-tight text-sidebar-foreground">
+            <span className="truncate text-base font-bold leading-tight tracking-tight text-sidebar-foreground">
               CSVC &amp; Thiết bị
             </span>
-            <span className="truncate text-[11px] leading-tight text-sidebar-foreground/60">
-              Sở GD&amp;ĐT TP. Hồ Chí Minh
+            <span className="truncate text-xs leading-tight font-medium text-sidebar-foreground/60">
+              Sở GD&amp;ĐT TP.HCM
             </span>
           </div>
 
@@ -368,7 +378,8 @@ function BrandMark({
       className={cn(
         // Logo Sở GD&ĐT TP.HCM (như bản Jmix): huy hiệu tròn trên nền trắng để
         // nổi trên sidebar tối.
-        "flex size-9 shrink-0 items-center justify-center rounded-full bg-white p-0.5",
+        "flex size-10 shrink-0 items-center justify-center rounded-full bg-white p-0.5",
+        "shadow-[0_4px_14px_-4px_rgb(0_0_0/.45)] ring-2 ring-white/20",
         "[&_img]:size-full [&_img]:object-contain"
       )}
     >
@@ -434,7 +445,7 @@ function SidebarItem(props: MenuItemProps) {
     return <SidebarModule {...props} />;
   }
 
-  // Nhóm chỉ còn ĐÚNG MỘT mục sau khi lọc quyền (phía trường: "Trường học & cơ sở vật chất" chỉ có
+  // Nhóm chỉ còn ĐÚNG MỘT mục sau khi lọc quyền (phía trường: "Trường học" chỉ có
   // Tổng quan trường học): một dòng mở thẳng mục đó — xổ ra một danh sách một dòng chỉ thêm một cú bấm.
   const only = (item.children ?? []) as TreeMenuItem[];
   if (only.length === 1 && only[0].route && !(only[0].children ?? []).length) {
@@ -490,7 +501,7 @@ function SidebarGroup({ item, selectedKey, isCollapsed }: MenuItemProps) {
           phải một nhãn overline nhỏ: nó phải nổi hơn mọi thứ nằm dưới nó. */}
       <CollapsibleTrigger className={navRowClass({ depth: 0 })}>
         <NavIcon item={item} />
-        <span className="line-clamp-2 flex-1 text-left leading-snug">
+        <span className="flex-1 truncate text-left leading-snug" title={getDisplayName(item)}>
           {getDisplayName(item)}
         </span>
         <ChevronRight
@@ -537,7 +548,7 @@ function SidebarSubmenu({ item, selectedKey, depth = 0 }: MenuItemProps) {
     <Collapsible defaultOpen={hasSelectedChild} className="group/collapsible">
       <CollapsibleTrigger className={navRowClass({ isCollapsed: false, depth })}>
         <NavIcon item={item} />
-        <span className="line-clamp-2 flex-1 text-left leading-snug">
+        <span className="flex-1 truncate text-left leading-snug" title={getDisplayName(item)}>
           {getDisplayName(item)}
         </span>
         <ChevronRight
@@ -648,12 +659,12 @@ function SidebarLink({ item, selectedKey, isCollapsed, depth = 0 }: MenuItemProp
         <>
           {/* Xuống tối đa 2 dòng thay vì cắt cụt: "Tổ chức và cơ sở vật chất"
               bị cắt thành "Tổ chức và cơ sở vậ…" là mất đúng phần phân biệt. */}
-          <span className="line-clamp-2 flex-1 leading-snug">{label}</span>
+          <span className="flex-1 truncate leading-snug" title={label}>{label}</span>
           {badge != null && (
             <span
               className={cn(
                 "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5",
-                "bg-sidebar-primary/15 text-[10px] font-semibold text-sidebar-primary"
+                "bg-sidebar-primary/15 text-[0.625rem] font-semibold text-sidebar-primary"
               )}
             >
               {badge}
@@ -694,72 +705,20 @@ function NavIcon({
 }
 
 /* --------------------------------------------------------------------------
-   Footer — only rendered when an auth provider can actually identify someone.
+   Footer — phiên bản phần mềm. Tài khoản / đăng xuất ở menu góc trên bên phải.
    -------------------------------------------------------------------------- */
 
-function SidebarUser({ isCollapsed }: { isCollapsed: boolean }) {
-  const authProvider = useActiveAuthProvider();
-  const { data: user } = useGetIdentity<Identity>();
-  const { mutate: logout, isPending: isLoggingOut } = useLogout();
-  const t = useTranslate();
-
-  if (!authProvider?.getIdentity) return null;
-
-  const name = user?.fullName ?? [user?.firstName, user?.lastName].filter(Boolean).join(" ");
-  const avatar = (
-    <Avatar className="size-8 shrink-0">
-      {user?.avatar && <AvatarImage src={user.avatar} alt={name} />}
-      <AvatarFallback className="bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
-        {initialsOf(name)}
-      </AvatarFallback>
-    </Avatar>
-  );
-
+function SidebarVersion({ isCollapsed }: { isCollapsed: boolean }) {
+  const short = [`Phiên bản ${__APP_VERSION__}`, __APP_COMMIT__].filter(Boolean).join(" · ");
+  const full = `${short} · ${__APP_BUILT__}`;
   return (
-    <ShadcnSidebarFooter className="border-r border-t border-sidebar-border p-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            "flex w-full items-center gap-2 rounded-lg p-1.5 text-left",
-            "transition-colors hover:bg-sidebar-accent/60",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-            isCollapsed && "justify-center"
-          )}
-        >
-          {avatar}
-          {!isCollapsed && (
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium text-sidebar-foreground">
-                {name || t("layout.account", "Account")}
-              </span>
-              {user?.email && (
-                <span className="truncate text-xs text-sidebar-foreground/60">
-                  {user.email}
-                </span>
-              )}
-            </div>
-          )}
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent side="top" align="start" className="min-w-52">
-          {name && <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link to="/profile">
-              <UserRoundIcon className="size-4" />
-              <span>{t("layout.yourAccount", "Your account")}</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => logout()}
-            className="text-destructive focus:text-destructive"
-          >
-            <LogOutIcon className="size-4" />
-            <span>{isLoggingOut ? t("buttons.loggingOut", "Logging out…") : t("buttons.logout", "Log out")}</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <ShadcnSidebarFooter className="border-r border-t border-sidebar-border px-3 py-2">
+      <p
+        className={cn("truncate text-[11px] tabular-nums text-sidebar-foreground/50", isCollapsed && "text-center")}
+        title={full}
+      >
+        {isCollapsed ? `v${__APP_VERSION__}` : short}
+      </p>
     </ShadcnSidebarFooter>
   );
 }

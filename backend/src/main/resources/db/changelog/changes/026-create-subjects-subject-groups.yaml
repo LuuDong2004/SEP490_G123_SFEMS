@@ -1,0 +1,277 @@
+# Phase 4 danh mục: Môn học và Tổ chuyên môn.
+#
+# subjects và subject_groups theo khuôn CatalogEntity (chép từ 018).
+# subject_education_levels là bảng CON của môn học: xoá môn thì dòng con đi
+# theo (CASCADE); một môn chỉ xuất hiện một lần ở mỗi cấp (unique).
+# subject_group_subjects là bảng LIÊN KẾT nhiều-nhiều: xoá tổ thì liên kết đi
+# theo (CASCADE), nhưng xoá một môn còn nằm trong tổ bị từ chối (RESTRICT).
+databaseChangeLog:
+  - changeSet:
+      id: 026-create-subjects-subject-groups
+      author: dth
+      changes:
+        - createTable:
+            tableName: subjects
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_subjects
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_subjects_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: teaching_code
+                  type: varchar(32)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: subjects
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_subjects_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: subjects
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_subjects_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: subjects
+            indexName: idx_subjects_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createTable:
+            tableName: subject_education_levels
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_subject_education_levels
+              - column:
+                  name: subject_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: education_level_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject_type
+                  type: varchar(32)
+                  defaultValue: BAT_BUOC
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addUniqueConstraint:
+            tableName: subject_education_levels
+            columnNames: subject_id, education_level_id
+            constraintName: uq_subject_education_levels
+        - addForeignKeyConstraint:
+            baseTableName: subject_education_levels
+            baseColumnNames: subject_id
+            referencedTableName: subjects
+            referencedColumnNames: id
+            constraintName: fk_sel_subject
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: subject_education_levels
+            baseColumnNames: education_level_id
+            referencedTableName: education_levels
+            referencedColumnNames: id
+            constraintName: fk_sel_education_level
+            onDelete: RESTRICT
+        - addForeignKeyConstraint:
+            baseTableName: subject_education_levels
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_sel_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: subject_education_levels
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_sel_updated_by
+            onDelete: SET NULL
+        - createTable:
+            tableName: subject_groups
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_subject_groups
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_subject_groups_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: education_level_id
+                  type: bigint
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: subject_groups
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_subject_groups_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: subject_groups
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_subject_groups_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: subject_groups
+            indexName: idx_subject_groups_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - addForeignKeyConstraint:
+            baseTableName: subject_groups
+            baseColumnNames: education_level_id
+            referencedTableName: education_levels
+            referencedColumnNames: id
+            constraintName: fk_subject_groups_education_level
+            onDelete: RESTRICT
+        - createTable:
+            tableName: subject_group_subjects
+            columns:
+              - column:
+                  name: subject_group_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: subject_group_subjects
+            columnNames: subject_group_id, subject_id
+            constraintName: pk_subject_group_subjects
+        - addForeignKeyConstraint:
+            baseTableName: subject_group_subjects
+            baseColumnNames: subject_group_id
+            referencedTableName: subject_groups
+            referencedColumnNames: id
+            constraintName: fk_sgs_group
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: subject_group_subjects
+            baseColumnNames: subject_id
+            referencedTableName: subjects
+            referencedColumnNames: id
+            constraintName: fk_sgs_subject
+            onDelete: RESTRICT
+        - createIndex:
+            tableName: subject_group_subjects
+            indexName: idx_sgs_subject
+            columns:
+              - column:
+                  name: subject_id

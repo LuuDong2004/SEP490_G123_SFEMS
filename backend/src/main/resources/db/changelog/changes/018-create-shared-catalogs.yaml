@@ -1,0 +1,361 @@
+# Năm danh mục dùng chung có CÙNG hình dạng (CatalogEntity): mã, tên, thứ tự,
+# cờ còn dùng, ghi chú, cộng bốn cột audit của BaseEntity.
+#
+# Một changeset cho cả năm vì chúng là một đơn vị: cùng hình dạng, cùng lớp
+# cha, cùng lớp service/controller chung. Sinh bằng script từ một khuôn duy
+# nhất, nên năm bảng không thể lệch nhau về độ dài cột hay tên ràng buộc.
+databaseChangeLog:
+  - changeSet:
+      id: 018-create-shared-catalogs
+      author: dth
+      changes:
+        - createTable:
+            tableName: equipment_types
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_equipment_types
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_equipment_types_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: equipment_types
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_equipment_types_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: equipment_types
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_equipment_types_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: equipment_types
+            indexName: idx_equipment_types_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createTable:
+            tableName: units
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_units
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_units_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: units
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_units_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: units
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_units_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: units
+            indexName: idx_units_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createTable:
+            tableName: origin_sources
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_origin_sources
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_origin_sources_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: origin_sources
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_origin_sources_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: origin_sources
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_origin_sources_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: origin_sources
+            indexName: idx_origin_sources_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createTable:
+            tableName: acquisition_methods
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_acquisition_methods
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_acquisition_methods_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: acquisition_methods
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_acquisition_methods_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: acquisition_methods
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_acquisition_methods_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: acquisition_methods
+            indexName: idx_acquisition_methods_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name
+        - createTable:
+            tableName: semesters
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_semesters
+              - column:
+                  name: code
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_semesters_code
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: integer
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: varchar(500)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_by_id
+                  type: bigint
+              - column:
+                  name: updated_by_id
+                  type: bigint
+        - addForeignKeyConstraint:
+            baseTableName: semesters
+            baseColumnNames: created_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_semesters_created_by
+            onDelete: SET NULL
+        - addForeignKeyConstraint:
+            baseTableName: semesters
+            baseColumnNames: updated_by_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_semesters_updated_by
+            onDelete: SET NULL
+        - createIndex:
+            tableName: semesters
+            indexName: idx_semesters_sort
+            columns:
+              - column:
+                  name: sort_order
+              - column:
+                  name: name

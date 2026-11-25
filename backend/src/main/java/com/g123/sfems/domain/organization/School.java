@@ -1,5 +1,6 @@
 package com.g123.sfems.domain.organization;
 
+import java.math.BigDecimal;
 import com.g123.sfems.domain.base.BaseEntity;
 import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
 import com.g123.sfems.domain.catalog.ward.Ward;
@@ -166,29 +167,12 @@ public class School extends BaseEntity {
     @Column(name = "primary_color", length = 20)
     private String primaryColor;
 
-    /** Số lớp — cơ sở tính định mức "mỗi lớp một bộ". */
-    @Column(name = "class_count")
-    private Integer classCount;
+    /** Diện tích đất, diện tích xây dựng (m²) — biểu số liệu CSVC, 201. */
+    @Column(name = "land_area", precision = 12, scale = 2)
+    private BigDecimal landArea;
 
-    /** Số học sinh — cơ sở tính định mức theo học sinh. */
-    @Column(name = "student_count")
-    private Integer studentCount;
-
-    public Integer getClassCount() {
-        return classCount;
-    }
-
-    public void setClassCount(Integer classCount) {
-        this.classCount = classCount;
-    }
-
-    public Integer getStudentCount() {
-        return studentCount;
-    }
-
-    public void setStudentCount(Integer studentCount) {
-        this.studentCount = studentCount;
-    }
+    @Column(name = "construction_area", precision = 12, scale = 2)
+    private BigDecimal constructionArea;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -318,5 +302,21 @@ public class School extends BaseEntity {
 
     public void setStatus(OrgStatus status) {
         this.status = status == null ? OrgStatus.ACTIVE : status;
+    }
+
+    public BigDecimal getLandArea() {
+        return landArea;
+    }
+
+    public void setLandArea(BigDecimal landArea) {
+        this.landArea = landArea;
+    }
+
+    public BigDecimal getConstructionArea() {
+        return constructionArea;
+    }
+
+    public void setConstructionArea(BigDecimal constructionArea) {
+        this.constructionArea = constructionArea;
     }
 }

@@ -1,3 +1,5 @@
+import type { UserType } from "@/domains/portal/types";
+
 /**
  * The `users` resource as the API reports it — `UserResponse` on the backend.
  *
@@ -22,6 +24,10 @@ export type User = {
    * là thứ làm cho "UBND chỉ thấy trường trên địa bàn mình" viết ra được.
    */
   managingBody: ManagingBodySummary | null;
+  /** Loại tài khoản — cố định từ lúc tạo (docs/kien-truc/11). */
+  userType: UserType;
+  /** Phần riêng theo loại (bảng con): ô không thuộc loại để null. */
+  profile: UserProfile | null;
   createdAt: string;
   updatedAt: string | null;
   lastLoginAt: string | null;
@@ -46,7 +52,7 @@ export type ManagingBodySummary = {
   id: number;
   code: string;
   name: string;
-  type: "so" | "ubnd" | "khac";
+  type: "so" | "khac";
 };
 
 export type SchoolSummary = {
@@ -70,3 +76,29 @@ export const STATUS_OPTIONS: { label: string; value: UserStatus }[] = [
   { label: "Đã ngưng", value: "inactive" },
   { label: "Bị khoá", value: "locked" },
 ];
+
+/** Chức vụ suy từ vai (`*_LEADER` → LEADER) — chỉ đọc. */
+export type UserPosition = "LEADER" | "STAFF";
+
+/** Mirrors `UserResponse.Profile`. */
+export type UserProfile = {
+  position: UserPosition | null;
+  jobTitle: string | null;
+  workPhone: string | null;
+  note: string | null;
+  superAdmin: boolean | null;
+  allowedIps: string | null;
+};
+
+export const USER_TYPE_LABELS: Record<UserType, string> = {
+  SYSTEM: "Quản trị hệ thống",
+  SO: "Sở GD&ĐT",
+  SCHOOL: "Trường học",
+};
+
+/** Chức vụ đọc theo loại: lãnh đạo Sở / UBND, hiệu trưởng; chuyên viên, cán bộ. */
+export function positionLabel(type: UserType, position: UserPosition | null | undefined): string | null {
+  if (!position) return null;
+  if (type === "SCHOOL") return position === "LEADER" ? "Hiệu trưởng" : "Cán bộ";
+  return position === "LEADER" ? "Lãnh đạo" : "Chuyên viên";
+}

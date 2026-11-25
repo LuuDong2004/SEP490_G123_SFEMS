@@ -1,10 +1,13 @@
 package com.g123.sfems.module.organization.school.api.dto;
 
+import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMin;
 import com.g123.sfems.domain.organization.OrgStatus;
+import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 /**
  * Payload của {@code POST /schools}.
@@ -17,14 +20,11 @@ import jakarta.validation.constraints.Size;
  */
 public record SchoolRequest(
         // Để trống: hệ thống tự cấp theo quy tắc sinh mã "schools" (TR0001…, changelog 093).
-        @Size(max = 64, message = "Mã trường tối đa 64 ký tự")
-        @Pattern(
-                regexp = "^$|^[A-Za-z0-9._-]+$",
-                message = "Mã trường chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối")
+        @Text(value = FieldRule.CODE, label = "Mã trường")
         String code,
 
         @NotBlank(message = "Tên trường là bắt buộc")
-        @Size(max = 255, message = "Tên trường tối đa 255 ký tự")
+        @Text(value = FieldRule.NAME, label = "Tên trường")
         String name,
 
         /**
@@ -68,14 +68,14 @@ public record SchoolRequest(
          * <p>Trống được vì trường vừa khai báo chưa chắc đã có mã trên CSDL
          * ngành. Đây là khoá liên thông, nên khi có thì phải đúng.
          */
-        @Size(max = 20, message = "Mã định danh Bộ GD&ĐT tối đa 20 ký tự")
+        @Text(value = FieldRule.CODE, label = "Mã định danh Bộ GD&ĐT", max = 20)
         String moetCode,
 
         // Tham chiếu tới phường/xã, không phải chữ: @Size trên một record không có bộ kiểm nào và làm
         // MỌI lần tạo / sửa trường đổ 500 (HV000030) — từ hồi ô này còn là chuỗi tên phường.
         WardRef ward,
 
-        @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
+        @Text(value = FieldRule.ADDRESS, label = "Địa chỉ")
         String address,
 
         // Cùng lý do với shortCode: ô màu chưa chọn gửi lên chuỗi rỗng.
@@ -84,11 +84,11 @@ public record SchoolRequest(
                 message = "Màu chủ đạo phải có dạng #RRGGBB")
         String primaryColor,
 
-        @jakarta.validation.constraints.PositiveOrZero(message = "Số lớp không âm")
-        Integer classCount,
+        @DecimalMin(value = "0", message = "Diện tích đất không được âm")
+        BigDecimal landArea,
 
-        @jakarta.validation.constraints.PositiveOrZero(message = "Số học sinh không âm")
-        Integer studentCount,
+        @DecimalMin(value = "0", message = "Diện tích xây dựng không được âm")
+        BigDecimal constructionArea,
 
         OrgStatus status) {
 }

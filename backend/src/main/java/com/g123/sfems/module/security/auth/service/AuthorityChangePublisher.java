@@ -3,7 +3,11 @@ package com.g123.sfems.module.security.auth.service;
 import com.g123.sfems.module.security.auth.api.dto.AuthoritiesResponse;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
+import jakarta.annotation.PreDestroy;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -65,6 +69,16 @@ public class AuthorityChangePublisher {
     // a socket delivery and a fetch leave the client in two different states.
     private final RowLevelSecurity rowLevel;
 
+    /** Số người đẩy liền nhau trước một lần nghỉ {@link #PUSH_PAUSE_MS}. */
+    private static final int PUSH_BATCH = 100;
+    private static final long PUSH_PAUSE_MS = 50;
+
+    /** Một luồng nền duy nhất: các lượt đẩy cho mọi người không chạy chồng lên nhau. */
+    private final ExecutorService pushExecutor = Executors.newSingleThreadExecutor(
+            Thread.ofPlatform().name("authority-push").daemon().factory());
+    private final AtomicBoolean everyoneDirty = new AtomicBoolean();
+    private final AtomicBoolean everyoneRunning = new AtomicBoolean();
+
     public AuthorityChangePublisher(SimpMessagingTemplate messaging,
                                     SimpUserRegistry users,
                                     AuthorizationService authorizationService,
@@ -111,13 +125,64 @@ public class AuthorityChangePublisher {
                 // who that is would mean reading the user feature's table from
                 // here. Telling every account with a socket open on this node
                 // is the same trade the cache makes when it drops everything:
-                // bounded by who is actually connected, and each one is a
-                // memory read.
-                List<SimpUser> connected = List.copyOf(users.getUsers());
-                log.debug("Pushing authority change to {} connected account(s)", connected.size());
-                connected.forEach(user -> send(user.getName()));
+                // bounded by who is actually connected.
+                //
+                // Nhưng KHÔNG chạy trong luồng này: đây là luồng HTTP của người bấm Lưu (hoặc luồng
+                // LISTEN của PostgresEventBus ở node khác), và cache vừa bị xoá sạch nên mỗi người là
+                // một lần nạp lại từ CSDL — 3.600 người là hàng chục giây chặn người bấm Lưu, và chặn
+                // mọi tin huỷ cache khác đang chờ trên bus. Thứ tự vẫn giữ: việc được ĐẶT vào hàng
+                // sau khi cache xoá (@Order 0) và kênh đã báo node khác (@Order 1).
+                requestPushToEveryone();
             }
         }
+    }
+
+    /**
+     * Xếp một lượt đẩy cho mọi người đang kết nối vào luồng nền. Nhiều thay đổi dồn dập (sửa vài
+     * vai liền tay) gộp thành MỘT lượt chạy sau thay đổi cuối: lượt đó đọc quyền mới nhất của mỗi
+     * người, nên các lượt ở giữa không mang gì thêm.
+     */
+    private void requestPushToEveryone() {
+        everyoneDirty.set(true);
+        if (everyoneRunning.compareAndSet(false, true)) {
+            pushExecutor.execute(this::drainEveryone);
+        }
+    }
+
+    private void drainEveryone() {
+        try {
+            while (everyoneDirty.getAndSet(false)) {
+                List<SimpUser> connected = List.copyOf(users.getUsers());
+                log.debug("Pushing authority change to {} connected account(s)", connected.size());
+                int sent = 0;
+                for (SimpUser user : connected) {
+                    try {
+                        send(user.getName());
+                    } catch (RuntimeException e) {
+                        // Một người hỏng không được chặn cả lượt; X-Auth-Version vẫn sửa được họ ở yêu cầu kế tiếp.
+                        log.warn("Could not push authorities to {}", user.getName(), e);
+                    }
+                    // Rải tải: mỗi người là một lần nạp quyền từ CSDL vì cache vừa xoá sạch. Nghỉ ngắn
+                    // sau mỗi lô để lượt đẩy không chiếm pool kết nối của người dùng đang làm việc.
+                    if (++sent % PUSH_BATCH == 0) {
+                        Thread.sleep(PUSH_PAUSE_MS);
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            everyoneRunning.set(false);
+            // Một thay đổi tới đúng lúc vòng trên vừa thoát: nhận lấy nó thay vì để nó nằm đó.
+            if (everyoneDirty.get() && everyoneRunning.compareAndSet(false, true)) {
+                pushExecutor.execute(this::drainEveryone);
+            }
+        }
+    }
+
+    @PreDestroy
+    void shutdown() {
+        pushExecutor.shutdownNow();
     }
 
     /**

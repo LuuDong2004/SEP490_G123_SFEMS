@@ -1,11 +1,32 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import path from "path";
 import { defineConfig } from "vite";
+
+/** Mã commit ngắn của bản đang chạy; ngoài git (vd. build từ tệp nén) thì để trống. */
+function gitCommit(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8")) as { version: string };
+const built = new Date();
+const pad = (n: number) => String(n).padStart(2, "0");
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Phiên bản hiện ở chân thanh bên.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_COMMIT__: JSON.stringify(gitCommit()),
+    __APP_BUILT__: JSON.stringify(`${pad(built.getDate())}/${pad(built.getMonth() + 1)}/${built.getFullYear()}`),
+  },
   // Prefer 5555, but keep the dev server usable when another local instance
   // already owns it. Vite will select the next free port (for example 5556).
   // The backend accepts localhost development-origin patterns accordingly.
@@ -16,6 +37,9 @@ export default defineConfig({
     // Chrome trên Windows lại thử `127.0.0.1` đầu tiên, và trượt: trang báo lỗi
     // kết nối trong khi `curl localhost` vẫn 200, nên trông như lỗi trình duyệt.
     host: "127.0.0.1",
+    // Kết quả Playwright (ảnh, trace, tệp tạm) nằm trong thư mục frontend: Vite thấy tệp mới là tải lại toàn trang
+    // ngay giữa lúc test đang chạy — hộp thoại biến mất, ảnh chụp treo.
+    watch: { ignored: ["**/e2e-results/**", "**/e2e-report/**", "**/e2e-onboarding/**"] },
   },
   resolve: {
     alias: {

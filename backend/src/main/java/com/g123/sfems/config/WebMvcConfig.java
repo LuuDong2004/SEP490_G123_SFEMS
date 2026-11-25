@@ -2,6 +2,7 @@ package com.g123.sfems.config;
 
 import com.g123.sfems.module.security.auth.api.AuthVersionAdvice;
 import com.g123.sfems.shared.web.ListResponse;
+import com.g123.sfems.shared.web.RequestThrottle;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import com.g123.sfems.module.system.activity.ActivityLogInterceptor;
@@ -23,15 +24,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final String[] allowedOrigins;
     private final ActivityLogInterceptor activityLog;
+    private final RequestThrottle throttle;
 
     public WebMvcConfig(@Value("${app.cors.allowed-origins}") String[] allowedOrigins,
-            ActivityLogInterceptor activityLog) {
+            ActivityLogInterceptor activityLog, RequestThrottle throttle) {
         this.allowedOrigins = allowedOrigins;
         this.activityLog = activityLog;
+        this.throttle = throttle;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // Chặn trước: request bị hẹn lại (429) không vào nhật ký hoạt động.
+        registry.addInterceptor(throttle).addPathPatterns("/api/**");
         registry.addInterceptor(activityLog).addPathPatterns("/api/**");
     }
 
@@ -41,8 +46,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                // Content-Disposition: tên tệp khi tải tệp đính kèm hay tệp xuất về.
-                .exposedHeaders(ListResponse.TOTAL_COUNT_HEADER, AuthVersionAdvice.HEADER, "Content-Disposition")
+                // Content-Disposition: tên tệp khi tải tệp đính kèm hay tệp xuất về; Retry-After: hẹn gửi lại khi bị chặn (429).
+                .exposedHeaders(ListResponse.TOTAL_COUNT_HEADER, AuthVersionAdvice.HEADER, "Content-Disposition", "Retry-After")
                 .maxAge(3600);
     }
 }

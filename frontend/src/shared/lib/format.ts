@@ -13,16 +13,17 @@
  * application's decision; the language is fixed with it.
  */
 
+// Ngày số "20/09/2026" (không "20 thg 9, 2026"), giờ đứng SAU ngày: "20/09/2026 08:45".
 const DATE: Intl.DateTimeFormatOptions = {
   year: "numeric",
-  month: "short",
-  day: "numeric",
+  month: "2-digit",
+  day: "2-digit",
 };
 
-const DATE_TIME: Intl.DateTimeFormatOptions = {
-  ...DATE,
+const TIME: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
   minute: "2-digit",
+  hour12: false,
 };
 
 /** The em dash, not an empty cell — a blank reads as a rendering failure. */
@@ -41,7 +42,7 @@ export function formatDateTime(value?: string | null): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? EMPTY
-    : date.toLocaleString("vi-VN", DATE_TIME);
+    : `${date.toLocaleDateString("vi-VN", DATE)} ${date.toLocaleTimeString("vi-VN", TIME)}`;
 }
 
 /** Ngày lịch thuần ("2025-09-05") -> "05/09/2025", không qua `new Date` (múi giờ). */
@@ -49,6 +50,27 @@ export function formatPlainDate(value?: string | null): string {
   if (!value) return "—";
   const [y, m, d] = value.split("-");
   return y && m && d ? `${d}/${m}/${y}` : value;
+}
+
+/** Ngày lịch của một thời điểm theo giờ MÁY người dùng, dạng "YYYY-MM-DD". */
+export function localIsoDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Hôm nay (cộng `offsetDays` ngày), dạng "YYYY-MM-DD", theo giờ địa phương.
+ *
+ * Không dùng `new Date().toISOString().slice(0, 10)`: đó là ngày theo UTC, nên ở
+ * Việt Nam từ 0 giờ tới 7 giờ sáng nó ra ngày HÔM QUA. Gọi lúc cần (lúc form
+ * mount), không chốt vào hằng cấp module — tab mở từ hôm qua sẽ giữ ngày hôm qua.
+ */
+export function todayLocal(offsetDays = 0): string {
+  const date = new Date();
+  if (offsetDays) date.setDate(date.getDate() + offsetDays);
+  return localIsoDate(date);
 }
 
 /**
@@ -101,7 +123,7 @@ export function readableUnit(basis: number, unit: string | null | undefined): { 
 }
 
 /** Số lượng để hiện: ngăn hàng nghìn, phần lẻ tối đa hai chữ số. */
-export const quantityFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+export const quantityFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 
 
 const DIGITS = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];

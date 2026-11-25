@@ -3,6 +3,8 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 
+import { useLiquid } from "@/shared/hooks/use-liquid";
+import { TAB_IDLE, TAB_ITEM, TAB_STRIP } from "@/shared/lib/tab-style";
 import { cn } from "@/shared/lib/utils";
 
 function Tabs({
@@ -18,19 +20,39 @@ function Tabs({
   );
 }
 
+/**
+ * Dải tab cùng kiểu thanh tab phân hệ và nút chọn chế độ xem: khung nhạt bo mềm, tab đang chọn là MỘT viên màu chính bo
+ * tròn trượt kiểu chất lỏng sang tab mới (`useLiquid`). Radix tự đổi `data-state` của tab — dải tab theo dõi thuộc
+ * tính đó để biết lúc nào cho viên màu chạy.
+ */
 function TabsList({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
+  const [tick, setTick] = React.useState(0);
+  const [boxRef, indRef] = useLiquid<HTMLDivElement>(tick, { selector: '[role="tab"][data-state="active"]' });
+  React.useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const mo = new MutationObserver(() => setTick((t) => t + 1));
+    mo.observe(box, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    return () => mo.disconnect();
+  }, [boxRef]);
   return (
     <TabsPrimitive.List
+      ref={boxRef}
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
+        TAB_STRIP, "text-muted-foreground overflow-x-auto [scrollbar-width:none]",
         className
       )}
       {...props}
-    />
+    >
+      <span ref={indRef} aria-hidden
+        className="pill-on pointer-events-none absolute rounded-full opacity-0" />
+      {children}
+    </TabsPrimitive.List>
   );
 }
 
@@ -42,7 +64,10 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-e1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group", TAB_ITEM, TAB_IDLE,
+        // Chữ sáng lên trễ một nhịp, sau khi viên màu trượt tới.
+        "data-[state=active]:pill-on-text data-[state=active]:delay-75 data-[state=active]:hover:bg-transparent",
+        "disabled:pointer-events-none disabled:opacity-50",
         className
       )}
       {...props}

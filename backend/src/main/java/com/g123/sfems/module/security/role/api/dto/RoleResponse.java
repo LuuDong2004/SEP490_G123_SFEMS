@@ -1,5 +1,7 @@
 package com.g123.sfems.module.security.role.api.dto;
 
+import com.g123.sfems.domain.security.permission.PermissionScope;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.domain.security.permission.Permission;
 import com.g123.sfems.domain.security.role.Role;
 import java.util.Comparator;
@@ -18,6 +20,7 @@ public record RoleResponse(
         String name,
         String description,
         boolean systemRole,
+        UserType roleType,
         List<PermissionSummary> permissions) {
 
     /**
@@ -28,10 +31,11 @@ public record RoleResponse(
      * payload part of this endpoint's contract, so widening one would silently
      * widen the other.
      */
-    public record PermissionSummary(Long id, String code, String name) {
+    public record PermissionSummary(Long id, String code, String name, PermissionScope scope) {
 
         static PermissionSummary from(Permission permission) {
-            return new PermissionSummary(permission.getId(), permission.getCode(), permission.getName());
+            return new PermissionSummary(permission.getId(), permission.getCode(), permission.getName(),
+                    permission.getScope());
         }
     }
 
@@ -42,6 +46,7 @@ public record RoleResponse(
                 role.getName(),
                 role.getDescription(),
                 role.isSystemRole(),
+                role.getRoleType(),
                 role.getPermissions().stream()
                         // Sorted by code so the show page and the form list the
                         // grants in a stable order rather than in whatever

@@ -64,31 +64,53 @@ export const VOUCHER_STATUS_VARIANTS: Record<
 };
 
 /**
- * Trạng thái của một TÀI SẢN (`AssetStatus`) — một bảng cho mọi nơi vẽ nhãn trạng thái tài sản (hồ sơ, bảng
- * thiết bị, hộp chọn tài sản, tra cứu): đang dùng xanh, tạm vắng mặt (cho mượn, điều chuyển) xanh dương, đang
- * xử lý kỹ thuật hoặc chờ quyết định vàng, hỏng / mất đỏ, còn lại trung tính.
+ * Trạng thái của một THIẾT BỊ (`AssetStatus`) — một bảng cho mọi nơi vẽ nhãn: đang dùng xanh, mất đỏ, trong
+ * kho trung tính.
  */
 export const ASSET_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   IN_STOCK: "neutral",
   IN_USE: "success",
-  BORROWED: "info",
-  TRANSFERRING: "info",
-  MAINTAINING: "warning",
-  REPAIRING: "warning",
-  WARRANTY: "warning",
-  PENDING_LIQUIDATION: "warning",
-  PENDING_DESTRUCTION: "warning",
-  BROKEN: "destructive",
-  MISSING: "destructive",
   LOST: "destructive",
-  LIQUIDATED: "neutral",
-  DESTROYED: "neutral",
-  USED_UP: "neutral",
 };
 
-/** Tình hình phiếu mượn (QLTB-483): đang mượn · trả một phần · đã trả. Cờ quá hạn đi riêng, màu `destructive`. */
-export const LOAN_PHASE_VARIANTS: Record<"BORROWED" | "PARTIAL" | "RETURNED", BadgeVariant> = {
-  BORROWED: "info",
-  PARTIAL: "warning",
-  RETURNED: "success",
+/** Kết quả chấm chuẩn CSVC (203): đạt xanh, chưa đạt đỏ nhạt, chưa có quy tắc trung tính. */
+export const STANDARD_STATUS_VARIANTS: Record<"PASS" | "FAIL" | "NONE", BadgeVariant> = {
+  PASS: "success",
+  FAIL: "destructive",
+  NONE: "neutral",
+};
+
+/** Loại cơ sở (nhãn ở `domains/facility/types.ts` — `campusKindLabel`): trường chính nổi, phân hiệu / điểm trường trung tính. */
+export const CAMPUS_KIND_VARIANTS: Record<"main" | "branch" | "site", BadgeVariant> = {
+  main: "info",
+  branch: "neutral",
+  site: "neutral",
+};
+
+/** Điều chỉnh của dòng danh mục tối thiểu: được phép là xanh, không được phép trung tính. */
+export const NORM_ADJUSTABLE_VARIANTS: Record<"allowed" | "denied", BadgeVariant> = {
+  allowed: "success",
+  denied: "neutral",
+};
+
+/** Hiệu lực của dòng danh mục tối thiểu: đang hiệu lực xanh; ngừng / hết hiệu lực đỏ. */
+export const NORM_VALIDITY_VARIANTS: Record<"active" | "stopped" | "expired", BadgeVariant> = {
+  active: "success",
+  stopped: "destructive",
+  expired: "destructive",
+};
+
+/** Hồ sơ năm học: Đang khai · Đã chốt (một bước, trưởng nhóm 24/11/2026). */
+export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CLOSED", BadgeVariant> = {
+  DRAFT: "neutral",
+  CLOSED: "success",
+};
+
+/** Kiểu điều chỉnh trường áp dụng (279) — cùng họ màu với mockup danh mục điều chỉnh. */
+export const ADJUST_KIND_VARIANTS: Record<"REDUCE" | "SUBSTITUTE" | "SHARED" | "CHOOSE_IN_GROUP" | "OUTSIDE", BadgeVariant> = {
+  REDUCE: "warning",
+  SUBSTITUTE: "info",
+  SHARED: "success",
+  CHOOSE_IN_GROUP: "secondary",
+  OUTSIDE: "neutral",
 };

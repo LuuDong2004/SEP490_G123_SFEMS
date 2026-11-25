@@ -8,6 +8,46 @@
  * any role granting it, a role's grants do not exist without the catalogue.
  */
 
+import { PORTAL_OF, portalAllows, type UserType } from "@/domains/portal/types";
+
+/** Phạm vi của quyền (docs/kien-truc/11 §11) — `PermissionScope` của máy chủ. */
+export type PermissionScope = "SYSTEM" | "ORGANIZATION" | "COMMON";
+
+export const SCOPE_LABELS: Record<PermissionScope, string> = {
+  SYSTEM: "Quản trị hệ thống",
+  ORGANIZATION: "Nghiệp vụ đơn vị",
+  COMMON: "Dùng chung",
+};
+
+/** Quyền đặt tên khác đoạn đường dẫn gác nó — như `PermissionGrants` của máy chủ. */
+const SEGMENT: Record<string, string> = { staff_accounts: "staff" };
+
+/**
+ * Vai loại `roleType` có mang được quyền này không — như `PermissionGrants.grantable` của máy chủ: vai chỉ mang quyền
+ * mà cổng của loại tài khoản đó mở. Vai quản trị vì vậy chỉ xem, xuất dữ liệu nghiệp vụ (Báo cáo 3 mục 4.4).
+ */
+export function grantable(permission: { code: string; scope: PermissionScope }, roleType: string): boolean {
+  if (permission.scope === "SYSTEM" && roleType !== "SYSTEM") return false;
+  if (permission.code === "school_year_profiles:confirm") return roleType === "SCHOOL";
+  const [resource, action] = permission.code.split(":");
+  return portalAllows(PORTAL_OF[roleType as UserType] ?? null, `${SEGMENT[resource] ?? resource}:${action}`);
+}
+
+/** Phiếu có bước duyệt: một vai không vừa lập vừa duyệt cùng loại phiếu (GBR-07). */
+const VOUCHERS: Record<string, string> = {
+  equipment_intakes: "Phiếu ghi tăng",
+  inventory_sessions: "Phiếu kiểm kê",
+  purchase_proposals: "Đề xuất mua sắm",
+  procurement_plans: "Kế hoạch mua sắm",
+};
+
+/** Tên các loại phiếu mà bộ quyền này vừa lập vừa duyệt; rỗng là hợp lệ. */
+export function selfApproving(codes: Set<string>): string[] {
+  return Object.entries(VOUCHERS)
+    .filter(([r]) => codes.has(`${r}:write`) && codes.has(`${r}:approve`))
+    .map(([, label]) => label);
+}
+
 export type Permission = {
   id: number;
   code: string;
@@ -20,6 +60,8 @@ export type Permission = {
    * because the catalogue is read-only over the API in the first place.
    */
   systemPermission: boolean;
+  /** Loại vai được mang quyền: quản trị / nghiệp vụ đơn vị / dùng chung. */
+  scope: PermissionScope;
 };
 
 /** The three actions every `resource:action` code ends in. */
@@ -70,58 +112,42 @@ const RESOURCE_LABELS: Record<string, string> = {
   education_levels: "Cấp học",
   tasks: "Công việc",
   acquisition_methods: "Hình thức mua sắm",
-  activity_logs: "Nhật ký hoạt động",
-  api_clients: "Khoá API",
+  activity_logs: "Lịch sử đăng nhập",
   buildings: "Khối nhà",
   campuses: "Cơ sở",
-  code_rules: "Mã tự động của danh mục chung",
-  consumption_records: "Phiếu tiêu hao",
-  damage_reports: "Phiếu báo hỏng - sửa chữa",
+  code_rules: "Quy tắc sinh mã của danh mục chung",
   data_transfer: "Nhập / xuất dữ liệu",
-  depreciation_orders: "Bảng tính hao mòn",
-  disposals: "Đề nghị thanh lý - ghi giảm",
   equipment: "Thiết bị",
-  equipment_allocations: "Phiếu cấp phát",
   equipment_catalogs: "Danh mục thiết bị",
   equipment_configs: "Bộ thông số kỹ thuật",
   equipment_intakes: "Phiếu ghi tăng",
-  equipment_loans: "Phiếu mượn - trả",
   equipment_norms: "Định mức thiết bị",
   equipment_standards: "Bộ tiêu chuẩn",
-  equipment_stock: "Tồn kho",
-  equipment_transfers: "Phiếu điều chuyển",
   equipment_types: "Loại thiết bị",
-  facility_works: "Sửa chữa, cải tạo công trình",
   grades: "Khối lớp",
   inventory_campaigns: "Đợt kiểm kê",
   inventory_sessions: "Phiếu kiểm kê",
-  maintenance_orders: "Phiếu bảo dưỡng",
-  maintenance_plans: "Kế hoạch bảo trì",
   movement_reasons: "Lý do biến động",
   origin_sources: "Nguồn hình thành",
   procurement_plans: "Kế hoạch mua sắm",
   purchase_proposals: "Đề xuất mua sắm",
-  repair_orders: "Phiếu sửa chữa, bảo trì",
   reports: "Báo cáo",
-  room_bookings: "Phiếu mượn phòng",
-  room_types: "Loại phòng",
+  room_types: "Loại CSVC",
+  facility_groups: "Khối CSVC",
+  facility_standard_rules: "Chuẩn CSVC",
   rooms: "Phòng",
   school_classes: "Lớp học",
   school_code_rules: "Mã tự tăng của trường",
   school_users: "Tài khoản của trường",
   school_years: "Năm học",
-  semesters: "Học kỳ",
   staff: "Cán bộ",
   staff_accounts: "Tài khoản cán bộ",
-  stock_issues: "Phiếu xuất kho",
-  storage_orders: "Phiếu lưu kho",
   subject_groups: "Tổ chuyên môn",
   subject_teams: "Tổ bộ môn",
   subjects: "Môn học",
-  system_status: "Tình trạng hệ thống",
+  ai_settings: "Cấu hình AI",
   units: "Đơn vị tính",
   wards: "Phường/xã",
-  warranty_claims: "Phiếu bảo hành",
 };
 
 /**

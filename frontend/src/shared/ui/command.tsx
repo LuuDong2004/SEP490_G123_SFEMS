@@ -2,6 +2,7 @@ import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { SearchIcon } from "lucide-react";
 
+import { SEARCH_MAX } from "@/shared/lib/field-rules";
 import { cn } from "@/shared/lib/utils";
 import {
   Dialog,
@@ -19,7 +20,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md",
+        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-[inherit]",
         className
       )}
       {...props}
@@ -46,7 +47,7 @@ function CommandDialog({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
-      <DialogContent
+      <DialogContent size="auto"
         className={cn("overflow-hidden p-0", className)}
         showCloseButton={showCloseButton}
       >
@@ -65,10 +66,13 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-9 items-center gap-2 border-b px-3"
+      // Ô tìm dạng viên nằm trong khung, không phải dải xám kéo hết bề ngang.
+      className="bg-muted/50 focus-within:bg-card focus-within:border-primary/40 m-2 mb-1 flex h-10 items-center gap-2 rounded-full border px-3.5 transition-colors"
     >
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon className="text-muted-foreground size-4 shrink-0" />
+      {/* Ô của Command luôn là ô tìm: mặc định `SEARCH_MAX` ký tự. */}
       <CommandPrimitive.Input
+        maxLength={SEARCH_MAX}
         data-slot="command-input"
         className={cn(
           "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
@@ -88,7 +92,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        "max-h-[18.75rem] scroll-py-1 overflow-x-hidden overflow-y-auto p-1",
         className
       )}
       {...props}
@@ -145,7 +149,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

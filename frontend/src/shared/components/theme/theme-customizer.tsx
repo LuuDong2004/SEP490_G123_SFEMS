@@ -22,6 +22,7 @@ import { cn } from "@/shared/lib/utils";
 import {
   COLOR_PRESETS,
   DENSITY_OPTIONS,
+  MOTION_OPTIONS,
   RADIUS_OPTIONS,
   type SidebarTone,
   type ThemeMode,
@@ -66,6 +67,8 @@ export function ThemeCustomizer({ className }: { className?: string }) {
     setSidebarTone,
     density,
     setDensity,
+    motion,
+    setMotion,
     resolvedMode,
     reset,
   } = useTheme();
@@ -196,12 +199,33 @@ export function ThemeCustomizer({ className }: { className?: string }) {
                   className="h-auto flex-col gap-0.5 py-2"
                 >
                   {option.label}
-                  <span className="text-[10px] font-normal opacity-60">
+                  <span className="text-[0.625rem] font-normal opacity-60">
                     {option.hint}
                   </span>
                 </OptionButton>
               ))}
             </div>
+          </Section>
+
+          <Section label="Hiệu ứng chuyển động">
+            <div className="grid grid-cols-3 gap-2">
+              {MOTION_OPTIONS.map((option) => (
+                <OptionButton
+                  key={option.key}
+                  isActive={motion === option.key}
+                  onClick={() => setMotion(option.key)}
+                  className="h-auto flex-col gap-0.5 py-2"
+                >
+                  {option.label}
+                  <span className="text-[0.625rem] font-normal opacity-60">
+                    {option.hint}
+                  </span>
+                </OptionButton>
+              ))}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Theo máy: Windows tắt hiệu ứng thì giảm. Vòng quay khi đang tải luôn chạy.
+            </p>
           </Section>
 
           <Section label={t("theme.cornerRadius", "Corner radius")}>
@@ -242,7 +266,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+      <span className="text-[0.6875rem] font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </span>
       {children}

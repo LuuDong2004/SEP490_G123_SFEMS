@@ -1,10 +1,13 @@
-import { Refine, type I18nProvider } from "@refinedev/core";
+import { Refine, type I18nProvider, type ResourceProps } from "@refinedev/core";
+import { portalBase } from "@/shared/api/portal";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrowserRouter } from "react-router";
 import routerProvider from "@refinedev/react-router";
 import { AppDocumentTitle } from "@/app/providers/document-title";
 import { dataProvider } from "@/shared/api/data";
+import { queryClient } from "@/shared/api/query-client";
 import { authProvider } from "@/app/providers/auth";
 import { accessControlProvider } from "@/app/providers/access-control";
 import { AuthoritiesSync } from "@/app/providers/authorities-sync";
@@ -15,7 +18,6 @@ import { ThemeProvider } from "@/shared/components/theme/theme-provider";
 // `window.confirm`. This one asks with the application's own dialog, and wraps
 // the routes so a screen that dismisses itself can ask the same question.
 import { UnsavedChangesGuard } from "@/shared/components/form/unsaved-changes-guard";
-import { resources } from "@/app/resources";
 import { AppRoutes } from "@/app/router/routes";
 // Khởi tạo i18next. Import vì hiệu ứng phụ và phải đứng trước mọi component
 // gọi `useTranslation`, nếu không lần vẽ đầu tiên chạy trên một instance chưa
@@ -23,8 +25,22 @@ import { AppRoutes } from "@/app/router/routes";
 import "@/app/providers/i18n";
 import "@/styles/index.css";
 
+/**
+ * `resources` kéo theo registry danh mục (cấu hình + phần riêng của từng màn), nên được tải SAU, song song
+ * với màn đầu tiên — màn đăng nhập không cần chúng. Bắt đầu ngay khi gói chính chạy, không chờ mount.
+ */
+const resourcesModule = import("@/app/resources");
+
 function App() {
   const { t, i18n } = useTranslation();
+  const [resources, setResources] = useState<ResourceProps[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void resourcesModule.then((m) => alive && setResources(m.resources));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /**
    * Refine gọi `translate` theo HAI chữ ký, và cả hai đều có thật trong nền
@@ -56,7 +72,9 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
+    // Gốc router là cổng của tài khoản (`/school`, `/so`, `/ubnd`, `/admin` — docs/kien-truc/11): mọi liên kết
+    // sẵn có trong ứng dụng tự nằm dưới cổng, không phải sửa từng đường dẫn.
+    <BrowserRouter basename={portalBase() || undefined}>
         <ThemeProvider>
           <Refine
             dataProvider={dataProvider}
@@ -74,25 +92,31 @@ function App() {
             // mà không có lỗi nào — nền này chạy như vậy cho tới giờ.
             i18nProvider={i18nProvider}
             routerProvider={routerProvider}
-            resources={resources}
+            resources={resources ?? []}
             options={{
               syncWithLocation: true,
               warnWhenUnsavedChanges: true,
               projectId: "OjKL83-Rc63sQ-E2vtK1",
+              // Refine mặc định gửi một ảnh tới telemetry.refine.dev mỗi lần mở ứng dụng.
+              disableTelemetry: true,
+              // Mặc định truy vấn (đệm, thử lại) — xem `shared/api/query-client.ts`.
+              reactQuery: { clientConfig: queryClient },
               // Drives the sidebar brand block and the document title.
               title: {
-                icon: <img src="/favicon.ico" alt="SFEMS" />,
-                text: "SFEMS",
+                icon: <img src="/logo-so-gddt-hcm.png" alt="Sở GD&ĐT TP.HCM" />,
+                text: "Quản lý cơ sở vật chất và thiết bị trường học",
               },
             }}
           >
             <UnsavedChangesGuard>
-              <AppRoutes />
+              <AppRoutes ready={resources !== null} />
             </UnsavedChangesGuard>
 
             <Toaster />
             <AuthoritiesSync />
-            <AppDocumentTitle />
+            {/* Dựng lại khi `resources` về: tiêu đề chỉ tính theo lần đổi địa chỉ, mà lần tải trang đầu thì
+                địa chỉ đã đứng yên trước khi biết nó thuộc resource nào. */}
+            <AppDocumentTitle key={resources ? "ready" : "loading"} />
           </Refine>
         </ThemeProvider>
     </BrowserRouter>

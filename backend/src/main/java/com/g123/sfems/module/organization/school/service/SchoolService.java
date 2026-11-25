@@ -84,6 +84,24 @@ public class SchoolService {
                 .orElseThrow(() -> new ResourceNotFoundException("School", id));
     }
 
+    /**
+     * Trường tự sửa phần hồ sơ của CHÍNH MÌNH (239): địa chỉ, mã định danh Bộ. Không qua phạm vi ghi của
+     * {@code schools} — bên gọi đã lấy {@code schoolId} từ người gọi, không nhận từ request. Các ô còn lại (tên, mã,
+     * phường, cơ quan quản lý…) quyết định phạm vi dữ liệu và mã tài sản nên vẫn chỉ đi qua {@link #update}.
+     * Ba trạng thái như {@code SchoolPatchRequest}: null là để nguyên, chuỗi rỗng là xoá.
+     */
+    @Transactional
+    public void updateOwnProfile(Long schoolId, String address, String moetCode) {
+        // Đọc qua phạm vi ĐỌC (trường luôn thấy chính mình); không qua phạm vi ghi của `schools` — xem javadoc.
+        School school = get(schoolId);
+        if (address != null) {
+            school.setAddress(trimToNull(address));
+        }
+        if (moetCode != null) {
+            school.setMoetCode(trimToNull(moetCode));
+        }
+    }
+
     /** Trường mà người gọi được SỬA — 404 nếu ngoài phạm vi ghi. */
     public School getWritable(Long id) {
         return repository.findOne(rowLevel.byId(School.class, Action.WRITE, id))
@@ -118,7 +136,10 @@ public class SchoolService {
         if (request.educationLevel() != null && request.educationLevel().id() != null) {
             school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
         }
-        String shortCode = trimToNull(request.shortCode());
+        String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
+        if (shortCode != null) {
+            requireShortCodeAvailable(shortCode, null);
+        }
         school.setShortCode(shortCode == null ? nextShortCode() : shortCode);
         school.setMoetCode(trimToNull(request.moetCode()));
         if (request.ward() != null && request.ward().id() != null) {
@@ -126,8 +147,8 @@ public class SchoolService {
         }
         school.setAddress(trimToNull(request.address()));
         school.setPrimaryColor(trimToNull(request.primaryColor()));
-        school.setClassCount(request.classCount());
-        school.setStudentCount(request.studentCount());
+        school.setLandArea(request.landArea());
+        school.setConstructionArea(request.constructionArea());
         school.setStatus(request.status());
 
         School saved = repository.persist(school);
@@ -138,29 +159,20 @@ public class SchoolService {
     }
 
     /**
-     * Mã hai ký tự kế tiếp còn trống: 01…99, rồi A0…Z9, rồi AA…ZZ. Đây là thành phần TR của mã tài
-     * sản in trên tem, nên chỉ cấp MỘT lần lúc tạo trường — không tự đổi về sau.
+     * Mã hai ký tự kế tiếp còn trống ({@link SchoolShortCodes}). Đây là thành phần TR của mã tài sản in trên
+     * tem, nên chỉ cấp MỘT lần lúc tạo trường — không tự đổi về sau.
      */
     private String nextShortCode() {
-        Set<String> taken = new HashSet<>(repository.findAllShortCodes());
-        String digits = "0123456789";
-        String letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        List<String> candidates = new ArrayList<>();
-        for (int i = 1; i < 100; i++) {
-            candidates.add(String.format("%02d", i));
-        }
-        for (char a : letters.toCharArray()) {
-            for (char d : digits.toCharArray()) {
-                candidates.add("" + a + d);
+        return SchoolShortCodes.next(new HashSet<>(repository.findAllShortCodes()));
+    }
+
+    /** Mã hai ký tự là duy nhất toàn hệ thống: hai trường cùng TR thì sinh trùng mã tài sản (NV-33). */
+    private void requireShortCodeAvailable(String shortCode, Long selfId) {
+        for (School existing : repository.findByShortCode(shortCode)) {
+            if (!existing.getId().equals(selfId)) {
+                throw new ConflictException("Mã hai ký tự %s đang là của %s".formatted(shortCode, existing.getName()));
             }
         }
-        for (char a : letters.toCharArray()) {
-            for (char b : letters.toCharArray()) {
-                candidates.add("" + a + b);
-            }
-        }
-        return candidates.stream().filter(c -> !taken.contains(c)).findFirst()
-                .orElseThrow(() -> new ConflictException("Đã hết mã hai ký tự để cấp cho trường mới"));
     }
 
     /** Quy tắc "schools" bị tắt: vẫn cấp được mã, TR + số lớn nhất đang có + 1. */
@@ -203,7 +215,11 @@ public class SchoolService {
             school.setEducationLevel(level);
         }
         if (request.shortCode() != null) {
-            school.setShortCode(trimToNull(request.shortCode()));
+            String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
+            if (shortCode != null) {
+                requireShortCodeAvailable(shortCode, school.getId());
+            }
+            school.setShortCode(shortCode);
         }
         if (request.moetCode() != null) {
             school.setMoetCode(trimToNull(request.moetCode()));
@@ -218,11 +234,11 @@ public class SchoolService {
         if (request.primaryColor() != null) {
             school.setPrimaryColor(trimToNull(request.primaryColor()));
         }
-        if (request.classCount() != null) {
-            school.setClassCount(request.classCount());
+        if (request.landArea() != null) {
+            school.setLandArea(request.landArea());
         }
-        if (request.studentCount() != null) {
-            school.setStudentCount(request.studentCount());
+        if (request.constructionArea() != null) {
+            school.setConstructionArea(request.constructionArea());
         }
         if (request.status() != null) {
             school.setStatus(request.status());
