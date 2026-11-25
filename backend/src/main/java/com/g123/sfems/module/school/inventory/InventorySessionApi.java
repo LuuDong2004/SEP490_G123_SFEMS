@@ -75,7 +75,9 @@ public final class InventorySessionApi {
             @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255) String note, Map<String, Object> details) {
     }
 
-    public record Summary(int total, int checked, int matched, int missing, int wrongRoom, int surplus) {
+    /** {@code wrongCondition}: thấy nhưng tình trạng khác sổ ({@code Discrepancy.CONDITION}). */
+    public record Summary(int total, int checked, int matched, int missing, int wrongRoom, int wrongCondition,
+            int surplus) {
     }
 
     public record Response(
@@ -91,13 +93,20 @@ public final class InventorySessionApi {
             List<Surplus> surplus,
             int lineCount) {
 
-        public record Line(Long id, Integer lineNo, EquipmentSummary equipment, RefSummary expectedRoom,
+        /**
+         * {@code equipment} trống khi hồ sơ thiết bị đã bị xoá sau khi biên bản duyệt xong (chỉ thiết bị đã Mất), lúc
+         * đó mã và tên đọc từ {@code equipmentCode} / {@code equipmentName} — bản chụp lúc lập phiếu.
+         */
+        public record Line(Long id, Integer lineNo, EquipmentSummary equipment, String equipmentCode,
+                String equipmentName, RefSummary expectedRoom,
                 EquipmentCondition expectedCondition, Boolean found, RefSummary foundRoom,
                 EquipmentCondition foundCondition, Set<Discrepancy> discrepancies, String note,
                 java.util.Map<String, Object> details, BigDecimal expectedQuantity, BigDecimal countedQuantity) {
 
             static Line from(InventoryLine l) {
-                return new Line(l.getId(), l.getLineNo(), EquipmentSummary.of(l.getEquipment()),
+                return new Line(l.getId(), l.getLineNo(),
+                        l.getEquipment() == null ? null : EquipmentSummary.of(l.getEquipment()),
+                        l.getEquipmentCode(), l.getEquipmentName(),
                         RefSummary.of(l.getExpectedRoom()), l.getExpectedCondition(), l.getFound(),
                         RefSummary.of(l.getFoundRoom()), l.getFoundCondition(), l.discrepancies(), l.getNote(),
                     com.g123.sfems.module.school.voucher.VoucherForms.read(l.getDetails()), l.getExpectedQuantity(),
@@ -132,13 +141,14 @@ public final class InventorySessionApi {
             int checked = (int) lines.stream().filter(l -> l.found() != null).count();
             int missing = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.MISSING)).count();
             int wrong = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.WRONG_ROOM)).count();
+            int condition = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.CONDITION)).count();
             int matched = (int) lines.stream().filter(l -> l.found() != null && l.discrepancies().isEmpty()).count();
             int surplus = s.getSurplus().stream().mapToInt(InventorySurplus::getQuantity).sum();
             var campaign = s.getCampaign();
             return new Response(VoucherHeader.of(s, can, actions),
                     campaign == null ? null : new RefSummary(campaign.getId(), null, campaign.getTitle()),
                     s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(),
-                    new Summary(lines.size(), checked, matched, missing, wrong, surplus), lines,
+                    new Summary(lines.size(), checked, matched, missing, wrong, condition, surplus), lines,
                     s.getSurplus().stream().map(Surplus::from).toList(), lines.size());
         }
     }

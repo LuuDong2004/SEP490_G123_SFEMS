@@ -58,7 +58,7 @@ public class ReportService {
          * bản xuất Excel; truy vấn có tính thì cứ tính, chỉ không đưa ra.
          */
         static final Set<String> ASSET_VALUE_COLUMNS = Set.of(
-                "original_value", "remaining_value", "value", "unvalued");
+                "original_value", "value", "unvalued");
 
         public Report {
             columns = columns.stream().filter(c -> !ASSET_VALUE_COLUMNS.contains(c.key())).toList();
@@ -78,8 +78,8 @@ public class ReportService {
     /**
      * @param groups  các chiều tổng hợp báo cáo nhận (tham số {@code group}); rỗng là báo cáo có một hình cố
      *                định. Chiều đầu tiên là mặc định.
-     * @param choices các giá trị của ô chọn riêng của báo cáo (tham số {@code choice}) — vd. trạng thái của
-     *                danh sách thiết bị; rỗng là không có ô đó. Giá trị đầu là mặc định.
+     * @param choices các giá trị của ô chọn riêng của báo cáo (tham số {@code choice}) — vd. loại bảng của
+     *                bảng theo dõi thiết bị; rỗng là không có ô đó. Giá trị đầu là mặc định.
      */
     public record Definition(String name, String title, String description, boolean period, boolean year,
             List<Group> groups, List<Group> choices, List<ReportFilters.Filter> filters) {
@@ -140,6 +140,7 @@ public class ReportService {
 
     private static final Group BY_SCHOOL = new Group("school", "Theo đơn vị");
     private static final Group BY_TYPE = new Group("type", "Theo loại thiết bị");
+    private static final Group BY_CATALOG = new Group("catalog", "Theo thiết bị");
     private static final Group BY_ORIGIN = new Group("origin", "Theo nguồn hình thành");
     private static final Group BY_ROOM_TYPE = new Group("room_type", "Theo loại phòng");
     private static final Group BY_BUILDING = new Group("building", "Chi tiết từng khối nhà");
@@ -151,14 +152,6 @@ public class ReportService {
             new Group("30", "Quá 30 ngày"), new Group("180", "Quá 180 ngày"));
     private static final List<Group> LEDGER_CHOICES = AnalysisReports.LEDGERS.entrySet().stream()
             .map(e -> new Group(e.getKey(), e.getValue()[0])).toList();
-
-    /**
-     * Trạng thái chọn được ở "Danh sách thiết bị theo trạng thái" (tham số {@code choice}) — tập của bộ lọc
-     * trạng thái dùng chung thêm Mất, nên nằm ở {@link ReportFilters}: khoá → trạng thái.
-     */
-    private static final Map<String, String> LIST_STATUSES = ReportFilters.STATUS_SQL;
-
-    private static final List<Group> LIST_CHOICES = ReportFilters.LIST_CHOICES;
 
     /** Thứ tự ở đây là thứ tự trên menu: tài sản, cơ sở vật chất, kiểm kê, biến động, mua sắm, định mức, dữ liệu. */
     public static final List<Definition> DEFINITIONS = List.of(
@@ -175,10 +168,6 @@ public class ReportService {
             new Definition("equipment-by-condition", "Thiết bị theo tình trạng kỹ thuật",
                     "Tình trạng kỹ thuật ghi trên hồ sơ thiết bị: tốt, trung bình, kém.",
                     false, false, List.of(BY_SCHOOL, BY_TYPE)),
-            new Definition("equipment-list", "Danh sách thiết bị theo trạng thái",
-                    "Từng thiết bị đang ở một trạng thái — trong kho, đang sử dụng, mất — kèm chỗ để, người "
-                            + "quản lý và giá trị.",
-                    false, false, List.of(), LIST_CHOICES),
             new Definition("facilities", "Tổng hợp cơ sở vật chất",
                     "Điểm trường, khối nhà, phòng, diện tích và tình trạng phòng — theo đơn vị "
                             + "hoặc loại phòng; hoặc liệt kê từng khối nhà, từng phòng đang có.",
@@ -204,9 +193,10 @@ public class ReportService {
             new Definition("movements", "Tăng, giảm thiết bị",
                     "Thiết bị ghi tăng và thiết bị ghi mất qua kiểm kê trong kỳ, theo tháng.",
                     true, false, List.of()),
-            new Definition("purchase", "Tổng hợp nhu cầu mua sắm",
-                    "Đề xuất mua sắm của năm ngân sách — theo đơn vị hoặc loại thiết bị.",
-                    false, true, List.of(BY_SCHOOL, BY_TYPE)),
+            new Definition("purchase", "Nhu cầu và kế hoạch mua sắm",
+                    "Đề xuất mua sắm của năm ngân sách: số đề xuất, số đã vào kế hoạch, số đã nhập về — theo đơn vị, "
+                            + "loại thiết bị hoặc thiết bị.",
+                    false, true, List.of(BY_SCHOOL, BY_TYPE, BY_CATALOG)),
             new Definition("adequacy", "Mức đáp ứng danh mục thiết bị tối thiểu",
                     "Mỗi trường đạt bao nhiêu định mức, còn thiếu bao nhiêu thiết bị.", false, false, List.of()),
             new Definition("data-quality", "Chất lượng dữ liệu theo trường",
@@ -325,8 +315,6 @@ public class ReportService {
             case "equipment-by-catalog" -> equipmentByCatalog(params);
             case "equipment-by-status" -> equipmentByStatus(params, group);
             case "equipment-by-condition" -> equipmentByCondition(params, group);
-            case "equipment-list" -> equipmentList(params, definition.choices().stream().map(Group::key)
-                    .filter(k -> k.equals(params.choice())).findFirst().orElse("IN_STOCK"));
             case "data-quality" -> dataQuality(params, group);
             case "facilities" -> facilities(params, group);
             case CsvcStatisticsReport.NAME -> csvc.build(params);
@@ -402,8 +390,7 @@ public class ReportService {
                 + ", COUNT(DISTINCT e.school_id) AS schools, COUNT(e.id) AS total,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_USE') AS in_use,"
                 + " COUNT(e.id) FILTER (WHERE e.status = 'IN_STOCK') AS in_stock,"
-                + " COALESCE(SUM(e.original_value), 0) AS original_value,"
-                + " COALESCE(SUM(e.remaining_value), 0) AS remaining_value"
+                + " COALESCE(SUM(e.original_value), 0) AS original_value"
                 + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id" + d.joins()
                 + " WHERE e.status NOT IN" + OFF_BOOK + assets("e", p)
                 + " GROUP BY " + d.groupBy() + " ORDER BY total DESC, name");
@@ -413,8 +400,7 @@ public class ReportService {
         }
         columns.addAll(List.of(col("total", "Tổng số", "number"), col("in_use", "Đang dùng", "number"),
                 col("in_stock", "Trong kho", "number"),
-                col("original_value", "Nguyên giá (đ)", "money"),
-                col("remaining_value", "Giá trị còn lại (đ)", "money")));
+                col("original_value", "Nguyên giá (đ)", "money")));
         return new Report("equipment-by-school", "Tổng hợp thiết bị " + groupTitle(group), subtitle(p, null),
                 columns, rows);
     }
@@ -728,56 +714,81 @@ public class ReportService {
      * Mục 3.5.7: nhu cầu mua sắm theo địa bàn, cấp học, đơn vị hoặc loại thiết bị, trong một năm ngân sách.
      * "Đã vào kế hoạch" là đề xuất đã được một kế hoạch mua sắm duyệt đóng lại ({@code COMPLETED}).
      */
+    /** Đề xuất đã vào kế hoạch: đang nằm trong một kế hoạch (kể cả kế hoạch chưa duyệt), hoặc đã hoàn tất. */
+    private static final String PLANNED = "p.plan_id IS NOT NULL OR p.status = 'COMPLETED'";
+
+    /**
+     * Từng dòng đề xuất: số vào kế hoạch và số đã nhập về. Đã nhập về = cộng các phiếu ghi tăng HOÀN TẤT lập từ đề xuất
+     * theo thiết bị; hai dòng cùng thiết bị thì trừ lần lượt từ dòng trên xuống, không quá số vào kế hoạch — cùng cách
+     * với {@code PurchaseProposalService.intakeLines}. Một tham số: năm ngân sách.
+     */
+    private static final String PURCHASE_PROGRESS = "(SELECT x.line_id, x.planned_quantity,"
+            + " LEAST(x.planned_quantity, GREATEST(0, COALESCE(x.got, 0) - (x.running - x.planned_quantity))) AS received"
+            + " FROM (SELECT l.id AS line_id, q.planned_quantity, rec.got,"
+            + " SUM(q.planned_quantity) OVER (PARTITION BY l.proposal_id, l.catalog_id ORDER BY l.line_no, l.id) AS running"
+            + " FROM purchase_proposals p JOIN purchase_proposal_lines l ON l.proposal_id = p.id"
+            + " CROSS JOIN LATERAL (SELECT CASE WHEN " + PLANNED
+            + " THEN COALESCE(l.planned_quantity, l.quantity) ELSE 0 END AS planned_quantity) q"
+            + " LEFT JOIN (SELECT i.source_id, il.catalog_id, SUM(il.received_quantity) AS got"
+            + " FROM equipment_intakes i JOIN equipment_intake_lines il ON il.intake_id = i.id"
+            + " WHERE i.source_resource = 'purchase_proposals' AND i.status = 'COMPLETED'"
+            + " GROUP BY i.source_id, il.catalog_id) rec ON rec.source_id = p.id AND rec.catalog_id = l.catalog_id"
+            + " WHERE p.budget_year = ?) x)";
+
     private Report purchase(Params p, String group, int year) {
-        boolean byType = "type".equals(group);
-        // Loại thiết bị nằm trên DÒNG đề xuất (qua thiết bị trong danh mục), không trên tài sản.
-        Dim d = byType
-                ? new Dim("COALESCE(et.name, 'Ngoài danh mục')", null,
-                        " LEFT JOIN equipment_catalogs gc ON gc.id = l.catalog_id"
-                                + " LEFT JOIN equipment_types et ON et.id = gc.equipment_type_id ",
-                        "et.id, et.name", "Loại thiết bị")
-                : dim(group);
+        // Loại thiết bị, thiết bị nằm trên DÒNG đề xuất (qua thiết bị trong danh mục), không trên tài sản.
+        Dim d = switch (group) {
+            case "type" -> new Dim("COALESCE(et.name, 'Ngoài danh mục')", null,
+                    " LEFT JOIN equipment_catalogs gc ON gc.id = l.catalog_id"
+                            + " LEFT JOIN equipment_types et ON et.id = gc.equipment_type_id ",
+                    "et.id, et.name", "Loại thiết bị");
+            case "catalog" -> new Dim("gc.name", null,
+                    " LEFT JOIN equipment_catalogs gc ON gc.id = l.catalog_id ", "gc.id, gc.name", "Thiết bị");
+            default -> dim(group);
+        };
         String amount = "l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)";
         String approved = "p.status IN ('APPROVED', 'COMPLETED')";
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT " + d.select()
-                + ", COUNT(DISTINCT p.school_id) AS schools, COUNT(DISTINCT p.id) AS proposals,"
+        String counts = " COUNT(DISTINCT p.id) AS proposals,"
                 + " COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'PENDING') AS pending,"
                 + " COUNT(DISTINCT p.id) FILTER (WHERE " + approved + ") AS approved,"
-                + " COUNT(DISTINCT p.id) FILTER (WHERE p.status = 'COMPLETED') AS planned,"
+                + " COUNT(DISTINCT p.id) FILTER (WHERE " + PLANNED + ") AS planned";
+        String from = " FROM purchase_proposals p JOIN schools s ON s.id = p.school_id"
+                + " LEFT JOIN purchase_proposal_lines l ON l.proposal_id = p.id"
+                + " LEFT JOIN " + PURCHASE_PROGRESS + " done ON done.line_id = l.id";
+        String where = " WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.budget_year = ?"
+                + ReportFilters.sql("l", p) + scope("p.school_id", p) + campusVoucher("purchase_proposals", "p", p);
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT " + d.select()
+                + ", COUNT(DISTINCT p.school_id) AS schools," + counts + ","
                 + " COALESCE(SUM(l.quantity), 0) AS quantity,"
+                + " COALESCE(SUM(done.planned_quantity), 0) AS planned_quantity,"
+                + " COALESCE(SUM(done.received), 0) AS received,"
+                + " COALESCE(SUM(done.planned_quantity - done.received), 0) AS remaining,"
                 + " COALESCE(SUM(" + amount + "), 0) AS amount,"
                 + " COALESCE(SUM(" + amount + ") FILTER (WHERE " + approved + "), 0) AS approved_amount"
-                + " FROM purchase_proposals p JOIN schools s ON s.id = p.school_id"
-                + " LEFT JOIN purchase_proposal_lines l ON l.proposal_id = p.id" + d.joins()
-                + " WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.budget_year = ?"
-                + scope("p.school_id", p) + campusVoucher("purchase_proposals", "p", p)
-                + " GROUP BY " + d.groupBy() + " ORDER BY amount DESC, name", year);
+                + from + d.joins() + where + " GROUP BY " + d.groupBy() + " ORDER BY amount DESC, name", year, year);
+        // Gộp theo loại, theo thiết bị: một đề xuất có ở nhiều nhóm, cộng các dòng lại ra số không có thật.
+        Map<String, Object> totals = jdbc.queryForMap("SELECT" + counts + from + where, year, year);
         List<Column> columns = leadColumns(d);
         if (d.code() == null) {
             columns.add(col("schools", "Số trường", "number"));
         }
         columns.addAll(List.of(col("proposals", "Số đề xuất", "number"), col("pending", "Chờ duyệt", "number"),
                 col("approved", "Đã duyệt", "number"), col("planned", "Đã vào kế hoạch", "number"),
-                col("quantity", "Số lượng đề xuất", "number"), col("amount", "Dự toán (đ)", "money"),
+                col("quantity", "Số lượng đề xuất", "number"),
+                col("planned_quantity", "Số lượng vào kế hoạch", "number"), col("received", "Đã nhập về", "number"),
+                col("remaining", "Còn phải nhập", "number"), col("amount", "Dự toán (đ)", "money"),
                 col("approved_amount", "Dự toán đã duyệt (đ)", "money")));
-        return new Report("purchase", "Tổng hợp nhu cầu mua sắm " + groupTitle(group),
-                subtitle(p, "năm ngân sách " + year), columns, rows);
+        return new Report("purchase", "Nhu cầu và kế hoạch mua sắm " + groupTitle(group),
+                subtitle(p, "năm ngân sách " + year), columns, rows, totals);
     }
 
-    // ------------------------------------------------------------------ trạng thái, tình trạng, danh sách
+    // ------------------------------------------------------------------ trạng thái, tình trạng
 
     /** Nhãn trạng thái tài sản bằng SQL — cùng chữ với {@code ASSET_STATUS_LABELS} ở màn hình. */
     static String statusLabel(String column) {
         return "CASE " + column + " WHEN 'IN_STOCK' THEN 'Trong kho' WHEN 'IN_USE' THEN 'Đang sử dụng'"
                 + " WHEN 'LOST' THEN 'Mất'"
                 + " ELSE " + column + " END";
-    }
-
-    /** Nhãn tình trạng kỹ thuật bằng SQL — cùng chữ với {@code EQUIPMENT_CONDITION_LABELS}. */
-    static String conditionLabel(String column) {
-        return "CASE " + column + " WHEN 'TOT' THEN 'Tốt' WHEN 'TRUNG_BINH' THEN 'Trung bình'"
-                + " WHEN 'KEM' THEN 'Kém'"
-                + " ELSE COALESCE(" + column + ", 'Chưa đánh giá') END";
     }
 
     /** Thêm cột "Số trường" khi gộp theo chiều khác đơn vị — gộp theo đơn vị thì mỗi dòng đã là một trường. */
@@ -824,33 +835,6 @@ public class ReportService {
                 col("unrated", "Chưa đánh giá", "number")));
         return new Report("equipment-by-condition", "Thiết bị theo tình trạng kỹ thuật " + groupTitle(group),
                 subtitle(p, null), columns, rows);
-    }
-
-    /**
-     * Danh sách từng tài sản ở một trạng thái — trong kho, đang sử dụng, mất. Một báo cáo thay cho ba, vì ba
-     * bảng ấy cùng cột và chỉ khác điều kiện.
-     */
-    private Report equipmentList(Params p, String choice) {
-        String label = LIST_CHOICES.stream().filter(g -> g.key().equals(choice)).map(Group::label)
-                .findFirst().orElse(choice);
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT e.id AS equipment_id, s.name AS school, e.code, e.name,"
-                + " c.name AS catalog, r.name AS room, st.name AS manager,"
-                + " " + statusLabel("e.status") + " AS status, " + conditionLabel("e.condition") + " AS condition,"
-                + " e.quantity, e.received_date, e.original_value, e.remaining_value"
-                + " FROM " + equipment(p) + " e JOIN schools s ON s.id = e.school_id"
-                + " LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id"
-                + " LEFT JOIN rooms r ON r.id = e.room_id LEFT JOIN staff st ON st.id = e.manager_id"
-                + " WHERE e.status IN (" + LIST_STATUSES.get(choice) + ")" + assets("e", p)
-                + " ORDER BY s.name, e.code LIMIT " + LIST_LIMIT);
-        return new Report("equipment-list", "Danh sách thiết bị — " + label.toLowerCase(), subtitle(p, null),
-                List.of(col("school", "Trường", "text"), col("code", "Mã thiết bị", "text"),
-                        col("name", "Tên thiết bị", "text"), col("catalog", "DM thiết bị", "text"),
-                        col("room", "Chỗ để", "text"), col("manager", "Người quản lý", "text"),
-                        col("status", "Trạng thái", "text"), col("condition", "Tình trạng", "text"),
-                        col("quantity", "Số lượng", "number"), col("received_date", "Ngày tiếp nhận", "date"),
-                        col("original_value", "Nguyên giá (đ)", "money"),
-                        col("remaining_value", "Giá trị còn lại (đ)", "money")),
-                rows);
     }
 
     /**
@@ -1012,6 +996,7 @@ public class ReportService {
     static String groupTitle(String group) {
         return switch (group) {
             case "type" -> "theo loại thiết bị";
+            case "catalog" -> "theo thiết bị";
             case "origin" -> "theo nguồn hình thành";
             case "room_type" -> "theo loại phòng";
             default -> "theo đơn vị";

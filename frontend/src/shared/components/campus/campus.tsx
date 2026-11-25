@@ -1,6 +1,7 @@
 import type { BaseRecord, HttpError } from "@refinedev/core";
 import type { UseTableReturnType } from "@refinedev/react-table";
 import type { ColumnFiltersState } from "@tanstack/react-table";
+import { useEffect } from "react";
 import { MapPin } from "lucide-react";
 
 import { campusKindLabel } from "@/domains/facility/types";
@@ -83,12 +84,17 @@ export function CampusScopeSelect({ value, onChange, schoolId, current, disabled
 }) {
   const campuses = useCampusOptions(schoolId);
   const options = current && !campuses.some((c) => c.id === current.id) ? [...campuses, current] : campuses;
+  // Người cấp chỉ quản lý một cơ sở: chỉ cấp được tài khoản cho cơ sở đó (máy chủ cũng chặn) — ô đứng yên ở cơ sở của họ.
+  const pinned = usePinnedCampusId();
+  useEffect(() => {
+    if (pinned != null && value !== pinned) onChange(pinned);
+  }, [pinned, value, onChange]);
   return (
-    <Select value={value == null ? ALL : String(value)} onValueChange={(v) => onChange(v === ALL ? null : Number(v))}
-      disabled={disabled}>
+    <Select value={pinned != null ? String(pinned) : value == null ? ALL : String(value)}
+      onValueChange={(v) => onChange(v === ALL ? null : Number(v))} disabled={disabled || pinned != null}>
       <SelectTrigger id={id} className="w-full max-w-[20rem]"><SelectValue /></SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>Cả trường</SelectItem>
+        {pinned == null ? <SelectItem value={ALL}>Cả trường</SelectItem> : null}
         {options.map((c) => (
           <SelectItem key={c.id} value={String(c.id)}>
             {c.name}{kindOf(c) === "main" ? " (trường chính)" : ""}

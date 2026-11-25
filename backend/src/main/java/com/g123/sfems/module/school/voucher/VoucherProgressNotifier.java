@@ -50,7 +50,12 @@ class VoucherProgressNotifier {
         }
         String permission = event.resource() + ":approve";
         List<Long> recipients = switch (event.step()) {
-            case SCHOOL -> jdbc.queryForList(APPROVERS + "us.school_id = ?", Long.class, permission, event.schoolId());
+            // Lãnh đạo một cơ sở chỉ nhận phiếu chỉ chạm cơ sở của mình (cùng luật với VoucherWorkflow.inTier).
+            case SCHOOL -> event.campuses().size() == 1
+                    ? jdbc.queryForList(APPROVERS + "us.school_id = ? AND (us.campus_id IS NULL OR us.campus_id = ?)",
+                            Long.class, permission, event.schoolId(), event.campuses().iterator().next())
+                    : jdbc.queryForList(APPROVERS + "us.school_id = ? AND us.campus_id IS NULL", Long.class, permission,
+                            event.schoolId());
             case MANAGING_BODY -> bodyApprovers(permission, event.schoolId());
         };
         Long me = CurrentUser.id().orElse(null);
@@ -106,7 +111,7 @@ class VoucherProgressNotifier {
 
     /** Phiếu vừa tới bước {@code step} (sau khi trình, hoặc sau khi bước trước duyệt). */
     record VoucherAwaiting(String resource, Long voucherId, String code, ApprovalStep step, Long schoolId,
-            String schoolName) {
+            String schoolName, java.util.Set<Long> campuses) {
     }
 
     /** Phiếu vừa qua bước duyệt cuối. {@code recipientId}: người trình, không có thì người lập. */

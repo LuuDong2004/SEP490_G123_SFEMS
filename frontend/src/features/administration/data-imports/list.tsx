@@ -1,7 +1,7 @@
 import { useCan, useGo, useList } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CloudUpload, Download, FileSpreadsheet, Inbox, Upload, X } from "lucide-react";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { kyInstance } from "@/shared/api/data";
 import { FillBox } from "@/shared/components/layout/fill-box";
@@ -22,7 +22,9 @@ import { Checkbox } from "@/shared/ui/checkbox";
 
 import { BATCHES_KEY, download } from "./download";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 
 function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} byte`;
@@ -231,13 +233,31 @@ export const DataImports = () => {
   const [tab, setTab] = useState<ImportKind>("school_data");
   const kind = kinds.includes(tab) ? tab : "school_data";
   const [upload, setUpload] = useState<{ seq: number; open: boolean }>({ seq: 0, open: false });
-  const { data, isLoading } = useQuery({
-    queryKey: BATCHES_KEY,
-    queryFn: ({ signal }) => kyInstance.get("data_imports", { signal }).json<ImportBatch[]>(),
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState<number>("dataImports.pageSize", 20, "local");
+  useEffect(() => setPage(1), [kind, pageSize]);
+  const { data, isLoading } = useQuery<{ rows: ImportBatch[]; total: number }>({
+    queryKey: [...BATCHES_KEY, kind, page, pageSize],
+    // Lật trang thì trang cũ đứng yên tới khi trang mới về; đổi loại dữ liệu thì không giữ dòng của loại kia.
+    placeholderData: (previous, query) => (query?.queryKey[BATCHES_KEY.length] === kind ? previous : undefined),
+    queryFn: async ({ signal }) => {
+      const res = await kyInstance.get("data_imports", { signal,
+        searchParams: { kind, _start: String((page - 1) * pageSize), _end: String(page * pageSize) } });
+      return { rows: await res.json<ImportBatch[]>(), total: Number(res.headers.get("X-Total-Count") ?? 0) };
+    },
   });
-  const all = Array.isArray(data) ? data : [];
-  const kindOf = (b: ImportBatch): ImportKind => b.kind ?? "school_data";
-  const batches = all.filter((b) => kindOf(b) === kind);
+  const { data: counts } = useQuery({
+    queryKey: [...BATCHES_KEY, "counts"],
+    enabled: kinds.length > 1,
+    queryFn: ({ signal }) => kyInstance.get("data_imports/counts", { signal }).json<Partial<Record<ImportKind, number>>>(),
+  });
+  const batches = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  // Xoá lô cuối của trang cuối: lùi về trang còn dòng.
+  useEffect(() => {
+    if (data && page > pageCount) setPage(pageCount);
+  }, [data, page, pageCount]);
   const schoolCol = kind === "school_data";
   const cols = schoolCol ? 6 : 5;
 
@@ -260,7 +280,7 @@ export const DataImports = () => {
         <Tabs value={kind} onValueChange={(v) => setTab(v as ImportKind)} className="pb-3">
           <TabsList aria-label="Loại dữ liệu">
             {kinds.map((k) => {
-              const n = all.filter((b) => kindOf(b) === k).length;
+              const n = counts?.[k] ?? 0;
               return (
                 <TabsTrigger key={k} value={k} title={KIND_HINT[k]}>
                   {KIND_SHORT[k]}
@@ -271,7 +291,7 @@ export const DataImports = () => {
           </TabsList>
         </Tabs>
       ) : null}
-      <Card className="min-h-0 flex-1 py-0">
+      <Card className="min-h-0 flex-1 gap-0 py-0">
         <CardContent className="flex min-h-0 flex-1 flex-col overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b px-0">
           <Table>
             <TableHeader sticky>
@@ -321,6 +341,12 @@ export const DataImports = () => {
             </div>
           ) : null}
         </CardContent>
+        {total > 10 ? (
+          <div className="shrink-0 border-t px-3 py-1.5">
+            <DataTablePagination currentPage={page} pageCount={pageCount} setCurrentPage={setPage} pageSize={pageSize}
+              setPageSize={setPageSize} total={total} />
+          </div>
+        ) : null}
       </Card>
       </FillBox>
     </ListView>

@@ -605,12 +605,10 @@ public class EquipmentSummaryService {
                        (e.funding_source IS NULL) AS miss_funding, (e.received_date IS NULL) AS miss_received,
                        c.code AS catalog_code, c.name AS catalog_name, (c.owner_school_id IS NOT NULL) AS out_of_catalog,
                        u.name AS unit_name,
-                       pu.name AS pack_unit_name, e.pack_size,
                        r.name AS room_name, sc.name AS school_name,
                        cp.id AS campus_id, cp.name AS campus_name, cp.is_primary AS campus_main,
                        cp.branch AS campus_branch
                 FROM equipment e
-                LEFT JOIN units pu ON pu.id = e.pack_unit_id
                 JOIN equipment_catalogs c ON c.id = e.catalog_id
                 JOIN schools sc ON sc.id = e.school_id
                 LEFT JOIN units u ON u.id = COALESCE(e.unit_id, c.unit_id)
@@ -661,8 +659,6 @@ public class EquipmentSummaryService {
         }
         out.put("quantity", r.get("quantity"));
         out.put("unit", r.get("unit_name"));
-        out.put("packUnitName", r.get("pack_unit_name"));
-        out.put("packSize", r.get("pack_size"));
         out.put("status", r.get("status"));
         out.put("inStore", "IN_STOCK".equals(r.get("status")));
         out.put("legacyCode", r.get("legacy_code"));

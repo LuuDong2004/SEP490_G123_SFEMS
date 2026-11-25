@@ -9,7 +9,7 @@ import { PROCESS_BY_ROUTE } from "@/app/resources/modules";
 
 import { WriteGuard } from "@/app/router/write-guard";
 import { Dashboard } from "@/features/dashboard";
-import { ReportSnapshotShow, Reports } from "@/features/reports";
+import { ReportSnapshotList, ReportSnapshotShow, Reports } from "@/features/reports";
 import {
   EducationLevelList,
   EducationLevelCreate,
@@ -142,6 +142,14 @@ export default function ProtectedRoutes({ ready }: { ready: boolean }) {
         <Route path="/modules/:module" element={<ModuleProcess />} />
         <Route path="/catalogs" element={<Navigate to="/equipment-catalogs" replace />} />
         <Route path="/reports" element={<Navigate to="/reports/equipment-by-school" replace />} />
+        <Route
+          path="/report-snapshots"
+          element={
+            <CanAccess resource="reports" action="list" fallback={<Forbidden resource="reports" />}>
+              <ReportSnapshotList />
+            </CanAccess>
+          }
+        />
         <Route path="/report-snapshots/show/:id" element={<ReportSnapshotShow />} />
         <Route
           path="/reports/:name"

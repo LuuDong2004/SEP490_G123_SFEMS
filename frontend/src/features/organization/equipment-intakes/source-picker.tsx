@@ -1,4 +1,6 @@
-import { useList, useNavigation, useNotification } from "@refinedev/core";
+import { useNavigation, useNotification } from "@refinedev/core";
+import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
+import { useAllRows } from "@/shared/hooks/use-all-rows";
 import { useNavigate } from "react-router";
 import { ArrowLeft, FileSearch, Loader2, Search, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -231,31 +233,22 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
   // Tài khoản của một trường không có ô Trường trên form (máy chủ tự điền) — khi đó phạm vi dòng đã lọc sẵn.
   const bySchool = schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }] : [];
 
-  const proposals = useList<PurchaseProposal>({
-    resource: "purchase_proposals",
-    filters: [...bySchool, { field: "status", operator: "eq", value: "COMPLETED" }],
-    pagination: { pageSize: 200 },
-    queryOptions: { enabled: open && kind === "MUA_SAM" },
-  });
-  const drafts = useList<EquipmentIntake>({
-    resource: "equipment_intakes",
-    filters: [...bySchool, { field: "status", operator: "eq", value: "DRAFT" }],
-    pagination: { pageSize: 200 },
-    queryOptions: { enabled: open && kind === "KIEM_KE_THUA" },
-  });
+  // Còn nhập được hay không (hành động "intake", phiếu nháp từ kiểm kê) chỉ biết sau khi đọc từng phiếu: đọc đủ mọi trang rồi
+  // lọc, một cỡ trang cố định thì phiếu nằm ngoài mất mà không báo.
+  const proposals = useAllRows<PurchaseProposal>("purchase_proposals",
+    [...bySchool, { field: "status", operator: "eq", value: "COMPLETED" }], open && kind === "MUA_SAM");
+  const drafts = useAllRows<EquipmentIntake>("equipment_intakes",
+    [...bySchool, { field: "status", operator: "eq", value: "DRAFT" }], open && kind === "KIEM_KE_THUA");
   // Kế hoạch là thứ người lập CHỌN (cơ quan nào ban hành, năm nào); đề xuất của trường trong kế hoạch là thứ
   // phiếu ghi tăng chép dòng từ đó. Trường chỉ đọc được kế hoạch đã duyệt có đề xuất của mình (115).
-  const plans = useList<{ id: number; title: string; budgetYear: number | null; managingBody?: { name: string } | null }>({
-    resource: "procurement_plans",
-    pagination: { pageSize: 200 },
-    queryOptions: { enabled: open && kind === "MUA_SAM", retry: false },
-    errorNotification: false,
-  });
-  const loading = kind === "MUA_SAM" ? proposals.query?.isLoading : drafts.query?.isLoading;
+  const plans = useAllRows<{ id: number; title: string; budgetYear: number | null; managingBody?: { name: string } | null }>("procurement_plans",
+    [], open && kind === "MUA_SAM");
+  const source = kind === "MUA_SAM" ? proposals : drafts;
+  const loading = source.isLoading;
   const text = TEXT[kind];
 
   const rows = useMemo<Row[]>(() => {
-    const draftList = drafts.result?.data ?? [];
+    const draftList = drafts.data ?? [];
     if (kind === "KIEM_KE_THUA") {
       return draftList.filter((d) => d.source?.resource === "inventory_sessions").map((d) => ({
         key: `d${d.id}`, code: d.source?.code ?? "—", date: d.intakeDate, info: d.note ?? "", lines: d.lineCount, amount: null, draftId: d.id,
@@ -263,8 +256,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
     }
     // Chỉ đề xuất còn thiết bị chưa nhập (còn hành động "intake"); đã nhập đủ — kể cả bằng phiếu còn nháp — thì
     // không hiện.
-    const planOf = new Map((plans.result?.data ?? []).map((pl) => [pl.id, pl]));
-    return (proposals.result?.data ?? [])
+    const planOf = new Map((plans.data ?? []).map((pl) => [pl.id, pl]));
+    return (proposals.data ?? [])
       // Chỉ đề xuất ĐÃ VÀO kế hoạch (có kế hoạch) — "Kế hoạch mua sắm" không nhận hàng ngoài kế hoạch.
       .filter((p) => p._actions?.includes("intake") && p.plan != null)
       .map((p) => ({
@@ -272,7 +265,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
         body: p.plan ? planOf.get(p.plan.id)?.managingBody?.name : undefined, year: (p.plan ? planOf.get(p.plan.id)?.budgetYear : null) ?? p.budgetYear,
         draftId: null, proposal: p,
       }));
-  }, [kind, drafts.result, proposals.result, plans.result]);
+  }, [kind, drafts.data, proposals.data, plans.data]);
 
   const shown = useMemo(() => {
     const n = fold(q.trim());
@@ -286,6 +279,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
       default: return list.sort((a, b) => byDate(b, a));
     }
   }, [rows, q, sort]);
+
+  const paged = usePagedRows(shown, { resetKey: `${kind}|${q}|${sort}`, sizeKey: "intakeSource" });
 
   // `replace`: form lập phiếu đang mở bị thay bằng phiếu nháp vừa có — không hỏi "thoát chưa lưu".
   const openDraft = (id: number) => {
@@ -359,7 +354,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
         </div>
 
         {/* `table-fixed` + độ rộng từng cột: bảng không tràn ngang hộp, chữ dài cắt ba chấm. */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+        <div ref={paged.boxRef} className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
           <Table className="table-fixed">
             {withAmount ? (
               <colgroup>
@@ -405,7 +401,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
                 <TableEmpty colSpan={columns} loading={loading} filtered={!!q} title={q ? "Không có phiếu nào khớp." : text.empty}
                   description={q ? undefined : text.emptyHint} />
               ) : (
-                shown.map((r) => (
+                paged.visible.map((r) => (
                   <TableRow key={r.key} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer")} onClick={() => busy == null && void pick(r)}>
                     {withAmount ? (
                       <>
@@ -435,6 +431,8 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
               )}
             </TableBody>
           </Table>
+        </div>
+        {paged.pager}
         </div>
 
         {/* Số dòng bên trái; nút dồn về tay phải. */}

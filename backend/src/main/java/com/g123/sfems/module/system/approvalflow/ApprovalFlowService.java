@@ -33,8 +33,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * hỏi nó ở mỗi lần trình / duyệt. Thứ tự quyết định:
  *
  * <ol>
- *   <li>Sở đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên thì theo
- *       các bước "từ ngưỡng trở lên";</li>
+ *   <li>Sở đã cấu hình loại phiếu này → các bước đã cấu hình; phiếu có số tiền từ ngưỡng trở lên — hoặc chưa
+ *       biết số tiền (có dòng chưa ghi đơn giá) — thì theo các bước "từ ngưỡng trở lên";</li>
  *   <li>chưa cấu hình → luồng mặc định.</li>
  * </ol>
  *
@@ -93,9 +93,13 @@ public class ApprovalFlowService {
         if (flow == null) {
             return type.defaultSteps();
         }
-        BigDecimal amount = type.amountLabel() == null ? null : voucher.approvalAmount();
-        if (flow.getAmountThreshold() != null && amount != null && amount.compareTo(flow.getAmountThreshold()) >= 0) {
-            return parse(flow.getStepsAbove());
+        // Loại phiếu có số tiền mà phiếu trả null = số tiền CHƯA BIẾT (vd. đề xuất có dòng chưa ghi đơn giá): coi như từ
+        // ngưỡng trở lên — bỏ trống giá không được là đường né các bước duyệt của phiếu lớn.
+        if (flow.getAmountThreshold() != null && type.amountLabel() != null) {
+            BigDecimal amount = voucher.approvalAmount();
+            if (amount == null || amount.compareTo(flow.getAmountThreshold()) >= 0) {
+                return parse(flow.getStepsAbove());
+            }
         }
         return parse(flow.getSteps());
     }

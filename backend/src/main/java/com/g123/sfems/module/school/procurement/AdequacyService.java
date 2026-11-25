@@ -701,11 +701,9 @@ public class AdequacyService {
             }
         });
         Map<Long, Map<Long, Integer>> proposedByCatalog = new HashMap<>();
-        jdbc.query("""
-                SELECT p.school_id, l.catalog_id, SUM(l.quantity)::int AS n
-                FROM purchase_proposals p JOIN purchase_proposal_lines l ON l.proposal_id = p.id
-                WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL%s%s
-                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND p.school_id IN (" + ids + ")", proposalCampus),
+        // Số đang đề xuất: số kế hoạch khi đã vào kế hoạch được duyệt, trừ phần đã nhập về — xem ProposedQuantity.
+        jdbc.query(ProposedQuantity.sql("'PENDING', 'APPROVED', 'COMPLETED'",
+                        (ids == null ? "" : " AND p.school_id IN (" + ids + ")") + proposalCampus),
                 rs -> {
             proposedByCatalog.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>())
                     .merge(rs.getLong("catalog_id"), rs.getInt("n"), Integer::sum);

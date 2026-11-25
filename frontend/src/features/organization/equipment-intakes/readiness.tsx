@@ -192,6 +192,13 @@ export function intakeReadiness(
       origin: true, group: "source", field: "originSource.id",
     });
   }
+  // "Kiểm kê thừa" cũng phải đi từ một biên bản kiểm kê đã duyệt — cùng `requirePlanLink` ở máy chủ.
+  if (rule?.code === "KIEM_KE_THUA") {
+    items.push({
+      key: "sessionLink", label: "Chọn biên bản kiểm kê", ok: values.source?.resource === "inventory_sessions",
+      origin: true, group: "source", field: "originSource.id",
+    });
+  }
   const docs = (values.documents ?? []) as any[];
   const noun = cap(opts?.noun ?? "chứng từ");
   const centralized = rule?.code === PURCHASE_CODE && values.details?.centralized === true;

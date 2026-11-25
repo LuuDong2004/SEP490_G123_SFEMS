@@ -4,6 +4,7 @@ import { Megaphone } from "lucide-react";
 import { Link } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
+import { getPinnedCampusId } from "@/shared/api/session";
 import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { formatPlainDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -27,6 +28,8 @@ import type { VoucherStatus } from "@/domains/voucher/types";
  */
 export function CampaignStrip() {
   const { perspective } = usePerspective();
+  // Phiếu theo đợt phủ mọi cơ sở của trường — tài khoản chỉ quản lý một cơ sở không lập được (máy chủ cũng từ chối).
+  const pinned = getPinnedCampusId() != null;
   const { result } = useList<InventoryCampaign>({
     resource: "inventory_campaigns",
     pagination: { currentPage: 1, pageSize: 20 },
@@ -84,9 +87,13 @@ export function CampaignStrip() {
                 ) : (
                   <>
                     <Badge variant="warning">Chưa lập phiếu</Badge>
-                    <Button asChild type="button" size="sm">
-                      <Link to={`/inventory-sessions/create?campaign=${c.id}`}>Lập phiếu cho đợt này</Link>
-                    </Button>
+                    {pinned ? (
+                      <span className="text-muted-foreground text-xs">Tài khoản quản lý cả trường lập phiếu cho đợt này</span>
+                    ) : (
+                      <Button asChild type="button" size="sm">
+                        <Link to={`/inventory-sessions/create?campaign=${c.id}`}>Lập phiếu cho đợt này</Link>
+                      </Button>
+                    )}
                   </>
                 )
               ) : rows ? (

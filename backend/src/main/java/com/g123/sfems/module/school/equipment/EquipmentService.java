@@ -242,7 +242,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         requireUniqueSerial(item);
         item.setModel(blankToNull(request.model()));
         item.setManufacturer(blankToNull(request.manufacturer()));
-        item.setOtherInfo(blankToNull(request.otherInfo()));
         // Vắng thì lấy của thiết bị trong danh mục, như phiếu nhập — tệp nhập số dư không có cột đơn vị,
         // và thiếu đơn vị là hồ sơ chưa chuẩn, không vào được phiếu nào.
         item.setUnit(request.unit() != null && request.unit().id() != null ? units.get(request.unit().id())
@@ -258,9 +257,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setReceivedDate(request.receivedDate());
         item.setPurchaseDate(request.purchaseDate());
         item.setOriginalValue(request.originalValue());
-        // Tài sản khai tay là tài sản CÓ SẴN (số dư đầu kỳ): giá trị
-        // còn lại bằng nguyên giá, trừ khi người khai biết số khác.
-        item.setRemainingValue(request.remainingValue() != null ? request.remainingValue() : request.originalValue());
         item.setWarrantyExpiry(request.warrantyExpiry());
         item.setExpiryDate(bulk(item) ? request.expiryDate() : null);
         item.setRoom(ref(request.room(), rooms::get));
@@ -310,9 +306,13 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
      * Thiết bị đang trên sổ KHÔNG xoá thẳng được: xoá là làm tài sản biến mất khỏi mọi báo cáo mà không chứng từ nào
      * giải thích. Được xoá: hồ sơ đã ra khỏi sổ (kiểm kê xác nhận Mất), và hồ sơ khai
      * nhầm lúc trường còn khai số dư đầu kỳ, chưa qua phiếu hay kiểm kê nào.
+     *
+     * <p>Biên bản kiểm kê đã duyệt giữ dòng của thiết bị bị xoá (296: khoá ngoại SET NULL, dòng chụp mã và tên). Phiếu
+     * kiểm kê còn dở thì chặn: dòng mất thiết bị thì không kiểm đếm, không ghi kết quả vào sổ được.
      */
     @Override
     protected void beforeDelete(Equipment item) {
+        requireNotOnLiveInventory(item);
         if (OFF_BOOK.contains(item.getStatus())) {
             return;
         }
@@ -322,6 +322,21 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         throw new FieldValidationException("status", openingBalance.isOpen(item.getSchool().getId())
                 ? "Thiết bị đã qua phiếu hoặc kiểm kê nên không xoá được. Hồ sơ chỉ xoá được khi kiểm kê xác nhận Mất."
                 : "Trường đã chốt số dư đầu kỳ: thiết bị trên sổ không xoá được. Hồ sơ chỉ xoá được khi kiểm kê xác nhận Mất.");
+    }
+
+    /** Thiết bị đang nằm trên phiếu kiểm kê chưa hoàn tất (nháp, chờ duyệt) thì không xoá. */
+    private void requireNotOnLiveInventory(Equipment item) {
+        List<?> live = em.createNativeQuery("""
+                        SELECT COALESCE(s.code, s.title) FROM inventory_lines l
+                        JOIN inventory_sessions s ON s.id = l.session_id
+                        WHERE l.equipment_id = :id AND s.status IN ('DRAFT', 'PENDING', 'APPROVED')
+                        ORDER BY s.id LIMIT 1""")
+                .setParameter("id", item.getId())
+                .getResultList();
+        if (!live.isEmpty()) {
+            throw new FieldValidationException("status", ("Thiết bị đang nằm trên phiếu kiểm kê \"%s\" chưa hoàn tất. "
+                    + "Xoá hồ sơ sau khi phiếu đó được duyệt hoặc huỷ.").formatted(live.get(0)));
+        }
     }
 
     /** Đã có phiếu nào (ghi tăng, kiểm kê…) động tới tài sản này chưa — dấu vết nằm trong lịch sử. */
@@ -397,11 +412,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (r.condition() != null && r.condition() != item.getCondition()) {
             changed.add("tình trạng (kiểm kê)");
-        }
-        // Hồ sơ chưa có giá trị (nguyên giá không bắt buộc) thì được bổ sung; đã có thì không sửa.
-        if (r.remainingValue() != null && item.getRemainingValue() != null
-                && r.remainingValue().compareTo(item.getRemainingValue()) != 0) {
-            changed.add("giá trị còn lại");
         }
         if (!changed.isEmpty()) {
             throw new FieldValidationException("status", "Không sửa thẳng trên hồ sơ được: "
@@ -646,9 +656,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         if (request.manufacturer() != null) {
             item.setManufacturer(blankToNull(request.manufacturer()));
         }
-        if (request.otherInfo() != null) {
-            item.setOtherInfo(blankToNull(request.otherInfo()));
-        }
         if (request.unit() != null) {
             item.setUnit(ref(request.unit(), units::get));
         }
@@ -686,12 +693,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.originalValue() != null) {
             item.setOriginalValue(request.originalValue());
-        }
-        if (request.remainingValue() != null) {
-            item.setRemainingValue(request.remainingValue());
-        } else if (request.originalValue() != null && item.getRemainingValue() == null) {
-            // Bổ sung nguyên giá cho hồ sơ chưa có: còn lại bằng nguyên giá, như lúc khai mới.
-            item.setRemainingValue(request.originalValue());
         }
         if (request.warrantyExpiry() != null) {
             item.setWarrantyExpiry(request.warrantyExpiry());
@@ -786,12 +787,11 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             item.setWarrantyExpiry(ownWarranty == null ? null : received.plusMonths(ownWarranty));
             item.setModel(line.modelOf(i));
             item.setManufacturer(line.manufacturerOf(i));
-            item.setOtherInfo(line.otherInfoOf(i));
+            // Thông tin khác của dòng phiếu (cấu hình, xuất xứ…) thành ghi chú của hồ sơ.
+            item.setNote(line.otherInfoOf(i));
             item.setUsageStartYear(received.getYear());
-            // Nguyên giá = đơn giá của dòng; giá trị còn lại bằng nguyên giá
-            // vì tài sản vừa về.
+            // Nguyên giá = đơn giá của dòng.
             item.setOriginalValue(line.getUnitPrice());
-            item.setRemainingValue(line.getUnitPrice());
             item.setRoom(room);
             // Về kho thì nằm trong tay thủ kho: người quản lý là cán bộ phụ trách phòng nhận.
             item.setManager(EquipmentLifecycle.keeperOf(null, room));
@@ -843,8 +843,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
                 ? line.getAssetCategory() : line.getCatalog().getAssetCategory());
         item.setUnit(line.getCatalog().getUnit());
         item.setQuantity(quantity);
-        // Quy cách bao bì của dòng đi theo lô: sau này nhập "3 lọ" là tự ra số theo đơn vị của lô.
-        item.setPack(line.getPackUnit(), line.getPackSize());
         item.setOriginSource(line.effectiveOriginSource());
         item.setAcquisitionMethod(line.effectiveAcquisitionMethod());
         item.setFundingSource(line.effectiveFundingSource());
@@ -855,13 +853,12 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setUsageStartYear(receivedDateOf(line).getYear());
         item.setModel(line.getModel());
         item.setManufacturer(line.getManufacturer());
-        item.setOtherInfo(line.getOtherInfo());
+        item.setNote(line.getOtherInfo());
         item.setExpiryDate(line.getExpiryDate());
         // Đơn giá là giá của MỘT đơn vị trên hoá đơn (một lọ khi có quy cách) — nhân với số nhận, không với số đã quy đổi.
         BigDecimal total = line.getUnitPrice() == null ? null
                 : line.getUnitPrice().multiply(BigDecimal.valueOf(line.getReceivedQuantity()));
         item.setOriginalValue(total);
-        item.setRemainingValue(total);
         item.setRoom(line.getRoom());
         item.setManager(EquipmentLifecycle.keeperOf(null, line.getRoom()));
         item.setCondition(EquipmentCondition.TOT);
@@ -1164,10 +1161,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static void requireRules(Equipment item) {
         requireSameSchool(item, item.getRoom(), "room");
         requireSameSchool(item, item.getManager(), "manager");
-        if (item.getOriginalValue() != null && item.getRemainingValue() != null
-                && item.getRemainingValue().compareTo(item.getOriginalValue()) > 0) {
-            throw new FieldValidationException("remainingValue", "Giá trị còn lại không vượt quá nguyên giá");
-        }
     }
 
     /**

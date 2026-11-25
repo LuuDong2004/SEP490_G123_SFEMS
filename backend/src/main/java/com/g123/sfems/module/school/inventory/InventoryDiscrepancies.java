@@ -18,7 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
  * theo môn học của thiết bị; một đợt theo trường.
  *
  * <p>Đếm theo sổ (phòng ghi trên sổ lúc lập phiếu), cùng định nghĩa với {@code InventoryLine.discrepancies}: không
- * thấy → thiếu; thấy ở phòng khác → sai vị trí.
+ * thấy → thiếu; thấy ở phòng khác → sai vị trí; thấy mà tình trạng khác sổ → sai tình trạng; khớp là thấy và không lệch
+ * gì (kể cả số lượng lô).
+ *
+ * <p>Nối thiết bị bằng LEFT JOIN: hồ sơ đã Mất có thể bị xoá sau khi biên bản duyệt (296), dòng vẫn được đếm — chỉ mất
+ * môn học, rơi vào nhóm "Dùng chung".
  */
 @Service
 @Transactional(readOnly = true)
@@ -26,7 +30,7 @@ public class InventoryDiscrepancies {
 
     /** Một nhóm: phòng, môn hoặc trường. {@code storeroom} chỉ có nghĩa khi nhóm theo phòng. */
     public record Row(Long id, String name, boolean storeroom, int total, int checked, int matched, int missing,
-            int wrongRoom) {
+            int wrongRoom, int wrongCondition) {
     }
 
     public record SessionBreakdown(List<Row> rooms, List<Row> subjects) {
@@ -41,9 +45,12 @@ public class InventoryDiscrepancies {
             SELECT l.session_id, l.expected_room_id AS room_id, r.name AS room_name,
                    (r.id IS NULL OR rt.code = 'KHO') AS storeroom,
                    c.subject_id, sj.name AS subject_name, l.found,
-                   COALESCE(l.found AND l.expected_room_id IS DISTINCT FROM l.found_room_id, FALSE) AS wrong_room
+                   COALESCE(l.found AND l.expected_room_id IS DISTINCT FROM l.found_room_id, FALSE) AS wrong_room,
+                   COALESCE(l.found AND l.found_condition IS NOT NULL
+                            AND l.found_condition IS DISTINCT FROM l.expected_condition, FALSE) AS wrong_condition,
+                   COALESCE(l.found AND l.counted_quantity < l.expected_quantity, FALSE) AS shortage
             FROM inventory_lines l
-            JOIN equipment e ON e.id = l.equipment_id
+            LEFT JOIN equipment e ON e.id = l.equipment_id
             LEFT JOIN equipment_catalogs c ON c.id = e.catalog_id
             LEFT JOIN subjects sj ON sj.id = c.subject_id
             LEFT JOIN rooms r ON r.id = l.expected_room_id
@@ -52,9 +59,10 @@ public class InventoryDiscrepancies {
 
     private static final String COUNTS = """
             COUNT(*) AS total, COUNT(found) AS checked,
-            COUNT(*) FILTER (WHERE found AND NOT wrong_room) AS matched,
+            COUNT(*) FILTER (WHERE found AND NOT wrong_room AND NOT wrong_condition AND NOT shortage) AS matched,
             COUNT(*) FILTER (WHERE found = FALSE) AS missing,
-            COUNT(*) FILTER (WHERE wrong_room) AS wrong_room
+            COUNT(*) FILTER (WHERE wrong_room) AS wrong_room,
+            COUNT(*) FILTER (WHERE wrong_condition) AS wrong_condition
             """;
 
     private final InventorySessionService sessions;
@@ -130,6 +138,6 @@ public class InventoryDiscrepancies {
 
     private static Row row(ResultSet rs, Long id, String name, boolean storeroom) throws SQLException {
         return new Row(id, name, storeroom, rs.getInt("total"), rs.getInt("checked"), rs.getInt("matched"),
-                rs.getInt("missing"), rs.getInt("wrong_room"));
+                rs.getInt("missing"), rs.getInt("wrong_room"), rs.getInt("wrong_condition"));
     }
 }

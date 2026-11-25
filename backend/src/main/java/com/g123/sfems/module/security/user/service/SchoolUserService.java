@@ -73,7 +73,7 @@ public class SchoolUserService {
 
     @Transactional(readOnly = true)
     public Page<User> list(ListParams params) {
-        return users.listInSchool(params, schoolId());
+        return users.listInSchool(params, schoolId(), pinnedCampus());
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +81,11 @@ public class SchoolUserService {
         User user = users.get(id);
         if (!(user instanceof SchoolUser member) || !member.getSchool().getId().equals(schoolId())
                 || !onlySchoolRoles(user)) {
+            throw new ResourceNotFoundException("User", id);
+        }
+        // Người quản lý một cơ sở chỉ đụng tới tài khoản của cơ sở đó (tài khoản cả trường, cơ sở khác: như không có).
+        Long pinned = pinnedCampus();
+        if (pinned != null && (member.getCampus() == null || !pinned.equals(member.getCampus().getId()))) {
             throw new ResourceNotFoundException("User", id);
         }
         return user;
@@ -100,8 +105,8 @@ public class SchoolUserService {
                 null,
                 List.of(new RoleRef(schoolRole(role).getId())),
                 null));
-        if (campus != null) {
-            assignCampus(user, campus.id());
+        if (campus != null || pinnedCampus() != null) {
+            assignCampus(user, campus == null ? null : campus.id());
         }
         // Có email thật: gửi thư mời tự đặt mật khẩu (đi sau commit). Mật khẩu tạm vẫn trả về cho người cấp — lối
         // dự phòng khi máy chủ thư chưa cấu hình hoặc thư không tới.
@@ -158,6 +163,12 @@ public class SchoolUserService {
         if (!(user instanceof SchoolUser member)) {
             throw new FieldValidationException("campus", "Chỉ tài khoản trường có phạm vi cơ sở");
         }
+        // Người cấp chỉ quản lý một cơ sở: chỉ cấp được tài khoản của chính cơ sở đó — không cả trường, không cơ sở khác.
+        Long pinned = pinnedCampus();
+        if (pinned != null && !pinned.equals(campusId)) {
+            throw new FieldValidationException("campus",
+                    "Tài khoản của bạn chỉ quản lý một cơ sở: chỉ cấp được tài khoản cho cơ sở của mình");
+        }
         Campus campus = null;
         if (campusId != null) {
             try {
@@ -178,6 +189,11 @@ public class SchoolUserService {
         }
         member.setCampus(campus);
         events.publishEvent(new AuthoritiesChanged.ForUser(member.getId()));
+    }
+
+    /** Cơ sở mà người gọi bị giới hạn trong ({@code null} = cả trường hoặc việc nền). */
+    private Long pinnedCampus() {
+        return principals.current().map(RowLevelPrincipal::campusId).orElse(null);
     }
 
     private Long schoolId() {

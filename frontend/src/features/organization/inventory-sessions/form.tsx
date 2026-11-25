@@ -23,6 +23,7 @@ import type { InventorySession } from "@/domains/inventory/types";
 import { CampaignPickerField } from "@/features/organization/inventory-sessions/campaign-picker";
 import { useVoucherSchoolId, VoucherSchoolField } from "@/features/organization/vouchers/voucher-school-field";
 import { todayLocal } from "@/shared/lib/format";
+import { getPinnedCampusId } from "@/shared/api/session";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -88,6 +89,8 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
   useEffect(() => {
     if (creating && campaignId) setValue("room.id", null);
   }, [creating, campaignId, setValue]);
+  // Đợt là kiểm kê mọi cơ sở của trường: tài khoản chỉ quản lý một cơ sở không chọn đợt được (máy chủ cũng từ chối).
+  const pinned = getPinnedCampusId() != null;
 
   const main = (
     <>
@@ -104,7 +107,14 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
           <div className="form-flow">
             {creating ? <VoucherSchoolField control={control} record={record} setValue={setValue} /> : null}
             <DateField control={control} name="inventoryDate" label="Ngày kiểm kê" rules={{ required: "Chọn ngày" }} />
-            {creating ? (
+            {creating && pinned ? (
+              <div className="flex flex-col gap-1.5">
+                <ReadOnlyCell label="Đợt của Sở" value={null} placeholder="Trường tự kiểm kê" />
+                <p className="text-muted-foreground text-xs">
+                  Phiếu theo đợt của Sở kiểm kê mọi cơ sở của trường nên do tài khoản quản lý cả trường lập.
+                </p>
+              </div>
+            ) : creating ? (
               <CampaignPickerField control={control} name="campaign" label="Đợt của Sở"
                 hint="Chọn khi kiểm kê theo đợt cấp trên phát động." current={campaign}
                 // Chọn đợt thì tên đợt của cấp trên thành tên phiếu, nếu người lập chưa gõ gì.
@@ -187,7 +197,9 @@ export const InventorySessionCreate = () => {
 
   // Mở từ "Lập phiếu cho đợt này" (?campaign=<id>): chọn sẵn đợt và lấy tên đợt làm tên phiếu.
   const [params] = useSearchParams();
-  const campaignId = Number(params.get("campaign")) || null;
+  // Tài khoản một cơ sở không lập phiếu theo đợt: không chọn sẵn đợt nào cho họ.
+  const pinned = getPinnedCampusId() != null;
+  const campaignId = pinned ? null : Number(params.get("campaign")) || null;
   const { result: picked } = useOne<any>({ resource: "inventory_campaigns", id: campaignId ?? "", queryOptions: { enabled: campaignId != null } });
   useEffect(() => {
     if (!picked?.id) return;
@@ -201,9 +213,9 @@ export const InventorySessionCreate = () => {
   const { result: openCampaigns } = useList<any>({
     resource: "inventory_campaigns",
     pagination: { currentPage: 1, pageSize: 50 },
-    queryOptions: { enabled: campaignId == null },
+    queryOptions: { enabled: campaignId == null && !pinned },
   });
-  const onlyOpen = (openCampaigns?.data ?? []).filter((c: any) => !c.closed);
+  const onlyOpen = pinned ? [] : (openCampaigns?.data ?? []).filter((c: any) => !c.closed);
   const soleOpen = onlyOpen.length === 1 ? onlyOpen[0] : null;
   useEffect(() => {
     if (!soleOpen?.id || form.getValues("campaign.id" as any)) return;

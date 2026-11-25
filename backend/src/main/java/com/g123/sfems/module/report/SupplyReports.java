@@ -46,8 +46,7 @@ final class SupplyReports {
                 + " r.name AS room, u.name AS unit, e.quantity, e.expiry_date,"
                 + " CASE WHEN e.expiry_date < CURRENT_DATE THEN 'Quá hạn ' || (CURRENT_DATE - e.expiry_date) || ' ngày'"
                 + "      WHEN e.expiry_date = CURRENT_DATE THEN 'Hết hạn hôm nay'"
-                + "      ELSE 'Còn ' || (e.expiry_date - CURRENT_DATE) || ' ngày' END AS state,"
-                + " e.remaining_value"
+                + "      ELSE 'Còn ' || (e.expiry_date - CURRENT_DATE) || ' ngày' END AS state"
                 + " FROM equipment e JOIN schools s ON s.id = e.school_id"
                 + " JOIN equipment_catalogs c ON c.id = e.catalog_id"
                 + " LEFT JOIN units u ON u.id = COALESCE(e.unit_id, c.unit_id) LEFT JOIN rooms r ON r.id = e.room_id"
@@ -66,8 +65,7 @@ final class SupplyReports {
                         col("name", "Tên thiết bị", "text"), col("catalog", "DM thiết bị", "text"),
                         col("room", "Chỗ để", "text"), col("unit", "Đơn vị tính", "text"),
                         col("quantity", "Số lượng còn", "number"), col("expiry_date", "Hạn sử dụng", "date"),
-                        col("state", "Tình trạng hạn", "text"),
-                        col("remaining_value", "Giá trị còn lại (đ)", "money")),
+                        col("state", "Tình trạng hạn", "text")),
                 rows);
     }
 

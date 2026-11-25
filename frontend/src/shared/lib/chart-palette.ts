@@ -29,14 +29,6 @@ export function seriesColor(i: number) {
   return SERIES_COLORS[Math.min(i, SERIES_COLORS.length - 1)];
 }
 
-/** Gộp phần đuôi thành "Khác" để không vượt số màu. */
-export function foldOther<T extends { key: string; label: string; count: number }>(items: T[], max = SERIES_COLORS.length) {
-  if (items.length <= max) return items;
-  const head = items.slice(0, max - 1);
-  const rest = items.slice(max - 1).reduce((s, i) => s + i.count, 0);
-  return [...head, { key: "__other", label: "Khác", count: rest } as T];
-}
-
 /** Số đếm (thiết bị, trường, phiếu) viết liền, không dấu chấm nghìn: "5.609" dễ đọc nhầm thành số thập phân. */
 export const count = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 export const compactMoney = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });

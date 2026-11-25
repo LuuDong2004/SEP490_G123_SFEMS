@@ -91,7 +91,8 @@ class OnboardingParsingTest {
         assertEquals(1, d.rows().size());
         Map<String, String> r = d.rows().get(0).getValue();
         assertEquals("1.000.000", r.get("originalValue"));
-        assertEquals("500.000", r.get("remainingValue"));
+        // Hệ thống không giữ giá trị còn lại (không có khấu hao): cột đó bỏ qua.
+        assertNull(r.get("remainingValue"));
     }
 
     @Test

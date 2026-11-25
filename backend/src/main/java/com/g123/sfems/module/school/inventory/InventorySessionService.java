@@ -45,9 +45,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Kiểm kê: chụp sổ → kiểm đếm → biên bản → lãnh đạo trường duyệt.
  *
- * <p>Duyệt biên bản là ghi kết quả vào sổ (KK-06, trưởng nhóm chốt 20/11/2026): thiếu → trạng thái "Mất", hỏng →
- * "Hỏng", sai vị trí → phòng theo nơi thấy; mỗi thay đổi một dòng lịch sử thiết bị. Riêng
- * thiết bị thừa thì lập phiếu ghi tăng nháp
+ * <p>Duyệt biên bản là ghi kết quả vào sổ (KK-06, trưởng nhóm chốt 20/11/2026): thiếu → trạng thái "Mất", tình trạng
+ * khác sổ → tình trạng thấy, sai vị trí → phòng theo nơi thấy kèm trạng thái Trong kho / Đang sử dụng của phòng đó; mỗi
+ * thay đổi một dòng lịch sử thiết bị. Riêng thiết bị thừa thì lập phiếu ghi tăng nháp
  * (nguồn "Kiểm kê thừa", PN-01) — tự động lúc duyệt, và còn nút LẬP NHANH ({@link #followUp}) nếu phiếu đó bị huỷ.
  */
 @Service
@@ -208,11 +208,21 @@ public class InventorySessionService
      * cùng phạm vi phải hoàn tất lần lượt), và kiểm kê THEO ĐỢT của cấp trên. Đợt của Sở / UBND là kiểm kê TOÀN BỘ và
      * mỗi trường nộp MỘT biên bản, nên phiếu gắn đợt phải là cả trường, đợt phải còn mở, và trường chưa
      * có phiếu còn hiệu lực nào cho đợt đó (phiếu đã huỷ / bị từ chối thì lập lại được).
+     *
+     * <p>"Cả trường" là mọi cơ sở: tài khoản bị giới hạn trong một cơ sở chỉ chụp được thiết bị của cơ sở mình
+     * ({@code onRegister}), mà phiếu đó lại chặn phiếu thứ hai của đợt — biên bản đợt của trường thiếu các cơ sở kia. Nên
+     * phiếu theo đợt do tài khoản quản lý cả trường lập. Tài khoản một cơ sở vẫn tự kiểm kê cơ sở / phòng của mình.
      */
     private void requireFitsCampaign(InventorySession voucher, InventoryCampaign campaign, Room room) {
         if (campaign.isClosed()) {
             throw new FieldValidationException("campaign",
                     "Đợt \"%s\" đã đóng, không lập phiếu cho đợt này được nữa".formatted(campaign.getTitle()));
+        }
+        if (campusScope.pinnedCampusIn(voucher.getSchool().getId()) != null) {
+            throw new FieldValidationException("campaign",
+                    "Kiểm kê theo đợt của cấp trên là kiểm kê toàn bộ các cơ sở của trường, mỗi trường một biên bản. "
+                            + "Tài khoản của bạn chỉ quản lý một cơ sở nên không lập được phiếu này: nhờ tài khoản "
+                            + "quản lý cả trường lập phiếu cho đợt. Muốn kiểm kê riêng cơ sở mình thì lập phiếu không gắn đợt.");
         }
         if (room != null) {
             throw new FieldValidationException("room",
@@ -315,6 +325,7 @@ public class InventorySessionService
 
     @Override
     protected void validateSubmit(InventorySession voucher) {
+        requireCampaignOpen(voucher, "trình", "Huỷ phiếu nháp này, hoặc đề nghị cơ quan phát động mở lại đợt.");
         long unchecked = voucher.getLines().stream().filter(l -> l.getFound() == null).count();
         if (unchecked > 0) {
             throw new FieldValidationException("lines",
@@ -329,8 +340,34 @@ public class InventorySessionService
     }
 
     /**
+     * Duyệt từng bước cũng phải còn đợt: đợt đóng khi biên bản đang chờ duyệt thì người duyệt trả lại / từ chối, hoặc
+     * cơ quan phát động mở lại đợt. Bước cuối ghi kết quả vào sổ ({@link #onApproved}).
+     */
+    @Override
+    @Transactional
+    public InventorySession approve(Long id, String note) {
+        requireCampaignOpen(readable(id), "duyệt",
+                "Trả lại hoặc từ chối biên bản, hoặc đề nghị cơ quan phát động mở lại đợt.");
+        return super.approve(id, note);
+    }
+
+    /**
+     * Đợt của cấp trên đã đóng thì không trình, không duyệt biên bản của đợt nữa (trước đây chỉ kiểm lúc lập phiếu).
+     * Hạn nộp chỉ là mốc mềm — danh sách đợt báo "quá hạn" mà vẫn cho chọn — nên quá hạn không chặn.
+     */
+    private static void requireCampaignOpen(InventorySession voucher, String action, String advice) {
+        InventoryCampaign campaign = voucher.getCampaign();
+        if (campaign != null && campaign.isClosed()) {
+            throw new FieldValidationException("campaign", "Đợt \"%s\" đã đóng, không %s biên bản của đợt này được nữa. %s"
+                    .formatted(campaign.getTitle(), action, advice));
+        }
+    }
+
+    /**
      * Biên bản được duyệt: ghi kết quả vào hồ sơ từng tài sản (đúng như hộp duyệt nói) — khớp thì một dòng lịch sử;
-     * thiếu → "Mất"; sai vị trí → chuyển về phòng thực tế thấy.
+     * thiếu → "Mất"; sai vị trí → chuyển về phòng thực tế thấy, kèm trạng thái theo phòng mới (kho → Trong kho, phòng
+     * khác → Đang sử dụng, cùng luật với {@code EquipmentService.isStoreroom}); tình trạng thấy khác sổ → ghi tình trạng
+     * thấy (hồ sơ không cho sửa tay tình trạng, kiểm kê là đường đổi nó). Thiếu số lượng chỉ ghi trong biên bản.
      * Thừa → phiếu ghi tăng nháp. Tài sản đã ở trạng thái khác (vd. đã mất từ trước) thì chỉ ghi lịch sử.
      */
     @Override
@@ -339,6 +376,10 @@ public class InventorySessionService
         for (InventoryLine line : voucher.getLines()) {
             Set<Discrepancy> found = line.discrepancies();
             Equipment item = line.getEquipment();
+            if (item == null) {
+                // Không xảy ra với phiếu chưa duyệt: thiết bị trên phiếu còn dở không xoá được (EquipmentService.beforeDelete).
+                continue;
+            }
             if (found.isEmpty()) {
                 lifecycle.event(item, Action.KIEM_KE, ref, "Kiểm kê: khớp hệ thống");
                 continue;
@@ -357,6 +398,20 @@ public class InventorySessionService
                         + ", hệ thống ghi " + (line.getExpectedRoom() == null ? "kho" : line.getExpectedRoom().getName());
                 if (onBook) {
                     lifecycle.room(item, line.getFoundRoom(), Action.KIEM_KE, ref, note);
+                    AssetStatus status = EquipmentService.isStoreroom(line.getFoundRoom())
+                            ? AssetStatus.IN_STOCK : AssetStatus.IN_USE;
+                    if (item.getStatus() != status) {
+                        lifecycle.status(item, status, Action.KIEM_KE, ref, note);
+                    }
+                } else {
+                    lifecycle.event(item, Action.KIEM_KE, ref, note);
+                }
+            }
+            if (found.contains(Discrepancy.CONDITION)) {
+                String note = "Kiểm kê: tình trạng " + conditionText(line.getExpectedCondition()) + " → "
+                        + conditionText(line.getFoundCondition());
+                if (onBook) {
+                    lifecycle.condition(item, line.getFoundCondition(), Action.KIEM_KE, ref, note);
                 } else {
                     lifecycle.event(item, Action.KIEM_KE, ref, note);
                 }
@@ -368,8 +423,12 @@ public class InventorySessionService
         }
     }
 
-    /** Trạng thái còn trong sổ — kiểm kê được phép đổi sang mất / phòng khác. */
+    /** Trạng thái còn trong sổ — kiểm kê được phép đổi sang mất / phòng khác / tình trạng khác. */
     private static final Set<AssetStatus> ON_BOOK = Set.of(AssetStatus.IN_STOCK, AssetStatus.IN_USE);
+
+    private static String conditionText(EquipmentCondition condition) {
+        return condition == null ? "chưa ghi" : EquipmentLifecycle.conditionLabel(condition);
+    }
 
     // ------------------------------------------------------------------ lập phiếu nhanh sau kiểm kê
 
@@ -472,8 +531,8 @@ public class InventorySessionService
 
     /**
      * Số tóm tắt của từng biên bản, đếm bằng SQL — cùng phép đếm với {@code InventoryLine.discrepancies()}: không
-     * thấy là thiếu; thấy mà khác phòng trên sổ là sai vị trí; thấy và không lệch gì
-     * là khớp. Đổi một bên thì đổi bên kia.
+     * thấy là thiếu; thấy mà khác phòng trên sổ là sai vị trí; thấy mà tình trạng khác sổ là sai tình trạng; thấy và
+     * không lệch gì (kể cả số lượng lô) là khớp. Đổi một bên thì đổi bên kia.
      */
     @Transactional(readOnly = true)
     public Map<Long, InventorySessionApi.Summary> summaries(Collection<Long> sessionIds) {
@@ -489,16 +548,20 @@ public class InventorySessionService
                 });
         jdbc.query("""
                 SELECT session_id, COUNT(*), COUNT(found),
-                       COUNT(*) FILTER (WHERE found AND expected_room_id IS NOT DISTINCT FROM found_room_id),
+                       COUNT(*) FILTER (WHERE found AND expected_room_id IS NOT DISTINCT FROM found_room_id
+                                        AND (found_condition IS NULL OR found_condition = expected_condition)
+                                        AND NOT COALESCE(counted_quantity < expected_quantity, FALSE)),
                        COUNT(*) FILTER (WHERE NOT found),
-                       COUNT(*) FILTER (WHERE found AND expected_room_id IS DISTINCT FROM found_room_id)
+                       COUNT(*) FILTER (WHERE found AND expected_room_id IS DISTINCT FROM found_room_id),
+                       COUNT(*) FILTER (WHERE found AND found_condition IS NOT NULL
+                                        AND found_condition IS DISTINCT FROM expected_condition)
                 FROM inventory_lines WHERE session_id IN (%s) GROUP BY session_id""".formatted(in), rs -> {
                     long id = rs.getLong(1);
                     result.put(id, new InventorySessionApi.Summary(rs.getInt(2), rs.getInt(3), rs.getInt(4),
-                            rs.getInt(5), rs.getInt(6), surplus.getOrDefault(id, 0)));
+                            rs.getInt(5), rs.getInt(6), rs.getInt(7), surplus.getOrDefault(id, 0)));
                 });
         for (Long id : sessionIds) {
-            result.computeIfAbsent(id, k -> new InventorySessionApi.Summary(0, 0, 0, 0, 0,
+            result.computeIfAbsent(id, k -> new InventorySessionApi.Summary(0, 0, 0, 0, 0, 0,
                     surplus.getOrDefault(k, 0)));
         }
         return result;

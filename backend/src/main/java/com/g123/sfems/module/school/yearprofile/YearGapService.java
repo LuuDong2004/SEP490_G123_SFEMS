@@ -16,8 +16,13 @@ import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -88,12 +93,20 @@ public class YearGapService {
         record Pick(Row row, int quantity, boolean outside) {
         }
         List<Pick> picks = new ArrayList<>();
-        // Không chọn điểm trường (dòng cộng cả trường) = mọi điểm trường đang thiếu dòng đó, mỗi điểm một dòng.
+        // Không chọn điểm trường (dòng cộng cả trường) = mọi điểm trường đang thiếu thiết bị của dòng đó. Dòng cộng cả
+        // trường gộp theo THIẾT BỊ (YearAdequacyService.sumCampuses), nên ở đây cũng khớp theo thiết bị của dòng định mức,
+        // không chỉ theo mã dòng định mức. Chọn một điểm trường thì chỉ lấy dòng của điểm đó.
         List<Row> matched = new ArrayList<>();
         for (ProposalLine l : in.lines()) {
+            Set<Long> catalogs = new HashSet<>();
+            if (l.campusId() == null) {
+                r.campusRows().stream().filter(x -> Objects.equals(x.normId(), l.normId()) && x.catalogId() != null)
+                        .forEach(x -> catalogs.add(x.catalogId()));
+            }
             r.campusRows().stream()
-                    .filter(x -> Objects.equals(x.normId(), l.normId()) && x.catalogId() != null
-                            && (l.campusId() == null || Objects.equals(x.campusId(), l.campusId())))
+                    .filter(x -> x.catalogId() != null && (l.campusId() == null
+                            ? Objects.equals(x.normId(), l.normId()) || catalogs.contains(x.catalogId())
+                            : Objects.equals(x.normId(), l.normId()) && Objects.equals(x.campusId(), l.campusId())))
                     .filter(x -> !matched.contains(x))
                     .forEach(matched::add);
         }
@@ -109,12 +122,25 @@ public class YearGapService {
         if (picks.isEmpty()) {
             throw new FieldValidationException("lines", "Các dòng đã chọn không còn thiếu");
         }
-        List<PurchaseProposalApi.LineInput> lines = new ArrayList<>();
+        // Một đề xuất không có hai dòng cùng thiết bị (PurchaseProposalService.validate): nhiều điểm trường, hoặc số thiếu
+        // theo chuẩn và nhu cầu ngoài thông tư của cùng thiết bị, gộp thành MỘT dòng cộng số lượng. Căn cứ
+        // (proposal_standard_traces) vẫn ghi từng phần bên dưới để truy ngược.
+        Map<Long, List<Pick>> byCatalog = new LinkedHashMap<>();
         for (Pick p : picks) {
-            String note = (p.outside() ? "Ngoài thông tư" : "Theo chuẩn tối thiểu")
-                    + (p.row().campusName() == null ? "" : " · " + p.row().campusName());
-            lines.add(new PurchaseProposalApi.LineInput(new IdRef(p.row().catalogId()), PurchaseProposalLine.Kind.NEW,
-                    p.row().name(), null, p.row().unitName(), p.quantity(), null, 2,
+            byCatalog.computeIfAbsent(p.row().catalogId(), k -> new ArrayList<>()).add(p);
+        }
+        List<PurchaseProposalApi.LineInput> lines = new ArrayList<>();
+        for (List<Pick> group : byCatalog.values()) {
+            Row first = group.get(0).row();
+            int quantity = group.stream().mapToInt(Pick::quantity).sum();
+            Set<String> parts = new LinkedHashSet<>();
+            for (Pick p : group) {
+                parts.add((p.outside() ? "Ngoài thông tư" : "Theo chuẩn tối thiểu")
+                        + (p.row().campusName() == null ? "" : " · " + p.row().campusName()));
+            }
+            String note = String.join("; ", parts);
+            lines.add(new PurchaseProposalApi.LineInput(new IdRef(first.catalogId()), PurchaseProposalLine.Kind.NEW,
+                    first.name(), null, first.unitName(), quantity, null, 2,
                     note.length() > 255 ? note.substring(0, 255) : note, null));
         }
         PurchaseProposal created = proposals.create(new PurchaseProposalApi.Request(new IdRef(school), LocalDate.now(),
@@ -132,7 +158,7 @@ public class YearGapService {
                     row.adjustment() == null ? null : row.adjustment().kind(),
                     row.adjustment() == null ? null : row.adjustment().reason(), row.basisText(), p.outside());
         }
-        return new ProposalResult(created.getId(), created.getCode(), picks.size());
+        return new ProposalResult(created.getId(), created.getCode(), lines.size());
     }
 
     // ------------------------------------------------------------------ truy ngược (bước 7)

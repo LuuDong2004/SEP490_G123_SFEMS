@@ -100,7 +100,7 @@ public class FacilityStandardService {
 
     /** Một dòng của bảng tổng hợp nhiều trường. */
     public record Summary(SchoolInfo school, List<TierSummary> tiers, String reached, String reachedLabel,
-            int failedMinimum) {
+            int failedMinimum, List<Group> groups) {
     }
 
     private final JdbcTemplate jdbc;
@@ -189,7 +189,7 @@ public class FacilityStandardService {
                     }
                 }
             }
-            out.add(new Summary(school, tiers, reached, reachedLabel(reached), failedMinimum));
+            out.add(new Summary(school, tiers, reached, reachedLabel(reached), failedMinimum, groups));
         }
         return out;
     }

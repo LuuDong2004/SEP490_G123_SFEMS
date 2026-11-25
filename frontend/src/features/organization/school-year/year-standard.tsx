@@ -108,6 +108,8 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
   const own = !schoolId;
   const canPropose = (useCan({ resource: "purchase_proposals", action: "create" }).data?.can ?? false) && own;
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Dòng đã tích thuộc bảng đang xem: đổi điểm trường / năm học thì bỏ chọn — không mang dòng của điểm này sang điểm khác.
+  useEffect(() => setSelected(new Set()), [campusId, yearId]);
 
   const rows = useMemo(() => d?.rows ?? [], [d]);
   const subjects = useMemo(() => [...new Set(rows.map((r) => r.subjectName ?? "Dùng chung"))], [rows]);
@@ -133,8 +135,12 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
     if (!d) return;
     setBusy(true);
     try {
+      // Điểm trường của chính dòng được tích (dòng cộng cả trường không có điểm trường = mọi điểm đang thiếu thiết bị đó);
+      // máy chủ gộp các phần cùng thiết bị thành một dòng đề xuất.
+      const byNorm = new Map(rows.map((r) => [r.normId, r]));
+      const lines = normIds.map((normId) => ({ normId, campusId: byNorm.get(normId)?.campusId ?? d.campusId }));
       const r = await kyInstance.post("year_standards/proposal", {
-        json: { schoolYearId: d.schoolYearId, lines: normIds.map((normId) => ({ normId, campusId: d.campusId })) },
+        json: { schoolYearId: d.schoolYearId, lines },
       }).json<{ proposalId: number; lines: number }>();
       notify?.({ type: "success", message: `Đã lập đề xuất mua sắm nháp ${r.lines} dòng` });
       setSelected(new Set());

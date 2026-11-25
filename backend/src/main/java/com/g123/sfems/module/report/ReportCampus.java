@@ -21,10 +21,10 @@ final class ReportCampus {
     }
 
     /** Hình dạng SQL của một loại phiếu — bản song song của {@code VoucherCampus.Shape} cho từng bảng. */
-    record Shape(List<String> rooms, List<String> equipment, List<Lines> lines) {
+    record Shape(List<String> rooms, List<String> equipment, List<Lines> lines, List<String> campuses) {
 
         static Shape of(List<String> rooms, List<String> equipment, Lines... lines) {
-            return new Shape(rooms, equipment, List.of(lines));
+            return new Shape(rooms, equipment, List.of(lines), List.of());
         }
     }
 
@@ -36,7 +36,7 @@ final class ReportCampus {
                     new Lines("inventory_lines", "session_id", List.of("expected_room_id", "found_room_id"),
                             List.of("equipment_id")),
                     new Lines("inventory_surplus", "session_id", List.of("room_id"), List.of()))),
-            Map.entry("purchase_proposals", Shape.of(List.of(), List.of())));
+            Map.entry("purchase_proposals", new Shape(List.of(), List.of(), List.of(), List.of("campus_id"))));
 
     private final CampusScope campuses;
 
@@ -74,6 +74,9 @@ final class ReportCampus {
         boolean main = campuses.isMainCampus(c);
         String rooms = "(SELECT x.room_id FROM (" + FacilityCounting.ROOM_CAMPUS + ") x WHERE x.campus_id = " + c + ")";
         List<String> any = new ArrayList<>();
+        for (String col : shape.campuses()) {
+            any.add(alias + "." + col + " = " + c);
+        }
         for (String col : shape.rooms()) {
             any.add(alias + "." + col + " IN " + rooms);
         }
@@ -106,6 +109,9 @@ final class ReportCampus {
     private static String noAnchor(Shape shape, String alias, long school) {
         List<String> none = new ArrayList<>();
         none.add(alias + ".school_id = " + school);
+        for (String col : shape.campuses()) {
+            none.add(alias + "." + col + " IS NULL");
+        }
         for (String col : shape.rooms()) {
             none.add(alias + "." + col + " IS NULL");
         }

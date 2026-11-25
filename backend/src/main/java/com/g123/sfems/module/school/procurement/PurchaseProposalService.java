@@ -78,7 +78,12 @@ public class PurchaseProposalService
         voucher.setFundingSource(request.fundingSource());
         voucher.setReason(trimToNull(request.reason()));
         voucher.setNote(trimToNull(request.note()));
-        voucher.replaceLines(buildLines(voucher, request.lines()));
+        voucher.replaceLines(buildLines(voucher, request.lines(), Map.of()));
+        // Tài khoản một cơ sở lập: đề xuất thuộc cơ sở đó (người lập và lãnh đạo cơ sở thấy được). Cả trường: cơ sở chính.
+        Long pinned = campus.pinnedCampus();
+        if (pinned != null) {
+            voucher.setCampus(entityManager.getReference(com.g123.sfems.domain.school.facility.Campus.class, pinned));
+        }
     }
 
     @Override
@@ -99,7 +104,15 @@ public class PurchaseProposalService
             voucher.setNote(trimToNull(request.note()));
         }
         if (request.lines() != null) {
-            voucher.replaceLines(buildLines(voucher, request.lines()));
+            // Tên tự điền theo danh mục của dòng cũ (tên = tên thiết bị cũ): đổi thiết bị mà form gửi lại tên đó thì
+            // không giữ — dòng lấy tên thiết bị mới. Tên trường tự gõ khác tên danh mục thì giữ nguyên.
+            Map<String, Long> defaultNames = new HashMap<>();
+            for (PurchaseProposalLine old : voucher.getLines()) {
+                if (old.getName() != null && old.getName().equals(old.getCatalog().getName())) {
+                    defaultNames.put(old.getName(), old.getCatalog().getId());
+                }
+            }
+            voucher.replaceLines(buildLines(voucher, request.lines(), defaultNames));
         }
     }
 
@@ -234,8 +247,12 @@ public class PurchaseProposalService
             }
         }
         if (items.isEmpty()) {
-            throw new FieldValidationException("lines", lines.stream().allMatch(l -> l.remaining() == 0)
-                    ? "Đề xuất này đã nhập đủ hàng" : "Chọn ít nhất một thiết bị để nhập");
+            // Không dòng nào được đưa vào kế hoạch (mọi dòng 0) thì không phải "đã nhập đủ" — allMatch trên danh sách
+            // rỗng luôn đúng.
+            throw new FieldValidationException("lines", lines.isEmpty()
+                    ? "Kế hoạch không đưa thiết bị nào của đề xuất này vào mua — không có gì để nhập"
+                    : lines.stream().allMatch(l -> l.remaining() == 0)
+                            ? "Đề xuất này đã nhập đủ hàng" : "Chọn ít nhất một thiết bị để nhập");
         }
         // Đơn vị giao mặc định (cấp trên mua tập trung): cơ quan lập kế hoạch.
         String deliveringUnit = voucher.getPlan() == null || voucher.getPlan().getManagingBody() == null ? null
@@ -261,10 +278,13 @@ public class PurchaseProposalService
         if (voucher.getPlan() != null) {
             actions.remove("cancel");
         }
-        // Chưa có phiếu ghi tăng nào thì còn nhập được ngay; đã có thì xem còn thiết bị chưa nhập đủ không (chỉ
-        // đề xuất đã hoàn tất và đã nhập một phần mới phải đếm — không tốn truy vấn cho mỗi dòng danh sách).
+        // Chưa có phiếu ghi tăng nào thì còn nhập được ngay — nếu kế hoạch đưa ít nhất một dòng vào mua (dòng 0 không
+        // nhập); đã có thì xem còn thiết bị chưa nhập đủ không (chỉ đề xuất đã hoàn tất và đã nhập một phần mới phải
+        // đếm — không tốn truy vấn cho mỗi dòng danh sách).
         if (voucher.getStatus() == VoucherStatus.COMPLETED && Boolean.TRUE.equals(can.get("write"))
-                && (voucher.getIntakeId() == null || intakeLines(voucher).stream().anyMatch(l -> l.remaining() > 0))) {
+                && (voucher.getIntakeId() == null
+                        ? voucher.getLines().stream().anyMatch(l -> l.effectiveQuantity() > 0)
+                        : intakeLines(voucher).stream().anyMatch(l -> l.remaining() > 0))) {
             actions.add("intake");
         }
         return actions;
@@ -285,7 +305,7 @@ public class PurchaseProposalService
             ApprovalStep approvalStep, boolean returned, int quantity, String unitName) {
     }
 
-    /** Đề xuất còn "đang xin": chưa bị từ chối / huỷ và hàng chưa về (chưa lập phiếu ghi tăng). */
+    /** Đề xuất còn "đang xin": chưa bị từ chối / huỷ (hàng về đủ thì dòng tự rơi ra — xem {@link #overlaps}). */
     private static final Set<VoucherStatus> LIVE = Set.of(VoucherStatus.DRAFT, VoucherStatus.PENDING,
             VoucherStatus.APPROVED, VoucherStatus.COMPLETED);
 
@@ -294,23 +314,41 @@ public class PurchaseProposalService
      * báo xin trùng. Chỉ cảnh báo, không chặn: trường có lý do xin thêm (phiếu trước bị cắt số lượng…). Tính
      * cả phiếu nháp, vì hai bản nháp trùng nhau là đúng chỗ cột "Đề xuất" của bảng định mức không thấy. Đọc
      * qua phạm vi dòng như mọi lần đọc phiếu, nên Sở chỉ thấy đề xuất đã trình tới mình.
+     *
+     * <p>Số lượng theo cùng luật với cột "Đề xuất" ({@link ProposedQuantity}): đề xuất hoàn tất lấy số đưa vào kế
+     * hoạch, trừ phần đã về theo phiếu ghi tăng hoàn tất; dòng không còn gì chờ về thì không cảnh báo. Đề xuất nhập
+     * một phần vẫn cảnh báo phần còn lại.
      */
     public List<Overlap> overlaps(Long schoolId, Long excludeId) {
         Specification<PurchaseProposal> spec = rowLevel.<PurchaseProposal>scope(PurchaseProposal.class,
                         com.g123.sfems.shared.security.rowlevel.Action.READ)
                 .and(campusRead())
                 .and((root, q, cb) -> cb.equal(root.get("school").get("id"), schoolId))
-                .and((root, q, cb) -> root.get("status").in(LIVE))
-                .and((root, q, cb) -> cb.isNull(root.get("intakeId")));
+                .and((root, q, cb) -> root.get("status").in(LIVE));
         if (excludeId != null) {
             spec = spec.and((root, q, cb) -> cb.notEqual(root.get("id"), excludeId));
         }
         List<Overlap> result = new ArrayList<>();
         for (PurchaseProposal p : repository.findAll(spec, org.springframework.data.domain.Sort.by("id"))) {
+            boolean completed = p.getStatus() == VoucherStatus.COMPLETED;
+            // Phần đã lên sổ = đã vào phiếu ghi tăng trừ phần còn ở phiếu chưa hoàn tất.
+            Map<Long, Integer> arrived = new HashMap<>();
+            if (completed && p.getIntakeId() != null) {
+                Map<Long, Integer> pending = intakes.pendingBySource(RESOURCE, p.getId());
+                intakes.receivedBySource(RESOURCE, p.getId()).forEach((catalog, total) ->
+                        arrived.put(catalog, total - pending.getOrDefault(catalog, 0)));
+            }
             for (PurchaseProposalLine line : p.getLines()) {
-                result.add(new Overlap(line.getCatalog().getId(), p.getId(), p.getCode(), p.getStatus(),
+                Long catalogId = line.getCatalog().getId();
+                int wanted = completed ? line.effectiveQuantity() : line.getQuantity() == null ? 0 : line.getQuantity();
+                int done = Math.max(0, Math.min(wanted, arrived.getOrDefault(catalogId, 0)));
+                arrived.merge(catalogId, -done, Integer::sum);
+                if (wanted - done <= 0) {
+                    continue;
+                }
+                result.add(new Overlap(catalogId, p.getId(), p.getCode(), p.getStatus(),
                         p.getApprovalStep(), p.getStatus() == VoucherStatus.DRAFT && p.getReturnNote() != null,
-                        line.getQuantity(), line.getUnitName()));
+                        wanted - done, line.getUnitName()));
             }
         }
         return result;
@@ -355,7 +393,9 @@ public class PurchaseProposalService
         return Set.of("id", "code", "status", "proposalDate", "budgetYear", "createdAt", "updatedAt");
     }
 
-    private List<PurchaseProposalLine> buildLines(PurchaseProposal voucher, List<PurchaseProposalApi.LineInput> inputs) {
+    /** {@code defaultNames}: tên tự điền của các dòng cũ → thiết bị của dòng đó (xem {@link #applyUpdate}). */
+    private List<PurchaseProposalLine> buildLines(PurchaseProposal voucher, List<PurchaseProposalApi.LineInput> inputs,
+            Map<String, Long> defaultNames) {
         List<PurchaseProposalLine> result = new ArrayList<>();
         if (inputs == null) {
             return result;
@@ -378,6 +418,10 @@ public class PurchaseProposalService
             line.setKind(input.kind());
             line.setCatalog(catalog);
             String name = trimToNull(input.name());
+            Long nameOf = name == null ? null : defaultNames.get(name);
+            if (nameOf != null && !nameOf.equals(catalog.getId())) {
+                name = null;
+            }
             line.setName(name == null ? catalog.getName() : name);
             line.setSpecification(trimToNull(input.specification()));
             String unit = trimToNull(input.unitName());
@@ -396,9 +440,12 @@ public class PurchaseProposalService
         return result;
     }
 
-    /** Phạm vi cơ sở: Đề xuất chỉ có danh mục — thuộc cơ sở chính. */
+    /** Phạm vi cơ sở: cơ sở ghi trên đề xuất (của người lập); trống = cơ sở chính. */
+    public static final VoucherCampus.Shape CAMPUS = new VoucherCampus.Shape(List.of(), List.of(), List.of(),
+            List.of("campus"));
+
     @Override
     protected VoucherCampus.Shape campusShape() {
-        return VoucherCampus.Shape.NONE;
+        return CAMPUS;
     }
 }

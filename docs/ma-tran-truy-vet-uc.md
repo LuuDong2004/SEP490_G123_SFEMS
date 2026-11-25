@@ -93,9 +93,9 @@ Quy ước:
 | UC | Tên | Người | Màn hình | API | Quyền | Test |
 |---|---|---|---|---|---|---|
 | BC-01 | Xem bảng điều khiển | QuangTD | `/dashboard` | `GET /api/reports/dashboard` | `reports:read` | ❌ |
-| BC-02 | Xem báo cáo thiết bị | QuangTD | `/reports/equipment-by-school`, `-by-catalog`, `-by-status`, `-by-condition`, `/reports/equipment-list`, `/reports/equipment-ledger` | `GET /api/reports/{name}` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-02 | Xem báo cáo thiết bị | QuangTD | `/reports/equipment-by-school`, `-by-catalog`, `-by-status`, `-by-condition`, `/reports/equipment-ledger` | `GET /api/reports/{name}` | `reports:read` | ◐ `ReportFiltersTest` |
 | BC-03 | Xem báo cáo mức đáp ứng danh mục thiết bị tối thiểu | QuangTD | `/reports/adequacy` | `GET /api/reports/adequacy` | `reports:read` | ◐ `ReportFiltersTest` |
-| BC-04 | Xem báo cáo nhu cầu và kế hoạch mua sắm | QuangTD | `/reports/purchase` | `GET /api/reports/purchase` | `reports:read` | ◐ `ReportFiltersTest` |
+| BC-04 | Xem báo cáo nhu cầu và kế hoạch mua sắm | QuangTD | `/reports/purchase` | `GET /api/reports/purchase` | `reports:read` | ✅ `PurchaseReportTest` |
 | BC-05 | Xem báo cáo kết quả kiểm kê | QuangTD | `/reports/inventory` | `GET /api/reports/inventory` | `reports:read` | ◐ `ReportFiltersTest` |
 | BC-06 | Xuất dữ liệu danh sách và báo cáo | QuangTD | nút Xuất trên danh sách và báo cáo, `/report-snapshots/show/:id` | `GET /api/reports/{name}/export`, `/api/report_snapshots`, `POST /api/activity_logs/exports` | `reports:export`, `<resource>:export` | ◐ e2e `flow-exceptions` E6 (xuất Excel 5 báo cáo qua API và nút Xuất) — chưa test xuất danh sách, bản lưu |
 

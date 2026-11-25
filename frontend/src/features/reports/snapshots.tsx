@@ -1,15 +1,18 @@
 import { useCan, useGetIdentity, useNotification } from "@refinedev/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
+import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { PrintButton, PrintSheet } from "@/shared/components/print/print-sheet";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
+import { usePersistentState } from "@/shared/hooks/use-persistent-state";
+import { useSettled } from "@/shared/hooks/use-settled";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatDateTime, formatPlainDate } from "@/shared/lib/format";
 import { safeDownloadName } from "@/shared/lib/download-filename";
@@ -102,11 +105,22 @@ export function SaveSnapshotDialog({ name, params, open, onOpenChange: setOpen }
 /** Danh sách báo cáo đã lưu mà người xem được phép thấy (theo nơi lập). */
 export const ReportSnapshotList = () => {
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState<number>("reportSnapshots.pageSize", 20, "local");
+  const needle = useSettled(q.trim(), 300);
+  useEffect(() => setPage(1), [needle, pageSize]);
   const { data, isLoading } = useQuery({
-    queryKey: ["report_snapshots", q],
-    queryFn: ({ signal }) => kyInstance.get("report_snapshots", { signal,  searchParams: { _start: "0", _end: "100", ...(q.trim() ? { q: q.trim() } : {}) } }).json<SnapshotRow[]>(),
+    queryKey: ["report_snapshots", "list", needle, page, pageSize],
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }) => {
+      const res = await kyInstance.get("report_snapshots", { signal,
+        searchParams: { _start: String((page - 1) * pageSize), _end: String(page * pageSize), ...(needle ? { q: needle } : {}) } });
+      return { rows: await res.json<SnapshotRow[]>(), total: Number(res.headers.get("X-Total-Count") ?? 0) };
+    },
   });
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   return (
     <ListView>
       <ListViewHeader canCreate={false} />
@@ -145,6 +159,12 @@ export const ReportSnapshotList = () => {
             </TableBody>
           </Table>
           </div>
+          {total > 10 ? (
+            <div className="-mx-4 -mb-4 shrink-0 border-t px-3 py-1.5">
+              <DataTablePagination currentPage={page} pageCount={pageCount} setCurrentPage={setPage} pageSize={pageSize}
+                setPageSize={setPageSize} total={total} pageSizeLabel="Số bản mỗi trang" />
+            </div>
+          ) : null}
       </Card>
       </FillBox>
     </ListView>

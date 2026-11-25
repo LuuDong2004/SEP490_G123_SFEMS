@@ -40,11 +40,13 @@ export type CampaignProgress = {
   schools: CampaignProgressRow[];
 };
 
-export type Discrepancy = "MISSING" | "WRONG_ROOM" | "SHORTAGE";
+/** `InventoryLine.Discrepancy` ở máy chủ. CONDITION: thấy nhưng tình trạng khác hệ thống. */
+export type Discrepancy = "MISSING" | "WRONG_ROOM" | "CONDITION" | "SHORTAGE";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
   MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
+  CONDITION: "Sai tình trạng",
   SHORTAGE: "Thiếu số lượng",
 };
 
@@ -54,7 +56,8 @@ export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
  */
 export const DISCREPANCY_OUTCOMES: Record<Exclude<Discrepancy, "SHORTAGE"> | "SURPLUS", string> = {
   MISSING: "ghi trạng thái Mất vào hồ sơ thiết bị",
-  WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy",
+  WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy (về kho thì Trong kho, về phòng khác thì Đang sử dụng)",
+  CONDITION: "ghi tình trạng thực tế vào hồ sơ thiết bị",
   SURPLUS: "lập phiếu ghi tăng nháp (nguồn Kiểm kê thừa)",
 };
 
@@ -62,7 +65,11 @@ export type InventoryLine = {
   details?: Details;
   id: number;
   lineNo: number;
-  equipment: EquipmentRef;
+  /** Trống khi hồ sơ thiết bị (đã Mất) bị xoá sau khi biên bản duyệt xong — mã, tên đọc từ `equipmentCode` / `equipmentName`. */
+  equipment: EquipmentRef | null;
+  /** Mã, tên thiết bị: của hồ sơ khi còn, không thì bản chụp lúc lập phiếu. Luôn có. */
+  equipmentCode: string;
+  equipmentName: string;
   expectedRoom: Ref | null;
   expectedCondition: string | null;
   found: boolean | null;
@@ -98,6 +105,7 @@ export type InventorySession = VoucherBase & {
     matched: number;
     missing: number;
     wrongRoom: number;
+    wrongCondition: number;
     surplus: number;
   };
   lines: InventoryLine[];
@@ -116,6 +124,7 @@ export type DiscrepancyCounts = {
   matched: number;
   missing: number;
   wrongRoom: number;
+  wrongCondition: number;
 };
 
 /** `GET /inventory_sessions/{id}/breakdown`. */
@@ -134,17 +143,18 @@ export type CampaignDiscrepancyRow = {
 };
 
 /** Tiêu đề các cột số của bảng chênh lệch. */
-export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí"];
+export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Sai tình trạng"];
 
 /** Cộng các nhóm thành một hàng tổng. */
 export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
-  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0 };
+  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0, wrongCondition: 0 };
   for (const r of rows) {
     total.total += r.total;
     total.checked += r.checked;
     total.matched += r.matched;
     total.missing += r.missing;
     total.wrongRoom += r.wrongRoom;
+    total.wrongCondition += r.wrongCondition;
   }
   return total;
 }

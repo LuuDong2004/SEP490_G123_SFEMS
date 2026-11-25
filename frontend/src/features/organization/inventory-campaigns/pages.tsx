@@ -2,6 +2,7 @@ import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/r
 import { useCan, useShow } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { useQuery } from "@tanstack/react-query";
+import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -189,6 +190,7 @@ export const InventoryCampaignShow = () => {
   }, [all]);
   const q = term.trim().toLowerCase();
   const rows = all.filter((s) => (stage === "all" || s.stage === stage) && (!q || s.schoolName.toLowerCase().includes(q)));
+  const paged = usePagedRows(rows, { resetKey: `${stage}|${q}`, sizeKey: "campaignProgress", pageSizeLabel: "Số trường mỗi trang" });
   return (
     <ShowView>
       <ShowViewHeader />
@@ -226,7 +228,7 @@ export const InventoryCampaignShow = () => {
               <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Tìm trường…" className="pl-8" aria-label="Tìm trường" />
             </div>
           </div>
-          <div className="max-h-[35rem] overflow-y-auto [&>[data-slot=table-container]]:overflow-visible">
+          <div ref={paged.boxRef} className="max-h-[35rem] overflow-y-auto [&>[data-slot=table-container]]:overflow-visible">
             <Table>
               <TableHeader className="bg-surface-subtle sticky top-0 z-10">
                 <TableRow>
@@ -243,8 +245,8 @@ export const InventoryCampaignShow = () => {
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
-                  <TableEmpty colSpan={showDiffs ? 10 : 3} loading={!p} title="Không có trường nào khớp." />
-                ) : rows.map((s) => (
+                  <TableEmpty colSpan={showDiffs ? 3 + COUNT_HEADS.length + 1 : 3} loading={!p} title="Không có trường nào khớp." />
+                ) : paged.visible.map((s) => (
                   <TableRow key={s.schoolId} className={cn("group/row", LIFT_ROW)}>
                     <TableCell className="px-4">{s.schoolName}</TableCell>
                     <TableCell className="px-4 font-mono text-xs">
@@ -271,7 +273,7 @@ export const InventoryCampaignShow = () => {
                           <TableCell className="pe-4 text-right tabular-nums">{d.surplus || <span className="text-muted-foreground">0</span>}</TableCell>
                         </>
                       ) : (
-                        <TableCell colSpan={7} className="text-muted-foreground pe-4 text-right">—</TableCell>
+                        <TableCell colSpan={COUNT_HEADS.length + 1} className="text-muted-foreground pe-4 text-right">—</TableCell>
                       );
                     })() : null}
                   </TableRow>
@@ -286,6 +288,7 @@ export const InventoryCampaignShow = () => {
               </TableBody>
             </Table>
           </div>
+          {paged.pager}
         </Card>
       </div>
     </ShowView>

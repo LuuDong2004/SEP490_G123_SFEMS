@@ -115,10 +115,17 @@ public class UserService {
 
     /** Danh sách tài khoản của MỘT trường — cho màn "Tài khoản của trường" (SchoolUserService). */
     public Page<User> listInSchool(ListParams params, Long schoolId) {
+        return listInSchool(params, schoolId, null);
+    }
+
+    /** Như trên; {@code campusId} khác {@code null}: chỉ tài khoản của cơ sở đó (người xem quản lý một cơ sở). */
+    public Page<User> listInSchool(ListParams params, Long schoolId, Long campusId) {
         return repository.findAll(
                 UserSpecifications.from(params)
                         .and((root, query, cb) -> cb.equal(cb.treat(root, SchoolUser.class).get("school").get("id"),
-                                schoolId)),
+                                schoolId))
+                        .and((root, query, cb) -> campusId == null ? null
+                                : cb.equal(cb.treat(root, SchoolUser.class).get("campus").get("id"), campusId)),
                 params.pageable(SORTABLE, DEFAULT_SORT));
     }
 

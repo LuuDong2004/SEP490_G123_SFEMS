@@ -52,6 +52,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -61,6 +62,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -97,6 +99,12 @@ public class OnboardingService {
             String createdAt, String createdBy, String committedAt, String committedBy, List<SheetCount> sheets,
             int errors, Map<String, Integer> created, Map<String, Object> preview) {
     }
+
+    /** Một trang danh sách lô; {@code total} là số lô khớp bộ lọc. */
+    public record BatchPage(List<Batch> rows, long total) {
+    }
+
+    private static final int MAX_PAGE = 100;
 
     public record IdName(Long id, String name) {
     }
@@ -196,20 +204,45 @@ public class OnboardingService {
     }
 
     @Transactional(readOnly = true)
-    public List<Batch> list(Long schoolId) {
+    public BatchPage list(Long schoolId, String kind, int start, int end) {
+        List<Map<String, Object>> rows = visibleBatches(schoolId).stream()
+                .filter(m -> kind == null || kind.equals(kindKey(m))).toList();
+        int from = Math.min(Math.max(start, 0), rows.size());
+        int to = Math.min(from + Math.min(Math.max(end - start, 1), MAX_PAGE), rows.size());
+        return new BatchPage(rows.subList(from, to).stream().map(m -> summary(((Number) m.get("id")).longValue())).toList(),
+                rows.size());
+    }
+
+    /** Số lô của từng loại dữ liệu người xem thấy được — số cạnh tên các tab. */
+    @Transactional(readOnly = true)
+    public Map<String, Long> countByKind() {
+        return visibleBatches(null).stream().collect(Collectors.groupingBy(OnboardingService::kindKey, Collectors.counting()));
+    }
+
+    private static String kindKey(Map<String, Object> batch) {
+        CatalogImports.Kind kind = CatalogImports.kindOf(batch.get("kind"));
+        return kind == null ? "school_data" : kind.key();
+    }
+
+    /** Mã các lô người xem thấy được, mới nhất trước. Tóm tắt từng lô tốn ba câu truy vấn nên chỉ dựng cho trang đang xem. */
+    private List<Map<String, Object>> visibleBatches(Long schoolId) {
         Set<Long> visible = visibleSchools.current();
-        List<Long> ids = jdbc.queryForList("SELECT id, school_id, kind FROM data_import_batches ORDER BY created_at DESC")
+        Set<CatalogImports.Kind> allowed = EnumSet.noneOf(CatalogImports.Kind.class);
+        for (CatalogImports.Kind k : CatalogImports.Kind.values()) {
+            if (schoolId == null && catalogImports.allowed(k)) {
+                allowed.add(k);
+            }
+        }
+        return jdbc.queryForList("SELECT id, school_id, kind FROM data_import_batches ORDER BY created_at DESC, id DESC")
                 .stream()
                 .filter(m -> {
                     CatalogImports.Kind kind = CatalogImports.kindOf(m.get("kind"));
                     if (kind != null) {
-                        return schoolId == null && catalogImports.allowed(kind);
+                        return allowed.contains(kind);
                     }
                     long school = ((Number) m.get("school_id")).longValue();
                     return (visible == null || visible.contains(school)) && (schoolId == null || schoolId.equals(school));
-                })
-                .map(m -> ((Number) m.get("id")).longValue()).toList();
-        return ids.stream().map(this::summary).toList();
+                }).toList();
     }
 
     @Transactional(readOnly = true)
@@ -885,9 +918,9 @@ public class OnboardingService {
                 catalog = newItems.computeIfAbsent(c.newItem().key(), k -> createItem(c));
             }
             EquipmentRequest request = new EquipmentRequest(c.legacy(), c.name(), null, true, c.note(), school,
-                    new IdRef(catalog), null, null, c.serial(), null, null, null, null, c.quantity(),
+                    new IdRef(catalog), null, null, c.serial(), null, null, null, c.quantity(),
                     c.originSource() == null ? null : new IdRef(c.originSource()), null, c.funding(), null, c.year(),
-                    c.receivedDate(), c.receivedDate(), c.originalValue(), c.remainingValue(), null, null,
+                    c.receivedDate(), c.receivedDate(), c.originalValue(), null, null,
                     ref(OnboardingSheet.ROOM, c.room()), ref(OnboardingSheet.STAFF, c.manager()),
                     c.condition(), null, null, null);
             for (int i = 0; i < c.copies(); i++) {
@@ -995,6 +1028,9 @@ public class OnboardingService {
             List<String> cells = rows.get(i);
             Map<String, String> data = new LinkedHashMap<>();
             for (Map.Entry<Integer, String> k : bestKeys.entrySet()) {
+                if (SKIPPED.equals(k.getValue())) {
+                    continue;
+                }
                 String v = k.getKey() < cells.size() ? cells.get(k.getKey()) : null;
                 if (v != null && !v.isBlank()) {
                     data.put(k.getValue(), v.trim());
@@ -1014,9 +1050,20 @@ public class OnboardingService {
         return new Detected(best, result);
     }
 
+    /** Khoá của cột nhận ra là tiêu đề nhưng không đọc. */
+    private static final String SKIPPED = "_skipped";
+
+    /**
+     * Tiêu đề hay gặp trong sổ cũ mà hệ thống không giữ (giá trị còn lại: không có khấu hao). Vẫn nhận ra là tiêu đề,
+     * để tiêu đề hai tầng "Giá trị" / "Nguyên giá" "Còn lại" không bị đọc thành một dòng dữ liệu.
+     */
+    private static final List<String> SKIPPED_HEADERS = List.of("Giá trị còn lại", "Giá trị còn lại (đ)", "GTCL", "Còn lại",
+            "Giá trị còn lại một cái");
+
     /** Nhãn và các tên khác của mọi cột một trang, theo khoá so ({@link #headerKey}). */
     private static Map<String, String> labels(OnboardingSheet s) {
         Map<String, String> byLabel = new HashMap<>();
+        SKIPPED_HEADERS.forEach(h -> byLabel.put(headerKey(h), SKIPPED));
         for (OnboardingSheet.Column c : s.columns()) {
             byLabel.putIfAbsent(headerKey(c.label()), c.key());
             c.aliases().forEach(a -> byLabel.putIfAbsent(headerKey(a), c.key()));

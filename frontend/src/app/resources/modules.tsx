@@ -57,7 +57,7 @@ export const MODULES: ModuleDef[] = [
         { resource: "inventory_sessions", title: "Kiểm kê tại trường", maker: "Cán bộ thiết bị", approver: "Lãnh đạo trường", result: "Ghi thừa, thiếu, tình trạng của từng thiết bị." },
       ],
       catalogs: ["equipment_standards", "equipment_types", "units", "rooms", "origin_sources"],
-      reports: ["report_equipment_by_school", "report_equipment_by_status", "report_equipment_list", "report_inventory"],
+      reports: ["report_equipment_by_school", "report_equipment_by_status", "report_inventory"],
     },
   },
   {

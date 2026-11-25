@@ -66,6 +66,7 @@ public class VoucherWorkflow {
     private final ApprovalFlowService approvalFlows;
     private final ApplicationEventPublisher publisher;
     private final InventoryFreeze inventoryFreeze;
+    private final VoucherCampus campus;
 
     public VoucherWorkflow(
             VoucherEventRepository events,
@@ -75,7 +76,8 @@ public class VoucherWorkflow {
             JdbcTemplate jdbc,
             ApprovalFlowService approvalFlows,
             ApplicationEventPublisher publisher,
-            InventoryFreeze inventoryFreeze) {
+            InventoryFreeze inventoryFreeze,
+            VoucherCampus campus) {
         this.events = events;
         this.numbers = numbers;
         this.principals = principals;
@@ -84,6 +86,7 @@ public class VoucherWorkflow {
         this.approvalFlows = approvalFlows;
         this.publisher = publisher;
         this.inventoryFreeze = inventoryFreeze;
+        this.campus = campus;
     }
 
     // ------------------------------------------------------------------ chuyển trạng thái
@@ -172,7 +175,8 @@ public class VoucherWorkflow {
     private void awaiting(SchoolVoucher voucher, String resource, ApprovalStep step) {
         School school = voucher.getSchool();
         publisher.publishEvent(new VoucherAwaiting(resource, voucher.getId(), voucher.getCode(), step,
-                school == null ? null : school.getId(), school == null ? "" : school.getName()));
+                school == null ? null : school.getId(), school == null ? "" : school.getName(),
+                step == ApprovalStep.SCHOOL ? campus.touchedCampuses(voucher) : Set.of()));
     }
 
     /** Báo người trình (không có thì người lập), xem {@link VoucherDecisionNotifier}. */
@@ -289,7 +293,11 @@ public class VoucherWorkflow {
         // Quản trị viên không thuộc cấp duyệt nào (284): duyệt là quyết định của lãnh đạo trường / Sở.
         RowLevelPrincipal principal = current.get();
         return switch (voucher.getApprovalStep()) {
-            case SCHOOL -> Objects.equals(principal.schoolId(), voucher.getSchool().getId());
+            // Lãnh đạo chỉ quản lý một cơ sở duyệt phiếu CHỈ chạm cơ sở đó; phiếu chạm nhiều cơ sở (hoặc cơ sở khác)
+            // để lãnh đạo cả trường duyệt.
+            case SCHOOL -> Objects.equals(principal.schoolId(), voucher.getSchool().getId())
+                    && (principal.campusId() == null
+                            || campus.touchedCampuses(voucher).equals(Set.of(principal.campusId())));
             case MANAGING_BODY -> principal.managingBodyId() != null
                     && Objects.equals(principal.managingBodyId(), bodyId(voucher.getSchool()));
         };

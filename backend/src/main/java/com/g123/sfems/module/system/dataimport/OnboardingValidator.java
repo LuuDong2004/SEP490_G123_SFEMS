@@ -109,7 +109,7 @@ public class OnboardingValidator {
      */
     record EquipmentRow(String legacy, String name, Long catalog, NewItem newItem, String aliasCode,
             BigDecimal quantity, int copies, String serial, String room, String manager, BigDecimal originalValue,
-            BigDecimal remainingValue, LocalDate receivedDate, Integer year, Long originSource, OriginRule origin,
+            LocalDate receivedDate, Integer year, Long originSource, OriginRule origin,
             FundingSource funding, EquipmentCondition condition, String note) {
     }
 
@@ -884,10 +884,6 @@ public class OnboardingValidator {
         String manager = r.reference("manager", OnboardingSheet.STAFF, r.text("manager", 64), "cán bộ");
 
         BigDecimal original = r.number("originalValue", "Nguyên giá");
-        BigDecimal remaining = r.number("remainingValue", "Giá trị còn lại");
-        if (original != null && remaining != null && remaining.compareTo(original) > 0) {
-            r.error("remainingValue", "Giá trị còn lại lớn hơn nguyên giá");
-        }
         Integer year = r.integer("year", "Năm đưa vào sử dụng", 1900, 2100);
         LocalDate received = r.date("receivedDate", "Ngày tiếp nhận");
         if (received == null && year != null && r.text("receivedDate", 40) == null) {
@@ -935,7 +931,7 @@ public class OnboardingValidator {
                 .put(r.staged.id(), bulk ? 1 : copies);
         return new EquipmentRow(legacy, name, catalog == null ? null : catalog.id(), newItem,
                 catalog != null && catalog.official() && !"code".equals(method) ? aliasCode : null,
-                bulk ? quantity : BigDecimal.ONE, bulk ? 1 : copies, serial, room, manager, original, remaining,
+                bulk ? quantity : BigDecimal.ONE, bulk ? 1 : copies, serial, room, manager, original,
                 received, year, originId, origin, funding, condition, r.text("note", 500));
     }
 

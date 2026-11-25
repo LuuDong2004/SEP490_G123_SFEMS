@@ -25,7 +25,7 @@ class ReportYear {
 
     /** Báo cáo dựng lại được theo năm học. */
     static final Set<String> REPORTS = Set.of("equipment-by-school", "equipment-by-catalog", "equipment-by-status",
-            "equipment-by-condition", "equipment-list", "equipment-ledger", "adequacy");
+            "equipment-by-condition", "equipment-ledger", "adequacy");
 
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -65,7 +65,7 @@ class ReportYear {
             condition.append(" WHEN '").append(EquipmentLifecycle.conditionLabel(c)).append("' THEN '").append(c.name()).append("'");
         }
         return "(SELECT e0.id, e0.school_id, e0.catalog_id, e0.code, e0.name, e0.room_id, e0.manager_id, e0.unit_id,"
-                + " e0.quantity, e0.received_date, e0.original_value, e0.remaining_value, e0.origin_source_id,"
+                + " e0.quantity, e0.received_date, e0.original_value, e0.origin_source_id,"
                 + " e0.intake_line_id, e0.asset_category, "
                 + before("status", status + " END", cut) + " AS status, "
                 + before("condition", condition + " END", cut) + " AS condition"

@@ -229,11 +229,9 @@ public class YearAdequacyService {
 
         Map<Long, Map<Long, Map<Long, int[]>>> stock = equipmentAt(ids, year, cut);
         Map<Long, Map<Long, Integer>> proposed = new HashMap<>();
-        jdbc.query("""
-                SELECT p.school_id, l.catalog_id, SUM(l.quantity)::int FROM purchase_proposals p
-                JOIN purchase_proposal_lines l ON l.proposal_id = p.id
-                WHERE p.status IN ('DRAFT', 'PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL AND p.school_id IN (%s)
-                GROUP BY 1, 2""".formatted(ids), rs -> {
+        // Số đang đề xuất: số kế hoạch khi đã vào kế hoạch được duyệt, trừ phần đã nhập về — xem ProposedQuantity.
+        jdbc.query(ProposedQuantity.sql("'DRAFT', 'PENDING', 'APPROVED', 'COMPLETED'",
+                " AND p.school_id IN (" + ids + ")"), rs -> {
             proposed.computeIfAbsent(rs.getLong(1), k -> new HashMap<>()).put(rs.getLong(2), rs.getInt(3));
         });
 

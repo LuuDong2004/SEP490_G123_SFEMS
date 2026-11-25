@@ -546,3 +546,9 @@ databaseChangeLog:
       file: db/changelog/changes/293-bo-tinh-trang-hong.sql
   - include:
       file: db/changelog/changes/294-bo-ai-lam-sach-du-lieu.sql
+  - include:
+      file: db/changelog/changes/295-gon-ho-so-thiet-bi.sql
+  - include:
+      file: db/changelog/changes/296-kiem-ke-giu-dong-khi-xoa-thiet-bi.sql
+  - include:
+      file: db/changelog/changes/297-de-xuat-theo-co-so.sql

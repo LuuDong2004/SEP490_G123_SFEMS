@@ -75,7 +75,8 @@ const PAGE = 50;
 
 type Draft = { found: string; room: string; condition: string; qty: string; note: string; details: Details };
 
-type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM";
+type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM" | "CONDITION";
+const KIND_FILTERS: readonly Filter[] = ["MISSING", "WRONG_ROOM", "CONDITION"];
 
 function draftOf(line: InventoryLine): Draft {
   return {
@@ -212,7 +213,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
   const roomKey = (l: InventoryLine) => l.expectedRoom?.name ?? "Kho (chưa xếp phòng)";
   const { visible, roomTotals } = useMemo(() => {
     const visible = record.lines.filter((l) => {
-      if (needle && !fold(`${l.equipment.code} ${l.equipment.name}`).includes(needle)) return false;
+      if (needle && !fold(`${l.equipmentCode} ${l.equipmentName}`).includes(needle)) return false;
       if (roomFilter && (l.expectedRoom ? String(l.expectedRoom.id) : "none") !== roomFilter) return false;
       switch (filter) {
         case "unchecked":
@@ -301,10 +302,11 @@ function CountingPanel({ record, editable, filter, setFilter }: {
   const uncheckedVisible = visible.filter((l) => drafts[l.id]?.found === UNSET).length;
   const diffCount = record.lines.filter((l) => l.discrepancies.length > 0).length;
   const unchecked = record.summary.total - record.summary.checked;
-  const inDiff = filter === "diff" || filter === "MISSING" || filter === "WRONG_ROOM";
+  const inDiff = filter === "diff" || KIND_FILTERS.includes(filter);
   const kinds = ([
     ["MISSING", record.summary.missing],
     ["WRONG_ROOM", record.summary.wrongRoom],
+    ["CONDITION", record.summary.wrongCondition],
   ] as const).filter(([, n]) => n > 0);
   // Tiêu đề phòng chỉ có nghĩa khi bảng trải qua nhiều phòng.
   const grouped = roomTotals.size > 1;
@@ -317,6 +319,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
     diff: "Có chênh lệch",
     MISSING: "Thiếu",
     WRONG_ROOM: "Sai vị trí",
+    CONDITION: "Sai tình trạng",
   };
 
   return (
@@ -336,7 +339,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
           {kinds.length > 1 ? (
             <IconFilter icon={<TriangleAlert />} label="loại chênh lệch" allLabel="Mọi chênh lệch" total={diffCount}
               groups={[{ items: kinds.map(([k, n]) => ({ key: k, label: DISCREPANCY_LABELS[k], count: n })) }]}
-              value={filter === "MISSING" || filter === "WRONG_ROOM" ? filter : null}
+              value={KIND_FILTERS.includes(filter) ? filter : null}
               onChange={(v) => setFilter((v as Filter | null) ?? "diff")} />
           ) : null}
           {/* Nút chọn chung (`Segmented`): viên màu chính trượt sang ô mới — cùng kiểu với thanh tab, Làm việc / Văn bản. */}
@@ -413,8 +416,8 @@ function CountingPanel({ record, editable, filter, setFilter }: {
                   ) : null}
                   <TableRow className={cn(ROW_EDGE, !editable && cn("group/row", LIFT_ROW), changed && "bg-primary/5")}>
                     {editable ? <TableCell align="center" className={cn(edit, "text-muted-foreground font-normal")}>{l.lineNo}</TableCell> : null}
-                    <TableCell className={cn(edit, "text-muted-foreground truncate font-mono text-xs font-normal")}>{l.equipment.code}</TableCell>
-                    <TableCell className={cn(edit, "truncate")} title={l.equipment.name}>{l.equipment.name}</TableCell>
+                    <TableCell className={cn(edit, "text-muted-foreground truncate font-mono text-xs font-normal")}>{l.equipmentCode}</TableCell>
+                    <TableCell className={cn(edit, "truncate")} title={l.equipmentName}>{l.equipmentName}</TableCell>
                     <TableCell className={cn(edit, "text-muted-foreground truncate font-normal")} title={expected}>{expected}</TableCell>
                     {editable ? (
                       <>
@@ -502,7 +505,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
                       <TableCell className={edit}>
                         <span className="flex justify-end">
                           <LineDetailsButton compact config={config} value={d.details} schoolId={record.school.id}
-                            onChange={(v) => set(l.id, { details: v })} title={`${l.equipment.code} — ${l.equipment.name}`} />
+                            onChange={(v) => set(l.id, { details: v })} title={`${l.equipmentCode} — ${l.equipmentName}`} />
                         </span>
                       </TableCell>
                     ) : null}
@@ -703,7 +706,7 @@ export const InventorySessionShow = () => {
   const stage = record ? STAGE[record.status] : null;
   // Biên bản đã chốt (không còn kiểm đếm) mà có chênh lệch: mở sẵn nhóm "Có chênh lệch" — người duyệt cần
   // thấy vài dòng lệch, không phải cuộn qua hai trăm dòng khớp. Chỉ đặt một lần cho mỗi phiếu.
-  const lineDiffs = s ? s.missing + s.wrongRoom : 0;
+  const lineDiffs = s ? s.missing + s.wrongRoom + s.wrongCondition : 0;
   const preset = useRef<number | null>(null);
   useEffect(() => {
     if (!record || preset.current === record.id) return;
@@ -792,8 +795,8 @@ export const InventorySessionShow = () => {
               headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Kết quả"],
               rows: record.lines.map((l, i) => [
                 i + 1,
-                l.equipment.code,
-                l.equipment.name,
+                l.equipmentCode,
+                l.equipmentName,
                 // Hoá chất, vật tư theo lô: thêm số lượng sổ ghi / đếm được.
                 `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
                 l.found == null ? "Chưa kiểm" : l.found
@@ -826,8 +829,8 @@ export const InventorySessionShow = () => {
             headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Chênh lệch", "Ghi chú"],
             rows: record.lines.map((l) => [
               l.lineNo,
-              l.equipment.code,
-              l.equipment.name,
+              l.equipmentCode,
+              l.equipmentName,
               l.expectedRoom?.name ?? "Kho",
               l.found == null ? "Chưa kiểm" : l.found ? (l.foundRoom?.name ?? "Đúng như hệ thống") : "Không thấy",
               l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),

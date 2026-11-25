@@ -62,7 +62,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   report_equipment_by_catalog: "Số lượng theo từng thiết bị trong danh mục",
   report_equipment_by_status: "Đang dùng, trong kho",
   report_equipment_by_condition: "Tốt, trung bình, kém",
-  report_equipment_list: "Danh sách thiết bị lọc theo trạng thái",
   report_equipment_ledger: "Bảng theo dõi thiết bị để in",
   report_inventory: "Kết quả các đợt kiểm kê",
   // Cơ sở vật chất
@@ -76,7 +75,7 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   report_vouchers: "Phiếu đang chờ duyệt, đã duyệt, bị trả lại",
   report_supply_expiry: "Vật tư, hoá chất sắp và đã hết hạn",
   // Mua sắm & định mức
-  report_purchase: "Thiết bị cần mua theo đề xuất",
+  report_purchase: "Đề xuất, đã vào kế hoạch, đã nhập về",
   report_adequacy: "Mức đáp ứng danh mục tối thiểu",
   // Dữ liệu & lưu trữ
   report_data_quality: "Thiết bị thiếu thông tin hồ sơ",

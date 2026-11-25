@@ -720,9 +720,9 @@
     }
   },
   "report_purchase": {
-    "report_purchase": "Nhu cầu mua sắm",
+    "report_purchase": "Nhu cầu và kế hoạch mua sắm",
     "titles": {
-      "list": "Tổng hợp nhu cầu mua sắm"
+      "list": "Nhu cầu và kế hoạch mua sắm"
     }
   },
   "report_facilities": {
@@ -747,12 +747,6 @@
     "report_equipment_by_condition": "Theo tình trạng kỹ thuật",
     "titles": {
       "list": "Thiết bị theo tình trạng kỹ thuật"
-    }
-  },
-  "report_equipment_list": {
-    "report_equipment_list": "Danh sách theo trạng thái",
-    "titles": {
-      "list": "Danh sách thiết bị theo trạng thái"
     }
   },
   "report_data_quality": {

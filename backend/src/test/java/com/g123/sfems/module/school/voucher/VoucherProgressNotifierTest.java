@@ -26,13 +26,18 @@ class VoucherProgressNotifierTest {
 
     @Test
     void findsApproversAtEveryStepOnTheRealSchema() {
-        Long schoolId = jdbc.query("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id"
-                + " WHERE u.username = 'thcs.canbo'", rs -> rs.next() ? rs.getLong(1) : null);
-        Assumptions.assumeTrue(schoolId != null, "Thiếu tài khoản demo thcs.canbo");
-        for (ApprovalStep step : ApprovalStep.values()) {
-            var event = new VoucherProgressNotifier.VoucherAwaiting("purchase_proposals", 1L, "MS-TEST", step,
-                    schoolId, "Trường thử");
-            assertThatCode(() -> notifier.on(event)).as("bước %s", step).doesNotThrowAnyException();
+        Long schoolId = jdbc.query("SELECT us.school_id FROM user_schools us ORDER BY us.id LIMIT 1",
+                rs -> rs.next() ? rs.getLong(1) : null);
+        Assumptions.assumeTrue(schoolId != null, "Thiếu tài khoản trường");
+        // Phiếu chạm một cơ sở (lãnh đạo cơ sở đó + cả trường) và chạm nhiều cơ sở (chỉ lãnh đạo cả trường).
+        for (java.util.Set<Long> campuses : java.util.List.of(java.util.Set.<Long>of(), java.util.Set.of(1L),
+                java.util.Set.of(1L, 2L))) {
+            for (ApprovalStep step : ApprovalStep.values()) {
+                var event = new VoucherProgressNotifier.VoucherAwaiting("purchase_proposals", 1L, "MS-TEST", step,
+                        schoolId, "Trường thử", campuses);
+                assertThatCode(() -> notifier.on(event)).as("bước %s, cơ sở %s", step, campuses)
+                        .doesNotThrowAnyException();
+            }
         }
     }
 }

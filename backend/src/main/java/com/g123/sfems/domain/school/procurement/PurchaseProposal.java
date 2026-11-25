@@ -1,6 +1,7 @@
 package com.g123.sfems.domain.school.procurement;
 
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
@@ -53,6 +54,11 @@ public class PurchaseProposal extends SchoolVoucher {
     @JoinColumn(name = "plan_id")
     private ProcurementPlan plan;
 
+    /** Cơ sở của người lập (297): tài khoản một cơ sở lập thì ghi cơ sở đó; trống = cơ sở chính. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
+
     /** Phiếu nhập lập từ đề xuất này khi hàng về. */
     @Column(name = "intake_id")
     private Long intakeId;
@@ -78,9 +84,16 @@ public class PurchaseProposal extends SchoolVoucher {
     }
 
 
+    /**
+     * Số tiền so với ngưỡng của luồng phê duyệt (HT-08). Có dòng chưa ghi đơn giá (hoặc giá 0) thì số tiền CHƯA BIẾT —
+     * {@code null}, không phải tổng các dòng có giá: trường không bắt buộc ghi giá, nhưng bỏ trống giá không được là
+     * đường né ngưỡng. {@code ApprovalFlowService.chainOf} coi số chưa biết như từ ngưỡng trở lên.
+     */
     @Override
     public BigDecimal approvalAmount() {
-        return totalAmount();
+        boolean unknown = lines.stream().anyMatch(l -> l.effectiveUnitPrice() == null
+                || l.effectiveUnitPrice().signum() <= 0);
+        return unknown ? null : totalAmount();
     }
 
     public BigDecimal totalAmount() {
@@ -118,6 +131,14 @@ public class PurchaseProposal extends SchoolVoucher {
 
     public void setReason(String reason) {
         this.reason = reason;
+    }
+
+    public Campus getCampus() {
+        return campus;
+    }
+
+    public void setCampus(Campus campus) {
+        this.campus = campus;
     }
 
     public ProcurementPlan getPlan() {

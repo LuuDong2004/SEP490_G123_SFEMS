@@ -28,24 +28,18 @@ public final class ReportFilters {
     }
 
     /**
-     * Trạng thái chọn được: khoá → trạng thái (SQL). Cũng là ô chọn của "Danh sách thiết bị theo trạng
-     * thái". Nằm ở đây, không ở {@link ReportService}: lớp này không được đọc hằng của {@code ReportService} lúc
-     * khởi tạo — {@code ReportService.DEFINITIONS} gọi {@link #of} khi chính nó đang khởi tạo.
+     * Trạng thái chọn được: khoá → trạng thái (SQL). Nằm ở đây, không ở {@link ReportService}: lớp này không được đọc
+     * hằng của {@code ReportService} lúc khởi tạo — {@code ReportService.DEFINITIONS} gọi {@link #of} khi chính nó đang khởi tạo.
      */
     static final Map<String, String> STATUS_SQL = new LinkedHashMap<>();
 
     static {
         STATUS_SQL.put("IN_STOCK", "'IN_STOCK'");
         STATUS_SQL.put("IN_USE", "'IN_USE'");
-        STATUS_SQL.put("LOST", "'LOST'");
     }
 
     static final List<Group> STATUS_CHOICES = List.of(
             new Group("IN_STOCK", "Trong kho"), new Group("IN_USE", "Đang sử dụng"));
-
-    /** Ô chọn của "Danh sách thiết bị theo trạng thái": thêm Mất — báo cáo khác chỉ đếm thiết bị còn trên sổ. */
-    static final List<Group> LIST_CHOICES = Stream.concat(STATUS_CHOICES.stream(),
-            Stream.of(new Group("LOST", "Mất"))).toList();
 
     /** Tình trạng kỹ thuật chọn được: khoá → điều kiện SQL (trên {@code <bí danh>.condition}). */
     private static final Map<String, String> CONDITIONS = new LinkedHashMap<>();
@@ -74,11 +68,11 @@ public final class ReportFilters {
             Map.entry("equipment-by-catalog", List.of(TYPE, STATUS, CONDITION)),
             Map.entry("equipment-by-status", List.of(TYPE, CONDITION)),
             Map.entry("equipment-by-condition", List.of(TYPE, STATUS)),
-            Map.entry("equipment-list", List.of(TYPE, CONDITION)),
             Map.entry("equipment-ledger", List.of(TYPE, STATUS, CONDITION)),
             Map.entry("idle-equipment", List.of(TYPE, CONDITION)),
             Map.entry("data-quality", List.of(TYPE, STATUS)),
             Map.entry("data-anomalies", List.of(TYPE)),
+            Map.entry("purchase", List.of(TYPE)),
             Map.entry("supply-expiry", List.of(TYPE)));
 
     private ReportFilters() {

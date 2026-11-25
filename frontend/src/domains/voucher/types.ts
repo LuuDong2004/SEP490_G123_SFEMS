@@ -134,10 +134,7 @@ export type EquipmentRef = {
   unit?: { id: number; code?: string; name: string } | null;
   quantity?: number | null;
   /** Quy cách bao bì của lô (182): "Lọ" và lượng trong một lọ theo `unitName`. */
-  packUnitName?: string | null;
-  packSize?: number | null;
   originalValue?: number | null;
-  remainingValue?: number | null;
   productionYear?: number | null;
   usageStartYear?: number | null;
   warrantyExpiry?: string | null;

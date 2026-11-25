@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.dataimport;
 
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.web.ListResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.io.IOException;
@@ -79,9 +80,18 @@ public class OnboardingController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('data_imports:read')")
-    public ResponseEntity<List<OnboardingService.Batch>> list(@RequestParam(name = "school.id", required = false) Long schoolId) {
-        List<OnboardingService.Batch> batches = service.list(schoolId);
-        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(batches.size())).body(batches);
+    public ResponseEntity<List<OnboardingService.Batch>> list(@RequestParam(name = "school.id", required = false) Long schoolId,
+            @RequestParam(required = false) String kind, @RequestParam(name = "_start", defaultValue = "0") int start,
+            @RequestParam(name = "_end", defaultValue = "20") int end) {
+        OnboardingService.BatchPage page = service.list(schoolId, kind, start, end);
+        return ListResponse.of(page.rows(), page.total());
+    }
+
+    /** Số lô của từng loại dữ liệu ({@code school_data}, {@code schools}, {@code wards}). */
+    @GetMapping("/counts")
+    @PreAuthorize("hasAuthority('data_imports:read')")
+    public Map<String, Long> counts() {
+        return service.countByKind();
     }
 
     @GetMapping("/sheets")

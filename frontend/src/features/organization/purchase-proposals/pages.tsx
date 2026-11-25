@@ -280,7 +280,13 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                             resource="equipment_catalogs"
                             value={field.value ? Number(field.value) : null}
                             onChange={(id) => field.onChange(id == null ? "" : String(id))}
-                            onPick={(c) => setValue(`lines.${i}.catalogLabel`, `${c.code} · ${c.name}`)}
+                            onPick={(c) => {
+                              // Tên cụ thể đúng tên danh mục của thiết bị cũ (máy chủ tự điền lúc lưu) thì xoá để máy chủ
+                              // lấy tên thiết bị mới; tên trường tự gõ thì giữ.
+                              const typed = String(lines?.[i]?.name ?? "").trim();
+                              if (typed && typed === name) setValue(`lines.${i}.name`, "", { shouldDirty: true });
+                              setValue(`lines.${i}.catalogLabel`, `${c.code} · ${c.name}`);
+                            }}
                             labelOf={(c) => `${c.code} · ${c.name}`}
                             fallbackLabel={label || null}
                             placeholder="Vui lòng chọn thiết bị"

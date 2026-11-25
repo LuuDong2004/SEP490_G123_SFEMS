@@ -164,6 +164,12 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         return VoucherCampus.Shape.LINES;
     }
 
+    /** Khai hình dạng cơ sở của loại phiếu này cho luồng duyệt (sau khi lớp con dựng xong). */
+    @jakarta.annotation.PostConstruct
+    void registerCampusShape() {
+        campus.register(type, campusShape());
+    }
+
     /** Phiếu chạm cơ sở của người gọi (không bị giới hạn thì mọi phiếu) — ghép vào mọi đường đọc. */
     protected Specification<V> campusRead() {
         return campus.pinned(campusShape());
@@ -186,7 +192,7 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
 
     public Page<V> list(ListParams params) {
         Specification<V> awaiting = VoucherSpecs.awaitingMe(params)
-                ? workflow.awaitingMe() : Specification.unrestricted();
+                ? workflow.<V>awaitingMe().and(campus.solelyPinned(campusShape())) : Specification.unrestricted();
         List<Specification<V>> common = new java.util.ArrayList<>();
         for (ListParams.Criterion criterion : params.filters()) {
             Specification<V> spec = VoucherSpecs.common(criterion);

@@ -1,7 +1,8 @@
 import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-table/filter-popover";
+import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { useCan, useNotification } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, History, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -92,7 +93,7 @@ export const Reports = () => {
   const [busy, setBusy] = useState(false);
   // Chiều tổng hợp nhớ theo TỪNG báo cáo: chuyển sang báo cáo khác rồi quay lại thì vẫn đúng chiều vừa chọn.
   const [groupBy, setGroupBy] = useState<Record<string, string>>({});
-  // Ô chọn riêng (vd. trạng thái của danh sách thiết bị) cũng nhớ theo từng báo cáo.
+  // Ô chọn riêng (vd. loại bảng theo dõi) cũng nhớ theo từng báo cáo.
   const [choiceBy, setChoiceBy] = useState<Record<string, string>>({});
   // Lọc theo cột (môn, loại phòng, kết luận…) — trên các dòng đã tải, nhớ theo từng báo cáo.
   const [rowFilterBy, setRowFilterBy] = useState<Record<string, Record<string, string>>>({});
@@ -124,6 +125,11 @@ export const Reports = () => {
   });
   const definitions = Array.isArray(defs.data) ? defs.data : [];
   const current = definitions.find((d) => d.name === name);
+  // Đường dẫn cũ tới báo cáo đã bỏ: về báo cáo đầu tiên thay vì một trang trống.
+  const gone = defs.isSuccess && !!name && !current;
+  useEffect(() => {
+    if (gone) navigate("/reports/equipment-by-school", { replace: true });
+  }, [gone, navigate]);
 
   // Tài khoản trường chỉ có MỘT trường: gộp theo đơn vị luôn ra đúng một dòng — bỏ khỏi ô chọn.
   const groups = (current?.groups ?? []).filter((g) => canFilter || !SCOPE_GROUPS.has(g.key));
@@ -173,10 +179,26 @@ export const Reports = () => {
   const r = loaded && Object.keys(active).length
     ? { ...loaded, rows: loaded.rows.filter((row) => Object.entries(active).every(([k, v]) => String(row[k] ?? "") === v)) }
     : loaded;
-  // Số điều kiện đang bật trong nút "Bộ lọc": trường, trạng thái khác mặc định, lọc theo thiết bị, lọc theo cột.
-  const filterCount = (choices.length && choice !== choices[0]?.key ? 1 : 0) + Object.keys(active).length
-    + [canFilter && schoolId != null, accepts("type") && typeId != null, accepts("status") && !!assetFilter.status,
-      accepts("condition") && !!assetFilter.condition].filter(Boolean).length;
+  // Các điều kiện chọn một giá trị trong danh sách ngắn (trạng thái, tình trạng, cột…). Trường và loại thiết bị là ô riêng.
+  const picks: { key: string; label: string; value: string | null; base: string | null; options: { value: string; label: string }[]; set: (v: string | null) => void }[] = [
+    // Luôn có một lựa chọn (mục đầu là mặc định): bấm lại mục đang chọn thì về mục đầu.
+    ...(choices.length ? [{
+      key: "choice", label: name === "equipment-ledger" ? "Loại bảng" : "Trạng thái", value: choice ?? null, base: choices[0]?.key ?? null,
+      options: choices.map((c) => ({ value: c.key, label: c.label })),
+      set: (v: string | null) => name && setChoiceBy((c) => ({ ...c, [name]: v ?? choices[0]?.key ?? "" })),
+    }] : []),
+    ...filters.filter((f) => f.key !== "type").map((f) => ({
+      key: f.key, label: f.label, value: assetFilter[f.key as "status" | "condition"] ?? null, base: null,
+      options: f.options.map((o) => ({ value: o.key, label: o.label })),
+      set: (v: string | null) => setAssetFilter((a) => ({ ...a, [f.key]: v ?? undefined })),
+    })),
+    ...columnFilters.map((f) => ({
+      key: f.key, label: f.label.charAt(0).toUpperCase() + f.label.slice(1), value: active[f.key] ?? null, base: null,
+      options: [...new Set((loaded?.rows ?? []).map((row) => row[f.key]).filter((v) => v != null && v !== "").map(String))]
+        .sort((a, b) => a.localeCompare(b, "vi")).map((v) => ({ value: v, label: v })),
+      set: (v: string | null) => setRowFilter(f.key, v),
+    })),
+  ];
   const filter: ReportFilter | undefined = loaded && columnFilters.length
     ? { active, set: setRowFilter, all: loaded.rows as ReportFilter["all"] }
     : undefined;
@@ -219,7 +241,15 @@ export const Reports = () => {
   const nameColumn = r?.columns.find((c) => c.type === "text" && !c.key.endsWith("code"))?.key;
   // Gọi như hàm, không như component: cần biết báo cáo có phần hình hay không để khỏi vẽ một khung rỗng.
   // Một dòng (vd. tài khoản trường gộp theo đơn vị) thì biểu đồ chỉ là một thanh — ô số và bảng đã nói hết.
-  const charts = r && r.rows.length > 1 ? ReportVisual({ report: r, part: "charts", filter, onDrill: setDrill }) : null;
+  // Riêng chuẩn CSVC của MỘT trường vẫn có biểu đồ (theo mức, theo khối); "Xem chi tiết" mở bản đánh giá từng loại.
+  const oneSchool = name === "facility-standard" && r?.rows.length === 1 ? rowAction(name, r.rows[0]) : null;
+  // Bấm cột của một trường ở báo cáo chuẩn CSVC: mở thẳng bản đánh giá từng loại của trường đó.
+  const openDrill = (d: ReportDrill) => {
+    const act = name === "facility-standard" && d.record ? rowAction(name, d.record) : null;
+    if (act) openRow(act, false);
+    else setDrill(d);
+  };
+  const charts = r && (r.rows.length > 1 || oneSchool) ? ReportVisual({ report: r, part: "charts", filter, onDrill: openDrill }) : null;
   // Báo cáo không có biểu đồ (sổ, danh sách chi tiết) thì bảng chính là nội dung — luôn mở.
   const detailOpen = !charts || !!(name && detailBy[name]);
   // Không có biểu đồ thì bảng chi tiết là nội dung chính: thẻ kéo kín phần còn lại của màn như các danh sách, bảng cuộn
@@ -304,7 +334,9 @@ export const Reports = () => {
             ) : null}
             {report.isFetching || settling ? <Loader2 className="text-muted-foreground size-4 animate-spin" /> : null}
           </div>
-          {/* Kỳ và cách gộp hiện đủ chữ (đổi là đổi cả báo cáo); mọi điều kiện lọc nằm trong MỘT nút "Bộ lọc". */}
+          {/* Kỳ, cách gộp, trường, loại thiết bị đứng thẳng trên hàng: bấm là chọn được, không phải mở "Bộ lọc" rồi mở tiếp
+              một ô chọn bên trong. Danh sách ngắn (trạng thái, tình trạng): một cái thì đứng thẳng, từ hai cái mới gom vào
+              "Bộ lọc" (mở ra tích ngay). */}
           <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap [&_[data-slot=select-trigger]]:rounded-full">
             {current?.period ? (
               <DateRangePicker value={range} onChange={setRange} bounds={bounds} className="w-auto" />
@@ -327,7 +359,7 @@ export const Reports = () => {
             ) : null}
             {groups.length ? (
               <Select value={group} onValueChange={(v) => name && setGroupBy((g) => ({ ...g, [name]: v }))}>
-                <SelectTrigger className="h-9 w-auto min-w-44" aria-label="Gộp theo">
+                <SelectTrigger className="h-9 w-auto" aria-label="Gộp theo">
                   <Layers className="text-muted-foreground" />
                   <SelectValue />
                 </SelectTrigger>
@@ -341,65 +373,47 @@ export const Reports = () => {
               </Select>
             ) : null}
             <CampusFilterButton labeled schoolId={schoolId} value={campusId} onChange={setCampusId} />
-            {canFilter || choices.length > 0 || filters.length > 0 || columnFilters.length > 0 ? (
-              <FilterButton align="end" count={filterCount} onClear={() => {
-                setSchoolId(null);
-                setTypeId(null);
-                setAssetFilter({});
-                if (name) {
-                  setChoiceBy((c) => ({ ...c, [name]: choices[0]?.key ?? "" }));
-                  setRowFilterBy((all) => ({ ...all, [name]: {} }));
-                }
-              }}>
-                {canFilter ? (
-                  <FilterField label="Trường" icon={School} active={schoolId != null}>
-                    <AsyncCombobox<Named>
-                      resource="schools"
-                      value={schoolId}
-                      onChange={setSchoolId}
-                      labelOf={(sc) => sc.name}
-                      placeholder="Mọi trường"
-                      searchPlaceholder="Gõ tên trường..."
-                      clearLabel="Mọi trường"
-                    />
-                  </FilterField>
-                ) : null}
-                {choices.length ? (
-                  <FilterField label={name === "equipment-ledger" ? "Loại bảng" : "Trạng thái"} icon={CircleDot} active={choice !== choices[0]?.key}>
-                    {/* Luôn có một lựa chọn (mục đầu là mặc định): bấm lại mục đang chọn thì về mục đầu. */}
-                    <ChoiceList value={choice} options={choices.map((c) => ({ value: c.key, label: c.label }))}
-                      onChange={(v) => name && setChoiceBy((c) => ({ ...c, [name]: v ?? choices[0]?.key ?? "" }))} />
-                  </FilterField>
-                ) : null}
-                {/* Lọc theo tài sản: loại thiết bị, trạng thái, tình trạng — chỉ báo cáo nhận nó mới có ô. */}
-                {filters.map((f) => f.key === "type" ? (
-                  <FilterField key={f.key} label={f.label} icon={Tag} active={typeId != null}>
-                    <AsyncCombobox<Named>
-                      resource="equipment_types"
-                      value={typeId}
-                      onChange={setTypeId}
-                      labelOf={(t) => t.name}
-                      placeholder="Mọi loại thiết bị"
-                      searchPlaceholder="Gõ tên loại thiết bị..."
-                      clearLabel="Mọi loại thiết bị"
-                    />
-                  </FilterField>
-                ) : (
-                  <FilterField key={f.key} label={f.label} icon={CircleDot} active={!!assetFilter[f.key]}>
-                    <ChoiceList value={assetFilter[f.key]} options={f.options.map((o) => ({ value: o.key, label: o.label }))}
-                      onChange={(v) => setAssetFilter((a) => ({ ...a, [f.key]: v ?? undefined }))} />
+            {canFilter ? (
+              <AsyncCombobox<Named>
+                resource="schools"
+                icon={<School />}
+                labeled
+                modal={false}
+                value={schoolId}
+                onChange={setSchoolId}
+                labelOf={(sc) => sc.name}
+                placeholder="Mọi trường"
+                searchPlaceholder="Gõ tên trường..."
+                clearLabel="Mọi trường"
+              />
+            ) : null}
+            {accepts("type") ? (
+              <AsyncCombobox<Named>
+                resource="equipment_types"
+                icon={<Tag />}
+                labeled
+                modal={false}
+                value={typeId}
+                onChange={setTypeId}
+                labelOf={(t) => t.name}
+                placeholder="Mọi loại thiết bị"
+                searchPlaceholder="Gõ tên loại thiết bị..."
+                clearLabel="Mọi loại thiết bị"
+              />
+            ) : null}
+            {picks.length === 1 ? picks.map((f) => (
+              <IconFilter key={f.key} icon={<CircleDot />} label={f.label.toLowerCase()} labeled modal={false}
+                allLabel={f.base == null ? `Mọi ${f.label.toLowerCase()}` : undefined} baseline={f.base ?? undefined}
+                groups={[{ items: f.options.map((o) => ({ key: o.value, label: o.label })) }]}
+                value={f.value} onChange={f.set} />
+            )) : picks.length ? (
+              <FilterButton align="end" count={picks.filter((f) => f.value != null && f.value !== f.base).length}
+                onClear={() => picks.forEach((f) => f.set(f.base))}>
+                {picks.map((f) => (
+                  <FilterField key={f.key} label={f.label} icon={CircleDot} active={f.value != null && f.value !== f.base}>
+                    <ChoiceList value={f.value} options={f.options} onChange={f.set} />
                   </FilterField>
                 ))}
-                {columnFilters.map((f) => {
-                  const values = [...new Set((loaded?.rows ?? []).map((row) => row[f.key]).filter((v) => v != null && v !== "").map(String))]
-                    .sort((a, b) => a.localeCompare(b, "vi"));
-                  return (
-                    <FilterField key={f.key} label={f.label.charAt(0).toUpperCase() + f.label.slice(1)} icon={Tag} active={active[f.key] != null}>
-                      <ChoiceList value={active[f.key]} options={values.map((v) => ({ value: v, label: v }))}
-                        onChange={(v) => setRowFilter(f.key, v)} />
-                    </FilterField>
-                  );
-                })}
               </FilterButton>
             ) : null}
           </div>
@@ -443,6 +457,9 @@ export const Reports = () => {
                     <span className="text-muted-foreground block text-xs">Giữ số liệu lúc này để xem lại sau</span>
                   </span>
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate("/report-snapshots")}>
+                  <History /> Báo cáo đã lưu
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -461,18 +478,19 @@ export const Reports = () => {
             <div className="flex min-w-0 items-baseline gap-3">
               <h3 className="text-sm font-semibold">Số liệu chi tiết</h3>
               <p className="text-muted-foreground truncate text-xs">
-                {r ? `${number.format(r.rows.length)} dòng${detailOpen && !csvc && more.hasMore ? ` · đang hiện ${number.format(more.count)}` : ""}${detailOpen ? " · lần xuất, in được ghi vào nhật ký hoạt động" : ""}` : ""}
+                {oneSchool && charts ? "Đánh giá từng loại cơ sở vật chất" : r ? `${number.format(r.rows.length)} dòng${detailOpen && !csvc && more.hasMore ? ` · đang hiện ${number.format(more.count)}` : ""}${detailOpen ? " · lần xuất, in được ghi vào nhật ký hoạt động" : ""}` : ""}
               </p>
             </div>
             {charts ? (
               <Button type="button" size="sm" variant={detailOpen ? "ghost" : "outline"} aria-expanded={detailOpen}
                 onClick={() => {
                   if (!name) return;
+                  if (oneSchool) return openRow(oneSchool, false);
                   setDetailBy((d) => ({ ...d, [name]: !detailOpen }));
                   if (!detailOpen) setTimeout(() => detailCard.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
                 }}>
                 {detailOpen ? "Thu gọn" : "Xem chi tiết"}
-                <ChevronDown className={cn("transition-transform", detailOpen && "rotate-180")} />
+                {oneSchool ? null : <ChevronDown className={cn("transition-transform", detailOpen && "rotate-180")} />}
               </Button>
             ) : null}
           </div>

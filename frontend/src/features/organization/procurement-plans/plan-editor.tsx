@@ -2,6 +2,7 @@ import { useCan, useGetIdentity, useInvalidate, useNavigation, useNotification }
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
+import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
 import { Check, CornerUpLeft, FileSpreadsheet, Loader2, Printer, Save, Send, TriangleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useWatch, type Control } from "react-hook-form";
@@ -252,7 +253,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
           </div>
         </div>
         {editable ? (
-          <CandidatesDialog planId={plan?.id} exclude={proposals} extra={removed} onAdd={addCandidates}
+          <CandidatesDialog planId={plan?.id} schoolYearId={yearId ?? null} exclude={proposals} extra={removed} onAdd={addCandidates}
             open={picking} onOpenChange={setPicking} />
         ) : null}
         {editable && lines.length === 0 ? (
@@ -465,9 +466,13 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
   );
 }
 
-/** Chọn đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý. */
-function CandidatesDialog({ planId, exclude, extra, onAdd, open, onOpenChange: setOpen }: {
+/**
+ * Chọn đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý — cùng năm ngân sách với
+ * năm học đang chọn trên màn (máy chủ lọc, lúc lưu cũng kiểm).
+ */
+function CandidatesDialog({ planId, schoolYearId, exclude, extra, onAdd, open, onOpenChange: setOpen }: {
   planId?: number;
+  schoolYearId: number | null;
   exclude: Set<number>;
   extra: PlanCandidate[];
   onAdd: (picked: PlanCandidate[]) => void;
@@ -480,12 +485,15 @@ function CandidatesDialog({ planId, exclude, extra, onAdd, open, onOpenChange: s
     if (open) setPicked(new Set());
   }, [open]);
   const { data, isLoading } = useQuery({
-    queryKey: [RESOURCE, planId ?? "new", "candidates"],
+    queryKey: [RESOURCE, planId ?? "new", "candidates", schoolYearId],
     enabled: open,
-    queryFn: ({ signal }) => kyInstance.get(planId ? `${RESOURCE}/${planId}/candidates` : `${RESOURCE}/candidates`, { signal }).json<PlanCandidate[]>(),
+    queryFn: ({ signal }) => kyInstance.get(planId ? `${RESOURCE}/${planId}/candidates` : `${RESOURCE}/candidates`, {
+      signal, searchParams: schoolYearId != null ? { schoolYearId } : undefined,
+    }).json<PlanCandidate[]>(),
   });
   const rows = [...extra, ...(Array.isArray(data) ? data : [])]
     .filter((c, i, all) => !exclude.has(c.proposal.id) && all.findIndex((x) => x.proposal.id === c.proposal.id) === i);
+  const paged = usePagedRows(rows, { resetKey: String(open), sizeKey: "planCandidates", pageSizeLabel: "Số đề xuất mỗi trang" });
   const toggle = (id: number) => setPicked((s) => {
     const next = new Set(s);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -497,9 +505,10 @@ function CandidatesDialog({ planId, exclude, extra, onAdd, open, onOpenChange: s
         <DialogContent size="picker">
           <DialogHeader>
             <DialogTitle>Chọn đề xuất của các trường</DialogTitle>
-            <DialogDescription>Đề xuất đã được duyệt, chưa nằm trong kế hoạch nào. Bấm một dòng để chọn.</DialogDescription>
+            <DialogDescription>Đề xuất đã được duyệt, chưa nằm trong kế hoạch nào, cùng năm ngân sách với năm học của kế hoạch. Bấm một dòng để chọn.</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+          <div ref={paged.boxRef} className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
             <Table>
               <TableHeader className="bg-surface-subtle sticky top-0">
                 <TableRow>
@@ -513,7 +522,7 @@ function CandidatesDialog({ planId, exclude, extra, onAdd, open, onOpenChange: s
               <TableBody>
                 {rows.length === 0 ? (
                   <TableEmpty colSpan={5} compact loading={isLoading} title={<>Không có đề xuất nào đang chờ vào kế hoạch.</>} />
-                ) : rows.map((c) => (
+                ) : paged.visible.map((c) => (
                   <TableRow key={c.proposal.id} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => toggle(c.proposal.id)}>
                     <TableCell><Checkbox checked={picked.has(c.proposal.id)} onCheckedChange={() => toggle(c.proposal.id)} onClick={(e) => e.stopPropagation()} /></TableCell>
                     <TableCell className="font-mono text-xs">{c.proposal.code}</TableCell>
@@ -524,6 +533,8 @@ function CandidatesDialog({ planId, exclude, extra, onAdd, open, onOpenChange: s
                 ))}
               </TableBody>
             </Table>
+          </div>
+          {paged.pager}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Đóng</Button>
@@ -545,7 +556,7 @@ export function PlanReviewButton({ plan, step, onDone }: { plan: ProcurementPlan
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const text = {
-    approve: { label: "Duyệt", icon: <Check />, title: "Duyệt kế hoạch mua sắm?", desc: `${plan.proposalCount ?? 0} đề xuất trong kế hoạch sẽ hoàn tất; các trường lập phiếu ghi tăng theo số đưa vào kế hoạch khi hàng về.`, ok: "Đã duyệt kế hoạch" },
+    approve: { label: "Duyệt", icon: <Check />, title: "Duyệt kế hoạch mua sắm?", desc: `${plan.proposalCount ?? 0} đề xuất trong kế hoạch sẽ hoàn tất; các trường lập phiếu ghi tăng theo số đưa vào kế hoạch khi hàng về. Đề xuất mọi dòng đều để 0 sẽ rời kế hoạch, về lại "Đã duyệt" để vào kế hoạch sau.`, ok: "Đã duyệt kế hoạch" },
     return: { label: "Trả lại", icon: <CornerUpLeft />, title: "Trả lại kế hoạch?", desc: "Ghi rõ cần sửa gì để chuyên viên biết.", ok: "Đã trả lại kế hoạch" },
   }[step];
   async function run() {

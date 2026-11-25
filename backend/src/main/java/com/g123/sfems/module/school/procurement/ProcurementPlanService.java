@@ -5,7 +5,10 @@ import com.g123.sfems.domain.school.procurement.ProcurementPlan;
 import com.g123.sfems.domain.school.procurement.ProcurementPlan.Status;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
+import com.g123.sfems.domain.school.voucher.VoucherEvent;
 import com.g123.sfems.domain.school.voucher.VoucherStatus;
+import com.g123.sfems.domain.system.notification.NotificationLevel;
+import com.g123.sfems.domain.system.notification.NotificationType;
 import com.g123.sfems.module.catalog.schoolyear.SchoolYearService;
 import com.g123.sfems.module.organization.departmentofeducation.service.DepartmentOfEducationService;
 import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
@@ -14,6 +17,7 @@ import com.g123.sfems.module.school.voucher.VoucherForms;
 import com.g123.sfems.module.school.voucher.VoucherWorkflow;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.module.system.notification.service.NotificationService;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
@@ -75,11 +79,12 @@ public class ProcurementPlanService {
     private final JdbcTemplate jdbc;
     private final VoucherForms forms;
     private final SchoolYearService schoolYears;
+    private final NotificationService notifications;
 
     public ProcurementPlanService(ProcurementPlanRepository repository, PurchaseProposalRepository proposals,
             RowLevelPrincipalResolver principals, RowLevelSecurity rowLevel, DepartmentOfEducationService bodies,
             ManagedSchoolsCache managedSchools, VoucherWorkflow workflow, VisibleSchools visibleSchools,
-            JdbcTemplate jdbc, VoucherForms forms, SchoolYearService schoolYears) {
+            JdbcTemplate jdbc, VoucherForms forms, SchoolYearService schoolYears, NotificationService notifications) {
         this.repository = repository;
         this.proposals = proposals;
         this.principals = principals;
@@ -91,6 +96,7 @@ public class ProcurementPlanService {
         this.jdbc = jdbc;
         this.forms = forms;
         this.schoolYears = schoolYears;
+        this.notifications = notifications;
     }
 
     /**
@@ -173,20 +179,31 @@ public class ProcurementPlanService {
         return new Detail(plan, rows, totals, amount);
     }
 
-    /** Đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý. */
-    public List<PurchaseProposal> candidates(Long id) {
-        return candidatesOf(get(id).getManagingBody().getId());
+    /**
+     * Đề xuất đã duyệt, chưa vào kế hoạch nào, của các trường cơ quan lập kế hoạch quản lý, CÙNG NĂM NGÂN SÁCH với kế
+     * hoạch. {@code schoolYearId}: năm học đang chọn trên màn (chưa lưu) — có thì năm ngân sách theo năm học đó.
+     */
+    public List<PurchaseProposal> candidates(Long id, Long schoolYearId) {
+        ProcurementPlan plan = get(id);
+        return candidatesOf(plan.getManagingBody().getId(),
+                schoolYearId != null ? budgetYearOf(schoolYearId) : plan.getBudgetYear());
     }
 
     /**
-     * Như {@link #candidates(Long)} nhưng cho kế hoạch CHƯA LƯU: cơ quan là cơ quan của người lập (quản trị
-     * viên thì cơ quan được chọn) — màn lập kế hoạch chọn đề xuất trước khi lưu lần đầu.
+     * Như {@link #candidates(Long, Long)} nhưng cho kế hoạch CHƯA LƯU: cơ quan là cơ quan của người lập (quản trị
+     * viên thì cơ quan được chọn) — màn lập kế hoạch chọn đề xuất trước khi lưu lần đầu. Chưa chọn năm học thì không
+     * lọc năm (lúc lưu vẫn kiểm).
      */
-    public List<PurchaseProposal> candidatesForNew(Long requestedBody) {
-        return candidatesOf(ownBody(requestedBody).getId());
+    public List<PurchaseProposal> candidatesForNew(Long requestedBody, Long schoolYearId) {
+        return candidatesOf(ownBody(requestedBody).getId(), schoolYearId == null ? null : budgetYearOf(schoolYearId));
     }
 
-    private List<PurchaseProposal> candidatesOf(Long bodyId) {
+    /** Năm ngân sách của một năm học: năm kết thúc (2026-2027 → 2027) — cùng luật với {@link #apply}. */
+    private int budgetYearOf(Long schoolYearId) {
+        return schoolYears.get(schoolYearId).getEndDate().getYear();
+    }
+
+    private List<PurchaseProposal> candidatesOf(Long bodyId, Integer budgetYear) {
         Set<Long> schools = managedSchools.schoolsOf(bodyId);
         if (schools.isEmpty()) {
             return List.of();
@@ -195,7 +212,8 @@ public class ProcurementPlanService {
                 Action.READ).and((root, q, cb) -> cb.and(
                         cb.equal(root.get("status"), VoucherStatus.APPROVED),
                         cb.isNull(root.get("plan")),
-                        root.get("school").get("id").in(schools))),
+                        root.get("school").get("id").in(schools),
+                        budgetYear == null ? cb.conjunction() : cb.equal(root.get("budgetYear"), budgetYear))),
                 Sort.by("school.name", "id"));
         rows.forEach(p -> p.getLines().size());
         return rows;
@@ -227,27 +245,39 @@ public class ProcurementPlanService {
                 JOIN schools s ON s.id = p.school_id
                 LEFT JOIN departments_of_education d ON d.id = s.department_of_education_id
                 WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED')""" + schoolFilter + yearFilter;
+        // Luật đếm của màn tổng hợp:
+        // - "Tổng dự toán đề xuất": số TRƯỜNG ĐỀ NGHỊ × đơn giá.
+        // - "Đã được duyệt" và bảng "Thiết bị cần mua": số ĐƯA VÀO KẾ HOẠCH khi đề xuất đã nằm trong một kế hoạch
+        //   (planned_quantity chỉ có giá trị lúc đó), không thì số đề nghị — phần cơ quan bớt không phải là thứ sẽ mua.
+        // - Đơn giá kế hoạch (planned_unit_price) chỉ tính khi kế hoạch ĐÃ DUYỆT (đề xuất hoàn tất); kế hoạch còn nháp /
+        //   chờ duyệt thì giá đó chưa là quyết định, dùng giá trường ghi. Nhờ vậy số "đã duyệt" không vượt "tổng dự toán".
+        // - "Đã vào kế hoạch": đề xuất đang nằm trong một kế hoạch (nháp, chờ duyệt hay đã duyệt) hoặc đã hoàn tất — cùng
+        //   luật với báo cáo mua sắm (ReportService.PLANNED).
+        String price = "CASE WHEN p.status = 'COMPLETED' THEN COALESCE(l.planned_unit_price, l.unit_price, 0)"
+                + " ELSE COALESCE(l.unit_price, 0) END";
+        String planned = "COALESCE(l.planned_quantity, l.quantity)";
         List<BodyTotal> byBody = jdbc.query("""
                 SELECT d.id, COALESCE(d.name, 'Chưa có cơ quan quản lý'),
                        COUNT(DISTINCT p.school_id), COUNT(*),
                        COUNT(*) FILTER (WHERE p.status = 'PENDING'),
                        COUNT(*) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')),
-                       COUNT(*) FILTER (WHERE p.status = 'COMPLETED'),
+                       COUNT(*) FILTER (WHERE p.plan_id IS NOT NULL OR p.status = 'COMPLETED'),
                        COALESCE(SUM(t.amount), 0),
-                       COALESCE(SUM(t.amount) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')), 0)
+                       COALESCE(SUM(t.planned_amount) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')), 0)
                 """ + base.replace("WHERE", """
-                LEFT JOIN LATERAL (SELECT SUM(l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)) AS amount
+                LEFT JOIN LATERAL (SELECT SUM(l.quantity * %1$s) AS amount, SUM(%2$s * %1$s) AS planned_amount
                                    FROM purchase_proposal_lines l WHERE l.proposal_id = p.id) t ON TRUE
-                WHERE""") + " GROUP BY d.id, d.name ORDER BY 8 DESC",
+                WHERE""".formatted(price, planned)) + " GROUP BY d.id, d.name ORDER BY 8 DESC",
                 (rs, n) -> new BodyTotal((Long) rs.getObject(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
                         rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getBigDecimal(8), rs.getBigDecimal(9)));
+        // Dòng cơ quan bỏ (số đưa vào kế hoạch 0) không phải thiết bị cần mua, và không làm tăng "số trường".
         List<CatalogTotal> byCatalog = jdbc.query("""
-                SELECT c.id, c.code, c.name, MAX(l.unit_name), SUM(l.quantity),
-                       COALESCE(SUM(l.quantity * COALESCE(l.planned_unit_price, l.unit_price, 0)), 0), COUNT(DISTINCT p.school_id)
-                """ + base.replace("WHERE", """
+                SELECT c.id, c.code, c.name, MAX(l.unit_name), SUM(%2$s),
+                       COALESCE(SUM(%2$s * %1$s), 0), COUNT(DISTINCT p.school_id)
+                """.formatted(price, planned) + base.replace("WHERE", """
                 JOIN purchase_proposal_lines l ON l.proposal_id = p.id
                 JOIN equipment_catalogs c ON c.id = l.catalog_id
-                WHERE""") + " GROUP BY c.id, c.code, c.name ORDER BY 6 DESC",
+                WHERE""") + " AND " + planned + " > 0 GROUP BY c.id, c.code, c.name ORDER BY 6 DESC",
                 (rs, n) -> new CatalogTotal(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
                         rs.getInt(5), rs.getBigDecimal(6), rs.getInt(7)));
         BigDecimal amount = byBody.stream().map(BodyTotal::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -286,6 +316,8 @@ public class ProcurementPlanService {
         ProcurementPlan saved = repository.save(plan);
         if (input.lines() != null) {
             applyLines(saved, input.lines());
+        } else {
+            requireProposalsOfYear(saved);
         }
         return saved;
     }
@@ -379,10 +411,7 @@ public class ProcurementPlanService {
         for (PurchaseProposal p : current) {
             if (!wanted.contains(p.getId())) {
                 p.setPlan(null);
-                p.getLines().forEach(l -> {
-                    l.setPlannedQuantity(null);
-                    l.setPlannedUnitPrice(null);
-                });
+                clearPlanned(p);
                 proposals.persist(p);
             }
         }
@@ -405,6 +434,9 @@ public class ProcurementPlanService {
             }
             for (PurchaseProposal p : adding) {
                 Long heldBy = lockedPlan.get(p.getId());
+                // Kế hoạch chi tiền của MỘT năm ngân sách: đề xuất xin cho năm khác không vào được — kể cả đề xuất đã nằm
+                // sẵn trong kế hoạch rồi kế hoạch đổi năm học.
+                requireSameYear(p, plan);
                 if (heldBy != null && heldBy.equals(id)) {
                     continue;
                 }
@@ -429,6 +461,29 @@ public class ProcurementPlanService {
         return plan;
     }
 
+    private static void requireSameYear(PurchaseProposal p, ProcurementPlan plan) {
+        if (!Objects.equals(p.getBudgetYear(), plan.getBudgetYear())) {
+            throw new FieldValidationException("proposals",
+                    "Đề xuất %s %s, kế hoạch lập cho năm %d — chỉ đưa vào kế hoạch đề xuất cùng năm ngân sách".formatted(
+                            p.getCode() == null ? "#" + p.getId() : p.getCode(), p.getBudgetYear() == null ? "chưa ghi năm ngân sách"
+                                    : "xin cho năm ngân sách " + p.getBudgetYear(), plan.getBudgetYear()));
+        }
+    }
+
+    /** Sửa kế hoạch mà không gửi lại tập dòng: đổi năm học thì đề xuất đang có trong kế hoạch phải cùng năm mới. */
+    private void requireProposalsOfYear(ProcurementPlan plan) {
+        List<String> other = jdbc.queryForList("""
+                SELECT COALESCE(code, '#' || id) FROM purchase_proposals
+                WHERE plan_id = ? AND budget_year IS DISTINCT FROM ? ORDER BY id""", String.class, plan.getId(),
+                plan.getBudgetYear());
+        if (!other.isEmpty()) {
+            throw new FieldValidationException("schoolYear",
+                    "Kế hoạch đang có đề xuất của năm ngân sách khác (%s%s) — bỏ các đề xuất đó trước khi đổi năm học"
+                            .formatted(String.join(", ", other.subList(0, Math.min(3, other.size()))),
+                                    other.size() > 3 ? "…" : ""));
+        }
+    }
+
     @Transactional
     public ProcurementPlan submit(Long id) {
         ProcurementPlan plan = ownedDraft(id);
@@ -451,7 +506,12 @@ public class ProcurementPlanService {
         return repository.save(plan);
     }
 
-    /** Lãnh đạo cơ quan duyệt: mọi đề xuất trong kế hoạch hoàn tất. */
+    /**
+     * Lãnh đạo cơ quan duyệt: đề xuất trong kế hoạch hoàn tất — trừ đề xuất mà MỌI dòng đều để 0 (cơ quan không mua gì
+     * của nó). Đề xuất đó rời kế hoạch, về lại "Đã duyệt" (bỏ số / giá kế hoạch như khi rút ra) để vào được kế hoạch sau,
+     * kèm một dòng trong quá trình duyệt và thông báo cho trường. Hoàn tất nó thì trường thấy "Hoàn tất" mà không có gì để
+     * nhập, và nhu cầu đó không vào được kế hoạch nào nữa.
+     */
     @Transactional
     public ProcurementPlan approve(Long id, String note) {
         ProcurementPlan plan = pendingForApprover(id);
@@ -466,12 +526,42 @@ public class ProcurementPlanService {
         String message = "Đưa vào kế hoạch mua sắm \"%s\" (năm %d) đã được duyệt".formatted(plan.getTitle(),
                 plan.getBudgetYear());
         for (PurchaseProposal p : rows) {
-            if (p.getStatus() == VoucherStatus.APPROVED) {
+            if (p.getStatus() != VoucherStatus.APPROVED) {
+                continue;
+            }
+            if (p.getLines().stream().allMatch(l -> l.effectiveQuantity() == 0)) {
+                leavePlan(p, plan);
+            } else {
                 workflow.complete(p, PurchaseProposalService.RESOURCE, message);
                 proposals.persist(p);
             }
         }
         return repository.save(plan);
+    }
+
+    /** Đề xuất bị cắt hết (mọi dòng 0) khi kế hoạch được duyệt: ra khỏi kế hoạch, giữ "Đã duyệt", báo trường. */
+    private void leavePlan(PurchaseProposal p, ProcurementPlan plan) {
+        p.setPlan(null);
+        clearPlanned(p);
+        String text = ("Không đưa vào kế hoạch mua sắm \"%s\" (năm %d): mọi thiết bị đều để số lượng 0. Đề xuất trở lại"
+                + " Đã duyệt, chờ kế hoạch sau.").formatted(plan.getTitle(), plan.getBudgetYear());
+        // Không đổi trạng thái — ghi như một lần "trả lại" về hàng chờ kế hoạch, lời nhắn là nội dung.
+        workflow.remark(p, PurchaseProposalService.RESOURCE, VoucherEvent.Action.RETURN, text);
+        proposals.persist(p);
+        Long recipient = p.getSubmittedById() != null ? p.getSubmittedById() : p.getCreatedById();
+        if (recipient != null) {
+            notifications.notify(NotificationType.VOUCHER_RESULT, recipient, NotificationLevel.WARNING,
+                    "Đề xuất mua sắm " + (p.getCode() == null ? "" : p.getCode() + " ") + "chưa được đưa vào kế hoạch",
+                    text, "/purchase-proposals/show/" + p.getId());
+        }
+    }
+
+    /** Bỏ số / giá do kế hoạch đặt: không được theo đề xuất sang kế hoạch sau. */
+    private static void clearPlanned(PurchaseProposal p) {
+        p.getLines().forEach(l -> {
+            l.setPlannedQuantity(null);
+            l.setPlannedUnitPrice(null);
+        });
     }
 
     /**
@@ -539,11 +629,12 @@ public class ProcurementPlanService {
         for (PurchaseProposal p : rows) {
             for (var l : p.getLines()) {
                 var c = l.getCatalog();
-                schools.computeIfAbsent(c.getId(), k -> new HashSet<>()).add(p.getSchool().getId());
-                CatalogTotal prev = totals.get(c.getId());
+                // Dòng cơ quan bỏ (0) không tính trường đó vào "số trường" của thiết bị.
                 if (l.effectiveQuantity() == 0) {
                     continue;
                 }
+                schools.computeIfAbsent(c.getId(), k -> new HashSet<>()).add(p.getSchool().getId());
+                CatalogTotal prev = totals.get(c.getId());
                 BigDecimal amount = l.plannedAmount();
                 totals.put(c.getId(), new CatalogTotal(c.getId(), c.getCode(), c.getName(), l.getUnitName(),
                         (prev == null ? 0 : prev.quantity()) + l.effectiveQuantity(),

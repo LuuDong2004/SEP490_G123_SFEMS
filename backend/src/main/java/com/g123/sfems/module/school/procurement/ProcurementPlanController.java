@@ -54,7 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>{@code GET /summary?year=} — tổng hợp đề xuất theo cơ quan và nhóm thiết bị;</li>
  *   <li>{@code GET /{id}/export.xlsx} — tệp Excel của kế hoạch;</li>
- *   <li>{@code GET /{id}/candidates} — đề xuất đã duyệt, chưa vào kế hoạch nào;</li>
+ *   <li>{@code GET /{id}/candidates} — đề xuất đã duyệt, chưa vào kế hoạch nào, cùng năm ngân sách;</li>
  *   <li>{@code PUT /{id}/proposals} — thay tập đề xuất trong kế hoạch nháp;</li>
  *   <li>{@code POST /{id}/submit|approve|return}.</li>
  * </ul>
@@ -175,15 +175,19 @@ public class ProcurementPlanController {
 
     @GetMapping("/{id}/candidates")
     @PreAuthorize("hasAuthority('procurement_plans:write')")
-    public List<Candidate> candidates(@PathVariable Long id) {
-        return service.candidates(id).stream().map(Candidate::of).toList();
+    public List<Candidate> candidates(@PathVariable Long id, @RequestParam(required = false) Long schoolYearId) {
+        return service.candidates(id, schoolYearId).stream().map(Candidate::of).toList();
     }
 
-    /** Đề xuất chờ vào kế hoạch cho kế hoạch CHƯA LƯU (màn lập); {@code body} chỉ có nghĩa với quản trị viên. */
+    /**
+     * Đề xuất chờ vào kế hoạch cho kế hoạch CHƯA LƯU (màn lập); {@code body} chỉ có nghĩa với quản trị viên.
+     * {@code schoolYearId}: năm học đang chọn trên màn — chỉ đề xuất cùng năm ngân sách.
+     */
     @GetMapping("/candidates")
     @PreAuthorize("hasAuthority('procurement_plans:write')")
-    public List<Candidate> candidatesForNew(@RequestParam(required = false) Long body) {
-        return service.candidatesForNew(body).stream().map(Candidate::of).toList();
+    public List<Candidate> candidatesForNew(@RequestParam(required = false) Long body,
+            @RequestParam(required = false) Long schoolYearId) {
+        return service.candidatesForNew(body, schoolYearId).stream().map(Candidate::of).toList();
     }
 
     @PostMapping

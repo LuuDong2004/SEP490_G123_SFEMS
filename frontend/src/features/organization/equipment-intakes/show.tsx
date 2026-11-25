@@ -415,6 +415,8 @@ export const EquipmentIntakeShow = () => {
   const grid = showCodes ? COMPLETED_GRID : SHOW_GRID;
   const issuesOf = (l: IntakeLine) => (draft ? lineIssues(l, catalogOf(l), config, record?.fundingSource, rule) : []);
   const canWrite = record?._can?.write === true;
+  // Tệp đính kèm (của phiếu, hoá đơn, dòng) chỉ thêm / xoá khi phiếu còn nháp — kể cả nháp bị trả lại; máy chủ chặn cùng luật.
+  const canAttach = draft && canWrite;
   // Hai dạng xem của cùng một phiếu: "Làm việc" (bảng, thẻ, nút) và "Văn bản" (tờ phiếu như bản in).
   // Nhớ theo người dùng — ai quen đọc phiếu như tờ giấy thì lần sau mở ra vẫn là tờ giấy.
   const [view, setView] = useVoucherView("intake");
@@ -580,7 +582,7 @@ export const EquipmentIntakeShow = () => {
           {(record.documents ?? []).map((d, i) => {
             const n = documentNoun(record?.originSource?.code) ?? "chứng từ";
             return (
-              <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={draft} compact
+              <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={canAttach} compact
                 title={`Tệp ${n} ${(record.documents ?? []).length > 1 ? i + 1 : ""}`.trim()}
                 description={[d.supplier, d.documentNo ? `số ${d.documentNo}` : null].filter(Boolean).join(" · ") || undefined} />
             );
@@ -595,7 +597,7 @@ export const EquipmentIntakeShow = () => {
       <AttachmentsPanel
         resource="equipment_intakes"
         recordId={record?.id}
-        canWrite={canWrite}
+        canWrite={canAttach}
         compact
         description="Biên bản giao nhận và giấy tờ chung của phiếu. Hoá đơn của dòng nào thì bấm vào dòng đó để xem."
       />
@@ -606,7 +608,7 @@ export const EquipmentIntakeShow = () => {
           head={record}
           config={config}
           issues={issuesOf(lines[opened])}
-          canWrite={canWrite}
+          canWrite={canAttach}
           assets={showCodes && lines[opened].id != null ? assets.byLine.get(lines[opened].id!) : undefined}
           onClose={() => setOpened(null)}
         />

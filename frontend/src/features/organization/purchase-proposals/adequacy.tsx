@@ -17,6 +17,7 @@ import type { ProcurementSummary } from "@/domains/procurement/types";
 import { MinimumStandardBody } from "../minimum-standard/page";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
 
 const money = new Intl.NumberFormat("vi-VN");
 const ALL = "__all__";
@@ -52,6 +53,7 @@ function ProcurementSummaryCard() {
   // Tên trùng (máy chiếu của danh mục THCS và THPT là hai thiết bị) thì kèm mã để phân biệt.
   const dupNames = new Set((p?.catalogs ?? []).map((c) => c.catalogName).filter((n, i, all) => all.indexOf(n) !== i));
   const head = "text-overline text-muted-foreground";
+  const paged = usePagedRows(p?.catalogs ?? [], { resetKey: `${year}|${body}`, sizeKey: "procurementSummary", pageSizeLabel: "Số thiết bị mỗi trang" });
 
   return (
     <div className="space-y-4">
@@ -106,7 +108,7 @@ function ProcurementSummaryCard() {
             <TableBody>
               {!p || p.catalogs.length === 0 ? (
                 <TableEmpty colSpan={4} loading={!p} title="Chưa có đề xuất cho năm này." />
-              ) : p.catalogs.map((c) => (
+              ) : paged.visible.map((c) => (
                 <TableRow key={c.catalogId} className={cn("group/row", LIFT_ROW)}>
                   <TableCell className="ps-4 whitespace-normal">
                     <span className="font-medium">{c.catalogName}</span>
@@ -119,6 +121,7 @@ function ProcurementSummaryCard() {
               ))}
             </TableBody>
           </Table>
+          {paged.pager}
         </Card>
 
         <Card className="gap-0 overflow-hidden py-0">

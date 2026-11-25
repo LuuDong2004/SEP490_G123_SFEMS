@@ -9,6 +9,7 @@ import { MultiRefSelectField } from "@/shared/components/catalog/multi-ref-selec
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { TableEmpty, TableSkeletonRows } from "@/shared/components/data-table/table-empty";
+import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
 import { SearchSelect } from "@/shared/components/form/search-select";
 import { TextareaField } from "@/shared/components/form/simple-fields";
 import { useCampusOptions, usePinnedCampusId } from "@/shared/components/campus/use-campus";
@@ -71,6 +72,7 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
     .filter((a) => !campus || String(a.campusId) === campus)
     .filter((a) => !subject || a.mainSubject?.id === Number(subject) || a.subjects.some((s) => s.id === Number(subject)))
     .filter((a) => !term || fold(`${a.staffCode} ${a.staffName}`).includes(term));
+  const paged = usePagedRows(shown, { resetKey: `${yearId}|${campus}|${subject}|${term}`, sizeKey: "staffAssignments" });
   const previous = years.find((y) => year && y.startDate < year.startDate);
   const refresh = () => qc.invalidateQueries({ queryKey: [RESOURCE] });
 
@@ -136,8 +138,8 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
           Năm học {yearLabel(year)} đã chốt — phân công chỉ xem.
         </div>
       ) : null}
-      <div className="bg-card shadow-e1 min-h-0 flex-1 overflow-hidden rounded-lg border">
-        <div className="h-full overflow-auto [&>[data-slot=table-container]]:overflow-visible">
+      <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <div ref={paged.boxRef} className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible">
           <Table>
             <TableHeader className="bg-surface-subtle sticky top-0 z-10">
               <TableRow>
@@ -160,7 +162,7 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
                       Chép từ năm học {yearLabel(previous)}
                     </Button>
                   ) : undefined} />
-              ) : shown.map((a) => (
+              ) : paged.visible.map((a) => (
                 <TableRow key={a.id} className={cn("group/row", LIFT_ROW, editable && "cursor-pointer")}
                   onClick={() => editable && setEditing(a)}>
                   <TableCell className="font-mono text-[0.8125rem]">{a.staffCode}</TableCell>
@@ -201,6 +203,7 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
             </TableBody>
           </Table>
         </div>
+        {paged.pager}
       </div>
       {editing ? (
         <AssignmentDialog yearId={yearId!} record={editing === "new" ? null : editing}

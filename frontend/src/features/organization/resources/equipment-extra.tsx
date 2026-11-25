@@ -1,7 +1,7 @@
 import { canWriteRecord } from "@/shared/lib/can-write";
 import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { FormHint } from "@/shared/components/form/help-hint";
-import { LengthCounter, TextareaField } from "@/shared/components/form/simple-fields";
+import { LengthCounter } from "@/shared/components/form/simple-fields";
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, Sparkles } from "lucide-react";
@@ -511,10 +511,6 @@ function TechIdentity({ control }: { control: Control<any> }) {
         hint="Số của nhà sản xuất in trên thiết bị, nếu có: 3–50 ký tự, tự viết hoa, bỏ khoảng trắng. Không trùng với thiết bị khác của trường." />
       <Field control={control} name="model" label="Model" hint="Mẫu của cái / lô này — khác nhau giữa các lần mua." rule="SHORT_TEXT" max={50} />
       <Field control={control} name="manufacturer" label="Hãng sản xuất" rule="SHORT_TEXT" max={100} />
-      {/* `col-span-full` (không phải `col-span-2`): trải hết các cột ĐANG CÓ — cột hồ sơ một cột thì một, hai cột thì hai.
-          `@md:col-span-2` sẵn có của ô trong lưới đẻ thêm một cột ngầm làm các ô khác dồn chồng lên nhau. */}
-      <TextareaField control={control} name="otherInfo" label="Thông tin khác" rule="NOTE" rows={2} inGrid
-        className="col-span-full @md:col-span-full" placeholder="VD: Core i5, RAM 8GB, SSD 256GB; xuất xứ Việt Nam" />
     </>
   );
 }
@@ -928,7 +924,6 @@ export const EQUIPMENT_EXTRA = {
     serialNumber: "",
     model: "",
     manufacturer: "",
-    otherInfo: "",
     unit: { id: null },
     quantity: 1,
     originSource: { id: null },
@@ -939,7 +934,6 @@ export const EQUIPMENT_EXTRA = {
     receivedDate: null,
     purchaseDate: null,
     originalValue: null,
-    remainingValue: null,
     warrantyExpiry: null,
     expiryDate: null,
     room: { id: null },
@@ -1050,7 +1044,6 @@ export const EQUIPMENT_EXTRA = {
     { label: "Số serial", value: r?.serialNumber ?? "—" },
     { label: "Model", value: r?.model ?? "—" },
     { label: "Hãng sản xuất", value: r?.manufacturer ?? "—" },
-    { label: "Thông tin khác", value: r?.otherInfo ?? "—" },
     { label: "Số lượng", value: `${r?.quantity ?? "—"} ${r?.unit?.name ?? ""}` },
     { label: "Nguồn hình thành", value: r?.originSource ? `${r.originSource.name}${r.originNote ? `: ${r.originNote}` : ""}` : "—" },
     // Chỉ hàng mua mới có hình thức mua sắm — nguồn khác thì không có dòng này, thay vì một dấu "—" trông như thiếu.
@@ -1065,13 +1058,18 @@ export const EQUIPMENT_EXTRA = {
         ]
       : []),
     { label: "Ngày tiếp nhận", value: formatPlainDate(r?.receivedDate) },
-    { label: "Ngày mua", value: formatPlainDate(r?.purchaseDate) },
+    // Ngày mua trùng ngày hoá đơn (thiết bị qua phiếu ghi tăng) hoặc ngày tiếp nhận thì không lặp lại.
+    ...(r?.purchaseDate && [r?.intakeDocument?.documentDate, r?.receivedDate].includes(r.purchaseDate)
+      ? [] : [{ label: "Ngày mua", value: formatPlainDate(r?.purchaseDate) }]),
     { label: "Hết hạn bảo hành", value: formatPlainDate(r?.warrantyExpiry) },
     // Hạn sử dụng chỉ vật tư tiêu hao, hoá chất có — thiết bị khác không có dòng này.
     ...(r?.expiryDate || r?.assetCategory === "SUPPLY" || r?.assetCategory === "CHEMICAL"
       ? [{ label: "Hạn sử dụng", value: <ExpiryValue date={r?.expiryDate} /> }]
       : []),
-    { label: "Năm sản xuất / sử dụng", value: `${r?.productionYear ?? "—"} / ${r?.usageStartYear ?? "—"}` },
+    { label: "Năm sản xuất", value: r?.productionYear ?? "—" },
+    // Năm đưa vào sử dụng mặc định là năm tiếp nhận: chỉ hiện khi khác năm đó.
+    ...(r?.usageStartYear != null && String(r.usageStartYear) !== String(r?.receivedDate ?? "").slice(0, 4)
+      ? [{ label: "Năm đưa vào sử dụng", value: r.usageStartYear }] : []),
     { label: "Nguyên giá", value: r?.originalValue != null ? `${money.format(r.originalValue)} đ` : "—" },
     { label: "Phòng", value: r?.room?.name ?? "—" },
     { label: "Người quản lý", value: r?.manager?.name ?? "—" },

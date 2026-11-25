@@ -132,10 +132,6 @@ final class AnalysisReports {
                 + " WHERE e.status NOT IN" + ReportService.OFF_BOOK + reports.assets("e", p) + " AND (%s)";
         String money = "to_char(%s, 'FM999G999G999G990')";
         List<String> checks = List.of(
-                base.formatted("'Giá trị còn lại lớn hơn nguyên giá'",
-                        "'Còn lại ' || " + money.formatted("e.remaining_value") + " || ' > nguyên giá ' || "
-                                + money.formatted("e.original_value"),
-                        "e.remaining_value > e.original_value"),
                 base.formatted("'Nguyên giá bằng 0 hoặc âm'", money.formatted("e.original_value"), "e.original_value <= 0"),
                 base.formatted("'Ngày tiếp nhận ở tương lai'", "to_char(e.received_date, 'DD/MM/YYYY')",
                         "e.received_date > CURRENT_DATE"),
@@ -181,7 +177,7 @@ final class AnalysisReports {
         String[] ledger = LEDGERS.getOrDefault(choice, LEDGERS.get("all"));
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM (SELECT e.id AS equipment_id, s.name AS school, e.code, e.name,"
                 + " c.name AS catalog, u.name AS unit, e.quantity, ei.code AS voucher, e.received_date,"
-                + " e.original_value, COALESCE(e.remaining_value, e.original_value) AS remaining_value, r.name AS room, st.name AS manager,"
+                + " e.original_value, r.name AS room, st.name AS manager,"
                 + " " + ReportService.statusLabel("e.status") + " AS status,"
                 + " COALESCE(e.asset_category, c.asset_category) AS cat"
                 + " FROM " + reports.equipment(p) + " e JOIN schools s ON s.id = e.school_id"
@@ -198,7 +194,7 @@ final class AnalysisReports {
                         col("unit", "Đơn vị tính", "text"), col("quantity", "Số lượng", "number"),
                         col("voucher", "Chứng từ ghi tăng", "text"), col("received_date", "Ngày tiếp nhận", "date"),
                         col("original_value", "Nguyên giá (đ)", "money"),
-                        col("remaining_value", "Giá trị còn lại (đ)", "money"), col("room", "Chỗ để", "text"),
+                        col("room", "Chỗ để", "text"),
                         col("manager", "Người quản lý", "text"), col("status", "Trạng thái", "text")),
                 rows);
     }

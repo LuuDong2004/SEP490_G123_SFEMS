@@ -17,7 +17,7 @@ type Row = Record<string, any>;
 /** Hộp chi tiết giữ tối đa chừng này cột: đủ chỗ để chữ hiện trọn, không bị cắt. */
 const DRILL_MAX_COLUMNS = 7;
 /** Cột phụ bỏ trước khi hộp quá nhiều cột — vẫn xem được ở bảng chính và hồ sơ thiết bị (bấm dòng). */
-const DRILL_SECONDARY = ["catalog", "remaining_value", "original_value", "received_date", "unit"];
+const DRILL_SECONDARY = ["catalog", "original_value", "received_date", "unit"];
 
 /**
  * Số liệu của một mục vừa bấm trên biểu đồ. `rows` + `columns`: danh sách các dòng thuộc mục đó (`columns` vắng thì đủ

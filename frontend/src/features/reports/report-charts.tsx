@@ -1,8 +1,8 @@
 import { Banknote, Boxes, Building2, CircleHelp, CalendarClock, CircleAlert, ClipboardList, FileCheck2, Gauge, Package, Ruler, School, ShieldCheck, ShoppingCart, TrendingDown, TrendingUp } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { ChartCard, ColumnChart, DonutBreakdown, GroupedBars, Meter, StatTile, TrendArea, type Series, type Slice } from "@/shared/components/charts/charts";
-import { count, foldOther, shortMoney } from "@/shared/lib/chart-palette";
+import { ChartCard, ColumnChart, DonutBreakdown, GroupedBars, Meter, RangeSelect, StatTile, TrendArea, type Series, type Slice } from "@/shared/components/charts/charts";
+import { count, shortMoney } from "@/shared/lib/chart-palette";
 import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/ui/card";
 import type { Report } from "@/domains/report/types";
@@ -72,6 +72,22 @@ function Breakdown({ rows, labelKey, series, unit, donutTitle, columnsTitle, nou
   );
 }
 
+type Tier = { key: string; label: string; passed: number; total: number };
+
+/** Vòng đạt / chưa đạt của một trường, chọn mức ở góc thẻ. */
+function TierDonut({ tiers, onPick }: { tiers: Tier[]; onPick?: (tier: Tier, part: "passed" | "failed") => void }) {
+  const [key, setKey] = useState(tiers[0]?.key);
+  const tier = tiers.find((x) => x.key === key) ?? tiers[0];
+  if (!tier) return <ChartCard bare title="Đạt chuẩn theo mức"><DonutBreakdown items={[]} unit="loại" emptyText="Chưa đặt chuẩn" /></ChartCard>;
+  return (
+    <ChartCard bare title="Đạt chuẩn theo mức" description={`Số loại cơ sở vật chất phải có ở ${tier.label.toLowerCase()}`}
+      action={tiers.length > 1 ? <RangeSelect value={tier.key} onChange={setKey} options={tiers.map((x) => ({ value: x.key, label: x.label }))} /> : undefined}>
+      <DonutBreakdown unit="loại" onPick={onPick && ((s) => onPick(tier, s.key as "passed" | "failed"))}
+        items={[{ key: "passed", label: "Đạt", count: tier.passed }, { key: "failed", label: "Chưa đạt", count: tier.total - tier.passed }]} />
+    </ChartCard>
+  );
+}
+
 function Tiles({ children }: { children: ReactNode }) {
   return (
     <Card className="gap-0 py-0">
@@ -117,11 +133,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
   // Báo cáo có danh sách từng dòng: các dòng thuộc mục vừa bấm.
   const pickList = (unit: string, match: (row: Row, slice: Slice) => boolean, opts: { source?: Row[]; hide?: string } = {}) => onDrill && ((s: Slice) =>
     onDrill({ title: s.label, summary: summaryOf(s.count, unit), columns: without(opts.hide), rows: (opts.source ?? rows).filter((r) => match(r, s)) }));
-  // Như trên cho vòng đã gộp đuôi thành "Khác": mục "Khác" là mọi dòng không thuộc các phần có tên.
-  const pickFolded = (unit: string, items: Slice[], valueOf: (row: Row) => string, hide?: string) => {
-    const named = new Set(items.filter((i) => i.key !== "__other").map((i) => i.label));
-    return pickList(unit, (r, s) => (s.key === "__other" ? !named.has(valueOf(r)) : valueOf(r) === s.label), { hide });
-  };
   // Cột "theo trường" của báo cáo có danh sách: các dòng của trường đó.
   const pickSchool = (unit: string) => onDrill && ((row: Row) =>
     onDrill({ title: String(row.label), summary: summaryOf(row.count, unit), columns: without("school"), rows: rows.filter((r) => r.school === row.label) }));
@@ -182,6 +193,91 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             <Meter percent={avg} label="Bình quân các phòng" hint={`${count.format(rated.length)} phòng tính được`} />
           </ChartCard>
         </Pair>
+      );
+    }
+    case "facility-standard": {
+      const kinds: Report["columns"] = [
+        { key: "name", label: "Loại cơ sở vật chất", type: "text" }, { key: "group", label: "Khối", type: "text" },
+        { key: "count", label: "Đang có", type: "number" }, { key: "note", label: "Còn thiếu", type: "text" },
+      ];
+      // Trường chưa có loại đó trong hồ sơ: nói gọn một câu, các con số chuẩn xem ở bản đánh giá của trường.
+      const failedOf = (r: Row, tier: string): Row[] => ((r.failed ?? []) as Row[]).filter((f) => f.tiers.includes(tier))
+        .map((f) => (n(f.count) ? f : { ...f, note: "Chưa khai báo" }));
+      const pickKinds = onDrill && ((title: string, list: Row[], tier = "tối thiểu") =>
+        onDrill({ title, summary: `${count.format(list.length)} loại chưa đạt ${tier}`, columns: kinds, rows: list }));
+      const statuses: Series[] = [{ key: "passed", label: "Đạt" }, { key: "failed", label: "Chưa đạt" }];
+      const tiers = [["min", "Tối thiểu"], ["level1", "Mức độ 1"], ["level2", "Mức độ 2"]] as const;
+      // Một trường: ba mức của chính trường đó, rồi từng khối chưa đạt ở đâu.
+      if (rows.length === 1) {
+        const [school] = rows;
+        const groups = (school.groups ?? []) as Row[];
+        return part === "stats" ? (
+          <Tiles>
+            <StatTile flat icon={<ShieldCheck />} tone={n(school.failed_min) ? "warning" : "success"} label="Mức đạt" value={String(school.reached ?? "—")}
+              hint={n(school.failed_min) ? `${count.format(n(school.failed_min))} loại chưa đạt tối thiểu` : undefined} />
+            {tiers.map(([key, label]) => (
+              <StatTile key={key} flat icon={<Gauge />} label={label} value={String(school[key] ?? "—")}
+                hint={n(school[`${key}_total`]) ? `${pct(n(school[`${key}_passed`]), n(school[`${key}_total`]))}% loại đạt` : "Chưa đặt chuẩn"} />
+            ))}
+          </Tiles>
+        ) : groups.length ? (
+          <Pair className="lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <TierDonut
+              tiers={tiers.filter(([key]) => n(school[`${key}_total`]) > 0)
+                .map(([key, label]) => ({ key, label, passed: n(school[`${key}_passed`]), total: n(school[`${key}_total`]) }))}
+              // Phần chưa đạt: danh sách các loại đó. Phần đạt: bản đánh giá đủ mọi loại của trường.
+              onPick={pickKinds && onDrill && ((tier, part) => part === "failed"
+                ? pickKinds(`Chưa đạt ${tier.label.toLowerCase()}`, failedOf(school, tier.key), tier.label.toLowerCase())
+                : onDrill({ title: String(school.name ?? ""), record: school }))} />
+            <ChartCard bare title="Mức tối thiểu theo khối" description="Số loại cơ sở vật chất của từng khối">
+              <ColumnChart labelKey="name" unit="loại" series={statuses} rows={groups}
+                onPick={pickKinds && ((row) => pickKinds(String(row.name), failedOf(school, "min").filter((f) => f.group === row.name)))} />
+            </ChartCard>
+          </Pair>
+        ) : null;
+      }
+      const levels = ["Mức độ 2", "Mức độ 1", "Tối thiểu", "Chưa đạt tối thiểu"];
+      const below = rows.filter((r) => r.reached === "Chưa đạt tối thiểu").length;
+      // Trường đạt cao nhất: theo tỉ lệ vì số loại phải có của mỗi trường khác nhau, bằng nhau thì xét tới mức độ 1, 2.
+      const rate = (r: Row, tier: string) => (n(r[`${tier}_total`]) ? (n(r[`${tier}_passed`]) / n(r[`${tier}_total`])) * 100 : 0);
+      const best = rows.filter((r) => n(r.min_passed) > 0).map((r): Row => ({ ...r, rate: Math.round(rate(r, "min") * 10) / 10 }))
+        .sort((a, b) => rate(b, "min") - rate(a, "min") || rate(b, "level1") - rate(a, "level1") || rate(b, "level2") - rate(a, "level2"));
+      const bySchool = rows.map((r): Row => ({ ...r, passed: n(r.min_passed), failed_count: n(r.min_total) - n(r.min_passed) }))
+        .filter((r) => r.failed_count > 0).sort((a, b) => b.failed_count - a.failed_count);
+      return part === "stats" ? (
+        <Tiles>
+          <StatTile flat icon={<School />} label="Trường" value={count.format(rows.length)} />
+          <StatTile flat icon={<ShieldCheck />} tone="success" label="Đạt từ tối thiểu" value={count.format(rows.length - below)}
+            hint={`${pct(rows.length - below, rows.length)}% số trường`} />
+          <StatTile flat icon={<CircleAlert />} tone="warning" label="Chưa đạt tối thiểu" value={count.format(below)}
+            hint={`${pct(below, rows.length)}% số trường`} />
+          <StatTile flat icon={<Gauge />} label="Loại đạt tối thiểu" value={sum(rows, "min_total") ? `${pct(sum(rows, "min_passed"), sum(rows, "min_total"))}%` : "—"}
+            hint={`${count.format(sum(rows, "min_passed"))} trên ${count.format(sum(rows, "min_total"))} loại phải có`} />
+        </Tiles>
+      ) : (
+        <div className="divide-y [--chart-h:18rem]">
+          <Pair className="lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <ChartCard bare title="Trường theo mức đạt" description={`Tổng của ${count.format(rows.length)} trường`}>
+              <DonutBreakdown unit="trường" items={levels.map((label, i) => ({ key: `l${i}`, label, count: rows.filter((r) => r.reached === label).length }))}
+                onPick={pickList("trường", (r, s) => r.reached === s.label)} />
+            </ChartCard>
+            <ChartCard bare title="Trường đạt cao nhất" description={best.length
+              ? `Tỉ lệ loại cơ sở vật chất đạt mức tối thiểu, ${count.format(best.length)} trên ${count.format(rows.length)} trường có loại đạt`
+              : "Tỉ lệ loại cơ sở vật chất đạt mức tối thiểu"}>
+              {best.length ? (
+                <ColumnChart labelKey="name" unit="%" series={[{ key: "rate", label: "Loại đạt" }]} rows={best} limit={TOP} onPick={pickRecord("name")} />
+              ) : (
+                <p className="text-muted-foreground flex h-[var(--chart-h,18rem)] items-center justify-center text-sm">Chưa trường nào có loại đạt mức tối thiểu.</p>
+              )}
+            </ChartCard>
+          </Pair>
+          <ChartCard bare title="Trường còn nhiều loại chưa đạt nhất"
+            description={bySchool.length > TOP ? `${TOP} trường, trên tổng ${count.format(bySchool.length)} trường chưa đạt mức tối thiểu` : "Số loại đạt, chưa đạt mức tối thiểu"}>
+            <ColumnChart labelKey="name" unit="loại" rows={bySchool} limit={TOP}
+              series={[{ key: "passed", label: "Đạt" }, { key: "failed_count", label: "Chưa đạt" }]}
+              onPick={pickKinds && ((row) => pickKinds(String(row.name), failedOf(row, "min")))} />
+          </ChartCard>
+        </div>
       );
     }
     case "equipment-by-school": {
@@ -270,36 +366,6 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             { key: "poor", label: "Kém" },
             { key: "unrated", label: "Chưa đánh giá" },
           ]} />
-      ) : null;
-    }
-    case "equipment-list": {
-      const bySchool = Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        m[r.school] = (m[r.school] ?? 0) + 1;
-        return m;
-      }, {})).map(([k, v]) => ({ key: k, label: k, count: v })).sort((a, b) => b.count - a.count).slice(0, 10);
-      const byCatalog = foldOther(Object.entries(rows.reduce((m: Record<string, number>, r) => {
-        const k = r.catalog ?? "Chưa gắn thiết bị";
-        m[k] = (m[k] ?? 0) + 1;
-        return m;
-      }, {})).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ key: `c${i}`, label: k, count: v })));
-      return part === "stats" ? (
-        <Tiles>
-          <StatTile flat icon={<Boxes />} label="Thiết bị" value={count.format(rows.length)} />
-          <StatTile flat icon={<School />} label="Trường" value={count.format(new Set(rows.map((r) => r.school)).size)} />
-          <StatTile flat icon={<Building2 />} label="Chưa xếp chỗ" value={count.format(rows.filter((r) => !r.room).length)} />
-        </Tiles>
-      ) : rows.length ? (
-        // Một trường (tài khoản trường, hoặc đang lọc một trường): biểu đồ "Theo trường" chỉ là một thanh 100%.
-        <Pair className={bySchool.length > 1 ? undefined : "lg:grid-cols-1"}>
-          <ChartCard bare title="Theo thiết bị">
-            <DonutBreakdown items={byCatalog} unit="thiết bị" bars={bySchool.length <= 1} onPick={pickFolded("thiết bị", byCatalog, (r) => r.catalog ?? "Chưa gắn thiết bị", "catalog")} />
-          </ChartCard>
-          {bySchool.length > 1 ? (
-            <ChartCard bare title="Theo trường" description="Trường nhiều thiết bị nhất">
-              <ColumnChart rows={bySchool} labelKey="label" unit="thiết bị" series={[{ key: "count", label: "Thiết bị" }]} onPick={pickSchool("thiết bị")} />
-            </ChartCard>
-          ) : null}
-        </Pair>
       ) : null;
     }
     case "data-quality": {
@@ -532,25 +598,53 @@ export function ReportVisual({ report, part, filter, onDrill }: {
     }
     case "purchase": {
       const data = rows.map((r) => ({ ...r, amountM: Math.round(n(r.amount) / 1e6), approvedM: Math.round(n(r.approved_amount) / 1e6) }));
+      const planned = sum(rows, "planned_quantity");
+      const received = sum(rows, "received");
+      // Số đề xuất lấy số Tổng máy chủ tính: gộp theo loại, thiết bị thì một đề xuất có ở nhiều nhóm.
+      const proposals = (key: string) => count.format(n(report.totals?.[key] ?? sum(rows, key)));
+      const dimension = (report.columns.find((c) => c.key === "name")?.label ?? "nhóm").toLowerCase();
+      const byQuantity = [...rows].sort((a, b) => n(b.quantity) - n(a.quantity)).slice(0, TOP);
+      const steps: Slice[] = [
+        { key: "quantity", label: "Đề xuất", count: sum(rows, "quantity") },
+        { key: "planned_quantity", label: "Vào kế hoạch", count: planned },
+        { key: "received", label: "Đã nhập về", count: received },
+      ];
       return part === "stats" ? (
         <>
           <Tiles>
-            <StatTile flat icon={<ShoppingCart />} label="Đề xuất" value={count.format(sum(rows, "proposals"))}
-              hint={`${count.format(sum(rows, "pending"))} chờ duyệt`} />
-            <StatTile flat icon={<FileCheck2 />} tone="success" label="Đã duyệt" value={count.format(sum(rows, "approved"))}
-              hint={`${count.format(sum(rows, "planned"))} vào kế hoạch`} />
-            <StatTile flat icon={<Banknote />} label="Dự toán đề xuất" value={money(sum(rows, "amount"))} />
-            <StatTile flat icon={<Banknote />} tone="success" label="Dự toán đã duyệt" value={money(sum(rows, "approved_amount"))} />
+            <StatTile flat icon={<ShoppingCart />} label="Số lượng đề xuất" value={count.format(sum(rows, "quantity"))}
+              hint={`${proposals("proposals")} đề xuất, ${proposals("pending")} chờ duyệt`} />
+            <StatTile flat icon={<FileCheck2 />} label="Đã vào kế hoạch" value={count.format(planned)}
+              hint={`${proposals("planned")} trên ${proposals("proposals")} đề xuất`} />
+            <StatTile flat icon={<Package />} tone="success" label="Đã nhập về" value={count.format(received)}
+              hint={`Còn phải nhập ${count.format(sum(rows, "remaining"))}`} />
+            <StatTile flat icon={<Banknote />} label="Dự toán đề xuất" value={money(sum(rows, "amount"))}
+              hint={`Đã duyệt ${money(sum(rows, "approved_amount"))}`} />
           </Tiles>
         </>
       ) : (
+        <div className="divide-y [--chart-h:18rem]">
+        <Pair className="lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
+          <ChartCard bare title="Từ đề xuất tới nhập về" description="Tổng số lượng thiết bị">
+            <ColumnChart rows={steps} labelKey="label" unit="thiết bị" series={[{ key: "count", label: "Số lượng" }]}
+              onPick={asSlice(pickSeries("thiết bị", rows))} />
+          </ChartCard>
+          <ChartCard bare title={`Số lượng theo ${dimension}`}
+            description={rows.length > TOP ? `${TOP} ${dimension} đề xuất nhiều nhất, trên tổng ${count.format(rows.length)}` : `Đủ ${count.format(rows.length)} ${dimension}, nhiều nhất trước`}>
+            <GroupedBars data={byQuantity} xKey="name" height="h-[var(--chart-h,18rem)]" onPick={pickRecord("name")} series={[
+              { key: "quantity", label: "Đề xuất" },
+              { key: "planned_quantity", label: "Vào kế hoạch" },
+              { key: "received", label: "Đã nhập về" },
+            ]} />
+          </ChartCard>
+        </Pair>
         <Pair className="lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
           <ChartCard bare title="Dự toán được duyệt" description="Trên dự toán đề xuất">
             <Meter percent={pct(sum(rows, "approved_amount"), sum(rows, "amount"))} good={70} warn={40}
               label={`${money(sum(rows, "approved_amount"))} / ${money(sum(rows, "amount"))}`}
-              hint={`${count.format(sum(rows, "approved"))} / ${count.format(sum(rows, "proposals"))} đề xuất đã duyệt`} />
+              hint={`${proposals("approved")} / ${proposals("proposals")} đề xuất đã duyệt`} />
           </ChartCard>
-          <ChartCard bare title={`Dự toán — ${(report.columns.find((c) => c.key === "name")?.label ?? "").toLowerCase()}`}
+          <ChartCard bare title={`Dự toán theo ${dimension}`}
             description="Triệu đồng · nhóm có dự toán lớn nhất">
             <GroupedBars data={data.slice(0, 12)} xKey="name" height="h-[var(--chart-h,18rem)]" onPick={pickRecord("name")} series={[
               { key: "amountM", label: "Đề xuất" },
@@ -558,6 +652,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             ]} />
           </ChartCard>
         </Pair>
+        </div>
       );
     }
     case "supply-expiry": {

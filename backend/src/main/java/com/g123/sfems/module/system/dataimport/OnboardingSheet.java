@@ -126,8 +126,6 @@ public enum OnboardingSheet {
                     "Cán bộ quản lý", "Người sử dụng", "Người giữ", "Người phụ trách", "Mã người quản lý"),
             col("originalValue", "Nguyên giá (đ)", false, "Giá của MỘT cái. Không bắt buộc",
                     "Nguyên giá", "Đơn giá", "Giá", "Giá trị", "Giá mua", "Nguyên giá một cái"),
-            col("remainingValue", "Giá trị còn lại (đ)", false, "Để trống = bằng nguyên giá", "Giá trị còn lại",
-                    "GTCL", "Còn lại", "Giá trị còn lại một cái"),
             col("receivedDate", "Ngày tiếp nhận", false, "dd/mm/yyyy. Để trống thì lấy 01/01 của năm đưa vào sử dụng",
                     "Ngày nhận", "Ngày ghi tăng", "Ngày tăng", "Ngày mua", "Ngày nhập", "Ngày đưa vào sử dụng",
                     "Ngày sử dụng", "Ngày bắt đầu sử dụng"),

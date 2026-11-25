@@ -90,9 +90,11 @@ export const InventorySessionList = () => {
           const parts = [
             s.missing ? `Thiếu ${s.missing}` : null,
             s.wrongRoom ? `Sai vị trí ${s.wrongRoom}` : null,
+            s.wrongCondition ? `Sai tình trạng ${s.wrongCondition}` : null,
             s.surplus ? `Thừa ${s.surplus}` : null,
           ].filter(Boolean);
-          const n = s.missing + s.wrongRoom + s.surplus;
+          // Đếm số dòng chênh lệch theo từng loại (một dòng vừa sai vị trí vừa sai tình trạng tính ở cả hai).
+          const n = s.missing + s.wrongRoom + s.wrongCondition + s.surplus;
           return n > 0 ? (
             <Badge variant="warning" title={parts.join(" · ")}>{n}</Badge>
           ) : (
