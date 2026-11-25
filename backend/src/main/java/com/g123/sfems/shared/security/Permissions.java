@@ -21,7 +21,6 @@ public final class Permissions {
 
     public static final String USERS_READ = "users:read";
     public static final String USERS_WRITE = "users:write";
-    public static final String USERS_DELETE = "users:delete";
 
     public static final String ROLES_READ = "roles:read";
     public static final String ROLES_WRITE = "roles:write";
@@ -36,7 +35,8 @@ public final class Permissions {
 
     public static final String SCHOOLS_READ = "schools:read";
     public static final String SCHOOLS_WRITE = "schools:write";
-    public static final String SCHOOLS_DELETE = "schools:delete";
+    /** Trường sửa phần hồ sơ của chính mình (ảnh, địa chỉ, mã Bộ) — 239. */
+    public static final String SCHOOL_PROFILE_WRITE = "school_profile:write";
 
     /** Danh mục dùng chung: cấp học. */
     public static final String EDUCATION_LEVELS_READ = "education_levels:read";
@@ -58,6 +58,11 @@ public final class Permissions {
     // for somebody else needs USERS_WRITE because that is what it really does.
     public static final String NOTIFICATIONS_READ = "notifications:read";
     public static final String NOTIFICATIONS_DELETE = "notifications:delete";
+    public static final String NOTIFICATION_SETTINGS_READ = "notification_type_settings:read";
+    public static final String NOTIFICATION_SETTINGS_WRITE = "notification_type_settings:write";
+
+    public static final String MAIL_CONFIG_READ  = "mail_config:read";
+    public static final String MAIL_CONFIG_WRITE = "mail_config:write";
 
     private Permissions() {
     }

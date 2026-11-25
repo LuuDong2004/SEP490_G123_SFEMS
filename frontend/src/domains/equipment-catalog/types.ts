@@ -1,4 +1,4 @@
-/** Mặt hàng thiết bị trong danh mục: cách quản lý và phương pháp khấu hao. */
+/** Mặt hàng thiết bị trong danh mục: cách quản lý, nguồn gốc. */
 
 export const TRACKING_TYPE_LABELS: Record<string, string> = {
   serial: "Từng cái",

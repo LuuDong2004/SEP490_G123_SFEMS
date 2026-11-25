@@ -26,7 +26,7 @@ import java.util.Objects;
  * từng truy vấn phải tự nhớ loại trừ — quên một lần là rò dữ liệu đã xoá, im
  * lặng. Nền đã có câu trả lời riêng cho "đừng mất dữ liệu" và nó mạnh hơn:
  * khoá ngoại {@code RESTRICT} khắp nơi, tức là không xoá được thứ còn được
- * tham chiếu. Còn "giữ lại thiết bị đã thanh lý" là <em>trạng thái nghiệp
+ * tham chiếu. Còn "giữ lại thiết bị đã mất" là <em>trạng thái nghiệp
  * vụ</em>, không phải cờ đã-xoá.
  *
  * <p><b>Không {@code @Version}.</b> Khoá lạc quan buộc mọi {@code PATCH} phải

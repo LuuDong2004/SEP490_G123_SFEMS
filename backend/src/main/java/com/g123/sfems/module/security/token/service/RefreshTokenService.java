@@ -4,6 +4,7 @@ import com.g123.sfems.domain.security.token.RefreshToken;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.token.repo.RefreshTokenRepository;
 import com.g123.sfems.shared.cache.SharedCache;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
 import com.g123.sfems.shared.security.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -54,12 +55,15 @@ public class RefreshTokenService {
     private final RefreshTokenRepository repository;
     private final JwtProperties properties;
     private final SharedCache shared;
+    private final AdminPortalPolicy adminPortal;
     private final SecureRandom random = new SecureRandom();
 
-    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties, SharedCache shared) {
+    public RefreshTokenService(RefreshTokenRepository repository, JwtProperties properties, SharedCache shared,
+            AdminPortalPolicy adminPortal) {
         this.repository = repository;
         this.properties = properties;
         this.shared = shared;
+        this.adminPortal = adminPortal;
     }
 
     /**
@@ -75,9 +79,12 @@ public class RefreshTokenService {
         random.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 
-        repository.save(new RefreshToken(user, hash(raw), now.plus(properties.refreshTokenTtl()), session.id(),
+        // Tài khoản SYSTEM: phiên không quá app.portal.admin-session-ttl tính từ lúc đăng nhập (cổng Admin cách ly).
+        Instant expiresAt = adminPortal.refreshExpiry(user.getUserType(), now, session.startedAt(),
+                properties.refreshTokenTtl());
+        repository.save(new RefreshToken(user, hash(raw), expiresAt, session.id(),
                 session.startedAt(), truncate(client.ip(), 64), truncate(client.userAgent(), 300)));
-        opened(session.id(), now.plus(properties.refreshTokenTtl()), now);
+        opened(session.id(), expiresAt, now);
         return raw;
     }
 
@@ -95,8 +102,23 @@ public class RefreshTokenService {
     // nối CSDL nào. Hỏi CSDL (trượt sổ) thì câu của repository tự mở giao dịch ngắn của nó.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public boolean isSessionOpen(String sessionId, Instant now) {
-        if (sessionId == null || !shared.available()) {
+        if (sessionId == null) {
             return true;
+        }
+        if (!shared.available()) {
+            // Không có bộ nhớ dùng chung (máy dev không chạy Redis): vẫn phải chặn token của phiên đã đăng xuất —
+            // trước đây bỏ qua hẳn nên access token cũ còn dùng được tới khi hết hạn. Nhớ "mở" 30 giây trong máy.
+            Instant until = localOpen.get(sessionId);
+            if (until != null && until.isAfter(now)) {
+                return true;
+            }
+            boolean open = repository.existsBySessionIdAndRevokedAtIsNullAndExpiresAtAfter(sessionId, now);
+            if (open) {
+                localOpen.put(sessionId, now.plus(LOCAL_MARK));
+            } else {
+                localOpen.remove(sessionId);
+            }
+            return open;
         }
         String mark = shared.getRaw(SESSION + sessionId);
         if (mark != null) {
@@ -110,6 +132,10 @@ public class RefreshTokenService {
         }
         return open;
     }
+
+    /** Cờ "phiên mở" trong máy khi không có bộ nhớ dùng chung; đóng phiên thì xoá ngay. */
+    private final java.util.Map<String, Instant> localOpen = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Duration LOCAL_MARK = Duration.ofSeconds(30);
 
     private static final String SESSION = "session:";
     private static final String OPEN = "1";
@@ -126,6 +152,7 @@ public class RefreshTokenService {
 
     /** Cờ "đã đóng" chỉ cần sống bằng access token dài nhất còn có thể mang {@code sid} này. */
     private void closed(String sessionId) {
+        localOpen.remove(sessionId);
         shared.afterCommit(() -> shared.putRaw(SESSION + sessionId, CLOSED, properties.accessTokenTtl()));
     }
 

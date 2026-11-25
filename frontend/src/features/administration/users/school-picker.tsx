@@ -53,6 +53,7 @@ export function SchoolPicker({
           resource="schools"
           value={school?.id ?? null}
           onChange={(id) => onSchoolChange({ id })}
+          // Kèm mã: có trường trùng tên (hai "THCS Bình An"), chỉ tên thì không biết chọn cái nào (E2E-35).
           labelOf={(s) => s.name}
           fallbackLabel={currentSchool?.name ?? null}
           placeholder="Vui lòng chọn trường"

@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/ui/alert-dialog";
-import { buttonVariants } from "@/shared/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/utils";
 
 export type ConfirmTone = "danger" | "warning" | "neutral";
@@ -43,6 +43,7 @@ export function ConfirmContent({
   busy,
   confirmDisabled,
   keepOpen,
+  secondary,
 }: {
   tone?: ConfirmTone;
   /** Thay biểu tượng mặc định của mức độ. */
@@ -60,6 +61,8 @@ export function ConfirmContent({
   confirmDisabled?: boolean;
   /** Việc xác nhận là bất đồng bộ: giữ hộp mở tới khi nơi gọi tự đóng. */
   keepOpen?: boolean;
+  /** Lựa chọn thứ ba, đứng giữa hai nút (vd. "Thoát, không lưu" cạnh "Lưu nháp"). */
+  secondary?: { label: ReactNode; onClick: () => void; destructive?: boolean };
 }) {
   return (
     <AlertDialogContent className="sm:max-w-md">
@@ -79,6 +82,12 @@ export function ConfirmContent({
       {children}
       <AlertDialogFooter>
         <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
+        {secondary ? (
+          <Button type="button" variant="outline" disabled={busy} onClick={secondary.onClick}
+            className={secondary.destructive ? "text-destructive-text hover:text-destructive-text" : undefined}>
+            {secondary.label}
+          </Button>
+        ) : null}
         <AlertDialogAction
           disabled={busy || confirmDisabled}
           className={tone === "danger" || destructive ? cn(buttonVariants({ variant: "destructive" })) : undefined}

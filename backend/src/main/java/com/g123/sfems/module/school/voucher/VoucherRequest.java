@@ -6,4 +6,12 @@ import com.g123.sfems.module.catalog.base.dto.IdRef;
 public interface VoucherRequest {
 
     IdRef school();
+
+    /**
+     * Trường chứng từ ({@link VoucherForms}). Record nào khai thành phần
+     * {@code details} thì ghi đè; vắng nghĩa là "không đổi".
+     */
+    default java.util.Map<String, Object> details() {
+        return null;
+    }
 }

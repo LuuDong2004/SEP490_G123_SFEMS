@@ -11,11 +11,14 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * Lịch sử thiết bị (TS-04): một thay đổi trên một tài sản, kèm phiếu đã làm ra thay đổi đó.
+ * Một thay đổi trên một tài sản, kèm phiếu đã làm ra thay đổi đó.
  *
- * <p>Trả lời "cái máy chiếu này đã qua phòng nào, hỏng mấy lần" mà không phải lục từng loại phiếu.
- * Phiếu hoàn tất ghi vào đây; sửa tay hồ sơ cũng vậy. Chỉ thêm, không sửa, không xoá (trừ khi chính
- * tài sản bị xoá — {@code ON DELETE CASCADE}).
+ * <p>Đây là bảng trả lời "cái máy chiếu này vào sổ từ đâu, ở phòng nào, kiểm kê
+ * kết luận gì" mà không phải lục từng loại phiếu. Mọi phiếu khi hoàn tất đều ghi vào
+ * đây, và sửa tay trên hồ sơ thiết bị cũng vậy — nên lịch sử không có khoảng
+ * trống nào mà không ai giải thích được.
+ *
+ * <p>Chỉ thêm, không sửa, không xoá (trừ khi chính tài sản bị xoá).
  */
 @Entity
 @Table(name = "equipment_history")
@@ -25,12 +28,7 @@ public class EquipmentHistory {
     public enum Action {
         GHI_TANG,
         CAP_NHAT,
-        DIEU_CHUYEN,
-        KIEM_KE,
-        BAO_HONG,
-        SUA_CHUA,
-        THANH_LY,
-        MAT
+        KIEM_KE
     }
 
     @Id
@@ -76,7 +74,6 @@ public class EquipmentHistory {
     private Instant createdAt;
 
     protected EquipmentHistory() {
-        // JPA
     }
 
     public EquipmentHistory(Long equipmentId, Action action, String field, String fromValue, String toValue,

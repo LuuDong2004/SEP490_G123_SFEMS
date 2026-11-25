@@ -1,6 +1,6 @@
-import { useCan, useSelect } from "@refinedev/core";
-import { useMemo } from "react";
-import { useWatch, type Control } from "react-hook-form";
+import { useCan, useList, useSelect } from "@refinedev/core";
+import { useEffect, useMemo } from "react";
+import { useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { Input } from "@/shared/ui/input";
 import { maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import { FormSection } from "@/shared/components/form/form-section";
-import { SuggestCode } from "@/features/organization/schools/use-suggested-code";
+import { SuggestCode } from "@/shared/components/catalog/use-suggested-code";
 import { ColorPicker } from "@/features/organization/schools/color-picker";
 import { LogoField, type LogoValue } from "@/features/organization/schools/logo-field";
 import { WardCombobox } from "@/features/organization/schools/ward-combobox";
@@ -46,7 +46,6 @@ export type SchoolFormValues = {
   name: string;
   departmentOfEducation: { id: number | null };
   educationLevel: { id: number | null };
-  schoolType: { id: number | null };
   shortCode: string;
   moetCode: string;
   ward: { id: number | null };
@@ -64,7 +63,6 @@ export const DEFAULT_VALUES: SchoolFormValues = {
   name: "",
   departmentOfEducation: { id: null },
   educationLevel: { id: null },
-  schoolType: { id: null },
   shortCode: "",
   moetCode: "",
   ward: { id: null },
@@ -127,20 +125,27 @@ export function SchoolFields({
     [levelOptions, record?.educationLevel],
   );
 
-  const mayReadTypes = useCan({ resource: "school_types", action: "list" }).data?.can ?? false;
-  const { options: typeOptions } = useSelect({
-    resource: "school_types",
-    optionLabel: "name",
-    optionValue: "id",
-    sorters: [{ field: "sortOrder", order: "asc" }],
-    pagination: { pageSize: 200 },
-    filters: [{ field: "active", operator: "eq", value: true }],
-    queryOptions: { enabled: mayReadTypes },
+  // Thêm mới: ô nào chỉ có MỘT lựa chọn (hệ thống một Sở, một cấp học) thì điền sẵn — không bắt người dùng chọn cái
+  // duy nhất có. Sửa thì giữ đúng giá trị của bản ghi.
+  const mayReadBodies = useCan({ resource: "departments_of_education", action: "list" }).data?.can ?? false;
+  const { result: bodyList } = useList<DepartmentOfEducationRow>({
+    resource: "departments_of_education",
+    pagination: { currentPage: 1, pageSize: 2 },
+    queryOptions: { enabled: mayReadBodies && !record },
   });
-  const typeItems = useMemo(
-    () => mergeCurrent(typeOptions, record?.schoolType),
-    [typeOptions, record?.schoolType],
-  );
+  const { getValues, setValue } = useFormContext<SchoolFormValues>();
+  const onlyBody = bodyList?.total === 1 ? bodyList.data[0] : undefined;
+  const onlyLevel = levelOptions.length === 1 ? Number(levelOptions[0].value) : undefined;
+  useEffect(() => {
+    if (record) return;
+    if (onlyBody && getValues("departmentOfEducation.id") == null) {
+      setValue("departmentOfEducation.id", Number(onlyBody.id), { shouldDirty: true });
+    }
+    if (onlyLevel != null && getValues("educationLevel.id") == null) {
+      setValue("educationLevel.id", onlyLevel, { shouldDirty: true });
+    }
+  }, [record, onlyBody, onlyLevel, getValues, setValue]);
+
 
   return (
     <div
@@ -208,9 +213,9 @@ export function SchoolFields({
           >
           {/* Từng là một ô CHỈ ĐỌC ghim cứng vào Sở GD&ĐT TP.HCM, vì lúc đó
               hệ thống chỉ có đúng một cơ quan quản lý. Không còn đúng nữa:
-              danh mục cơ quan quản lý là bảng riêng và có thể có nhiều dòng,
-              nên ghim cứng nghĩa là mọi trường tạo mới đều rơi về Sở, tức là
-              sai phân quyền ngay từ dòng đầu tiên. */}
+              Sở quản lý trực tiếp THPT, còn Tiểu học và THCS thuộc UBND
+              phường/xã — 169 cơ quan. Ghim cứng nghĩa là mọi trường tạo mới
+              đều rơi về Sở, tức là sai phân quyền ngay từ dòng đầu tiên. */}
           <FormField
             control={control}
             name="departmentOfEducation.id"
@@ -224,12 +229,13 @@ export function SchoolFields({
                     value={field.value ?? null}
                     onChange={field.onChange}
                     labelOf={(d) =>
-                      // `type` của bản nhóm là bắt buộc (không nullable) nên không cần nhánh "chưa rõ loại".
-                      `${MANAGING_BODY_TYPE_SHORT_LABELS[d.type] ?? "?"} · ${d.name}`
+                      d.type
+                        ? `${MANAGING_BODY_TYPE_SHORT_LABELS[d.type] ?? "?"} · ${d.name}`
+                        : d.name
                     }
                     fallbackLabel={record?.departmentOfEducation?.name ?? null}
                     placeholder="Vui lòng chọn cơ quan quản lý"
-                    searchPlaceholder="Gõ tên cơ quan quản lý..."
+                    searchPlaceholder="Gõ tên Sở..."
                     clearable={false}
                   />
                 </FormControl>
@@ -282,38 +288,6 @@ export function SchoolFields({
                   </FormControl>
                   <SelectContent>
                     {levelItems.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={control}
-            name="schoolType.id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Loại hình trường</FormLabel>
-                <Select
-                  onValueChange={(value) => {
-                    // Radix bắn "" khi giá trị chưa khớp mục nào — không phải người dùng bỏ chọn.
-                    if (value === "") return;
-                    field.onChange(value === NO_LEVEL ? null : Number(value));
-                  }}
-                  value={field.value == null ? "" : String(field.value)}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Vui lòng chọn loại hình trường" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {field.value != null ? <SelectItem value={NO_LEVEL}>Bỏ chọn</SelectItem> : null}
-                    {typeItems.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -451,7 +425,7 @@ export function SchoolFields({
 type Option = { label: string; value: string };
 
 /**
- * Xem javadoc của `levelItems` về việc vì sao phải ghép.
+ * Xem javadoc của `departmentItems` về việc vì sao phải ghép.
  *
  * <p>`useSelect` khai `value` là `unknown` (nó không biết `optionValue` trỏ
  * vào cột kiểu gì), nên chuẩn hoá về chuỗi ngay tại đây — đó cũng là kiểu mà

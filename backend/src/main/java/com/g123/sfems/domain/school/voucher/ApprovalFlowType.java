@@ -3,39 +3,41 @@ package com.g123.sfems.domain.school.voucher;
 import static com.g123.sfems.domain.school.voucher.ApprovalStep.MANAGING_BODY;
 import static com.g123.sfems.domain.school.voucher.ApprovalStep.SCHOOL;
 
+import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.inventory.InventorySession;
+import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Các loại phiếu đi qua vòng duyệt chung, cùng luồng MẶC ĐỊNH của từng loại — luồng dùng khi quản
- * trị viên chưa cấu hình gì (bảng {@code approval_flows} không có dòng cho loại đó).
+ * Các loại phiếu mà quản trị viên CẤU HÌNH ĐƯỢC luồng phê duyệt (HT-08), cùng luồng MẶC ĐỊNH của từng loại — luồng dùng
+ * khi chưa cấu hình gì ({@code approval_flows} không có dòng cho loại đó).
  *
- * <p>Đây là chỗ DUY NHẤT ghi luồng mặc định. Thêm một loại phiếu mới = thêm một dòng ở đây; mã
- * {@code resource} phải trùng {@link SchoolVoucher#resource()} của entity tương ứng.
- *
- * <p>Theo Báo cáo 3 mục 4.4: đề xuất mua sắm của trường do lãnh đạo trường duyệt rồi lãnh đạo Sở
- * duyệt (NC-03, NC-04); phiếu nhập và phiếu kiểm kê chỉ lãnh đạo trường duyệt (PN-02, KK-05).
+ * <p>Đây là chỗ DUY NHẤT ghi luồng mặc định: {@code approvalChain()} của từng phiếu đọc lại từ đây, màn cấu hình cũng
+ * vậy. Kế hoạch mua sắm (NC-06) do Sở lập, không nằm trong danh sách này.
  */
 public enum ApprovalFlowType {
-    PURCHASE_PROPOSALS("purchase_proposals", "Đề xuất mua sắm", "MS",
-            List.of(SCHOOL, MANAGING_BODY), "Tổng tiền đề xuất"),
-    EQUIPMENT_INTAKES("equipment_intakes", "Phiếu nhập thiết bị", "NK",
-            List.of(SCHOOL), "Tổng tiền phiếu"),
-    INVENTORY_SESSIONS("inventory_sessions", "Phiếu kiểm kê", "KK",
-            List.of(SCHOOL), null);
+    EQUIPMENT_INTAKES("equipment_intakes", "Phiếu ghi tăng", "Thiết bị", EquipmentIntake.class,
+            List.of(SCHOOL), null),
+    INVENTORY_SESSIONS("inventory_sessions", "Biên bản kiểm kê", "Thiết bị", InventorySession.class,
+            List.of(SCHOOL), null),
+    PURCHASE_PROPOSALS("purchase_proposals", "Đề xuất mua sắm", "Mua sắm", PurchaseProposal.class,
+            List.of(SCHOOL, MANAGING_BODY), "Tổng tiền đề xuất");
 
     private final String resource;
     private final String label;
-    private final String numberPrefix;
+    private final String module;
+    private final Class<? extends SchoolVoucher> entity;
     private final List<ApprovalStep> defaultSteps;
     private final String amountLabel;
 
-    ApprovalFlowType(String resource, String label, String numberPrefix, List<ApprovalStep> defaultSteps,
-            String amountLabel) {
+    ApprovalFlowType(String resource, String label, String module, Class<? extends SchoolVoucher> entity,
+            List<ApprovalStep> defaultSteps, String amountLabel) {
         this.resource = resource;
         this.label = label;
-        this.numberPrefix = numberPrefix;
+        this.module = module;
+        this.entity = entity;
         this.defaultSteps = defaultSteps;
         this.amountLabel = amountLabel;
     }
@@ -49,9 +51,9 @@ public enum ApprovalFlowType {
         return label;
     }
 
-    /** Tiền tố số phiếu mặc định của loại phiếu. */
-    public String numberPrefix() {
-        return numberPrefix;
+    /** Phân hệ chứa loại phiếu này — màn cấu hình gom theo đó. */
+    public String module() {
+        return module;
     }
 
     public List<ApprovalStep> defaultSteps() {
@@ -67,7 +69,8 @@ public enum ApprovalFlowType {
         return Arrays.stream(values()).filter(t -> t.resource.equals(resource)).findFirst();
     }
 
+    /** Loại của một phiếu. So bằng {@code isInstance} — phiếu nạp lười là lớp con proxy của Hibernate. */
     public static Optional<ApprovalFlowType> of(SchoolVoucher voucher) {
-        return of(voucher.resource());
+        return Arrays.stream(values()).filter(t -> t.entity.isInstance(voucher)).findFirst();
     }
 }

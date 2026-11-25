@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { LoadMore } from "@/shared/components/data-table/load-more";
+import { useShowMore } from "@/shared/hooks/use-infinite-scroll";
 
 export type StaffRow = {
   id: number;
@@ -45,7 +48,7 @@ const Missing = ({ staffId }: { staffId: number }) => (
 
 /**
  * Nhóm người hay được chọn nhất ở một ô — đưa LÊN ĐẦU danh sách khi mở hộp (không lọc bỏ ai): người
- * mượn thường là giáo viên, thủ kho thường là thủ kho / cán bộ thiết bị, chủ tịch hội đồng là lãnh đạo.
+ * dạy thường là giáo viên, thủ kho thường là thủ kho / cán bộ thiết bị, chủ tịch hội đồng là lãnh đạo.
  */
 export type StaffPrefer = "teacher" | "staff" | "keeper" | "leader";
 
@@ -57,7 +60,8 @@ const PREFERRED: Record<StaffPrefer, (r: StaffRow) => boolean> = {
 };
 
 /** Một trang của hộp chọn — vừa đúng chiều cao bảng, không phải cuộn trong cuộn. */
-const PAGE_SIZE = 8;
+/** Số dòng hiện thêm mỗi lần cuộn tới đáy. */
+const PAGE_SIZE = 30;
 const TYPES = [
   { value: "", label: "Tất cả" },
   { value: "teacher", label: STAFF_TYPE_LABELS.teacher },
@@ -116,15 +120,14 @@ export function StaffPicker({
     return [...list.filter(first), ...list.filter((r) => !first(r))];
   }, [rows, q, type, prefer]);
 
-  const [page, setPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
-  const current = Math.min(page, pageCount);
-  const pageRows = shown.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  // Cuộn tới đâu hiện thêm tới đó, không phân trang "Trước / Sau" (trưởng nhóm 13/11/2026).
+  const more = useShowMore(shown.length, PAGE_SIZE);
+  const pageRows = shown.slice(0, more.count);
 
-  // Mở hộp ở đúng trang có người đang chọn — không thì người ta tưởng ô đang trống.
+  // Mở hộp đã hiện tới người đang chọn — không thì người ta tưởng ô đang trống.
   const openDialog = () => {
     const at = selected ? shown.findIndex((r) => r.id === selected.id) : -1;
-    setPage(at < 0 ? 1 : Math.floor(at / PAGE_SIZE) + 1);
+    more.reveal(at + 1);
     setOpen(true);
   };
 
@@ -141,7 +144,7 @@ export function StaffPicker({
         onClick={openDialog}
         disabled={!!disabledHint}
         aria-invalid={invalid || undefined}
-        className="bg-field hover:border-primary/40 aria-invalid:border-destructive flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md border px-3 text-left text-sm transition-colors disabled:opacity-60"
+        className="bg-field hover:border-primary/40 aria-invalid:border-destructive flex h-9 w-full min-w-0 items-center gap-2 overflow-hidden rounded-full border px-3.5 text-left text-sm transition-colors disabled:opacity-60"
       >
         {selected ? (
           <>
@@ -171,7 +174,7 @@ export function StaffPicker({
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);
-                  setPage(1);
+                  more.reset();
                 }}
                 // Hộp này mở TRONG form của màn: Enter ở ô tìm không được submit form bên ngoài.
                 onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
@@ -183,7 +186,7 @@ export function StaffPicker({
             <IconFilter icon={<Users />} label="loại cán bộ" allLabel={TYPES.find((t) => !t.value)?.label} value={type || null}
               onChange={(v) => {
                 setType(v ?? "");
-                setPage(1);
+                more.reset();
               }}
               groups={[{ items: TYPES.filter((t) => t.value).map((t) => ({ key: t.value, label: t.label })) }]} />
           </div>
@@ -209,16 +212,12 @@ export function StaffPicker({
               </TableHeader>
               <TableBody>
                 {loading || shown.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
-                      {loading ? "Đang tải…" : q || type ? "Không có ai khớp." : (
+                  <TableEmpty colSpan={5} loading={loading} title={<>{q || type ? "Không có ai khớp." : (
                         <>
                           Trường chưa khai báo cán bộ nào.{" "}
                           <CrossLink to="/staff" resource="staff" action="create" newTab className="text-primary font-medium">Khai cán bộ</CrossLink>
                         </>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                      )}</>} />
                 ) : (
                   pageRows.map((r) => {
                     const active = r.id === selected?.id;
@@ -240,27 +239,15 @@ export function StaffPicker({
                 )}
               </TableBody>
             </Table>
+            <LoadMore attach={more.attach} hasMore={more.hasMore} />
           </div>
 
-          {/* Số dòng bên trái; phân trang và nút bấm dồn về tay phải. */}
+          {/* Số dòng đang hiện / tổng bên trái; nút bấm dồn về tay phải. */}
           <div className="flex flex-wrap items-center gap-3 border-t pt-4">
             <span className="text-muted-foreground me-auto text-sm">
-              {shown.length ? `${(current - 1) * PAGE_SIZE + 1}–${Math.min(current * PAGE_SIZE, shown.length)} trên ` : ""}
+              {more.hasMore ? <><span className="tabular-nums">{pageRows.length}</span> / </> : null}
               <span className="text-foreground font-medium tabular-nums">{shown.length}</span> người
             </span>
-            {pageCount > 1 ? (
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Button type="button" variant="outline" size="sm" disabled={current <= 1} onClick={() => setPage(current - 1)}>
-                  Trước
-                </Button>
-                <span className="tabular-nums">
-                  Trang {current}/{pageCount}
-                </span>
-                <Button type="button" variant="outline" size="sm" disabled={current >= pageCount} onClick={() => setPage(current + 1)}>
-                  Sau
-                </Button>
-              </div>
-            ) : null}
             <div className="flex items-center gap-3">
               {selected ? (
                 <Button type="button" variant="ghost" onClick={() => pick(null)}>

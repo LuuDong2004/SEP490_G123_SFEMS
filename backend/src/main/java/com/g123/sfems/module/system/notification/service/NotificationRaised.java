@@ -21,5 +21,9 @@ package com.g123.sfems.module.system.notification.service;
  *                  handed a detached entity across a transaction boundary
  * @param recipientId who it is for, which is all the routing needs
  */
-public record NotificationRaised(long id, long recipientId) {
+public record NotificationRaised(long id, long recipientId, boolean email) {
+
+    public NotificationRaised(long id, long recipientId) {
+        this(id, recipientId, true);
+    }
 }

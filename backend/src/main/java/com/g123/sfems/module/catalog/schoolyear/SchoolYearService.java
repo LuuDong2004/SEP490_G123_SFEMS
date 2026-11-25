@@ -9,7 +9,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Năm học. Phần chung ở {@link CatalogService}; lớp này giữ hai quy tắc.
+ * Năm học. Phần chung ở {@link CatalogService}; lớp này giữ ba quy tắc.
  *
  * <p><b>Ngày kết thúc phải sau ngày bắt đầu</b> — kiểm trên giá trị SAU KHI
  * GỘP với bản ghi đã lưu, vì một PATCH có thể chỉ gửi một trong hai ngày.
@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
  * khi đặt cờ năm mới — lệnh cập nhật hàng loạt làm Hibernate đẩy các thay đổi
  * đang chờ xuống database trước, và nếu năm mới đã mang cờ lúc đó thì unique
  * index sẽ thấy hai năm hiện hành và từ chối.
+ *
+ * <p><b>Năm đã kết thúc không làm hiện hành được</b> — cả khi bật cờ, lẫn khi lùi
+ * ngày kết thúc của năm đang hiện hành về trước hôm nay. Lỗi gắn vào ô {@code current}.
  */
 @Service
 public class SchoolYearService
@@ -41,6 +44,7 @@ public class SchoolYearService
         item.setStartDate(request.startDate());
         item.setEndDate(request.endDate());
         if (Boolean.TRUE.equals(request.current())) {
+            requireNotEnded(request.endDate());
             repository.clearCurrentExcept(NO_ID);
             item.setCurrent(true);
         }
@@ -51,6 +55,13 @@ public class SchoolYearService
         LocalDate start = request.startDate() != null ? request.startDate() : item.getStartDate();
         LocalDate end = request.endDate() != null ? request.endDate() : item.getEndDate();
         requireRange(start, end);
+        boolean wasCurrent = Boolean.TRUE.equals(item.getCurrent());
+        boolean turningOn = Boolean.TRUE.equals(request.current()) && !wasCurrent;
+        boolean endMovedOnCurrent = wasCurrent && !Boolean.FALSE.equals(request.current())
+                && request.endDate() != null && !request.endDate().equals(item.getEndDate());
+        if (turningOn || endMovedOnCurrent) {
+            requireNotEnded(end);
+        }
         item.setStartDate(start);
         item.setEndDate(end);
 
@@ -79,6 +90,12 @@ public class SchoolYearService
     private static void requireRange(LocalDate start, LocalDate end) {
         if (start != null && end != null && !end.isAfter(start)) {
             throw new FieldValidationException("endDate", "Ngày kết thúc phải sau ngày bắt đầu");
+        }
+    }
+
+    private static void requireNotEnded(LocalDate end) {
+        if (end != null && end.isBefore(LocalDate.now())) {
+            throw new FieldValidationException("current", "Năm học đã kết thúc, không chọn làm năm hiện hành được");
         }
     }
 

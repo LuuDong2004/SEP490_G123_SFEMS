@@ -64,7 +64,7 @@ export function ManagingBodyPicker({
           labelOf={labelOf}
           fallbackLabel={fallback}
           placeholder="Vui lòng chọn cơ quan"
-          searchPlaceholder="Gõ tên Sở hoặc UBND..."
+          searchPlaceholder="Gõ tên Sở..."
           clearable={!required}
           clearLabel="— Không thuộc cơ quan nào —"
         />

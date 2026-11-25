@@ -12,8 +12,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Lý do biến động. Phần chung ở {@link CatalogService}; lớp này gán loại lý do
- * và lọc theo nó — bộ lọc mà phiếu ghi tăng/ghi giảm sẽ dùng để chỉ đưa ra
- * đúng loại lý do của mình.
+ * và lọc theo nó — bộ lọc phiếu ghi tăng dùng.
  */
 @Service
 public class MovementReasonService extends CatalogService<
@@ -25,7 +24,7 @@ public class MovementReasonService extends CatalogService<
 
     @Override
     protected void applyCreate(MovementReason item, MovementReasonRequest request) {
-        item.setReasonType(request.reasonType());
+        item.setReasonType(request.reasonType() == null ? ReasonType.GHI_TANG : request.reasonType());
     }
 
     @Override

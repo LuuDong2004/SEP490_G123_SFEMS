@@ -1,12 +1,17 @@
+import type { DataProvider } from "@refinedev/core";
 import { createSimpleRestDataProvider } from "@refinedev/rest/simple-rest";
+import { toast } from "sonner";
 
 import { API_URL } from "@/shared/api/constants";
+import { withPortal } from "@/shared/api/portal";
 import {
   AUTH_VERSION_HEADER,
   clearSession,
   getAccessToken,
+  getIdentity,
   reconcileAuthVersion,
   refreshSession,
+  saveIdentity,
 } from "@/shared/api/session";
 
 /**
@@ -15,13 +20,65 @@ import {
  * The two ky hooks below are the whole of the authentication story for data
  * requests: no page, resource or hook ever sees a token.
  */
-export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
+const SIGNAL_HEADER = "X-Client-Signal";
+const signals = new Map<string, AbortSignal>();
+let signalSeq = 0;
+
+/** Số lần tự gửi lại một request bị máy chủ hẹn (429) trước khi báo lỗi cho người dùng. */
+const MAX_THROTTLE_RETRIES = 3;
+
+function sleep(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const id = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(id); resolve(); }, { once: true });
+  });
+}
+
+let lastThrottleWarning = 0;
+
+function warnThrottled() {
+  if (Date.now() - lastThrottleWarning < 30_000) return;
+  lastThrottleWarning = Date.now();
+  toast.warning("Thao tác quá nhanh, vui lòng chậm lại", {
+    id: "request-throttle",
+    description: "Hệ thống đang xử lý các yêu cầu trước, sẽ tự tải lại sau giây lát.",
+  });
+}
+
+/**
+ * `fetch` qua cổng (docs/kien-truc/11): viết lại địa chỉ API theo cổng của phiên — `/api/equipment` →
+ * `/api/school/equipment` — ngay trước khi gửi, sau mọi hook. Một chỗ cho mọi lời gọi (Refine, `kyInstance`,
+ * `useCustom`, gửi lại sau 401 / 429); màn hình không phải biết mình đang ở cổng nào.
+ */
+export async function portalFetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
+  if (!(input instanceof Request)) return fetch(withPortal(String(input)), init);
+  const url = withPortal(input.url);
+  if (url === input.url) return fetch(input, init);
+  const body = input.method === "GET" || input.method === "HEAD" ? undefined : await input.clone().arrayBuffer();
+  const moved = new Request(url, {
+    method: input.method,
+    headers: input.headers,
+    body,
+    signal: input.signal,
+    credentials: input.credentials,
+    redirect: input.redirect,
+  });
+  return fetch(moved, init);
+}
+
+const base = createSimpleRestDataProvider({
   apiURL: API_URL,
   kyOptions: {
+    fetch: portalFetch,
     // ky retries failed requests by default. Retrying a 401 would race the
     // refresh below and burn the rotated token; retrying a 409 or a 422 would
     // repeat a write the server already rejected on purpose.
     retry: 0,
+    // ky cắt mọi request ở 10 giây. Truy vấn gộp toàn ngành (trang chủ, chuẩn tối
+    // thiểu, tổng hợp trường) trên máy chủ yếu vượt mức đó dù vẫn chạy xong —
+    // người dùng thấy "Request timed out" còn kết quả thì không bao giờ về. Tải
+    // tệp (Excel, tệp đính kèm) đặt riêng `DOWNLOAD_TIMEOUT`.
+    timeout: 60_000,
     hooks: {
       beforeRequest: [
         (request) => {
@@ -29,6 +86,22 @@ export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
           if (accessToken) {
             request.headers.set("Authorization", `Bearer ${accessToken}`);
           }
+        },
+        /**
+         * Gắn tín hiệu huỷ của react-query vào request đọc của Refine (`withSignal` bên dưới gửi nó qua một header
+         * tạm, vì `@refinedev/rest` không chuyển `signal` cho ky). Rời màn / đổi tab thì request cũ bị huỷ ngay —
+         * trình duyệt chỉ mở vài kết nối tới một máy, request bỏ dở mà vẫn chạy thì request của tab mới phải xếp sau.
+         */
+        (request) => {
+          const id = request.headers.get(SIGNAL_HEADER);
+          if (!id) return;
+          const signal = signals.get(id);
+          const headers = new Headers(request.headers);
+          headers.delete(SIGNAL_HEADER);
+          if (request.method !== "GET" && request.method !== "HEAD") {
+            return new Request(request, { headers });
+          }
+          return new Request(request, { headers, signal: signal ? AbortSignal.any([request.signal, signal]) : request.signal });
         },
         /**
          * The simple-REST provider pins `Content-Type: application/json` on every
@@ -76,7 +149,43 @@ export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
           // consumed and its Authorization header still holds the dead token.
           const retried = request.clone();
           retried.headers.set("Authorization", `Bearer ${accessToken}`);
-          return fetch(retried);
+          return portalFetch(retried);
+        },
+
+        /**
+         * Máy chủ hẹn lại (429 — thao tác dồn dập, xem `RequestThrottle`): đợi đúng `Retry-After` rồi tự gửi lại,
+         * tối đa ba lần, người dùng chỉ thấy chậm một nhịp. Gửi lại an toàn cả với lệnh ghi: request bị hẹn chưa vào
+         * tới xử lý. Hết lượt mới để lỗi đi tiếp ("Thao tác quá nhanh…").
+         */
+        async (request, _options, response) => {
+          if (response.status !== 429) return response;
+          let next = response;
+          for (let n = 0; next.status === 429 && n < MAX_THROTTLE_RETRIES && !request.signal.aborted; n++) {
+            // Lần hẹn đầu tự đợi lặng lẽ — thường chỉ một nhịp, người dùng không nhận ra. Gửi lại vẫn bị hẹn
+            // (máy chủ bận thật) mới báo, và nhiều nhất một lần mỗi 30 giây.
+            if (n > 0) warnThrottled();
+            const seconds = Number(next.headers.get("Retry-After")) || 1;
+            await sleep(Math.min(seconds, 10) * 1000 + Math.random() * 300, request.signal);
+            if (request.signal.aborted) break;
+            // Mỗi lần một bản sao mới: thân request chỉ đọc được một lần.
+            next = await portalFetch(request.clone());
+          }
+          return next;
+        },
+
+        /**
+         * Cổng Admin cách ly: máy chủ trả 403 `adminBlock: "mfa"` khi tài khoản quản trị không còn lớp thứ hai (vd. bị
+         * đặt lại trong lúc đang mở) — ghi lại danh tính rồi tải lại, giao diện chỉ còn màn bật xác thực qua email.
+         */
+        async (_request, _options, response) => {
+          if (response.status !== 403) return response;
+          const body = (await response.clone().json().catch(() => null)) as { adminBlock?: string } | null;
+          const identity = getIdentity();
+          if (body?.adminBlock === "mfa" && identity && !identity.mfaSetupRequired) {
+            saveIdentity({ ...identity, mfaSetupRequired: true });
+            window.location.reload();
+          }
+          return response;
         },
 
         /**
@@ -154,5 +263,35 @@ export const { dataProvider, kyInstance } = createSimpleRestDataProvider({
   },
 });
 
-/** Thời hạn cho một lần tải tệp (tệp đính kèm, xuất Excel) — dài hơn mặc định của ky. */
+/** Thời hạn cho một lần tải tệp (xuất Excel, tệp đính kèm) — dài hơn mặc định 60 giây. */
 export const DOWNLOAD_TIMEOUT = 180_000;
+
+type ReadParams = { meta?: { headers?: Record<string, string>; queryContext?: { signal?: AbortSignal } } & Record<string, unknown> };
+
+/** Gửi tín hiệu huỷ của react-query (`meta.queryContext.signal`) xuống ky qua header tạm `X-Client-Signal`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- giữ nguyên chữ ký generic của từng hàm Refine
+function withSignal<F extends (params: any) => Promise<unknown>>(run: F): F {
+  return (async (params: Parameters<F>[0]) => {
+    const meta = (params as ReadParams).meta;
+    const signal = meta?.queryContext?.signal;
+    if (!signal) return run(params);
+    const id = String(++signalSeq);
+    signals.set(id, signal);
+    try {
+      return await run({ ...params, meta: { ...meta, headers: { ...meta?.headers, [SIGNAL_HEADER]: id } } });
+    } finally {
+      signals.delete(id);
+    }
+  }) as F;
+}
+
+export const kyInstance = base.kyInstance;
+
+/** Data provider của Refine: các lệnh ĐỌC mang tín hiệu huỷ — rời màn / chuyển tab thì request cũ dừng ngay. */
+export const dataProvider = {
+  ...base.dataProvider,
+  getList: withSignal(base.dataProvider.getList),
+  getOne: withSignal(base.dataProvider.getOne),
+  getMany: base.dataProvider.getMany && withSignal(base.dataProvider.getMany),
+  custom: base.dataProvider.custom && withSignal(base.dataProvider.custom),
+} as DataProvider;

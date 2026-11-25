@@ -2,6 +2,8 @@ import type { AccessControlProvider } from "@refinedev/core";
 
 import { getAuthorities } from "@/shared/api/session";
 import { ACTION_TO_PERMISSION, permissionFor } from "@/shared/lib/permissions";
+import { currentPortal } from "@/shared/api/portal";
+import { portalAllows } from "@/domains/portal/types";
 
 export const accessControlProvider: AccessControlProvider = {
   async can({ resource, action, params }) {
@@ -33,6 +35,10 @@ export const accessControlProvider: AccessControlProvider = {
 
     if (!permissions.includes(required)) {
       return { can: false, reason: `Bạn cần quyền ${required}` };
+    }
+    // Cổng theo loại tài khoản (docs/kien-truc/11): việc cổng này không mở thì không hiện, dù vai có mã quyền.
+    if (!portalAllows(currentPortal(), required)) {
+      return { can: false, reason: "Không thuộc khu vực làm việc của tài khoản này" };
     }
 
     // Row-level scope. Two layers, asked in order: the permission above decides

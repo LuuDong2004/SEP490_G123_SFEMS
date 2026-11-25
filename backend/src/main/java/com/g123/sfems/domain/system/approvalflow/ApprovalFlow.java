@@ -7,12 +7,12 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
 /**
- * Luồng phê duyệt quản trị viên cấu hình cho MỘT loại phiếu. Không có dòng = loại phiếu đó chạy luồng
- * mặc định trong code ({@code ApprovalFlowType}).
+ * Luồng phê duyệt Sở cấu hình cho MỘT loại phiếu. Không có dòng = loại phiếu đó chạy luồng mặc định trong
+ * code ({@code ApprovalFlowType}).
  *
- * <p>Các bước lưu thành chuỗi mã ngăn bằng dấu phẩy, theo thứ tự cấp ({@code SCHOOL,MANAGING_BODY});
- * chuỗi rỗng là "trình xong là duyệt xong". Ngưỡng tiền là tuỳ chọn: phiếu có số tiền từ
- * {@link #amountThreshold} trở lên đi theo {@link #stepsAbove} thay cho {@link #steps}.
+ * <p>Các bước lưu thành chuỗi mã ngăn bằng dấu phẩy, theo thứ tự cấp ({@code SCHOOL,MANAGING_BODY}); chuỗi
+ * rỗng là "trình xong là duyệt xong". Ngưỡng tiền là tuỳ chọn: phiếu có số tiền từ {@link #amountThreshold}
+ * trở lên đi theo {@link #stepsAbove} thay cho {@link #steps}.
  */
 @Entity
 @Table(name = "approval_flows")

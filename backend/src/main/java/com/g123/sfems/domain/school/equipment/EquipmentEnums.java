@@ -1,46 +1,36 @@
 package com.g123.sfems.domain.school.equipment;
 
 /**
- * Các giá trị cố định của thiết bị. Lưu bằng TÊN hằng; nhãn tiếng Việt ở frontend.
+ * Các giá trị cố định của thiết bị. Mã giữ nguyên TÊN hằng như bản Jmix để dữ
+ * liệu chuyển sang không phải đổi; nhãn tiếng Việt ở frontend.
  */
 public final class EquipmentEnums {
 
     private EquipmentEnums() {
     }
 
-    /** Vật lý / phần mềm / hệ thống hỗ trợ học tập — quyết định nhóm LT của mã tài sản (TB/PM/HL). */
+    /** Vật lý / số / hệ thống hỗ trợ học tập — quyết định nhóm LT của mã (TB/PM/HL). */
     public enum PhysicalDigitalType {
         PHYSICAL,
         DIGITAL,
         LEARNING_SUPPORT
     }
 
-    /** Tình trạng kỹ thuật — tổ kiểm kê ghi lại, báo cáo đếm "dùng được" từ đây. */
+    /** Tình trạng kỹ thuật. */
     public enum EquipmentCondition {
         TOT,
-        KHA,
         TRUNG_BINH,
-        KEM,
-        HONG,
-        KHONG_SU_DUNG
+        KEM
     }
 
     /**
-     * Trạng thái vòng đời tài sản. Chỉ đổi qua phiếu (ghi tăng, kiểm kê...) hoặc sửa hồ sơ có ghi lịch sử.
-     *
-     * <p>{@code IN_STOCK} và {@code IN_USE} khác nhau: hàng vừa nhập nằm trong kho, chưa giao cho phòng
-     * nào; gộp hai thứ thì báo cáo "đang sử dụng" đếm cả hàng còn trong kho.
+     * Trạng thái của thiết bị. {@code IN_STOCK}: ghi tăng hoặc khai về kho. {@code IN_USE}: ghi tăng hoặc khai thẳng vào
+     * phòng. {@code LOST} chỉ duyệt kiểm kê (KK-06) đặt, là ra khỏi sổ. Không có trạng thái hỏng: báo hỏng phải có
+     * phiếu, ngoài phạm vi đồ án.
      */
     public enum AssetStatus {
         IN_STOCK,
         IN_USE,
-        /** Đã báo hỏng, chờ sửa hoặc thanh lý. */
-        BROKEN,
-        REPAIRING,
-        /** Kiểm kê không thấy, chờ quyết định ghi giảm. Chưa ra khỏi sổ. */
-        MISSING,
-        PENDING_LIQUIDATION,
-        LIQUIDATED,
         LOST
     }
 }

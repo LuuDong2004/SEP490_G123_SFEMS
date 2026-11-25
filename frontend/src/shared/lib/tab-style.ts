@@ -19,6 +19,12 @@ export const TAB_ITEM = cn(
   "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 );
 
+/**
+ * Lời giải thích khi rê chuột lên tab / nút chọn — dùng với `<TooltipContent tone="light">`: viên nhỏ nền trắng có mũi
+ * nhọn (cùng dáng tooltip các nút trên đầu trang), chữ một dòng tới 32rem.
+ */
+export const TAB_HINT = "max-w-[min(32rem,90vw)] font-medium text-pretty";
+
 /** Tab chưa chọn. */
 export const TAB_IDLE = "text-muted-foreground hover:bg-card/70 hover:text-foreground";
 

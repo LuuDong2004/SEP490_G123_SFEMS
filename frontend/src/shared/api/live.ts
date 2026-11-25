@@ -17,9 +17,15 @@ import { applyAuthorities, getAccessToken, refreshSession } from "@/shared/api/s
  * carry an `Authorization` header.
  */
 
-/** Derived from the REST base rather than configured twice; they are the same server. */
+/**
+ * Derived from the REST base rather than configured twice; they are the same server.
+ *
+ * `API_URL` may be relative (`/api`): the bundle then follows whatever domain serves
+ * it, and nginx proxies `/api` and `/ws` to the backend. Resolving against the page
+ * turns that into an absolute URL; an absolute `API_URL` ignores the base.
+ */
 function socketUrl(): string {
-  const url = new URL(API_URL);
+  const url = new URL(API_URL, window.location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   // API_URL ends in `/api`; the handshake endpoint sits at the application root.
   url.pathname = "/ws";

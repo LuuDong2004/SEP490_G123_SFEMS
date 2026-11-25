@@ -1,63 +1,119 @@
-export type ReportOption = { id: number | null; key: string | null; label: string };
+/** Bảng điều khiển và báo cáo (`/api/reports`). */
 
-export type AssetReport = {
-  scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
-  fromDate: string;
-  toDate: string;
-  filters: {
-    schools: ReportOption[];
-    subjects: ReportOption[];
-    equipmentTypes: ReportOption[];
-    origins: ReportOption[];
-    statuses: ReportOption[];
-  };
-  summary: {
-    quantity: number;
+export type DashboardLevel = "CITY" | "BODY" | "SCHOOL" | "NONE";
+
+export type Dashboard = {
+  level: DashboardLevel;
+  scope: string;
+  kpis: {
+    schools: number;
+    equipment: number;
     originalValue: number;
     inUse: number;
-    inStorage: number;
-    broken: number;
     missing: number;
-    recordedInPeriod: number;
+    pendingVouchers: number;
+    /** Tính trên các trường đã nhập thiết bị (`adequacySchools`), không phải mọi trường trong phạm vi. */
+    adequacyPercent: number;
+    adequacySchools: number;
+    /** % trường đạt chuẩn CSVC từ mức tối thiểu trở lên, trên số trường đã khai phòng (`facilitySchools`). */
+    facilityPercent: number;
+    facilitySchools: number;
   };
-  totalRows: number;
-  truncated: boolean;
-  rows: {
-    id: number;
-    code: string;
-    name: string;
-    schoolName: string;
-    subjectName: string | null;
-    equipmentTypeName: string | null;
-    status: string;
-    statusLabel: string;
-    originName: string | null;
-    condition: string | null;
-    quantity: number;
-    originalValue: number | null;
-    receivedDate: string | null;
-  }[];
+  statuses: { key: string; label: string; count: number }[];
+  pending: { key: string; label: string; count: number }[];
+  months: { month: string; intake: number }[];
+  /** Trường cần đôn đốc (10 trường đầu): chưa nhập thiết bị, chưa khai phòng, chưa có biên bản kiểm kê của đợt đang mở. */
+  attention: { id: number; name: string; equipment: number; rooms: number; inventoryDue: boolean;
+    /** Đã khai thiết bị mà chưa đáp ứng danh mục tối thiểu. */
+    equipmentShort: boolean;
+    /** Đã khai phòng mà chưa đạt chuẩn CSVC mức tối thiểu. */
+    facilityShort: boolean }[];
+  attentionTotal: number;
+  /** Năm học đang xem là năm hiện tại — biểu đồ ghi tăng là 12 tháng gần nhất thay vì 12 tháng của năm học. */
+  yearCurrent: boolean;
+  /** Kỳ của ô "tình trạng xử lý phiếu": month | quarter | year | all. */
+  period: string;
+  /** Số phiếu lập trong kỳ, theo trạng thái. */
+  vouchers: { key: string; label: string; count: number }[];
+  days: number;
+  /** Phiếu lập ra / hoàn tất theo ngày. */
+  daily: { date: string; created: number; completed: number }[];
+  /** Tình trạng kỹ thuật của tài sản còn trên sổ. */
+  conditions: { key: string; label: string; count: number }[];
+  /** Phiếu chờ duyệt theo nơi đang phải duyệt: SCHOOL (lãnh đạo trường), UBND, SO. */
+  waitingAt: { key: string; label: string; count: number }[];
 };
 
-export type AdequacyReport = {
-  scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
-  filters: { schools: { id: number; label: string }[]; subjects: { id: number; label: string }[]; grades: { id: number; label: string }[]; equipmentTypes: { id: number; label: string }[] };
-  summary: { schools: number; countedSchools: number; averagePercent: number; shortageTotal: number; surplusTotal: number; unknownNorms: number };
-  distribution: { key: string; label: string; count: number }[];
-  rows: { schoolId: number; schoolCode: string; schoolName: string; educationLevel: string | null; classCount: number | null; studentCount: number | null; norms: number; met: number; unknown: number; shortageNorms: number; shortageTotal: number; surplusNorms: number; surplusTotal: number; percent: number | null }[];
-  details: { schoolId: number; schoolCode: string; schoolName: string; normCode: string; normName: string; itemNo: string | null; catalogCode: string | null; catalogName: string | null; subjectName: string | null; gradeName: string | null; gradeLevels: string | null; equipmentTypeName: string | null; required: number | null; available: number; shortage: number | null; surplus: number | null; percent: number | null }[];
+/** Các phần của biểu đồ cơ cấu thiết bị. */
+export const ASSET_STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "use", label: "Đang sử dụng", statuses: ["IN_USE"] },
+  { key: "stock", label: "Trong kho", statuses: ["IN_STOCK"] },
+];
+
+export type ReportDefinition = {
+  name: string;
+  title: string;
+  description: string;
+  /** Báo cáo theo kỳ: nhận `from`, `to`. */
+  period: boolean;
+  /** Báo cáo theo năm ngân sách: nhận `year`. */
+  year: boolean;
+  /** Báo cáo xem được số liệu cuối một năm học đã qua: nhận `yearId`. */
+  byYear: boolean;
+  /** Các chiều tổng hợp chọn được (tham số `group`); rỗng là báo cáo có một hình cố định. Phần tử đầu là mặc định. */
+  groups: { key: string; label: string }[];
+  /** Ô chọn riêng của báo cáo (tham số `choice`) — vd. trạng thái ở danh sách thiết bị; rỗng là không có. */
+  choices: { key: string; label: string }[];
+  /**
+   * Bộ lọc theo tài sản báo cáo nhận: `type` (tham số `typeId`, chọn từ danh mục loại thiết bị), `status`,
+   * `condition` (danh sách cố định ở `options`). Rỗng là báo cáo không lọc theo tài sản.
+   */
+  filters: ReportAssetFilter[];
 };
 
-export type PurchaseReport = {
-  scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
-  filters: { schools: { key: string; label: string }[]; years: { key: string; label: string }[]; equipment: { key: string; label: string }[]; statuses: { key: string; label: string }[] };
-  summary: { proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number };
-  rows: { key: string; name: string; schools: number; proposals: number; pending: number; approved: number; planned: number; quantity: number; receivedQuantity: number; amount: number; approvedAmount: number }[];
+export type ReportAssetFilter = {
+  key: "type" | "status" | "condition";
+  label: string;
+  options: { key: string; label: string }[];
 };
 
-export type InventoryReport = {
-  scope: "CITY" | "BODY" | "SCHOOL" | "NONE";
-  filters: { campaigns: { id: number; label: string }[]; schools: { id: number; label: string }[] };
-  summary: { sessions: number; bookQuantity: number; matchedQuantity: number; shortageQuantity: number; surplusQuantity: number; damagedQuantity: number; wrongLocationQuantity: number; discrepancyValue: number };
-  rows: { id: number; code: string; campaign: string; school: string; inventoryDate: string; status: string; statusLabel: string; bookQuantity: number; matchedQuantity: number; shortageQuantity: number; surplusQuantity: number; damagedQuantity: number; wrongLocationQuantity: number; discrepancyValue: number }[];
+export type ReportColumnType = "text" | "number" | "money" | "date";
+
+export type Report = {
+  name: string;
+  title: string;
+  subtitle: string;
+  columns: { key: string; label: string; type: ReportColumnType }[];
+  rows: Record<string, string | number | null>[];
+  /** Số của dòng "Tổng" cho cột không cộng dồn được (vd. số người khác nhau); cột vắng ở đây thì cộng các dòng. */
+  totals?: Record<string, number>;
 };
+
+/**
+ * Báo cáo trên menu — mỗi báo cáo một mục, đường dẫn `/reports/<name>`, resource
+ * `report_<name>` (dùng quyền `reports:read`, xem `shared/lib/permissions.ts`).
+ * `name` phải khớp tên báo cáo của `/api/reports`.
+ */
+export const REPORT_MENU: { name: string; resource: string; label: string; title: string }[] = [
+  { name: "equipment-by-school", resource: "report_equipment_by_school", label: "Tổng hợp thiết bị", title: "Tổng hợp thiết bị" },
+  { name: "equipment-by-catalog", resource: "report_equipment_by_catalog", label: "Thiết bị theo danh mục", title: "Tổng hợp thiết bị theo danh mục" },
+  { name: "equipment-by-status", resource: "report_equipment_by_status", label: "Theo trạng thái sử dụng", title: "Thiết bị theo trạng thái sử dụng" },
+  { name: "equipment-by-condition", resource: "report_equipment_by_condition", label: "Theo tình trạng kỹ thuật", title: "Thiết bị theo tình trạng kỹ thuật" },
+  { name: "equipment-list", resource: "report_equipment_list", label: "Danh sách theo trạng thái", title: "Danh sách thiết bị theo trạng thái" },
+  { name: "facilities", resource: "report_facilities", label: "Cơ sở vật chất", title: "Tổng hợp cơ sở vật chất" },
+  { name: "csvc-statistics", resource: "report_csvc_statistics", label: "Biểu số liệu CSVC", title: "Biểu số liệu cơ sở vật chất" },
+  { name: "equipment-ledger", resource: "report_equipment_ledger", label: "Bảng theo dõi thiết bị", title: "Bảng theo dõi thiết bị" },
+  { name: "facility-standard", resource: "report_facility_standard", label: "Mức độ chuẩn CSVC", title: "Đánh giá mức độ chuẩn CSVC" },
+  { name: "room-standard", resource: "report_room_standard", label: "Chuẩn phòng bộ môn", title: "Đánh giá chuẩn phòng bộ môn" },
+  { name: "supply-expiry", resource: "report_supply_expiry", label: "Hoá chất, vật tư hết hạn", title: "Hoá chất, vật tư hết hạn" },
+  { name: "idle-equipment", resource: "report_idle_equipment", label: "Nằm kho kéo dài", title: "Thiết bị nằm kho kéo dài" },
+  { name: "inventory", resource: "report_inventory", label: "Kết quả kiểm kê", title: "Kết quả kiểm kê" },
+  { name: "movements", resource: "report_movements", label: "Tăng, giảm thiết bị", title: "Tăng, giảm thiết bị" },
+  { name: "purchase", resource: "report_purchase", label: "Nhu cầu mua sắm", title: "Tổng hợp nhu cầu mua sắm" },
+  { name: "adequacy", resource: "report_adequacy", label: "Đáp ứng danh mục tối thiểu", title: "Mức đáp ứng danh mục thiết bị tối thiểu" },
+  { name: "data-quality", resource: "report_data_quality", label: "Chất lượng dữ liệu", title: "Chất lượng dữ liệu theo trường" },
+  { name: "data-anomalies", resource: "report_data_anomalies", label: "Dữ liệu bất thường", title: "Thiết bị có dữ liệu bất thường" },
+  { name: "last-update", resource: "report_last_update", label: "Thời điểm cập nhật", title: "Thời điểm cập nhật dữ liệu của đơn vị" },
+  { name: "stale-schools", resource: "report_stale_schools", label: "Đơn vị chưa cập nhật", title: "Đơn vị chưa cập nhật dữ liệu" },
+  { name: "vouchers", resource: "report_vouchers", label: "Tình hình xử lý chứng từ", title: "Tình hình xử lý chứng từ" },
+];

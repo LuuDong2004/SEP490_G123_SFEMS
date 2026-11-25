@@ -14,7 +14,7 @@ import java.time.LocalDate;
  *
  * <h2>Chỉ MỘT năm học hiện hành, và database giữ điều đó</h2>
  *
- * <p>Nhiều màn nghiệp vụ sau này (phiếu mượn, kế hoạch mua sắm, báo cáo) mặc
+ * <p>Nhiều màn nghiệp vụ sau này (phiếu ghi tăng, kế hoạch mua sắm, báo cáo) mặc
  * định lấy năm học hiện hành. Hai năm cùng hiện hành thì câu "năm học nào" có
  * hai câu trả lời, và cái nào thắng phụ thuộc thứ tự database trả dòng về.
  *

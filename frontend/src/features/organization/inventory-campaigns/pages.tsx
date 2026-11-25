@@ -226,9 +226,9 @@ export const InventoryCampaignShow = () => {
               <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Tìm trường…" className="pl-8" aria-label="Tìm trường" />
             </div>
           </div>
-          <div className="max-h-[35rem] overflow-y-auto">
+          <div className="max-h-[35rem] overflow-y-auto [&>[data-slot=table-container]]:overflow-visible">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-surface-subtle sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="px-4">Trường</TableHead>
                   <TableHead className="px-4">Phiếu kiểm kê</TableHead>

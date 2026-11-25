@@ -9,8 +9,8 @@ import type { ProposalOverlap } from "@/domains/procurement/types";
 import { voucherStatusText } from "@/domains/voucher/types";
 
 /**
- * Thiết bị đã có trong đề xuất khác. Chỉ CẢNH BÁO, không chặn: trường có lý do xin thêm (phiếu trước
- * bị cắt số lượng…), và người duyệt cũng thấy cùng lời nhắc để quyết định duyệt hay trả lại.
+ * Thiết bị đã có trong đề xuất khác. Chỉ CẢNH BÁO, không chặn: trường có lý do xin thêm (phiếu
+ * trước bị cắt số lượng…), và người duyệt thấy cùng lời nhắc để quyết duyệt hay trả lại.
  */
 
 /** Theo thiết bị: những đề xuất còn hiệu lực KHÁC của trường đang xin nó. */
@@ -39,8 +39,7 @@ export function useProposalOverlaps(schoolId: number | null | undefined, exclude
 }
 
 /** Tổng số lượng các đề xuất khác đang xin cho một thiết bị. */
-export const overlapQuantity = (list: ProposalOverlap[] | undefined) =>
-  (list ?? []).reduce((sum, o) => sum + o.quantity, 0);
+export const overlapQuantity = (list: ProposalOverlap[] | undefined) => (list ?? []).reduce((s, o) => s + o.quantity, 0);
 
 export const overlapName = (o: ProposalOverlap) => o.code ?? `phiếu nháp #${o.proposalId}`;
 
@@ -49,28 +48,19 @@ function OverlapLink({ o, newTab }: { o: ProposalOverlap; newTab?: boolean }) {
   const state = voucherStatusText(o.status, o.approvalStep, o.returned).toLowerCase();
   return (
     <>
-      <Link
-        to={`/purchase-proposals/show/${o.proposalId}`}
-        target={newTab ? "_blank" : undefined}
-        rel={newTab ? "noreferrer" : undefined}
-        className="font-medium underline-offset-2 hover:underline"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <Link to={`/purchase-proposals/show/${o.proposalId}`} target={newTab ? "_blank" : undefined}
+        rel={newTab ? "noreferrer" : undefined} className="font-medium underline-offset-2 hover:underline"
+        onClick={(e) => e.stopPropagation()}>
         {overlapName(o)}
       </Link>
-      <span>
-        {" "}
-        ({o.quantity}
-        {o.unitName ? ` ${o.unitName}` : ""}, {state})
-      </span>
+      <span> ({o.quantity}{o.unitName ? ` ${o.unitName}` : ""}, {state})</span>
     </>
   );
 }
 
 /**
- * Dòng chữ vàng dưới một thiết bị: "Đã có trong MS-2026-00003 (1 Bộ, chờ duyệt)". `newTab` dùng trên
- * form, để mở phiếu kia không làm mất phiếu đang lập. `duplicateOf` là dòng khác của CHÍNH phiếu này
- * đã có cùng thiết bị.
+ * Dòng chữ vàng dưới một thiết bị: "Đã có trong MS-2026-00003 (1 Bộ, chờ duyệt)". `newTab` trên form, để
+ * mở phiếu kia không làm mất phiếu đang lập. `duplicateOf`: cùng thiết bị đã có ở dòng khác của chính phiếu này.
  */
 export function OverlapNote({ list, duplicateOf, newTab, className }: {
   list: ProposalOverlap[] | undefined;
@@ -88,7 +78,7 @@ export function OverlapNote({ list, duplicateOf, newTab, className }: {
           <>
             Đã có trong{" "}
             {list.map((o, i) => (
-              <Fragment key={o.proposalId}>
+              <Fragment key={`${o.proposalId}`}>
                 {i > 0 ? ", " : null}
                 <OverlapLink o={o} newTab={newTab} />
               </Fragment>
@@ -107,8 +97,7 @@ export function OverlapSummary({ count }: { count: number }) {
     <div className="text-warning-text mt-2 flex items-start gap-2 text-sm">
       <TriangleAlert className="mt-0.5 size-4 shrink-0" />
       <span>
-        {count} thiết bị đã có trong đề xuất khác. Xem lại để không xin trùng — vẫn trình được nếu cần
-        xin thêm.
+        {count} thiết bị đã có trong đề xuất khác. Xem lại để không xin trùng — vẫn trình được nếu cần xin thêm.
       </span>
     </div>
   );

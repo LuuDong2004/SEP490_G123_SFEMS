@@ -144,7 +144,7 @@ function KindField({ control }: { control: Control<any> }) {
   );
 }
 
-function SwitchField({ control, name, title, description }: { control: Control<any>; name: string; title: string; description: string }) {
+export function SwitchField({ control, name, title, description }: { control: Control<any>; name: string; title: string; description: string }) {
   return (
     <FormField
       control={control}
@@ -238,7 +238,6 @@ export const ROOM_TYPE_EXTRA: CatalogExtra = {
     levels: FACILITY_LEVELS.map((l) => l.code),
     standard: true,
     legalBasis: "",
-    loanable: false,
     functional: false,
     params: [],
   },
@@ -265,8 +264,6 @@ export const ROOM_TYPE_EXTRA: CatalogExtra = {
         description="Tắt với loại ngoài danh mục." />
       <SwitchField control={control} name="functional" title="Phòng bộ môn, phòng chức năng"
         description="Tính vào báo cáo sử dụng phòng." />
-      <SwitchField control={control} name="loanable" title="Cho mượn"
-        description="Phòng mới thuộc loại này mặc định cho mượn." />
       <ParamsField control={control} />
     </div>
   ),
@@ -300,7 +297,6 @@ export const ROOM_TYPE_EXTRA: CatalogExtra = {
     { label: "Văn bản căn cứ", value: r?.legalBasis ?? "—" },
     { label: "Danh mục", value: r?.schoolId ? "Ngoài danh mục, của trường" : r?.standard ? "Chuẩn" : "Ngoài danh mục" },
     { label: "Phòng bộ môn, chức năng", value: r?.functional ? "Có" : "Không" },
-    { label: "Cho mượn", value: r?.loanable ? "Có" : "Không" },
     {
       label: "Thông số theo loại",
       span: 4,

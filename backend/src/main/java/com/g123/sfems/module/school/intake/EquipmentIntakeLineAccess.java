@@ -6,10 +6,10 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
 /**
- * Tệp đính kèm theo TỪNG DÒNG phiếu nhập ({@code resource = equipment_intake_lines}) — hoá đơn của nhà cung
- * cấp nào gắn vào đúng dòng hàng của nhà cung cấp ấy, và hồ sơ các tài sản sinh ra từ dòng đó xem được chúng.
- * Dòng không có phạm vi dữ liệu riêng: đọc / ghi được dòng là đọc / ghi được phiếu chứa nó (ghi:
- * theo phạm vi ghi của phiếu), và mã quyền là của phiếu.
+ * Tệp đính kèm theo TỪNG DÒNG phiếu nhập ({@code resource = equipment_intake_lines}) — hoá đơn của
+ * nhà cung cấp nào gắn vào đúng dòng hàng của nhà cung cấp ấy, và hồ sơ các tài sản sinh ra từ
+ * dòng đó xem được chúng. Dòng không có phạm vi dữ liệu riêng: đọc / ghi được dòng là đọc / ghi
+ * được phiếu chứa nó, và mã quyền là của phiếu.
  */
 @Component
 public class EquipmentIntakeLineAccess implements RecordAccess {
@@ -31,7 +31,7 @@ public class EquipmentIntakeLineAccess implements RecordAccess {
 
     @Override
     public String permission() {
-        return intakes.resource();
+        return EquipmentIntakeService.RESOURCE;
     }
 
     @Override

@@ -34,18 +34,24 @@ export function CreateView({ children, className }: CreateViewProps) {
 }
 
 type CreateHeaderProps = PropsWithChildren<{
+  /** Nút quay lại đi tới đâu — mặc định lùi lịch sử trình duyệt; form phiếu ghi tăng về danh sách. */
+  onBack?: () => void;
   resource?: string;
   title?: string;
   /** Cạnh tiêu đề: trạng thái, bước của phiếu… — nhỏ, cùng hàng. */
   meta?: ReactNode;
+  /** Nút của trang (Lưu nháp, Trình…) — dồn về tay phải, cùng hàng tiêu đề. */
+  actionsSlot?: ReactNode;
   wrapperClassName?: string;
   headerClassName?: string;
 }>;
 
 export const CreateViewHeader = ({
+  onBack,
   resource: resourceFromProps,
   title: titleFromProps,
   meta,
+  actionsSlot,
   wrapperClassName,
   headerClassName,
 }: CreateHeaderProps) => {
@@ -82,11 +88,16 @@ export const CreateViewHeader = ({
           headerClassName
         )}
       >
-        <Button data-print="hide" variant="ghost" size="icon" onClick={back} aria-label="Quay lại">
+        <Button type="button" data-print="hide" variant="ghost" size="icon" onClick={onBack ?? back} aria-label="Quay lại">
           <ArrowLeftIcon className="h-4 w-4" />
         </Button>
-        <h1 className="min-w-0 truncate text-3xl font-bold leading-9 tracking-tight">{title}</h1>
-          {meta ? <div className="ms-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="min-w-0 text-xl leading-7 font-bold tracking-tight break-words sm:text-2xl sm:leading-8">{title}</h1>
+          {meta ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+        </div>
+        {actionsSlot ? (
+          <div data-print="hide" className="ms-auto flex max-w-full flex-wrap items-center justify-end gap-2">{actionsSlot}</div>
+        ) : null}
       </div>
     </div>
   );

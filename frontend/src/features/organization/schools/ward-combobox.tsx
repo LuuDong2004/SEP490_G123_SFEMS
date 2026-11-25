@@ -20,7 +20,8 @@ import { cn } from "@/shared/lib/utils";
  * <p>Giá trị lưu là **id**, không còn là tên. Trước đây lưu tên, và đó là thứ
  * làm hỏng đúng yêu cầu 3.5.2 và 3.5.8 — tổng hợp số liệu theo địa bàn: hai
  * cách gõ cùng một phường thành hai nhóm khi gộp, nên báo cáo vẫn ra số mà ra
- * nhầm. Id cũng là thứ so sánh được khi gộp theo địa bàn.
+ * nhầm. Id cũng là thứ phân quyền so sánh được khi UBND chỉ được thấy trường
+ * trên địa bàn mình.
  *
  * <p>`fallbackLabel` là chữ người dùng từng gõ tay trước khi có danh mục
  * (`wardText`). Hiện nó trên nút khi chưa ghép được, để mở form sửa không làm

@@ -4,11 +4,12 @@ import { useEffect } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import type { CatalogExtra } from "@/shared/components/catalog/types";
+import { MultiRefSelectField } from "@/shared/components/catalog/multi-ref-select";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { SelectField, TextField } from "@/shared/components/form/simple-fields";
 import { Badge } from "@/shared/ui/badge";
 import { FacilityStandardRulesPage } from "@/features/catalogs/facility-standard-list";
-import { useFacilityLevels } from "@/features/catalogs/facility-catalog-extra";
+import { SwitchField, useFacilityLevels } from "@/features/catalogs/facility-catalog-extra";
 import { FACILITY_LEVELS } from "@/domains/facility/catalog";
 import {
   ruleSummary,
@@ -47,16 +48,25 @@ function RuleFields({ control, record }: { control: Control<any>; record?: Facil
         filters={[{ field: "standard", operator: "eq", value: true }, ...(level ? [{ field: "level", operator: "eq" as const, value: level }] : [])]} />
       <TextField control={control} name="minCount" label="Số phòng tối thiểu" type="number" numberRule="COUNT"
         description="Có ít nhất N phòng / hạng mục." />
-      <TextField control={control} name="countPerClass" label="Số phòng mỗi lớp" type="number" step="any"
-        numberRule="DECIMAL_QUANTITY" description="Số phòng ≥ số lớp × tỷ lệ, làm tròn lên." />
+      <TextField control={control} name="countPerClass" label="Số phòng theo số lớp" type="number" step="any"
+        numberRule="DECIMAL_QUANTITY" description="Số phòng cho mỗi lớp. Ví dụ 0,1 là 1 phòng/10 lớp, 0,6 là 3 phòng/5 lớp." />
       <TextField control={control} name="minRoomArea" label="Diện tích mỗi phòng (m²)" type="number" step="any"
         numberRule="DECIMAL_QUANTITY" description="Mỗi phòng không nhỏ hơn." />
-      <TextField control={control} name="areaPerStudent" label="Diện tích mỗi học sinh (m²)" type="number" step="any"
-        numberRule="DECIMAL_QUANTITY" description="Tổng diện tích ≥ số học sinh × số này." />
+      <TextField control={control} name="areaPerStudent" label="Diện tích theo số học sinh (m²)" type="number" step="any"
+        numberRule="DECIMAL_QUANTITY" description="Số m² cho mỗi học sinh. Ví dụ 1,5: trường 1200 học sinh cần 1800 m²." />
+      <TextField control={control} name="studentPercent" label="Tính trên phần trăm học sinh (%)" type="number" step="any"
+        numberRule="PERCENT" description="Để trống là mọi học sinh. Thư viện tính từ 30% học sinh." />
       <TextField control={control} name="minTotalArea" label="Tổng diện tích tối thiểu (m²)" type="number" step="any"
         numberRule="DECIMAL_QUANTITY" description="Tổng diện tích các phòng không nhỏ hơn." />
-      <TextField control={control} name="legalBasis" label="Văn bản căn cứ" rule="SHORT_TEXT" className="col-span-2"
-        placeholder="TT 13/2020/TT-BGDĐT" />
+      <TextField control={control} name="largeClassFrom" label="Trường lớn: trên bao nhiêu lớp" type="number" numberRule="COUNT"
+        description="Ví dụ 30: trường trên 30 lớp phải có nhiều phòng hơn." />
+      <TextField control={control} name="largeMinCount" label="Số phòng của trường lớn" type="number" numberRule="COUNT"
+        description="Số phòng tối thiểu của trường lớn." />
+      <SwitchField control={control} name="onlyIfPresent" title="Chỉ xét khi trường có loại phòng này"
+        description="Dùng cho kho bếp, phòng nội trú: trường không có thì bỏ qua." />
+      <MultiRefSelectField control={control} name="legalDocuments" resource="legal_documents" label="Văn bản căn cứ" className="col-span-2" />
+      <TextField control={control} name="legalBasis" label="Điều, khoản" rule="SHORT_TEXT" className="col-span-2"
+        placeholder="VD: Khoản 4 Điều 18" />
     </div>
   );
 }
@@ -85,7 +95,12 @@ export const FACILITY_STANDARD_EXTRA: CatalogExtra = {
     minRoomArea: null,
     areaPerStudent: null,
     minTotalArea: null,
-    legalBasis: "TT 13/2020/TT-BGDĐT, sửa đổi bởi TT 23/2024/TT-BGDĐT",
+    largeClassFrom: null,
+    largeMinCount: null,
+    studentPercent: null,
+    onlyIfPresent: false,
+    legalDocuments: [],
+    legalBasis: "",
   },
   Fields: ({ control, record }) => <RuleFields control={control} record={record} />,
   nameColumn: {
@@ -127,6 +142,7 @@ export const FACILITY_STANDARD_EXTRA: CatalogExtra = {
     { label: "Cấp học", value: levelName(r?.levelCode) },
     { label: "Mức", value: r?.tier ? STANDARD_TIER_LABELS[r.tier] : "—" },
     { label: "Điều kiện", value: ruleSummary(r), span: 2 },
-    { label: "Văn bản căn cứ", value: r?.legalBasis ?? "—", span: 4 },
+    { label: "Văn bản căn cứ", value: (r?.legalDocuments ?? []).map((d) => d.code).join(", ") || "—", span: 2 },
+    { label: "Điều, khoản", value: r?.legalBasis ?? "—", span: 2 },
   ],
 };

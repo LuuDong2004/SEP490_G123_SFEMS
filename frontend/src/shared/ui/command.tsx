@@ -2,6 +2,7 @@ import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { SearchIcon } from "lucide-react";
 
+import { SEARCH_MAX } from "@/shared/lib/field-rules";
 import { cn } from "@/shared/lib/utils";
 import {
   Dialog,
@@ -46,7 +47,7 @@ function CommandDialog({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
-      <DialogContent
+      <DialogContent size="auto"
         className={cn("overflow-hidden p-0", className)}
         showCloseButton={showCloseButton}
       >
@@ -69,7 +70,9 @@ function CommandInput({
       className="bg-muted/50 focus-within:bg-card focus-within:border-primary/40 m-2 mb-1 flex h-10 items-center gap-2 rounded-full border px-3.5 transition-colors"
     >
       <SearchIcon className="text-muted-foreground size-4 shrink-0" />
+      {/* Ô của Command luôn là ô tìm: mặc định `SEARCH_MAX` ký tự. */}
       <CommandPrimitive.Input
+        maxLength={SEARCH_MAX}
         data-slot="command-input"
         className={cn(
           "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",

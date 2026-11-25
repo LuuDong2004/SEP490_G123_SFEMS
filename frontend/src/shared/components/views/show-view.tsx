@@ -1,17 +1,18 @@
 "use client";
 
-import type { PropsWithChildren, ReactNode } from "react";
+import { useState, type PropsWithChildren, type ReactNode } from "react";
 
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, RefreshCw } from "lucide-react";
 import {
   useBack,
+  useInvalidate,
   useNavigation,
   useResourceParams,
   useUserFriendlyName,
   useTranslate,
 } from "@refinedev/core";
 import { Button } from "@/shared/ui/button";
-import { RefreshButton } from "@/shared/components/buttons/refresh";
+import { RowActions, ROW_ACTION_ITEM, useRowActionsMenu } from "@/shared/components/data-table/row-actions";
 import { cn } from "@/shared/lib/utils";
 import { DeleteButton } from "@/shared/components/buttons/delete";
 import { EditButton } from "@/shared/components/buttons/edit";
@@ -59,7 +60,7 @@ type ShowViewHeaderProps = PropsWithChildren<{
    */
   more?: ReactNode;
   /**
-   * `false` ẩn nút Xoá mặc định cho BẢN GHI NÀY (vd. thiết bị chưa thanh lý — ra khỏi sổ phải
+   * `false` ẩn nút Xoá mặc định cho BẢN GHI NÀY (vd. thiết bị còn trên sổ — ra khỏi sổ phải
    * qua phiếu). Quyền vẫn do `hideIfUnauthorized` quyết như cũ; đây là luật nghiệp vụ theo trạng thái.
    */
   canDelete?: boolean;
@@ -108,19 +109,23 @@ export const ShowViewHeader = ({
       <div
         className={cn(
           "flex",
-          "gap-1",
+          // Không đủ chỗ cho cả tiêu đề lẫn nút thì nút xuống hàng dưới, không bóp tiêu đề.
+          "flex-wrap",
+          "gap-x-1 gap-y-2",
           "items-center",
           "justify-between",
           "-ml-2.5",
           headerClassName
         )}
       >
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="flex max-w-full min-w-0 items-center gap-1">
           <Button data-print="hide" variant="ghost" size="icon" onClick={back} aria-label="Quay lại">
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
-          <h1 className="min-w-0 truncate text-3xl font-bold leading-9 tracking-tight">{title}</h1>
-          {meta ? <div className="ms-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="min-w-0 text-xl leading-7 font-bold tracking-tight break-words sm:text-2xl sm:leading-8">{title}</h1>
+            {meta ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">{meta}</div> : null}
+          </div>
         </div>
 
         {/*
@@ -136,14 +141,7 @@ export const ShowViewHeader = ({
           list views already ignore it — honouring it only here would give the
           same resource a Delete on its table and none on its detail page.
         */}
-        <div data-print="hide" className="flex shrink-0 items-center gap-2">
-          {more ? null : (
-            <RefreshButton
-              variant="outline"
-              recordItemId={recordItemId}
-              resource={resourceName}
-            />
-          )}
+        <div data-print="hide" className="ms-auto flex max-w-full flex-wrap items-center justify-end gap-2">
           {/*
             Edit is the page's primary action and carries the only solid fill
             in the cluster. Before this, Refresh and Edit were both outlines
@@ -160,22 +158,49 @@ export const ShowViewHeader = ({
                 exists — and the refetch that follows the invalidation would
                 turn it into a 404.
               */}
-              {canDelete ? <DeleteButton
-                variant="outline"
-                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                recordItemId={recordItemId}
-                resource={resourceName}
-                onSuccess={() => {
-                  if (resourceName) list(resourceName);
-                }}
-              /> : null}
             </>
           )}
-          {more}
+          {/* Hàng nút chỉ giữ việc chính (Sửa / nút của màn); Tải lại và Xoá gập sau ⚙ — như hồ sơ thiết bị. */}
+          {more ?? (
+            <RowActions gear label="Thao tác khác">
+              <RefreshItem resource={resourceName} id={recordItemId} />
+              {canDelete && !actions ? (
+                <DeleteButton
+                  recordItemId={recordItemId}
+                  resource={resourceName}
+                  onSuccess={() => {
+                    if (resourceName) list(resourceName);
+                  }}
+                />
+              ) : null}
+            </RowActions>
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+/** Dòng "Tải lại" trong menu ⚙: đọc lại bản ghi đang xem, quay biểu tượng tới khi xong rồi đóng menu. */
+function RefreshItem({ resource, id }: { resource?: string; id?: string | number }) {
+  const invalidate = useInvalidate();
+  const menu = useRowActionsMenu();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM} disabled={busy || !resource}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await invalidate({ resource, id, invalidates: ["detail"] });
+        } finally {
+          setBusy(false);
+          menu?.close();
+        }
+      }}>
+      <RefreshCw className={cn(busy && "animate-spin")} />
+      Tải lại
+    </Button>
+  );
+}
 
 ShowView.displayName = "ShowView";

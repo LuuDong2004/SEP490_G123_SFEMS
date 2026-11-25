@@ -75,7 +75,7 @@ public final class InventorySessionApi {
             @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255) String note, Map<String, Object> details) {
     }
 
-    public record Summary(int total, int checked, int matched, int missing, int wrongRoom, int damaged, int surplus) {
+    public record Summary(int total, int checked, int matched, int missing, int wrongRoom, int surplus) {
     }
 
     public record Response(
@@ -132,14 +132,13 @@ public final class InventorySessionApi {
             int checked = (int) lines.stream().filter(l -> l.found() != null).count();
             int missing = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.MISSING)).count();
             int wrong = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.WRONG_ROOM)).count();
-            int damaged = (int) lines.stream().filter(l -> l.discrepancies().contains(Discrepancy.DAMAGED)).count();
             int matched = (int) lines.stream().filter(l -> l.found() != null && l.discrepancies().isEmpty()).count();
             int surplus = s.getSurplus().stream().mapToInt(InventorySurplus::getQuantity).sum();
             var campaign = s.getCampaign();
             return new Response(VoucherHeader.of(s, can, actions),
                     campaign == null ? null : new RefSummary(campaign.getId(), null, campaign.getTitle()),
                     s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(),
-                    new Summary(lines.size(), checked, matched, missing, wrong, damaged, surplus), lines,
+                    new Summary(lines.size(), checked, matched, missing, wrong, surplus), lines,
                     s.getSurplus().stream().map(Surplus::from).toList(), lines.size());
         }
     }

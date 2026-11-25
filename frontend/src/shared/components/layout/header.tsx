@@ -12,6 +12,7 @@ import { LogOutIcon, UserRoundIcon } from "lucide-react";
 import { Link } from "react-router";
 
 import { Breadcrumb } from "@/shared/components/layout/breadcrumb";
+import { HeaderSchoolYear } from "@/shared/components/layout/header-school-year";
 import { HeaderSearch } from "@/shared/components/layout/header-search";
 import { NotificationBell } from "@/shared/components/layout/notification-bell";
 import { HelpButton } from "@/shared/components/layout/help-button";
@@ -25,10 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
 import { SidebarTrigger, useSidebar } from "@/shared/ui/sidebar";
-import { getAuthorities } from "@/shared/api/session";
 import { cn } from "@/shared/lib/utils";
-import { Badge } from "@/shared/ui/badge";
-import { SYSTEM_ROLE_LABELS } from "@/domains/role/types";
 
 type Identity = {
   username?: string;
@@ -47,7 +45,7 @@ type Identity = {
  *
  * Ba vùng: trái là BREADCRUMB ("đang ở đâu" — trước đây chiếm riêng một hàng trong trang, còn thanh
  * này gần như trống), phải là ô tìm nhanh, các nút tiện ích, một vạch ngăn, rồi tài khoản (ảnh + tên —
- * có tên thì mới nhận ra đó là một menu). Màn hẹp: breadcrumb về lại đầu trang (`Layout`).
+ * có tên thì mới nhận ra đó là một menu). Dưới `lg` thanh bên ăn gần hết chỗ: breadcrumb về lại đầu trang (`Layout`).
  */
 export function Header() {
   const { isMobile } = useSidebar();
@@ -73,7 +71,7 @@ export function Header() {
           "justify-between gap-3 px-(--shell-gutter-x)"
         )}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <SidebarTrigger
             aria-label={t("layout.openMenu", "Open menu")}
             className="size-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
@@ -91,12 +89,14 @@ export function Header() {
             </div>
           )}
 
-          <div className="hidden min-w-0 md:block">
+          <div className="hidden min-w-0 lg:block">
             <Breadcrumb />
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* Năm học đang làm việc của cả hệ thống — mọi màn theo năm và kỳ báo cáo đọc từ đây. */}
+          <HeaderSchoolYear />
           <HeaderSearch />
           {/* Các nút biểu tượng gom vào một khung bo tròn — một cụm gọn thay vì năm nút rời rạc. */}
           <div className="bg-muted/50 flex h-9 items-center gap-0.5 rounded-full border px-0.5 [&_button]:size-8 [&_button]:rounded-full [&_button]:transition-[background-color,scale] [&_button]:active:scale-95 [&_button:hover]:bg-card [&_button:hover]:shadow-e1">
@@ -124,7 +124,6 @@ function UserMenu() {
     user?.fullName ??
     [user?.firstName, user?.lastName].filter(Boolean).join(" ");
 
-  const roles = (getAuthorities()?.roles ?? []).map((r) => SYSTEM_ROLE_LABELS[r] ?? r);
   const avatar = (size: string, text: string) => (
     <Avatar className={size}>
       {user?.avatar && <AvatarImage src={user.avatar} alt={name} />}
@@ -147,29 +146,16 @@ function UserMenu() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8} className="w-72 p-0">
-        {/* Đầu thẻ: ai đang đăng nhập — ảnh, tên đủ (xuống dòng, không cắt), thư, vai. */}
-        <div className="bg-surface-subtle flex items-start gap-3 border-b p-4">
+        {/* Đầu thẻ: ai đang đăng nhập — ảnh và tên đủ (xuống dòng, không cắt). Thư, vai xem ở màn Tài khoản. */}
+        <div className="bg-surface-subtle flex items-center gap-3 border-b p-4">
           {avatar("size-10", "text-sm")}
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm leading-snug font-semibold break-words">{name || user?.username}</p>
-            {user?.email ? <p className="text-muted-foreground truncate text-xs">{user.email}</p> : null}
-            {roles.length ? (
-              <div className="flex flex-wrap gap-1 pt-1">
-                {roles.map((r) => (
-                  <Badge key={r} variant="neutral">{r}</Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <p className="min-w-0 flex-1 text-sm leading-snug font-semibold break-words">{name || user?.username}</p>
         </div>
         <div className="p-1.5">
           <DropdownMenuItem asChild className="gap-3 px-2.5 py-2">
             <Link to="/profile">
               <UserRoundIcon className="size-4" />
-              <span className="flex flex-col">
-                <span>{t("layout.yourAccount", "Your account")}</span>
-                <span className="text-muted-foreground text-xs">Hồ sơ, mật khẩu, xác thực hai yếu tố</span>
-              </span>
+              <span>{t("layout.yourAccount", "Your account")}</span>
             </Link>
           </DropdownMenuItem>
         </div>

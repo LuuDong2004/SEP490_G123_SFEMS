@@ -1,3 +1,4 @@
+import { canWriteRecord } from "@/shared/lib/can-write";
 import type { Control } from "react-hook-form";
 
 import { RefField } from "@/shared/components/catalog/ref-field";
@@ -45,7 +46,7 @@ function LegalDocumentFiles({ record }: { record: any }) {
     <AttachmentsPanel
       resource="legal_documents"
       recordId={record?.id}
-      canWrite={record?._can?.write === true}
+      canWrite={record?._can?.write === true && canWriteRecord("legal_documents", record)}
       section
       title="Bản văn bản"
       description="PDF hoặc Word, tối đa 20 MB."

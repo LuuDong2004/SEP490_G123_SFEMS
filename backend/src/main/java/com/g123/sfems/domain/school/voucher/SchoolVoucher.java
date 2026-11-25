@@ -9,22 +9,23 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MappedSuperclass;
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
- * Phần chung của mọi phiếu thuộc một trường: số phiếu, trạng thái, bước duyệt đang chờ, và vết của
- * vòng duyệt. Đề xuất mua sắm (NC), phiếu nhập thiết bị (PN), phiếu kiểm kê (KK) kế thừa lớp này.
+ * Phần chung của mọi phiếu thuộc một trường: số phiếu, trạng thái, bước duyệt
+ * đang chờ, và vết của vòng duyệt.
  *
- * <p>Mỗi loại phiếu vẫn là MỘT BẢNG RIÊNG với các dòng riêng. Cái chúng chung là vòng đời, và vòng
- * đời thì phải giống hệt nhau: một phiếu "chờ duyệt" ở màn này và "đang trình" ở màn kia là hai
- * trạng thái người dùng phải học riêng.
+ * <p>Mỗi loại phiếu vẫn là MỘT BẢNG RIÊNG với các dòng riêng — phiếu ghi tăng và
+ * biên bản kiểm kê không có chung một cột nghiệp vụ nào đáng kể. Cái chúng chung
+ * là vòng đời, và vòng đời thì phải giống hệt nhau: một phiếu "chờ duyệt" ở màn
+ * này và "đang trình" ở màn kia là hai trạng thái người dùng phải học riêng.
  *
- * <p>Số phiếu {@code null} cho tới khi phiếu được TRÌNH: phiếu nháp chưa là chứng từ của cái gì cả.
- *
- * <p>Changelog của bảng kế thừa phải có đủ các cột dưới đây (xem {@code 010-nen-phieu.sql} phần ghi
- * chú "cột chung của bảng phiếu").
+ * <p>Số phiếu {@code null} cho tới khi phiếu được TRÌNH: phiếu nháp chưa là
+ * chứng từ của cái gì cả, cấp số cho nó nghĩa là dãy số nhảy cách quãng mỗi lần
+ * ai đó mở form rồi bỏ đi.
  */
 @MappedSuperclass
 public abstract class SchoolVoucher extends BaseEntity {
@@ -46,8 +47,10 @@ public abstract class SchoolVoucher extends BaseEntity {
     private ApprovalStep approvalStep;
 
     /**
-     * Cấp CAO NHẤT phiếu từng đứng chờ duyệt — chỉ tăng, không giảm. Phạm vi đọc của Sở dựa vào nó:
-     * cơ quan chỉ thấy phiếu đã trình tới bàn mình, không thấy phiếu còn nằm ở bàn hiệu trưởng.
+     * Cấp CAO NHẤT phiếu từng đứng chờ duyệt — chỉ tăng, không bao giờ giảm. Khác {@link #approvalStep}: trả
+     * lại, từ chối, duyệt xong đều xoá cấp đang chờ, nhưng phiếu đã từng lên tới cơ quan quản lý thì vẫn là đã
+     * lên. Phạm vi đọc của Sở / UBND dựa vào nó (125): cơ quan chỉ thấy phiếu đã trình tới bàn mình, không
+     * thấy phiếu còn nằm ở bàn hiệu trưởng. Chỉ {@link #setApprovalStep} ghi nó, nên không chỗ nào quên được.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "reached_step", length = 20)
@@ -78,18 +81,38 @@ public abstract class SchoolVoucher extends BaseEntity {
     @Column(length = 500)
     private String note;
 
-    /** Tên resource của loại phiếu ({@code equipment_intakes}...) — khoá của luồng duyệt, nhật ký, mã quyền. */
-    public abstract String resource();
+    /** Trường chứng từ theo app Jmix cũ, JSON — hình dạng do {@code voucher-forms/*.json} quyết định. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String details = "{}";
 
-    /** Tiền tố số phiếu: {@code NK}, {@code MS}, {@code KK}. */
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details == null ? "{}" : details;
+    }
+
+    /** Tiền tố số phiếu: {@code NK}, {@code CP}, {@code DC}... */
     public abstract String numberPrefix();
 
     /** Ngày của chứng từ — năm của nó là năm của dãy số phiếu. */
     public abstract LocalDate documentDate();
 
     /**
-     * Số tiền mà ngưỡng của luồng phê duyệt so với (tổng tiền đề xuất...); {@code null} = loại phiếu
-     * này không có số tiền để so, hoặc phiếu chưa ghi.
+     * Các cấp phải duyệt THEO MẶC ĐỊNH, theo thứ tự. Rỗng nghĩa là trình xong là duyệt xong
+     * (phiếu không cần ai duyệt vẫn đi qua cùng vòng đời, để có vết).
+     *
+     * <p>Đây chỉ là mặc định: loại phiếu nào có trong {@link ApprovalFlowType} thì Sở cấu hình lại
+     * được, và luồng thật của một phiếu do {@code ApprovalFlowService.chainOf} trả — không gọi thẳng
+     * hàm này để quyết định ai duyệt.
+     */
+    public abstract List<ApprovalStep> approvalChain();
+
+    /**
+     * Số tiền mà ngưỡng của luồng phê duyệt so với (tổng tiền phiếu, chi phí dự kiến…); {@code null} =
+     * loại phiếu này không có số tiền để so, hoặc phiếu chưa ghi.
      */
     public BigDecimal approvalAmount() {
         return null;

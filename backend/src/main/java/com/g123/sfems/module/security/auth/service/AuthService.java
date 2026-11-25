@@ -1,6 +1,7 @@
 package com.g123.sfems.module.security.auth.service;
 
 import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.domain.security.user.UserType;
 import com.g123.sfems.module.security.auth.api.dto.AuthoritiesResponse;
 import com.g123.sfems.module.security.auth.api.dto.ChangePasswordRequest;
 import com.g123.sfems.module.security.auth.api.dto.CurrentUserResponse;
@@ -15,9 +16,9 @@ import com.g123.sfems.module.security.token.service.RefreshTokenService.Session;
 import com.g123.sfems.module.security.token.service.RefreshTokenService.SessionView;
 import com.g123.sfems.module.security.user.service.EmailMfaService;
 import com.g123.sfems.module.security.user.service.LoginGuard;
-import com.g123.sfems.module.security.user.service.MfaService;
 import com.g123.sfems.module.security.user.service.UserService;
-import com.g123.sfems.shared.security.MfaRequiredException;
+import com.g123.sfems.shared.security.AdminAccessDeniedException;
+import com.g123.sfems.shared.security.AdminPortalPolicy;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.JwtService;
@@ -76,7 +77,6 @@ public class AuthService {
     // once again to build the reply.
     private final AuthorizationService authorizationService;
 
-    private final MfaService mfaService;
     private final EmailMfaService emailMfa;
     private final LoginGuard loginGuard;
 
@@ -88,17 +88,21 @@ public class AuthService {
     // Giao dịch NGẮN cuối lần đăng nhập (xoá bộ đếm sai, ghi lần đăng nhập, cấp token) — xem login().
     private final TransactionTemplate tx;
 
+    // Cổng Admin cách ly: khu đăng nhập, IP được phép, bắt buộc lớp thứ hai (docs/kien-truc/11).
+    private final AdminPortalPolicy adminPortal;
+
     public AuthService(UserService userService,
                        RefreshTokenService refreshTokenService,
                        JwtService jwtService,
                        PasswordEncoder passwordEncoder,
                        AuthorizationService authorizationService,
                        RowLevelSecurity rowLevel,
-                       MfaService mfaService,
                        EmailMfaService emailMfa,
                        LoginGuard loginGuard,
-                       PlatformTransactionManager transactionManager) {
+                       PlatformTransactionManager transactionManager,
+                       AdminPortalPolicy adminPortal) {
         this.tx = new TransactionTemplate(transactionManager);
+        this.adminPortal = adminPortal;
         this.emailMfa = emailMfa;
         this.loginGuard = loginGuard;
         this.userService = userService;
@@ -107,7 +111,6 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authorizationService = authorizationService;
         this.rowLevel = rowLevel;
-        this.mfaService = mfaService;
     }
 
     /**
@@ -126,19 +129,26 @@ public class AuthService {
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public TokenResponse login(LoginRequest request, Client client) {
-        Optional<User> found = userService.findForAuthentication(request.username());
+        // Khu quản trị chỉ mở cho máy trong danh sách IP được phép — hỏi trước cả mật khẩu.
+        if (request.adminArea() && !adminPortal.ipAllowed(client.ip())) {
+            throw AdminAccessDeniedException.ip();
+        }
+        // Màn /login chung nhận MỌI loại tài khoản (kể cả quản trị — người dùng không phải nhớ /admin/login); đăng nhập
+        // xong giao diện tự vào cổng của loại. Quản trị vẫn bị chặn theo IP (sau mật khẩu, ngay dưới) và bắt buộc xác thực qua email.
+        // Màn /admin/login chỉ nhận quản trị: tài khoản khác coi như KHÔNG CÓ ở đó — cùng câu, cùng thời gian so BCrypt,
+        // không đếm vào khoá tạm.
+        Optional<User> found = userService.findForAuthentication(request.username())
+                .filter(candidate -> inArea(candidate, request));
         Instant now = Instant.now();
+
+        // Đang khoá tạm (sai mật khẩu 5 lần): từ chối trước khi so mật khẩu, kể cả mật khẩu đúng.
+        found.filter(User::canSignIn).ifPresent(candidate -> loginGuard.requireNotLocked(candidate, now));
 
         String hash = found.map(User::getPasswordHash).orElse(DUMMY_HASH);
         boolean passwordMatches = passwordEncoder.matches(request.password(), hash);
 
-        // Đang khoá tạm (sai mật khẩu 5 lần, QLTB-509): từ chối kể cả mật khẩu đúng. Kiểm SAU khi so mật khẩu và
-        // báo cùng một câu, để không ai đoán được tài khoản có thật qua câu báo hay thời gian trả lời (GBR-01).
-        found.filter(User::canSignIn)
-                .ifPresent(candidate -> loginGuard.requireNotLocked(candidate, now, INVALID_CREDENTIALS));
-
         if (found.isPresent() && found.get().canSignIn() && !passwordMatches) {
-            // Đếm trong giao dịch riêng; lần thứ 5 thì khoá 15 phút, câu báo vẫn như mọi lần sai.
+            // Đếm trong giao dịch riêng; lần thứ 5 thì khoá 15 phút và câu báo nói rõ điều đó.
             loginGuard.recordFailure(found.get().getId(), INVALID_CREDENTIALS);
         }
         User user = found
@@ -146,16 +156,16 @@ public class AuthService {
                 .filter(User::canSignIn)
                 .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS));
 
-        // Hai yếu tố hỏi SAU mật khẩu: một người không biết mật khẩu không được
-        // biết tài khoản này có bật xác thực hai yếu tố hay không.
+        // IP riêng của từng quản trị (user_systems.allowed_ips) — hỏi sau mật khẩu, vì danh sách gắn với người.
+        if (!adminPortal.ipAllowed(user, client.ip()) && user.getUserType() == UserType.SYSTEM) {
+            throw AdminAccessDeniedException.ip();
+        }
+
+        // Mã qua email hỏi SAU mật khẩu: một người không biết mật khẩu không được
+        // biết tài khoản này có bật xác thực qua email hay không.
         boolean noCode = request.code() == null || request.code().isBlank();
-        if (user.isMfaEnabled()) {
-            if (noCode) {
-                throw new MfaRequiredException();
-            }
-            mfaService.verifyForLogin(user.getId(), request.code());
-        } else if (user.isMfaEmail()) {
-            // Qua email: chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập (QLTB-509).
+        if (user.isMfaEmail()) {
+            // Chưa có mã thì gửi mã rồi báo màn hình hiện ô nhập.
             if (noCode) {
                 emailMfa.sendForLogin(user.getId());
             }
@@ -187,13 +197,17 @@ public class AuthService {
         Instant now = Instant.now();
         RefreshToken used = refreshTokenService.consume(refreshToken, now);
         User user = used.getUser();
+        if (user.getUserType() == UserType.SYSTEM && !adminPortal.ipAllowed(user, client.ip())) {
+            // Lùi giao dịch: token không bị đốt, máy được phép vẫn làm mới tiếp được.
+            throw AdminAccessDeniedException.ip();
+        }
 
         if (!user.canSignIn()) {
             // The account was disabled while the session was open. Consuming
             // the token above already burned it, so this ends the session.
             throw new BadCredentialsException("Tài khoản này đã bị khoá");
         }
-        // Đi tiếp CÙNG phiên: token mới của lần làm mới vẫn là phiên đã mở lúc đăng nhập (QLTB-242).
+        // Đi tiếp CÙNG phiên: token mới của lần làm mới vẫn là phiên đã mở lúc đăng nhập.
         return issue(user, now, new Session(used.getSessionId(), used.getSessionStartedAt()), client);
     }
 
@@ -216,7 +230,7 @@ public class AuthService {
 
     /** The signed-in identity, re-read from the database rather than from the token. */
     public CurrentUserResponse me() {
-        return CurrentUserResponse.from(currentUser());
+        return CurrentUserResponse.from(currentUser(), adminPortal);
     }
 
     /**
@@ -256,7 +270,7 @@ public class AuthService {
         return issue(updated, now, session, client);
     }
 
-    /** Các phiên đang mở của chính mình (QLTB-242); phiên của request này được đánh dấu. */
+    /** Các phiên đang mở của chính mình; phiên của request này được đánh dấu. */
     @Transactional(readOnly = true)
     public List<MySession> mySessions() {
         Long id = currentUser().getId();
@@ -286,8 +300,13 @@ public class AuthService {
         return TokenResponse.of(
                 jwtService.issueAccessToken(user, now, session.id()),
                 refreshTokenService.issue(user, now, session, client),
-                jwtService.accessTokenTtlSeconds(),
-                CurrentUserResponse.from(user));
+                jwtService.accessTokenTtlSeconds(user),
+                CurrentUserResponse.from(user, adminPortal));
+    }
+
+    /** Khu nghiệp vụ (/login) nhận mọi loại tài khoản; khu Admin (/admin/login) chỉ nhận quản trị hệ thống. */
+    private static boolean inArea(User user, LoginRequest request) {
+        return !request.adminArea() || user.getUserType() == UserType.SYSTEM;
     }
 
     /**

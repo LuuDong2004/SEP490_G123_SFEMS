@@ -50,6 +50,43 @@ export function useConfirmDiscard() {
   return React.useMemo(() => confirm ?? ((run: () => void) => run()), [confirm]);
 }
 
+/**
+ * Màn đang mở khai thêm cho hộp hỏi khi rời màn (trưởng nhóm 14/11/2026, phiếu ghi tăng):
+ * - `save`: có thì hộp có nút "Lưu nháp" — lưu rồi đi tiếp; trả `false` (lưu hỏng) thì ở lại.
+ * - `discard`: việc phải làm khi người dùng chọn thoát không lưu (vd. xoá phiếu nháp hệ thống vừa lập sẵn).
+ * - `force`: hỏi cả khi form chưa sửa gì (phiếu hệ thống vừa lập sẵn, người dùng chưa quyết lưu). Hàm — đọc lúc
+ *   rời màn, nên màn đổi ý (vừa lưu xong) là có tác dụng ngay, không đợi vẽ lại.
+ */
+export type LeaveOptions = {
+  save?: () => Promise<boolean>;
+  discard?: () => Promise<void> | void;
+  force?: () => boolean;
+  title?: React.ReactNode;
+  message?: React.ReactNode;
+};
+
+const LeaveOptionsContext = React.createContext<((options: LeaveOptions | null) => void) | null>(null);
+
+/** Khai lựa chọn rời màn cho màn đang mở; gỡ khi màn đóng. */
+export function useLeaveOptions(options: LeaveOptions | null) {
+  const register = React.useContext(LeaveOptionsContext);
+  const latest = React.useRef(options);
+  latest.current = options;
+  const active = options != null;
+  React.useEffect(() => {
+    if (!register || !active) return;
+    // Bọc qua ref: màn vẽ lại không phải khai lại, guard luôn gọi bản mới nhất.
+    register({
+      save: latest.current?.save ? () => latest.current?.save?.() ?? Promise.resolve(false) : undefined,
+      discard: () => latest.current?.discard?.(),
+      force: () => latest.current?.force?.() ?? false,
+      get title() { return latest.current?.title; },
+      get message() { return latest.current?.message; },
+    });
+    return () => register(null);
+  }, [register, active]);
+}
+
 type UnsavedChangesGuardProps = React.PropsWithChildren<{
   /** Overrides the heading. */
   title?: React.ReactNode;
@@ -107,6 +144,10 @@ export function UnsavedChangesGuard({
   const { navigator } = React.useContext(UNSAFE_NavigationContext);
 
   const [pending, setPending] = React.useState<PendingAction | null>(null);
+  const [leave, setLeave] = React.useState<LeaveOptions | null>(null);
+  const leaveRef = React.useRef(leave);
+  leaveRef.current = leave;
+  const [saving, setSaving] = React.useState(false);
   // Hộp hỏi gọi đúng tên màn đang mở và phân biệt đang NHẬP MỚI hay đang SỬA.
   const screen = useScreenName();
   const editing = screen.action === "edit";
@@ -125,7 +166,7 @@ export function UnsavedChangesGuard({
   const replaying = React.useRef(false);
 
   const hold = React.useCallback((run: () => void) => {
-    if (replaying.current || !warnWhenRef.current) {
+    if (replaying.current || !(warnWhenRef.current || leaveRef.current?.force?.())) {
       run();
       return;
     }
@@ -156,9 +197,10 @@ export function UnsavedChangesGuard({
     return () => window.removeEventListener("beforeunload", listener);
   }, [warnWhen]);
 
-  // Navigating inside the application.
+  // Navigating inside the application. Màn khai `force` thì cài sẵn — `hold` tự quyết có hỏi không.
+  const watching = warnWhen || !!leave?.force;
   React.useEffect(() => {
-    if (!warnWhen) return;
+    if (!watching) return;
 
     const { push, go } = navigator;
 
@@ -173,12 +215,47 @@ export function UnsavedChangesGuard({
       navigator.push = push;
       navigator.go = go;
     };
-  }, [navigator, warnWhen, hold]);
+  }, [navigator, watching, hold]);
 
-  const discard = () => {
+  const replay = (run: (() => void) | undefined) => {
+    if (!run) return;
+    replaying.current = true;
+    try {
+      run();
+    } finally {
+      replaying.current = false;
+    }
+  };
+
+  /** "Lưu nháp": lưu bằng hàm màn khai; lưu được thì đi tiếp, hỏng thì ở lại (màn tự báo lỗi). */
+  const saveAndLeave = async () => {
+    const run = pending?.run;
+    const save = leaveRef.current?.save;
+    if (!save) return;
+    setSaving(true);
+    try {
+      const ok = await save();
+      if (!ok) {
+        setPending(null);
+        return;
+      }
+      setPending(null);
+      setWarnWhenRef.current?.(false);
+      replay(run);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const discard = async () => {
     const run = pending?.run;
     setPending(null);
     setWarnWhenRef.current?.(false);
+    try {
+      await leaveRef.current?.discard?.();
+    } catch {
+      // Việc dọn dẹp hỏng không giữ người dùng lại màn này.
+    }
     if (!run) return;
 
     // That state has not flushed yet, so the patch is still installed and `run`
@@ -193,7 +270,9 @@ export function UnsavedChangesGuard({
 
   return (
     <ConfirmDiscardContext.Provider value={hold}>
+      <LeaveOptionsContext.Provider value={setLeave}>
       {children}
+      </LeaveOptionsContext.Provider>
 
       <AlertDialog
         open={pending !== null}
@@ -203,17 +282,32 @@ export function UnsavedChangesGuard({
           if (!open) setPending(null);
         }}
       >
-        <ConfirmContent
-          tone="warning"
-          title={title ?? (screen.title ? `Thoát khỏi màn “${screen.title}”?` : translate("unsavedChangesTitle", "Thoát mà không lưu?"))}
-          description={message ?? (editing
-            ? "Những gì vừa sửa chưa được lưu. Thoát bây giờ thì mất các thay đổi đó."
-            : "Thông tin đang nhập chưa được lưu. Thoát bây giờ thì phải nhập lại từ đầu.")}
-          cancelLabel={stayLabel ?? (editing ? "Tiếp tục sửa" : "Tiếp tục nhập")}
-          confirmLabel={discardLabel ?? "Thoát, không lưu"}
-          destructive
-          onConfirm={discard}
-        />
+        {leave?.save ? (
+          // Màn có lưu nháp: ba lựa chọn — ở lại · thoát không lưu · lưu nháp rồi thoát.
+          <ConfirmContent
+            tone="warning"
+            title={leave.title ?? title ?? (screen.title ? `Lưu nháp trước khi thoát khỏi màn “${screen.title}”?` : "Lưu nháp trước khi thoát?")}
+            description={leave.message ?? message ?? "Thông tin đang nhập chưa được lưu. Lưu nháp để làm tiếp sau, hoặc thoát và bỏ những gì vừa nhập."}
+            cancelLabel={stayLabel ?? (editing ? "Tiếp tục sửa" : "Tiếp tục nhập")}
+            secondary={{ label: discardLabel ?? "Thoát, không lưu", onClick: () => void discard(), destructive: true }}
+            confirmLabel="Lưu nháp"
+            busy={saving}
+            keepOpen
+            onConfirm={() => void saveAndLeave()}
+          />
+        ) : (
+          <ConfirmContent
+            tone="warning"
+            title={title ?? (screen.title ? `Thoát khỏi màn “${screen.title}”?` : translate("unsavedChangesTitle", "Thoát mà không lưu?"))}
+            description={message ?? (editing
+              ? "Những gì vừa sửa chưa được lưu. Thoát bây giờ thì mất các thay đổi đó."
+              : "Thông tin đang nhập chưa được lưu. Thoát bây giờ thì phải nhập lại từ đầu.")}
+            cancelLabel={stayLabel ?? (editing ? "Tiếp tục sửa" : "Tiếp tục nhập")}
+            confirmLabel={discardLabel ?? "Thoát, không lưu"}
+            destructive
+            onConfirm={() => void discard()}
+          />
+        )}
       </AlertDialog>
     </ConfirmDiscardContext.Provider>
   );

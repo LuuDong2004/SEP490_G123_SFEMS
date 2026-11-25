@@ -6,6 +6,17 @@
       "pattern" : "^[A-Za-z0-9._-]*$",
       "message" : "chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch nối"
     },
+    "SERIAL" : {
+      "max" : 50,
+      "pattern" : "^[A-Za-z0-9./_-]*$",
+      "message" : "chỉ gồm chữ không dấu, số, dấu chấm, gạch chéo, gạch dưới, gạch nối",
+      "strip" : "\\s"
+    },
+    "INVOICE_NO" : {
+      "max" : 30,
+      "pattern" : "^[A-Za-z0-9/. -]*$",
+      "message" : "chỉ gồm chữ không dấu, số, dấu / - . và khoảng trắng"
+    },
     "NAME" : {
       "max" : 255,
       "pattern" : "^(?=.*[\\p{L}\\p{N}])[^\\p{Cc}]*$",
@@ -38,8 +49,8 @@
     },
     "EMAIL" : {
       "max" : 254,
-      "pattern" : "^$|^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
-      "message" : "không đúng định dạng (vd. ten@truong.edu.vn)"
+      "pattern" : "^$|^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
+      "message" : "không đúng định dạng (vd. ten@truong.edu.vn; phần trước @ tối đa 64 ký tự)"
     },
     "PHONE" : {
       "max" : 20,
@@ -69,6 +80,11 @@
       "max" : 100000000000,
       "scale" : 2
     },
+    "UNIT_PRICE" : {
+      "min" : 0,
+      "max" : 10000000000,
+      "scale" : 0
+    },
     "QUANTITY" : {
       "min" : 1,
       "max" : 10000,
@@ -87,6 +103,11 @@
     "PERCENT" : {
       "min" : 0,
       "max" : 100,
+      "scale" : 2
+    },
+    "AREA" : {
+      "min" : 0,
+      "max" : 1000000,
       "scale" : 2
     },
     "COUNT" : {

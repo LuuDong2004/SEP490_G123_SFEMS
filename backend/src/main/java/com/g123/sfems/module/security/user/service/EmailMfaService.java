@@ -4,13 +4,16 @@ import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.mail.MailContent;
 import com.g123.sfems.shared.mail.MailService;
+import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.Hashes;
 import com.g123.sfems.shared.security.MfaRequiredException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,11 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Xác thực hai lớp QUA EMAIL (QLTB-509): mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
+ * Xác thực QUA EMAIL: mật khẩu đúng thì máy chủ gửi một mã 6 số tới email của tài khoản,
  * người dùng nhập mã đó mới vào được. Tài khoản tự bật / tắt ở trang Hồ sơ (phải nhập lại mật khẩu).
  *
- * <p>Mã chỉ lưu băm SHA-256 (gắn với id tài khoản), hết hạn sau {@code CODE_TTL}, dùng một lần. Nhập sai đếm
- * chung bộ đếm và khoá 5 phút với mã ứng dụng ({@code mfa_failed_attempts}). Đăng nhập lại trong vòng
+ * <p>Mã chỉ lưu băm SHA-256 (gắn với id tài khoản), hết hạn sau {@code CODE_TTL}, dùng một lần. Nhập sai
+ * {@code MAX_FAILURES} lần thì khoá nhập mã {@code LOCK} ({@code mfa_failed_attempts}). Đăng nhập lại trong vòng
  * {@code RESEND_AFTER} thì không gửi thư mới — mã vừa gửi vẫn dùng được.
  */
 @Service
@@ -36,22 +39,33 @@ public class EmailMfaService {
     private static final int MAX_FAILURES = 5;
     private static final Duration LOCK = Duration.ofMinutes(5);
 
+    /** Trạng thái xác thực qua email của một tài khoản; {@code emailAddress} rỗng thì chưa bật được. */
+    public record Status(boolean email, String emailAddress) {
+    }
+
     private final UserRepository repository;
     private final MailService mail;
     private final PasswordEncoder passwordEncoder;
     private final TransactionTemplate tx;
+    private final ApplicationEventPublisher events;
 
     public EmailMfaService(UserRepository repository, MailService mail, PasswordEncoder passwordEncoder,
-                           PlatformTransactionManager transactionManager) {
+                           PlatformTransactionManager transactionManager, ApplicationEventPublisher events) {
         this.tx = new TransactionTemplate(transactionManager);
+        this.events = events;
         this.repository = repository;
         this.mail = mail;
         this.passwordEncoder = passwordEncoder;
     }
 
+    public Status status(Long userId) {
+        User user = user(userId);
+        return new Status(user.isMfaEmail(), user.getEmail());
+    }
+
     /** Bật / tắt cho chính mình — đòi mật khẩu hiện tại, để một phiên bị chiếm không tắt được lớp bảo vệ. */
     @Transactional
-    public boolean setEnabled(Long userId, boolean enabled, String password) {
+    public Status setEnabled(Long userId, boolean enabled, String password) {
         User user = user(userId);
         if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new FieldValidationException("password", "Mật khẩu không đúng");
@@ -63,7 +77,9 @@ public class EmailMfaService {
         user.setEmailCodeHash(null);
         user.setEmailCodeExpiresAt(null);
         repository.save(user);
-        return enabled;
+        // Bộ nhớ đệm quyền giữ cờ "đã có lớp thứ hai" — cổng Admin đọc nó ở mỗi yêu cầu.
+        events.publishEvent(new AuthoritiesChanged.ForUser(userId));
+        return new Status(enabled, user.getEmail());
     }
 
     /**
@@ -78,10 +94,13 @@ public class EmailMfaService {
         Outgoing outgoing = tx.execute(status -> issueCode(userId, now));
         if (outgoing.code() != null) {
             try {
-                mail.send(outgoing.email(), "Mã đăng nhập hệ thống quản lý CSVC & thiết bị",
-                        "Mã đăng nhập của tài khoản " + outgoing.username() + " là: " + outgoing.code() + "\n\n"
-                                + "Mã có hiệu lực " + CODE_TTL.toMinutes() + " phút và chỉ dùng một lần. "
-                                + "Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay.");
+                mail.send(outgoing.email(), "Mã đăng nhập " + outgoing.code(), MailContent.titled("Mã đăng nhập")
+                        .label("Tài khoản " + outgoing.username())
+                        .paragraph("Nhập mã dưới đây ở màn đăng nhập để hoàn tất đăng nhập. Mã có hiệu lực "
+                                + CODE_TTL.toMinutes() + " phút và chỉ dùng được một lần.")
+                        .code(outgoing.code())
+                        .note("Nếu không phải bạn đang đăng nhập, hãy đổi mật khẩu ngay — ai đó đã biết mật khẩu"
+                                + " của bạn."));
             } catch (RuntimeException e) {
                 tx.executeWithoutResult(status -> repository.findById(userId).ifPresent(user -> {
                     user.setEmailCodeHash(null);
@@ -93,7 +112,7 @@ public class EmailMfaService {
             }
         }
         throw new MfaRequiredException("Đã gửi mã 6 số tới " + MailService.mask(outgoing.email())
-                + " — nhập mã để đăng nhập (hiệu lực " + CODE_TTL.toMinutes() + " phút)", "email");
+                + " — nhập mã để đăng nhập (hiệu lực " + CODE_TTL.toMinutes() + " phút)");
     }
 
     /** Thư cần gửi; {@code code} rỗng = mã vừa gửi trong {@code RESEND_AFTER} còn dùng được, không gửi lại. */
@@ -119,7 +138,10 @@ public class EmailMfaService {
         return new Outgoing(user.getEmail(), user.getUsername(), code);
     }
 
-    /** Kiểm mã lúc đăng nhập — giao dịch riêng, như {@code MfaService.verifyForLogin}, để lần sai được đếm. */
+    /**
+     * Kiểm mã lúc đăng nhập. Chạy trong giao dịch RIÊNG: lần sai phải được đếm dù lần đăng nhập ném lỗi và giao
+     * dịch ngoài lùi lại — nếu không, bộ đếm không bao giờ tăng và khoá tạm không bao giờ xảy ra.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void verifyForLogin(Long userId, String code) {
         // Khoá dòng: bộ đếm sai mã và việc đốt mã phải tuần tự giữa các lần thử song song.

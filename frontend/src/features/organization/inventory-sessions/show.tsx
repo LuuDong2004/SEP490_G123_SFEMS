@@ -9,7 +9,6 @@ import {
   FilePen,
   Lock,
   Plus,
-  ScanLine,
   Save,
   Search,
   Trash2,
@@ -32,7 +31,6 @@ import { RelatedVouchers } from "@/shared/components/voucher/related-vouchers";
 import { InventoryBreakdown } from "./breakdown";
 import { InventoryFollowUps } from "./follow-ups";
 import { InventoryFacilityPanel } from "./facility-panel";
-import { ScanDialog, type ScanResult } from "./scan-dialog";
 import { VoucherActions, type TuckedAction } from "@/shared/components/voucher/voucher-actions";
 import { VoucherMoreMenu } from "@/shared/components/voucher/voucher-more-menu";
 import { Segmented } from "@/shared/components/segmented";
@@ -76,10 +74,8 @@ const SAME = "__same__";
 const PAGE = 50;
 
 type Draft = { found: string; room: string; condition: string; qty: string; note: string; details: Details };
-/** Một dòng tài sản thừa đề xuất từ lần quét mã — SurplusPanel thêm vào danh sách, người kiểm bấm Lưu. */
-type SurplusSeed = { key: number; catalog: number; catalogName: string; name: string; note: string };
 
-type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM" | "DAMAGED";
+type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM";
 
 function draftOf(line: InventoryLine): Draft {
   return {
@@ -94,7 +90,7 @@ function draftOf(line: InventoryLine): Draft {
   };
 }
 
-const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 });
+const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3, useGrouping: false });
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase();
 
 /**
@@ -154,19 +150,17 @@ function FoundToggle({ value, onChange }: { value: string; onChange: (v: string)
  * cán bộ chỉ sửa những dòng lệch. Bảng CUỘN TRONG KHUNG (không trải vài trăm dòng ra cả trang),
  * lọc được theo ô kết quả phía trên, theo phòng trên sổ và theo mã / tên; thanh lưu nằm ngay dưới.
  */
-function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
+function CountingPanel({ record, editable, filter, setFilter }: {
   record: InventorySession;
   editable: boolean;
   filter: Filter;
   setFilter: (f: Filter) => void;
-  onSurplus: (seed: SurplusSeed) => void;
 }) {
   const { open } = useNotification();
   const invalidate = useInvalidate();
   const config = useVoucherForm(RESOURCE);
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [term, setTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string | null>(null);
   // TẢI DẦN khi cuộn thay cho phân trang: bảng vẽ PAGE dòng đầu, cuộn gần tới đáy khung thì vẽ thêm PAGE
@@ -304,48 +298,13 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
       return next;
     });
   }
-  /**
-   * Một mã quét được: tài sản trên phiếu thì đánh dấu "Có" (như bấm tay — vẫn phải Lưu kết quả); không trên phiếu
-   * thì tra sổ, có thì gợi ý thêm vào tài sản thừa.
-   */
-  async function scan(code: string): Promise<ScanResult> {
-    const key = code.toLowerCase();
-    const line = record.lines.find((l) => l.equipment.code.toLowerCase() === key);
-    if (line) {
-      if (drafts[line.id]?.found === "yes") return { tone: "info", text: `Đã đánh dấu có: ${line.equipment.name}` };
-      setDrafts((prev) => ({ ...prev, [line.id]: { ...(prev[line.id] ?? draftOf(line)), found: "yes" } }));
-      return { tone: "success", text: `Có: ${line.equipment.name}` };
-    }
-    try {
-      const rows = await kyInstance
-        .get("equipment", { searchParams: { q: code, _start: 0, _end: 5 } })
-        .json<{ id: number; code: string; name: string; catalog?: { id: number; name: string } | null }[]>();
-      const hit = rows.find((r) => r.code.toLowerCase() === key);
-      if (!hit) return { tone: "warning", text: "Không có thiết bị mang mã này" };
-      const catalog = hit.catalog;
-      return {
-        tone: "warning",
-        text: `${hit.name} — không có trên phiếu này`,
-        action: catalog
-          ? {
-              label: "Thêm vào thiết bị thừa",
-              run: () => onSurplus({ key: Date.now(), catalog: catalog.id, catalogName: catalog.name, name: hit.name, note: `Mã ${hit.code}` }),
-            }
-          : undefined,
-      };
-    } catch (error) {
-      return { tone: "warning", text: await errorMessage(error) };
-    }
-  }
-
   const uncheckedVisible = visible.filter((l) => drafts[l.id]?.found === UNSET).length;
   const diffCount = record.lines.filter((l) => l.discrepancies.length > 0).length;
   const unchecked = record.summary.total - record.summary.checked;
-  const inDiff = filter === "diff" || filter === "MISSING" || filter === "WRONG_ROOM" || filter === "DAMAGED";
+  const inDiff = filter === "diff" || filter === "MISSING" || filter === "WRONG_ROOM";
   const kinds = ([
     ["MISSING", record.summary.missing],
     ["WRONG_ROOM", record.summary.wrongRoom],
-    ["DAMAGED", record.summary.damaged],
   ] as const).filter(([, n]) => n > 0);
   // Tiêu đề phòng chỉ có nghĩa khi bảng trải qua nhiều phòng.
   const grouped = roomTotals.size > 1;
@@ -358,7 +317,6 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
     diff: "Có chênh lệch",
     MISSING: "Thiếu",
     WRONG_ROOM: "Sai vị trí",
-    DAMAGED: "Hỏng",
   };
 
   return (
@@ -378,7 +336,7 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
           {kinds.length > 1 ? (
             <IconFilter icon={<TriangleAlert />} label="loại chênh lệch" allLabel="Mọi chênh lệch" total={diffCount}
               groups={[{ items: kinds.map(([k, n]) => ({ key: k, label: DISCREPANCY_LABELS[k], count: n })) }]}
-              value={filter === "MISSING" || filter === "WRONG_ROOM" || filter === "DAMAGED" ? filter : null}
+              value={filter === "MISSING" || filter === "WRONG_ROOM" ? filter : null}
               onChange={(v) => setFilter((v as Filter | null) ?? "diff")} />
           ) : null}
           {/* Nút chọn chung (`Segmented`): viên màu chính trượt sang ô mới — cùng kiểu với thanh tab, Làm việc / Văn bản. */}
@@ -395,12 +353,6 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
               { value: "diff" as const, hint: "Thiếu, thừa, sai vị trí hoặc sai tình trạng", label: <FilterLabel label="Chênh lệch" count={diffCount} tone="destructive" active={inDiff} /> },
             ]}
           />
-          {editable ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setScanning(true)}>
-              <ScanLine />
-              Quét mã
-            </Button>
-          ) : null}
           {editable && uncheckedVisible > 0 ? (
             <Button type="button" variant="outline" size="sm" onClick={markVisibleFound}
               title="Đánh dấu “Có, như hệ thống” cho mọi dòng chưa kiểm đang hiện — lọc theo một phòng rồi bấm là cả phòng đó đủ.">
@@ -523,9 +475,9 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
                                 <Badge key={x} variant={x === "MISSING" ? "destructive" : "warning"}>{DISCREPANCY_LABELS[x]}</Badge>
                               ))}
                               {(() => {
-                                // Chỉ nói điều nhãn chưa nói: phòng thực tế khi khác sổ, tình trạng khi không phải "hỏng" (nhãn đã ghi).
+                                // Chỉ nói điều nhãn chưa nói: phòng thực tế và tình trạng khi khác sổ.
                                 const room = l.found && l.foundRoom && l.foundRoom.id !== l.expectedRoom?.id ? `ở ${l.foundRoom.name}` : null;
-                                const cond = l.found && l.foundCondition && l.foundCondition !== l.expectedCondition && !l.discrepancies.includes("DAMAGED")
+                                const cond = l.found && l.foundCondition && l.foundCondition !== l.expectedCondition
                                   ? EQUIPMENT_CONDITION_LABELS[l.foundCondition] : null;
                                 const qty = l.discrepancies.includes("SHORTAGE") && l.expectedQuantity != null
                                   ? `đếm ${number.format(l.countedQuantity ?? 0)} / ${number.format(l.expectedQuantity)}` : null;
@@ -589,24 +541,17 @@ function CountingPanel({ record, editable, filter, setFilter, onSurplus }: {
         ) : null}
       </div>
       ) : null}
-      {editable ? <ScanDialog open={scanning} onOpenChange={setScanning} onScan={scan} /> : null}
     </Card>
   );
 }
 
 /** Tài sản thừa: thấy mà sổ không có. Duyệt biên bản xong sẽ thành một phiếu nhập nháp. */
-function SurplusPanel({ record, editable, seed }: { record: InventorySession; editable: boolean; seed: SurplusSeed | null }) {
+function SurplusPanel({ record, editable }: { record: InventorySession; editable: boolean }) {
   const { open } = useNotification();
   const invalidate = useInvalidate();
   type Row = { catalog: string; catalogName?: string; name: string; quantity: number; note: string };
   const toRows = (): Row[] => record.surplus.map((s) => ({ catalog: String(s.catalog.id), name: s.name, quantity: s.quantity, note: s.note ?? "" }));
   const [rows, setRows] = useState(toRows);
-  // Tài sản quét được mà không có trên phiếu: thêm một dòng chưa lưu, đưa khối này vào tầm mắt.
-  useEffect(() => {
-    if (!seed) return;
-    setRows((all) => [...all, { catalog: String(seed.catalog), catalogName: seed.catalogName, name: seed.name, quantity: 1, note: seed.note }]);
-    document.getElementById("inventory-surplus")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [seed]);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setRows(toRows());
@@ -751,7 +696,6 @@ export const InventorySessionShow = () => {
   const editable = !!record?._actions?.includes("count");
   const s = record?.summary;
   const [filter, setFilter] = useState<Filter>("all");
-  const [surplusSeed, setSurplusSeed] = useState<SurplusSeed | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
   // Tài khoản trường chỉ thấy trường mình: dòng Trường lặp đúng tên đó.
   const { perspective } = usePerspective();
@@ -759,7 +703,7 @@ export const InventorySessionShow = () => {
   const stage = record ? STAGE[record.status] : null;
   // Biên bản đã chốt (không còn kiểm đếm) mà có chênh lệch: mở sẵn nhóm "Có chênh lệch" — người duyệt cần
   // thấy vài dòng lệch, không phải cuộn qua hai trăm dòng khớp. Chỉ đặt một lần cho mỗi phiếu.
-  const lineDiffs = s ? s.missing + s.wrongRoom + s.damaged : 0;
+  const lineDiffs = s ? s.missing + s.wrongRoom : 0;
   const preset = useRef<number | null>(null);
   useEffect(() => {
     if (!record || preset.current === record.id) return;
@@ -914,9 +858,9 @@ export const InventorySessionShow = () => {
                   </Alert>
                 ) : null}
 
-                {record ? <CountingPanel record={record} editable={editable} filter={filter} setFilter={setFilter} onSurplus={setSurplusSeed} /> : null}
+                {record ? <CountingPanel record={record} editable={editable} filter={filter} setFilter={setFilter} /> : null}
                 {record ? <InventoryBreakdown record={record} /> : null}
-                {record ? <SurplusPanel record={record} editable={editable} seed={surplusSeed} /> : null}
+                {record ? <SurplusPanel record={record} editable={editable} /> : null}
                 {record ? <InventoryFacilityPanel record={record} /> : null}
 
                 <VoucherDetailsView config={config} details={record?.details} draft={record?.status === "DRAFT"} />

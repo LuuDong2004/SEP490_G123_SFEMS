@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Settings } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * Cụm thao tác của một hàng, gập sau nút "⋯".
@@ -41,7 +42,13 @@ export const ROW_ACTION_ITEM = "h-8 w-full justify-start gap-2 px-2 pe-4 font-no
 /** Bề rộng cột thao tác khi chỉ còn nút "⋯". */
 export const ROW_ACTIONS_COLUMN = { size: 56, minSize: 56, maxSize: 56, enableResizing: false } as const;
 
-export function RowActions({ children, label = "Thao tác" }: { children: React.ReactNode; label?: string }) {
+export function RowActions({ children, label = "Thao tác", gear }: {
+  children: React.ReactNode;
+  label?: string;
+  /** Nút ⚙ viền cỡ thường (đầu màn chi tiết) thay cho "⋯" nhỏ của hàng bảng — cùng menu, cùng luật. */
+  gear?: boolean;
+}) {
+  const [spin, setSpin] = React.useState(0);
   const [open, setOpen] = React.useState(false);
   const held = React.useRef(false);
   const value = React.useMemo<RowActionsValue>(
@@ -69,19 +76,28 @@ export function RowActions({ children, label = "Thao tác" }: { children: React.
 
   return (
     <div className="flex justify-center">
-      <Popover open={open} onOpenChange={(o) => (o || !held.current ? setOpen(o) : undefined)}>
+      <Popover open={open} onOpenChange={(o) => {
+        if (o) setSpin((n) => n + 1);
+        if (o || !held.current) setOpen(o);
+      }}>
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={label}
-            className="text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-          >
-            <MoreHorizontal className="size-4" />
-          </Button>
+          {gear ? (
+            <Button type="button" variant="outline" size="icon" aria-label={label} title={label}>
+              <Settings key={spin} className={cn(spin > 0 && "animate-[spin_0.6s_ease-in-out_1]")} />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={label}
+              className="text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          )}
         </PopoverTrigger>
-        <PopoverContent align="end" sideOffset={4} className="w-auto min-w-28 p-1">
+        <PopoverContent align="end" sideOffset={4} className={cn("w-auto p-1", gear ? "min-w-44" : "min-w-28")}>
           <RowActionsContext.Provider value={value}>
             <div className="flex flex-col">{children}</div>
           </RowActionsContext.Provider>

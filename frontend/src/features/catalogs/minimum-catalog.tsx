@@ -725,6 +725,30 @@ function docShort(no: string | null | undefined): string {
   return tt ? `TT ${tt[1]}` : no;
 }
 
+/**
+ * Căn cứ hiện trên một dòng: thông tư của chính dòng (gốc, sửa đổi, đính chính). Văn bản hợp nhất không phải căn cứ
+ * và không có trong danh mục Văn bản căn cứ, nên dòng ghi theo VBHN hiện chuỗi gốc + sửa đổi tới nó.
+ */
+function basisOf(doc: StandardDoc, ctx: RowContext): StandardDoc[] {
+  if (/^(main|amendment|correction)$/i.test(doc.documentRole)) return [doc];
+  return ctx.chainOf(doc.id);
+}
+
+function DocLinks({ docs, onDoc, full }: { docs: StandardDoc[]; onDoc?: (doc: StandardDoc) => void; full?: boolean }) {
+  return (
+    <span className="inline-flex flex-wrap gap-x-1.5">
+      {docs.map((d, i) => (
+        <span key={d.id} className="whitespace-nowrap">
+          <button type="button" className="text-primary text-start hover:underline" title="Xem văn bản" onClick={() => onDoc?.(d)}>
+            {full ? d.documentNo : docShort(d.documentNo)}
+          </button>
+          {i < docs.length - 1 ? <span className="text-muted-foreground"> +</span> : null}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 
 /** Phần dùng chung của mọi dòng: cấp học, văn bản theo id, trạng thái bộ, thay đổi của bản nháp. */
 type RowContext = {
@@ -833,13 +857,9 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
       <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
       <TableCell><AdjustableBadge row={row} /></TableCell>
-      <TableCell className="truncate" onClick={(e) => e.stopPropagation()}>
+      <TableCell className="whitespace-normal" onClick={(e) => e.stopPropagation()}>
         {doc ? (
-          // Chỉ thông tư của CHÍNH dòng (gốc, hay thông tư sửa đổi mục này) — chuỗi đầy đủ ở hộp chi tiết của dòng.
-          <button type="button" className="text-primary max-w-full truncate hover:underline" title="Xem văn bản"
-            onClick={() => ctx.onDoc?.(doc)}>
-            {docShort(doc.documentNo)}
-          </button>
+          <DocLinks docs={basisOf(doc, ctx)} onDoc={ctx.onDoc} />
         ) : <span className="text-muted-foreground">{docShort(row.sourceDocument?.documentNo)}</span>}
       </TableCell>
       {editable ? (
@@ -1053,11 +1073,7 @@ function NormDrawer({ id, ctx, editable, standardId, onClose, onEdit, onOpenCata
               </DrawerSection>
               <DrawerSection title="Căn cứ">
                 <KV label="Văn bản">
-                  {doc ? (
-                    <button type="button" className="text-primary text-start hover:underline" onClick={() => ctx.onDoc?.(doc)}>
-                      {doc.documentNo}
-                    </button>
-                  ) : r.sourceDocument?.documentNo ?? "—"}
+                  {doc ? <DocLinks docs={basisOf(doc, ctx)} onDoc={ctx.onDoc} full /> : r.sourceDocument?.documentNo ?? "—"}
                 </KV>
                 <KV label="Hiệu lực">
                   <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">

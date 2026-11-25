@@ -45,11 +45,10 @@ const STAFF_PREFER: Record<string, StaffPrefer> = {
 type Lookups = { staff: StaffRow[]; rooms: Option[]; schools: Option[]; refs: Record<string, Option[]> };
 
 /** Danh sách cho ô chọn cán bộ / phòng / trường — theo trường của phiếu. */
-function useLookups(schoolId: number | null | undefined, needsSchools: boolean, refResources: string[], needsRooms = false): Lookups {
+function useLookups(schoolId: number | null | undefined, needsSchools: boolean, refResources: string[]): Lookups {
   const filters = schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }, { field: "active", operator: "eq" as const, value: true }] : [];
-  // Hệ thống chưa có danh mục cán bộ (`/api/staff`): ô "cán bộ" chỉ là ô gõ tên, không có gợi ý. Bật lại khi có.
-  const staff = useList<any>({ resource: "staff", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: false } });
-  const rooms = useList<any>({ resource: "rooms", filters: schoolId ? [filters[0]] : [], pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId && needsRooms } });
+  const staff = useList<any>({ resource: "staff", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
+  const rooms = useList<any>({ resource: "rooms", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
   const schools = useList<any>({ resource: "schools", pagination: { pageSize: 200 }, queryOptions: { enabled: needsSchools } });
   const reasons = useList<any>({ resource: "movement_reasons", pagination: { pageSize: 200 }, queryOptions: { enabled: refResources.includes("movement_reasons") } });
   const pick = (r: any): Option[] => (r?.result?.data ?? []).map((x: any) => ({ id: x.id, name: x.name }));
@@ -98,7 +97,7 @@ export function detailError(field: DetailField, value: DetailValue | undefined):
   switch (f.kind) {
     case "text":
     case "textarea":
-      return textError(textRuleOf(f), f.label, value, textMaxOf(f));
+      return textError(textRuleOf(f), f.label, value, textMaxOf(f), f.min);
     case "date":
       return dateError(f.date === "past" ? "PAST_OR_TODAY" : "ANY", f.label, value);
     case "integer":
@@ -168,13 +167,13 @@ function FieldControl({ field, value, onChange, config, lookups }: {
   const str = value == null ? "" : String(value);
   switch (field.kind) {
     case "textarea":
-      return <Textarea rows={1} className="field-sizing-content min-h-9" value={str} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} onChange={(e) => onChange(e.target.value)} />;
+      return <Textarea rows={1} className="field-sizing-content min-h-9" placeholder={field.placeholder} value={str} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} onChange={(e) => onChange(e.target.value)} />;
     case "date":
       return <DateInput value={str || undefined} onChange={(v) => onChange(v ?? null)} />;
     case "time":
       return <TimeInput value={str} onChange={(v) => onChange(v || null)} />;
     case "integer":
-      return <Input type="number" step={1} placeholder="Nhập số" value={str} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
+      return <Input type="number" step={1} placeholder={field.placeholder ?? "Nhập số"} value={str} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
     case "money":
     case "percent":
       return (
@@ -223,13 +222,13 @@ function FieldControl({ field, value, onChange, config, lookups }: {
     default:
       // Ô chữ là ô chữ: không gợi ý tên cán bộ / phòng của trường — người ký, người nhận thường là người
       // ngoài trường, và danh sách xổ ra làm ô trông như ô chọn. Cần chọn thì khai kind staff / room.
-      return <Input value={str} placeholder="Nhập" maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} inputMode={inputModeOf(textRuleOf(field))} onChange={(e) => onChange(e.target.value)} />;
+      return <Input value={str} placeholder={field.placeholder ?? "Nhập"} maxLength={maxLengthOf(textRuleOf(field), textMaxOf(field))} inputMode={inputModeOf(textRuleOf(field))} onChange={(e) => onChange(e.target.value)} />;
   }
 }
 
-function visibleSections(config: VoucherFormConfig | undefined, stage?: string, variant?: string | null) {
+function visibleSections(config: VoucherFormConfig | undefined, variant?: string | null) {
   return (config?.sections ?? []).filter(
-    (s) => (s.stage ?? null) === (stage ?? null) && (!s.when || (variant != null && s.when.in.includes(variant))),
+    (s) => !s.when || (variant != null && s.when.in.includes(variant)),
   );
 }
 
@@ -249,22 +248,23 @@ function fieldSpan(f: DetailField, compact?: boolean) {
  * <p>Vẽ thẳng trên form, không sau nút và không gập: một lưới phẳng, ô bắt buộc trước, đoạn văn dài
  * xuống cuối. Dấu * là trường phải có trước khi TRÌNH phiếu — lưu nháp thì chưa bắt buộc.
  */
-export function VoucherDetailsFields({ config, value, onChange, schoolId, stage, variant, compact, title = "Thông tin bổ sung", hint = "Không bắt buộc" }: {
+export function VoucherDetailsFields({ config, value, onChange, schoolId, variant, compact, maxColumns = 4, title = "Thông tin bổ sung", hint = "Không bắt buộc" }: {
+  /** Tối đa bao nhiêu cột khi khung rộng — 3 cho khối có sáu ô (biên bản phiếu ghi tăng): đủ 2 hàng, không chừa ô trống. */
+  maxColumns?: 3 | 4;
   config: VoucherFormConfig | undefined;
   value: Details | undefined;
   onChange: (next: Details) => void;
   schoolId: number | null | undefined;
-  stage?: string;
   variant?: string | null;
   /** Trong hộp thoại: không tiêu đề, lưới hai cột, mục nào cũng mở. */
   compact?: boolean;
   title?: string;
   hint?: ReactNode;
 }) {
-  const sections = visibleSections(config, stage, variant);
+  const sections = visibleSections(config, variant);
   const kinds = sections.flatMap((s) => s.fields);
   const lookups = useLookups(schoolId, kinds.some((f) => f.kind === "school"),
-    kinds.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""), kinds.some((f) => f.kind === "room" || f.suggest === "room"));
+    kinds.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
   if (!config || sections.length === 0) return null;
   const values = value ?? {};
   const set = (key: string, v: DetailValue) => {
@@ -273,7 +273,13 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
     else next[key] = v;
     onChange(next);
   };
-  const grid = compact ? "grid grid-flow-row-dense items-start gap-4 sm:grid-cols-2" : "grid grid-flow-row-dense items-start gap-x-4 gap-y-4 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4";
+  // Số cột theo số ô của khối (ô đoạn văn tính hai cột), tối đa `maxColumns`: khối ba ô chia ba cột — chia bốn thì
+  // chừa một cột trống bên phải. Ô ngày giãn theo cột (bỏ trần max-w-40 của DateInput) cho thẳng mép với các ô khác.
+  const all = sections.flatMap((s) => s.fields);
+  const units = all.reduce((n, f) => n + (f.kind === "textarea" ? 2 : 1), 0);
+  const cols = all.length <= FLAT_LIMIT ? Math.min(maxColumns, Math.max(1, units)) : maxColumns;
+  const grid = compact ? "grid grid-flow-row-dense items-start gap-4 sm:grid-cols-2" : cn("grid grid-flow-row-dense items-start gap-x-4 gap-y-4 [&_[data-date-input]]:max-w-none",
+    cols >= 2 && "@md:grid-cols-2", cols >= 3 && "@2xl:grid-cols-3", cols === 4 && "@4xl:grid-cols-4");
   const fieldsOf = (section: DetailSection) => (
     <div className={grid}>
       {section.fields.map((f) => (
@@ -310,7 +316,6 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
   //   - ô ĐOẠN VĂN: hai cột, xếp SAU các ô ngắn và lấp luôn chỗ còn trống của hàng cuối — không xuống
   //     hàng riêng để lại nửa hàng trắng phía trên. Nó cao bằng một ô (tự giãn khi gõ) nên không lệch.
   // Nhãn luôn một dòng (cắt ba chấm, rê chuột thấy đủ): nhãn hai dòng đẩy ô của nó lệch khỏi hàng.
-  const all = sections.flatMap((s) => s.fields);
   const field = (f: DetailField) => (
     <div key={f.key} className={cn("min-w-0 space-y-1.5", f.kind === "textarea" && "@md:col-span-2")}>
       <Label className="min-w-0 gap-1.5" title={f.label}>
@@ -364,7 +369,7 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, stage,
     <section className="space-y-5">
       {heading}
       {groups.map((section) => (
-        <div key={`${section.stage ?? ""}${section.title}`} className="space-y-3">
+        <div key={section.title} className="space-y-3">
           <h4 className="text-overline text-muted-foreground">{section.title}</h4>
           {fieldsGrid(section.fields)}
         </div>
@@ -402,10 +407,9 @@ export function formatDetail(field: DetailField, value: DetailValue, config: Vou
  * không hiện: năm khung đầy dấu "—" che mất năm dòng có nghĩa. Phiếu nháp còn thiếu
  * trường bắt buộc thì nói ra ở đây, trước khi người lập bấm trình rồi bị từ chối.
  */
-export function VoucherDetailsView({ config, details, stage, variant, draft, title = "Thông tin bổ sung" }: {
+export function VoucherDetailsView({ config, details, variant, draft, title = "Thông tin bổ sung" }: {
   config: VoucherFormConfig | undefined;
   details: Details | undefined;
-  stage?: string;
   variant?: string | null;
   /** Phiếu còn nháp: nhắc các trường bắt buộc chưa điền. */
   draft?: boolean;
@@ -413,7 +417,7 @@ export function VoucherDetailsView({ config, details, stage, variant, draft, tit
 }) {
   if (!config) return null;
   const values = details ?? {};
-  const all = visibleSections(config, stage, variant);
+  const all = visibleSections(config, variant);
   const missing = all.flatMap((s) => s.fields).filter((f) => f.required && !filled(values[f.key]));
   const sections = all
     .map((s): DetailSection => ({ ...s, fields: s.fields.filter((f) => filled(values[f.key])) }))
@@ -429,7 +433,7 @@ export function VoucherDetailsView({ config, details, stage, variant, draft, tit
           </p>
         ) : null}
         {sections.map((s) => (
-          <div key={`${s.stage ?? ""}${s.title}`} className="space-y-2">
+          <div key={s.title} className="space-y-2">
             {sections.length > 1 || s.title !== title ? <h4 className="text-overline text-muted-foreground">{s.title}</h4> : null}
             <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
               {s.fields.map((f) => (
@@ -467,7 +471,7 @@ function SubTable({ columns, rows, onChange, config, lookups }: {
   return (
     <div className="space-y-2">
       {rows.map((row, i) => (
-        <div key={i} className="grid items-end gap-2" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr)) auto` }}>
+        <div key={i} className="grid items-end gap-2" style={{ gridTemplateColumns: `${columns.map((c) => `minmax(0, ${c.grow ?? 1}fr)`).join(" ")} auto` }}>
           {columns.map((c) => (
             <div key={c.key} className="space-y-1">
               {i === 0 ? <Label className="text-xs">{c.label}</Label> : null}
@@ -490,61 +494,13 @@ function SubTable({ columns, rows, onChange, config, lookups }: {
 
 const TABLE_TITLES: Record<string, string> = { specs: "Thông số kỹ thuật", accessoryLines: "Phụ kiện kèm theo" };
 
-/**
- * Trường chứng từ của MỘT dòng, vẽ thẳng trên trang (không sau nút) — cho hộp thoại chi tiết dòng,
- * nơi chúng đứng cạnh số lượng, giá và chứng từ của chính dòng đó. Ghi ngay mỗi lần đổi.
- */
-export function LineDetailsFields({ config, value, onChange, schoolId, stage }: {
-  config: VoucherFormConfig | undefined;
-  value: Details | undefined;
-  onChange: (next: Details) => void;
-  schoolId: number | null | undefined;
-  stage?: string;
-}) {
-  const fields = useMemo(() => (config?.line ?? []).filter((f) => (f.stage ?? null) === (stage ?? null)), [config, stage]);
-  const tables = Object.entries(config?.lineTables ?? {});
-  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""),
-    fields.some((f) => f.kind === "room" || f.suggest === "room"));
-  if (!config || (!fields.length && !tables.length)) return null;
-  const values = value ?? {};
-  const set = (key: string, v: DetailValue) => {
-    const next = { ...values };
-    if (v == null || v === "") delete next[key];
-    else next[key] = v;
-    onChange(next);
-  };
-  return (
-    <div className="space-y-4">
-      {/* Một ô đứng một mình thì chiếm trọn hàng — chia hai cột chỉ để lại nửa hàng trống bên cạnh nó. */}
-      <div className={cn("grid items-start gap-x-4 gap-y-4", fields.length > 1 && "sm:grid-cols-2")}>
-        {fields.map((f) => (
-          <div key={f.key} className={f.wide ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
-            <Label className="text-xs">
-              {f.label}
-              {f.required ? <span className="text-destructive ms-0.5">*</span> : null}
-            </Label>
-            <FieldInput field={f} value={values[f.key] ?? null} config={config} lookups={lookups} onChange={(v) => set(f.key, v)} />
-          </div>
-        ))}
-      </div>
-      {tables.map(([key, columns]) => (
-        <div key={key} className="space-y-2">
-          <h4 className="text-overline text-muted-foreground">{TABLE_TITLES[key] ?? key}</h4>
-          <SubTable columns={columns} rows={(values[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config} lookups={lookups}
-            onChange={(rows) => onChange({ ...values, [key]: rows as any })} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Số trường đã điền / tổng số trường của các mục đầu phiếu (theo `stage`) — "Khai báo 3/7". */
-export function headFillCount(config: VoucherFormConfig | undefined, details: Details | undefined, stage?: string, variant?: string | null) {
-  const fields = visibleSections(config, stage, variant).flatMap((s) => s.fields);
+/** Số trường đã điền / tổng số trường của các mục đầu phiếu — "Khai báo 3/7". */
+export function headFillCount(config: VoucherFormConfig | undefined, details: Details | undefined, variant?: string | null) {
+  const fields = visibleSections(config, variant).flatMap((s) => s.fields);
   return {
     filled: fields.filter((f) => filled(details?.[f.key])).length,
     total: fields.length,
-    missing: fields.filter((f) => f.required && !f.stage && !filled(details?.[f.key])).map((f) => f.label),
+    missing: fields.filter((f) => f.required && !filled(details?.[f.key])).map((f) => f.label),
   };
 }
 
@@ -552,24 +508,51 @@ export function headFillCount(config: VoucherFormConfig | undefined, details: De
  * Nút "Chi tiết" trên một dòng phiếu: hộp thoại nhập các trường chứng từ của dòng
  * (và các bảng con của nó, nếu loại phiếu có).
  */
-export function LineDetailsButton({ config, value, onChange, schoolId, stage, title, compact }: {
+/** Lớp bề rộng của lưới 12 cột — viết sẵn để Tailwind sinh ra (không ghép chuỗi lớp lúc chạy). */
+const SPAN_12: Record<number, string> = {
+  2: "sm:col-span-2", 3: "sm:col-span-3", 4: "sm:col-span-4", 6: "sm:col-span-6", 8: "sm:col-span-8", 12: "sm:col-span-12",
+};
+
+/** Ô chữ của DÒNG phiếu (cột riêng của dòng, không nằm trong `details`) đặt vào hộp chi tiết — vd. tên cụ thể, thông số. */
+export type LineExtraField = { key: string; label: string; placeholder?: string; max?: number; wide?: boolean };
+
+export function LineDetailsButton({ config, value, onChange, schoolId, title, compact, label = "Chi tiết", buttonClassName, extras, extraValues, onExtraChange, layout }: {
   /** Nút chỉ có biểu tượng (kèm số mục đã điền / còn thiếu) — cho bảng nhiều cột, nơi chữ "Chi tiết" tràn ô. */
   compact?: boolean;
   config: VoucherFormConfig | undefined;
   value: Details | undefined;
   onChange: (next: Details) => void;
   schoolId: number | null | undefined;
-  stage?: string;
   title?: ReactNode;
+  /** Chữ trên nút và tiêu đề hộp. */
+  label?: string;
+  /** Thêm lớp cho nút chữ (vd. màu chữ chính để nút dễ thấy trong bảng). */
+  buttonClassName?: string;
+  /** Ô của dòng hiện đầu hộp (không bắt buộc), sửa cùng lượt với `details` — Huỷ là bỏ cả hai. */
+  extras?: LineExtraField[];
+  extraValues?: Record<string, string | null | undefined>;
+  onExtraChange?: (next: Record<string, string>) => void;
+  /**
+   * Bố cục 12 cột do màn gọi đặt: thứ tự và bề rộng (2 / 3 / 4 / 6 / 8 / 12 cột) của từng ô — gồm cả `extras` lẫn ô
+   * `details`; ô không có trong danh sách đứng sau, rộng 4. Không truyền thì xếp như cũ (mọi phiếu khác).
+   */
+  layout?: { key: string; span: number }[];
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Details>({});
-  const fields = useMemo(() => (config?.line ?? []).filter((f) => (f.stage ?? null) === (stage ?? null)), [config, stage]);
+  const [extraDraft, setExtraDraft] = useState<Record<string, string>>({});
+  const fields = useMemo(() => config?.line ?? [], [config]);
   const tables = Object.entries(config?.lineTables ?? {});
-  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""),
-    fields.some((f) => f.kind === "room" || f.suggest === "room"));
-  if (!config || (!fields.length && !tables.length)) return null;
-  const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length;
+  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
+  const extraList = extras ?? [];
+  if (!extraList.length && (!config || (!fields.length && !tables.length))) return null;
+  const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length
+    + extraList.filter((e) => String(extraValues?.[e.key] ?? "").trim()).length;
+  const openDialog = () => {
+    setDraft({ ...(value ?? {}) });
+    setExtraDraft(Object.fromEntries(extraList.map((e) => [e.key, String(extraValues?.[e.key] ?? "")])));
+    setOpen(true);
+  };
   // Trường bắt buộc của DÒNG nằm sau cái nút này, nên nút phải tự nói là còn
   // thiếu: máy chủ từ chối lúc trình với câu "Dòng 1 còn thiếu: …", và không có
   // dấu hiệu nào ở đây thì người dùng không biết mở cái gì ra để sửa.
@@ -580,15 +563,15 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
     <>
       {compact ? (
         <Button type="button" variant="ghost" size="icon-sm" className="relative" aria-label="Thông tin thêm của dòng" title="Thông tin thêm của dòng"
-          onClick={() => { setDraft({ ...(value ?? {}) }); setOpen(true); }}>
+          onClick={openDialog}>
           <ListPlus />
           {missing || filled ? (
             <span className={cn("absolute -end-0.5 -top-0.5 size-2 rounded-full", missing ? "bg-warning" : "bg-primary")} aria-hidden />
           ) : null}
         </Button>
       ) : (
-      <Button type="button" variant="ghost" size="sm" onClick={() => { setDraft({ ...(value ?? {}) }); setOpen(true); }}>
-        Chi tiết
+      <Button type="button" variant="ghost" size="sm" className={buttonClassName} onClick={openDialog}>
+        {label}
         {missing ? (
           <Badge variant="warning" className="ms-1">Thiếu {missing}</Badge>
         ) : filled ? (
@@ -597,16 +580,83 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
       </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="form" className="overflow-y-auto">
+        <DialogContent className="overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Chi tiết dòng</DialogTitle>
+            <DialogTitle>{label === "Chi tiết" ? "Chi tiết dòng" : label}</DialogTitle>
             <DialogDescription>{title}</DialogDescription>
           </DialogHeader>
+          {layout ? (
+            <>
+              {/* Bố cục riêng của màn gọi (12 cột): ô của dòng và ô `details` xếp chung theo `layout` — ô ngắn chung một
+                  hàng, ô dài cả hàng; bảng con (thông số, phụ kiện) mỗi bảng một khung rộng hết hộp — đứng cạnh nhau thì ô quá hẹp để gõ. */}
+              <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-12">
+                {[...layout, ...fields.filter((f) => !layout.some((l) => l.key === f.key)).map((f) => ({ key: f.key, span: f.wide ? 12 : 4 }))].map(({ key, span }) => {
+                  const extra = extraList.find((e) => e.key === key);
+                  const field = extra ? null : fields.find((f) => f.key === key);
+                  if (!extra && !field) return null;
+                  const wide = span >= 12;
+                  return (
+                    <div key={key} className={cn("min-w-0 space-y-1.5", SPAN_12[span] ?? "sm:col-span-4")}>
+                      <Label className="text-xs">
+                        {extra ? extra.label : field!.label}
+                        {field?.required ? <span className="text-destructive ms-0.5">*</span> : null}
+                      </Label>
+                      {extra ? (
+                        extra.wide ? (
+                          <Textarea rows={3} value={extraDraft[key] ?? ""} maxLength={extra.max} placeholder={extra.placeholder}
+                            onChange={(ev) => setExtraDraft((d) => ({ ...d, [key]: ev.target.value }))} />
+                        ) : (
+                          <Input value={extraDraft[key] ?? ""} maxLength={extra.max} placeholder={extra.placeholder}
+                            onChange={(ev) => setExtraDraft((d) => ({ ...d, [key]: ev.target.value }))} />
+                        )
+                      ) : (
+                        <FieldInput field={wide && field!.kind === "text" ? { ...field!, kind: "textarea", rule: textRuleOf(field!) } as RuledField : field!}
+                          value={draft[key] ?? null} config={config!} lookups={lookups}
+                          onChange={(v) => setDraft((d) => {
+                            const next = { ...d };
+                            if (v == null || v === "") delete next[key];
+                            else next[key] = v;
+                            return next;
+                          })} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {tables.length ? (
+                <div className="grid items-start gap-4">
+                  {tables.map(([key, columns]) => (
+                    <div key={key} className="bg-surface-subtle min-w-0 space-y-2 rounded-lg border p-3">
+                      <h4 className="text-overline text-muted-foreground">{TABLE_TITLES[key] ?? key}</h4>
+                      <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config!} lookups={lookups}
+                        onChange={(rows) => setDraft((d) => ({ ...d, [key]: rows as any }))} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {!layout && extraList.length ? (
+            <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-6">
+              {extraList.map((e) => (
+                <div key={e.key} className={cn("min-w-0 space-y-1.5", e.wide ? "sm:col-span-6" : "sm:col-span-3")}>
+                  <Label className="text-xs">{e.label}</Label>
+                  {e.wide ? (
+                    <Textarea rows={2} value={extraDraft[e.key] ?? ""} maxLength={e.max} placeholder={e.placeholder}
+                      onChange={(ev) => setExtraDraft((d) => ({ ...d, [e.key]: ev.target.value }))} />
+                  ) : (
+                    <Input value={extraDraft[e.key] ?? ""} maxLength={e.max} placeholder={e.placeholder}
+                      onChange={(ev) => setExtraDraft((d) => ({ ...d, [e.key]: ev.target.value }))} />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {/* Ô NGẮN (số, tiền, ô chọn) đứng trước, mỗi hàng ba ô (hai ô khi số ô không chia hết cho ba); ô DÀI
               (nguyên nhân, kết luận…) đứng sau, hai ô một hàng và cao hai dòng. Xếp theo thứ tự cấu hình thì ô
               ngắn và ô dài xen nhau, hàng nào cũng lệch. */}
-          <div className="grid items-start gap-x-4 gap-y-4 sm:grid-cols-6">
-            {[...shortFields, ...wideFields].map((f, i) => {
+          <div className={cn("grid items-start gap-x-4 gap-y-4 sm:grid-cols-6", layout && "hidden")}>
+            {(layout ? [] : [...shortFields, ...wideFields]).map((f, i) => {
               const wideIndex = i - shortFields.length;
               const span = wideIndex < 0
                 ? shortFields.length % 3 === 0 ? "sm:col-span-2" : "sm:col-span-3"
@@ -617,7 +667,7 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
                   {f.label}
                   {f.required ? <span className="text-destructive ms-0.5">*</span> : null}
                 </Label>
-                <FieldInput field={wideIndex >= 0 && f.kind === "text" ? { ...f, kind: "textarea", rule: textRuleOf(f) } as RuledField : f} value={draft[f.key] ?? null} config={config} lookups={lookups}
+                <FieldInput field={wideIndex >= 0 && f.kind === "text" ? { ...f, kind: "textarea", rule: textRuleOf(f) } as RuledField : f} value={draft[f.key] ?? null} config={config!} lookups={lookups}
                   onChange={(v) => setDraft((d) => {
                     const next = { ...d };
                     if (v == null || v === "") delete next[f.key];
@@ -628,16 +678,20 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
               );
             })}
           </div>
-          {tables.map(([key, columns]) => (
+          {(layout ? [] : tables).map(([key, columns]) => (
             <div key={key} className="space-y-2">
               <h4 className="text-overline text-muted-foreground">{TABLE_TITLES[key] ?? key}</h4>
-              <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config} lookups={lookups}
+              <SubTable columns={columns} rows={(draft[key] as Record<string, DetailValue>[] | undefined) ?? []} config={config!} lookups={lookups}
                 onChange={(rows) => setDraft((d) => ({ ...d, [key]: rows as any }))} />
             </div>
           ))}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Huỷ</Button>
-            <Button type="button" disabled={!!lineDetailsError(config, draft)} onClick={() => { onChange(draft); setOpen(false); }}>Xong</Button>
+            <Button type="button" disabled={!!(config && lineDetailsError(config, draft))} onClick={() => {
+              onChange(draft);
+              if (extraList.length) onExtraChange?.(extraDraft);
+              setOpen(false);
+            }}>Xong</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -645,11 +699,11 @@ export function LineDetailsButton({ config, value, onChange, schoolId, stage, ti
   );
 }
 
-/** Trường chứng từ của một dòng, gọn trên một ô: "Đơn vị tính: Bộ · Tình trạng khi mượn: Tốt". */
-export function lineDetailsText(config: VoucherFormConfig | undefined, details: Details | undefined, stage?: string) {
+/** Trường chứng từ của một dòng, gọn trên một ô: "Đơn vị tính: Bộ · Tình trạng: Tốt". */
+export function lineDetailsText(config: VoucherFormConfig | undefined, details: Details | undefined) {
   if (!config || !details) return "";
   return (config.line ?? [])
-    .filter((f) => (stage === undefined || (f.stage ?? null) === (stage ?? null)) && details[f.key] != null)
+    .filter((f) => details[f.key] != null)
     .map((f) => `${f.label}: ${formatDetail(f, details[f.key], config)}`)
     .join(" · ");
 }

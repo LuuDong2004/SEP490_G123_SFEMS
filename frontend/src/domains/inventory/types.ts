@@ -40,12 +40,11 @@ export type CampaignProgress = {
   schools: CampaignProgressRow[];
 };
 
-export type Discrepancy = "MISSING" | "WRONG_ROOM" | "DAMAGED" | "SHORTAGE";
+export type Discrepancy = "MISSING" | "WRONG_ROOM" | "SHORTAGE";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
   MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
-  DAMAGED: "Hỏng",
   SHORTAGE: "Thiếu số lượng",
 };
 
@@ -56,7 +55,6 @@ export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
 export const DISCREPANCY_OUTCOMES: Record<Exclude<Discrepancy, "SHORTAGE"> | "SURPLUS", string> = {
   MISSING: "ghi trạng thái Mất vào hồ sơ thiết bị",
   WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy",
-  DAMAGED: "ghi tình trạng Hỏng vào hồ sơ thiết bị",
   SURPLUS: "lập phiếu ghi tăng nháp (nguồn Kiểm kê thừa)",
 };
 
@@ -100,7 +98,6 @@ export type InventorySession = VoucherBase & {
     matched: number;
     missing: number;
     wrongRoom: number;
-    damaged: number;
     surplus: number;
   };
   lines: InventoryLine[];
@@ -119,7 +116,6 @@ export type DiscrepancyCounts = {
   matched: number;
   missing: number;
   wrongRoom: number;
-  damaged: number;
 };
 
 /** `GET /inventory_sessions/{id}/breakdown`. */
@@ -138,18 +134,17 @@ export type CampaignDiscrepancyRow = {
 };
 
 /** Tiêu đề các cột số của bảng chênh lệch. */
-export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Hỏng"];
+export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí"];
 
 /** Cộng các nhóm thành một hàng tổng. */
 export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
-  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0, damaged: 0 };
+  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0 };
   for (const r of rows) {
     total.total += r.total;
     total.checked += r.checked;
     total.matched += r.matched;
     total.missing += r.missing;
     total.wrongRoom += r.wrongRoom;
-    total.damaged += r.damaged;
   }
   return total;
 }

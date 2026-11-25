@@ -24,24 +24,21 @@ export type DepartmentOfEducation = {
  * dữ liệu của mọi tài khoản thuộc cơ quan này, nên nó không phải nhãn hiển
  * thị mà là dữ liệu phân quyền.
  */
-export type ManagingBodyType = "so" | "ubnd" | "khac";
+export type ManagingBodyType = "so" | "khac";
 
 export const MANAGING_BODY_TYPE_LABELS: Record<ManagingBodyType, string> = {
-  so: "Sở Giáo dục và Đào tạo",
-  ubnd: "UBND phường/xã",
+  so: "Sở Giáo dục và Đào tạo",
   khac: "Cơ quan quản lý khác",
 };
 
 /** Nhãn ngắn cho cột lưới và chip, nơi tên đầy đủ không vừa. */
 export const MANAGING_BODY_TYPE_SHORT_LABELS: Record<ManagingBodyType, string> = {
-  so: "Sở",
-  ubnd: "UBND",
+  so: "Sở",
   khac: "Khác",
 };
 
 export const MANAGING_BODY_TYPE_OPTIONS: { label: string; value: ManagingBodyType }[] = [
-  { label: "Sở Giáo dục và Đào tạo", value: "so" },
-  { label: "UBND phường/xã", value: "ubnd" },
+  { label: "Sở Giáo dục và Đào tạo", value: "so" },
   { label: "Cơ quan quản lý khác", value: "khac" },
 ];
 

@@ -90,10 +90,9 @@ export const InventorySessionList = () => {
           const parts = [
             s.missing ? `Thiếu ${s.missing}` : null,
             s.wrongRoom ? `Sai vị trí ${s.wrongRoom}` : null,
-            s.damaged ? `Hỏng ${s.damaged}` : null,
             s.surplus ? `Thừa ${s.surplus}` : null,
           ].filter(Boolean);
-          const n = s.missing + s.wrongRoom + s.damaged + s.surplus;
+          const n = s.missing + s.wrongRoom + s.surplus;
           return n > 0 ? (
             <Badge variant="warning" title={parts.join(" · ")}>{n}</Badge>
           ) : (

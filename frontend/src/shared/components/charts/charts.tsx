@@ -1,8 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Link } from "react-router";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Rectangle, Sector, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Rectangle, Sector, XAxis, YAxis } from "recharts";
 
 import { count, seriesColor, seriesGradient, seriesLight } from "@/shared/lib/chart-palette";
 import { isMotionReduced } from "@/shared/lib/theme";
@@ -38,68 +37,24 @@ export function ChartCard({
   children: ReactNode;
   className?: string;
   /**
-   * Không viền thẻ — khi nằm chung một khung với nội dung khác (biểu đồ + bảng báo cáo). Khung này thu gọn
-   * được: bấm đầu khung là ẩn biểu đồ, lựa chọn nhớ chung cho mọi báo cáo (`useChartsCollapsed`).
+   * Không viền thẻ — khi nằm chung một khung với nội dung khác (biểu đồ + bảng báo cáo). KHÔNG thu gọn được: thu gọn
+   * thì khung bên cạnh vẫn giữ chiều cao, để lại một vùng trắng lớn (góp ý của người dùng) — biểu đồ luôn hiện.
    */
   bare?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useChartsCollapsed();
-  const shut = !!bare && collapsed;
   const Frame = bare ? "section" : Card;
-  const heading = (
-    <div className="min-w-0 text-left">
-      <h3 className="truncate text-sm font-semibold">{title}</h3>
-      {description && !shut ? <p className="text-muted-foreground truncate text-xs">{description}</p> : null}
-    </div>
-  );
   return (
     <Frame className={cn("flex flex-col gap-0 py-0", className)}>
-      <div className={cn("flex items-center justify-between gap-3 px-5 py-2.5", !shut && "min-h-14 border-b")}>
-        {bare ? (
-          <button type="button" onClick={() => setCollapsed(!collapsed)} aria-expanded={!shut}
-            className="hover:text-primary flex min-w-0 items-center gap-2 transition-colors"
-            title={shut ? "Hiện biểu đồ" : "Thu gọn biểu đồ"}>
-            <ChevronDown className={cn("text-muted-foreground size-4 shrink-0 transition-transform", shut && "-rotate-90")} />
-            {heading}
-          </button>
-        ) : heading}
-        {shut ? null : action}
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b px-5 py-2.5">
+        <div className="min-w-0 text-left">
+          <h3 className="truncate text-sm font-semibold">{title}</h3>
+          {description ? <p className="text-muted-foreground truncate text-xs">{description}</p> : null}
+        </div>
+        {action}
       </div>
-      {shut ? null : <div className="flex flex-1 flex-col px-5 py-4">{children}</div>}
+      <div className="flex flex-1 flex-col px-5 py-4">{children}</div>
     </Frame>
   );
-}
-
-/* Thu gọn biểu đồ báo cáo: một lựa chọn chung cho mọi khung `bare`, nhớ qua F5; các khung cạnh nhau cùng đóng / mở. */
-const COLLAPSE_KEY = "report-charts.collapsed";
-const collapseListeners = new Set<() => void>();
-
-function readCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function useChartsCollapsed(): [boolean, (v: boolean) => void] {
-  const value = useSyncExternalStore(
-    (cb) => {
-      collapseListeners.add(cb);
-      return () => collapseListeners.delete(cb);
-    },
-    readCollapsed,
-    () => false,
-  );
-  const set = (v: boolean) => {
-    try {
-      localStorage.setItem(COLLAPSE_KEY, v ? "1" : "0");
-    } catch {
-      // Không lưu được thì chỉ không nhớ qua F5.
-    }
-    collapseListeners.forEach((l) => l());
-  };
-  return [value, set];
 }
 
 /** Nút chọn kỳ nhỏ ở góc thẻ ("Tháng này", "7 ngày qua"). */
@@ -185,6 +140,13 @@ function Swatch({ color }: { color: string }) {
   return <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: seriesGradient(color, 135) }} />;
 }
 
+/** Tỷ lệ của một phần: dưới 1% thì ghi một chữ số lẻ — 10 trên 5609 mà ghi 0% là sai. */
+const sharePercent = (part: number, total: number) => {
+  const share = total ? (part / total) * 100 : 0;
+  if (share > 0 && share < 1) return share < 0.1 ? "<0,1" : share.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+  return String(Math.round(share));
+};
+
 /**
  * Vòng tròn cơ cấu + bảng chú giải (số lượng, %). Tổng nằm giữa vòng. Mỗi phần một
  * màu theo thứ tự cố định; chú giải luôn có nên không bao giờ đọc bằng màu một mình.
@@ -195,10 +157,19 @@ export function DonutBreakdown({
   unit,
   emptyText = "Chưa có dữ liệu",
   spread,
+  onPick,
+  bars,
 }: {
+  /**
+   * Biểu đồ ĐỨNG MỘT MÌNH chiếm cả bề ngang khung: vòng tròn gọn bên trái, mỗi dòng chú giải có thêm thanh ngang dài
+   * theo số lượng, lấp kín bề ngang — không còn vòng nhỏ giữa khung và chú giải bị đẩy ra mép (góp ý của người dùng).
+   */
+  bars?: boolean;
   items: Slice[];
   unit: string;
   emptyText?: string;
+  /** Bấm một phần của vòng hoặc một dòng chú giải (phần có số > 0) — báo cáo mở số liệu chi tiết của mục đó. */
+  onPick?: (slice: Slice) => void;
   /** Thẻ rộng (trang tổng hợp): vòng to hơn, vòng và chú giải rải đều bề ngang — không dồn giữa để trống hai bên. */
   spread?: boolean;
 }) {
@@ -207,7 +178,7 @@ export function DonutBreakdown({
     items.map((it, i) => [it.key, { label: it.label, color: seriesColor(i) }]),
   );
   const shown = items.filter((i) => i.count > 0);
-  const gid = useId().replace(/:/g, "");
+  const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const animate = !reducedMotion();
   // Dữ liệu vòng giữ nguyên tham chiếu giữa các lần vẽ: mảng mới mỗi lần là Recharts chạy lại hiệu ứng từ đầu.
   const sig = shown.map((i) => `${i.key}:${i.count}`).join("|");
@@ -219,11 +190,13 @@ export function DonutBreakdown({
   // Phần đang được trỏ (trên vòng hoặc trên dòng chú giải) phồng ra; dòng chú giải tương ứng sáng lên.
   const [active, setActive] = useState<string | null>(null);
   const activeIndex = active ? shown.findIndex((i) => i.key === active) : -1;
+  const max = Math.max(0, ...items.map((i) => i.count));
   return (
-    <div className="my-auto flex flex-wrap items-center justify-evenly gap-x-8 gap-y-4">
+    <div data-fit={bars || undefined} className={cn("my-auto",
+      bars ?"mx-auto grid w-full max-w-6xl items-center gap-x-12 gap-y-4 sm:grid-cols-[auto_minmax(0,1fr)]" : "flex flex-wrap items-center justify-evenly gap-x-8 gap-y-4")}>
       <div className="relative shrink-0">
       <ChartContainer key={sig} config={config}
-        className={cn("aspect-square shrink-0", spread ? "size-52" : "size-48", animate && total > 0 && "animate-donut-sweep")}>
+        className={cn("aspect-square shrink-0", spread ? "size-52" : "size-48", animate && total > 0 && "animate-donut-sweep", onPick && total > 0 && "[&_.recharts-pie-sector]:cursor-pointer")}>
         <PieChart>
           {seriesGradients({ id: gid, keys: items.map((i) => i.key), dir: "diag" })}
           {/* Không chú thích nổi khi rê chuột: dòng chú giải của phần đang trỏ đã sáng lên kèm số — ô nổi chỉ che vòng. */}
@@ -249,6 +222,7 @@ export function DonutBreakdown({
             )}
             onMouseEnter={(_, i) => setActive(shown[i]?.key ?? null)}
             onMouseLeave={() => setActive(null)}
+            onClick={onPick && total ? (_, i) => shown[i] && onPick(shown[i]) : undefined}
           >
             {total ? (
               shown.map((it) => <Cell key={it.key} fill={`url(#${gid}-${it.key})`} />)
@@ -268,10 +242,22 @@ export function DonutBreakdown({
           này, số ở tận đầu kia là một khoảng trống mắt phải đi qua để ghép hai thứ lại. */}
       {/* Chú giải rộng vừa đủ đọc (số không xa tên); khoảng trống còn lại chia đều hai mép và khe giữa vòng với chú
           giải (`justify-evenly`) — không dồn thành một mảng trống lớn ở một bên (theo trưởng nhóm). */}
-      <ul className="w-full max-w-80 min-w-52 flex-1 text-sm">
+      <ul className={cn("w-full text-sm", bars ? "min-w-0" : "max-w-80 min-w-52 flex-1")}>
         {items.map((it, i) => (
           // Các dòng hiện lần lượt từ trên xuống; trỏ vào dòng nào thì phần đó trên vòng phồng ra.
           <li key={it.key} onMouseEnter={() => it.count > 0 && setActive(it.key)} onMouseLeave={() => setActive(null)}
+            {...(onPick && it.count > 0 ? {
+              role: "button",
+              tabIndex: 0,
+              "aria-label": `Xem chi tiết ${it.label}`,
+              onClick: () => onPick(it),
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPick(it);
+                }
+              },
+            } : {})}
             style={{
               animationDelay: `${200 + i * 70}ms`,
               // Dòng đang chọn nổi lên như một thẻ: nền pha màu của chính nhóm đó, viền mảnh cùng màu, bóng đổ.
@@ -280,22 +266,27 @@ export function DonutBreakdown({
                 boxShadow: `0 10px 22px -12px color-mix(in srgb, ${seriesColor(i)} 70%, transparent), 0 0 0 1px color-mix(in srgb, ${seriesColor(i)} 35%, transparent)`,
               } : null),
             }}
-            className={cn("animate-skeleton-in relative -mx-2 flex cursor-default items-center gap-3 rounded-lg border-b border-dashed px-2 py-2 last:border-b-0",
+            className={cn("animate-skeleton-in relative -mx-2 flex items-center gap-3", onPick && it.count > 0 ? "focus-visible:ring-ring/50 cursor-pointer outline-none focus-visible:ring-2" : "cursor-default", " rounded-lg border-b border-dashed px-2 py-2 last:border-b-0",
               "transition-[background-color,box-shadow,translate,border-color] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]",
               active === it.key && "z-[1] -translate-y-px border-transparent")}>
             <Swatch color={seriesColor(i)} />
-            <span className="text-foreground min-w-0 flex-1 truncate">{it.label}</span>
+            <span className={cn("text-foreground min-w-0 truncate", bars ? "w-[38%] shrink-0" : "flex-1")} title={bars ? it.label : undefined}>{it.label}</span>
+            {bars ? (
+              // Thanh dài theo số lượng so với nhóm lớn nhất; nhóm 0 vẫn có rãnh rỗng để thấy là có nhóm đó.
+              <span className="bg-muted relative h-2 min-w-0 flex-1 overflow-hidden rounded-full">
+                <span className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out"
+                  style={{ width: `${max ? (it.count / max) * 100 : 0}%`, background: seriesGradient(seriesColor(i), 90) }} />
+              </span>
+            ) : null}
             <span className="text-foreground w-12 text-right font-semibold tabular-nums">{count.format(it.count)}</span>
             <span className="text-muted-foreground w-10 text-right text-xs tabular-nums"
               title={total ? `${count.format(it.count)} / ${count.format(total)} ${unit}` : undefined}>
-              {total ? Math.round((it.count / total) * 100) : 0}%
+              {sharePercent(it.count, total)}%
             </span>
           </li>
         ))}
-        {/* Cột % nói tỷ lệ trên CÁI GÌ (QLTB-515): trên tổng số ở giữa vòng tròn. */}
-        {total ? (
-          <li className="text-muted-foreground pt-1.5 text-xs">% = số của từng nhóm ÷ tổng {count.format(total)} {unit} ở giữa vòng tròn.</li>
-        ) : null}
+        {/* Tỷ lệ % trên cái gì: rê chuột vào ô % — không ghi công thức dưới chú giải. */}
+        {total && onPick ? <li className="text-muted-foreground pt-1.5 text-xs">Bấm từng mục để xem chi tiết.</li> : null}
       </ul>
     </div>
   );
@@ -315,19 +306,25 @@ export function GroupedBars({
   xFormatter,
   height = "h-64",
   stacked,
+  onPick,
+  legend = true,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
   series: Series[];
   xFormatter?: (v: string) => string;
   height?: string;
+  /** Bấm một cột: nhận dòng dữ liệu của nhóm đó. */
+  onPick?: (row: Record<string, any>) => void;
   /** Xếp chồng (cơ cấu trong một cột) thay vì đặt cạnh nhau. */
   stacked?: boolean;
+  /** Hiện chú thích màu dưới biểu đồ (mặc định có khi nhiều hơn một loạt). */
+  legend?: boolean;
 }) {
   const config: ChartConfig = Object.fromEntries(
     series.map((s, i) => [s.key, { label: s.label, color: seriesColor(i) }]),
   );
-  const gid = useId().replace(/:/g, "");
+  const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   return (
     <ChartContainer config={config} className={cn("w-full", height)}>
       <BarChart data={data} barGap={2} barCategoryGap={series.length > 2 ? "18%" : "28%"} margin={{ left: -8, right: 4, top: 4 }}>
@@ -338,7 +335,7 @@ export function GroupedBars({
         <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} fontSize={11} />
         <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }}
           content={<ChartTooltipContent labelFormatter={(v) => (xFormatter ? xFormatter(String(v)) : String(v))} />} />
-        {series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
+        {legend && series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
         {series.map((s, i) => (
           <Bar
             key={s.key}
@@ -347,6 +344,8 @@ export function GroupedBars({
             shape={(props: any) => <Rectangle {...props} fill={`url(#${gid}-${s.key})`} />}
             radius={stacked ? (i === series.length - 1 ? [4, 4, 0, 0] : 0) : [4, 4, 0, 0]}
             stackId={stacked ? "a" : undefined}
+            cursor={onPick ? "pointer" : undefined}
+            onClick={onPick ? (entry: any) => onPick(entry.payload) : undefined}
             // Ít nhóm (vd. hai tháng) thì cột rộng ra — 18px trên một trục 1.500px trông như vạch kẻ.
             maxBarSize={stacked ? 36 : data.length <= 4 ? 40 : 18}
             // Cột mọc từ đáy lên, các loạt nối nhau một nhịp.
@@ -358,129 +357,6 @@ export function GroupedBars({
         ))}
       </BarChart>
     </ChartContainer>
-  );
-}
-
-/**
- * Thanh ngang xếp chồng theo từng dòng (vd. cơ cấu tài sản của mỗi trường). Nhãn dòng
- * nằm trên thanh, không xoay chữ trục.
- */
-export function StackedRows({
-  rows,
-  series,
-  labelKey,
-  limit = 10,
-  totalKey,
-}: {
-  rows: Record<string, unknown>[];
-  series: Series[];
-  labelKey: string;
-  limit?: number;
-  /**
-   * Cột tổng của chính bảng. Có thì con số cuối dòng là tổng ấy — khớp bảng bên dưới — và phần không thuộc
-   * loạt nào (trạng thái không vẽ riêng) hiện thành đoạn xám thay vì biến mất khỏi tổng.
-   */
-  totalKey?: string;
-}) {
-  const [all, setAll] = useState(false);
-  const cap = Math.min(limit, 6);
-  const drawable = rows.slice(0, limit);
-  const shown = all ? drawable : drawable.slice(0, cap);
-  const sumOf = (r: Record<string, unknown>) => series.reduce((s, x) => s + (Number(r[x.key]) || 0), 0);
-  const totalOf = (r: Record<string, unknown>) => (totalKey ? Math.max(Number(r[totalKey]) || 0, sumOf(r)) : sumOf(r));
-  const max = Math.max(1, ...drawable.map(totalOf));
-  return (
-    <div className="space-y-3">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {series.map((s, i) => (
-          <li key={s.key} className="text-muted-foreground flex items-center gap-1.5">
-            <Swatch color={seriesColor(i)} />
-            {s.label}
-          </li>
-        ))}
-      </ul>
-      {/* Mỗi dòng MỘT hàng: tên | thanh | tổng. Rê chuột vào dòng thì hiện số từng phần. */}
-      <ul className="-mx-2">
-        {shown.map((r, idx) => {
-          const total = totalOf(r);
-          const name = String(r[labelKey] ?? "—");
-          return (
-            <li key={idx} className="group hover:bg-accent/50 relative grid grid-cols-[minmax(0,13rem)_minmax(0,1fr)_4.5rem] items-center gap-3 rounded-md px-2 py-1.5">
-              <span className="truncate text-sm" title={name}>{name}</span>
-              <div className="animate-bar-grow flex h-3 origin-left gap-0.5" style={{ width: `${Math.max((total / max) * 100, 1.5)}%`, animationDelay: `${idx * 50}ms` }}>
-                {series.map((s, i) => {
-                  const v = Number(r[s.key]) || 0;
-                  return v ? (
-                    <span key={s.key} className="h-full rounded-[2px] first:rounded-s-[4px] last:rounded-e-[4px]"
-                      style={{ width: `${(v / total) * 100}%`, background: seriesColor(i) }} />
-                  ) : null;
-                })}
-              </div>
-              <span className="text-right text-sm font-semibold tabular-nums">{count.format(total)}</span>
-              <div className="bg-popover text-popover-foreground shadow-e2 pointer-events-none absolute top-full right-2 z-20 mt-0.5 hidden min-w-56 rounded-lg border p-2.5 text-xs group-hover:block">
-                <p className="mb-1.5 truncate font-semibold">{name}</p>
-                {series.map((s, i) => (
-                  <p key={s.key} className="flex items-center gap-2 py-0.5">
-                    <Swatch color={seriesColor(i)} />
-                    <span className="text-muted-foreground flex-1">{s.label}</span>
-                    <span className="font-medium tabular-nums">{count.format(Number(r[s.key]) || 0)}</span>
-                  </p>
-                ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {rows.length > cap ? (
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          {drawable.length > cap ? (
-            <button type="button" className="text-primary font-medium hover:underline" onClick={() => setAll(!all)}>
-              {all ? "Thu gọn" : `Xem thêm ${drawable.length - cap} dòng`}
-            </button>
-          ) : null}
-          <span>
-            {all && rows.length > limit
-              ? `Chỉ vẽ ${limit} / ${rows.length} dòng lớn nhất — xem đủ ở bảng.`
-              : `Đang hiện ${shown.length} / ${rows.length} dòng lớn nhất`}
-          </span>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Thanh ngang một màu cho một đại lượng theo danh mục (vd. tình trạng kỹ thuật). */
-export function BarList({ items, unit }: { items: Slice[]; unit?: string }) {
-  const [all, setAll] = useState(false);
-  const cap = 6;
-  const max = Math.max(1, ...items.map((i) => i.count));
-  const total = items.reduce((s, i) => s + i.count, 0);
-  const shown = all ? items : items.slice(0, cap);
-  // Mỗi mục MỘT hàng: tên | thanh | số + %. Quá 6 mục thì thu lại, bấm "Xem thêm".
-  return (
-    <div className="space-y-2">
-      <ul className="-mx-2">
-        {shown.map((it) => (
-          <li key={it.key} title={`${it.label}: ${count.format(it.count)}${unit ? ` ${unit}` : ""}`}
-            className="hover:bg-accent/50 grid grid-cols-[minmax(0,13rem)_minmax(0,1fr)_6.5rem] items-center gap-3 rounded-md px-2 py-1.5">
-            <span className="truncate text-sm">{it.label}</span>
-            <div className="h-3">
-              <div className="animate-bar-grow h-3 origin-left rounded-[4px]"
-                style={{ width: `${it.count ? Math.max((it.count / max) * 100, 1.5) : 0}%`, background: "var(--chart-1)", animationDelay: `${shown.indexOf(it) * 60}ms` }} />
-            </div>
-            <span className="text-right text-sm tabular-nums">
-              <span className="font-semibold">{count.format(it.count)}</span>
-              <span className="text-muted-foreground ms-1.5 text-xs">{total ? Math.round((it.count / total) * 100) : 0}%</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {items.length > cap ? (
-        <button type="button" className="text-primary text-xs font-medium hover:underline" onClick={() => setAll(!all)}>
-          {all ? "Thu gọn" : `Xem thêm ${items.length - cap} dòng`}
-        </button>
-      ) : null}
-    </div>
   );
 }
 
@@ -499,7 +375,7 @@ export function StatTile({
   label: ReactNode;
   value: ReactNode;
   hint?: ReactNode;
-  /** Ô "?" cạnh nhãn: con số này tính từ đâu, theo công thức nào (QLTB-515). */
+  /** Ô "?" cạnh nhãn: con số này tính từ đâu, theo công thức nào. */
   info?: ReactNode;
   tone?: "primary" | "warning" | "destructive" | "success";
   href?: string;
@@ -543,47 +419,156 @@ export function StatTile({
   return href ? <Link to={href} className="block">{body}</Link> : body;
 }
 
+const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+const shorten = (v: string, max = 14) => (v.length > max ? `${v.slice(0, max - 1)}…` : v);
+
+/** Số trên trục: ghi đủ chữ số, chỉ rút gọn từ trăm nghìn trở lên ("6 N" không ai đọc ra 6000). */
+const axisNumber = (v: number) => (Math.abs(v) < 100_000 ? count.format(v) : compact.format(v));
+
 /**
- * Dải chỉ số MỘT hàng: các ô ngăn bằng đường kẻ mảnh, không mỗi số một thẻ — bốn thẻ
- * to cho bốn con số là bốn ô trống lớn trên đầu trang.
+ * Biểu đồ cột dọc theo nhóm (trường, loại thiết bị, phòng…): một loạt là cột đơn, nhiều loạt thì xếp chồng thành cơ
+ * cấu trong từng cột. Nhãn trục rút gọn (đủ tên ở ô nổi khi rê chuột); nhiều nhóm thì nghiêng nhãn. Vẽ `limit` nhóm
+ * đầu — người gọi sắp trước, phần còn lại xem ở số liệu chi tiết.
  */
-export function StatStrip({
-  items,
+export function ColumnChart({
+  rows,
+  labelKey,
+  series,
+  limit = 10,
+  height = "h-[var(--chart-h,18rem)]",
+  unit,
+  onPick,
 }: {
-  items: { icon: ReactNode; label: string; value: ReactNode; hint?: ReactNode; info?: ReactNode; tone?: "primary" | "warning" | "destructive" | "success" }[];
+  rows: Record<string, unknown>[];
+  labelKey: string;
+  series: Series[];
+  limit?: number;
+  /** Bấm một cột: nhận dòng dữ liệu của nhóm đó. */
+  onPick?: (row: Record<string, any>) => void;
+  height?: string;
+  /** Đơn vị trong ô nổi khi chỉ có một loạt ("tài sản", "phiếu"). */
+  unit?: string;
 }) {
-  const toneClass = {
-    // Biểu tượng không nền: chỉ tô màu theo sắc thái — ô màu đặc / nền nhạt sau mỗi icon làm dải chỉ số nặng.
-    primary: "text-primary",
-    warning: "text-warning-text",
-    destructive: "text-destructive-text",
-    success: "text-success-text",
-  };
+  const data: Record<string, unknown>[] = rows.slice(0, limit).map((r) => ({ ...r, __label: String(r[labelKey] ?? "—") }));
+  const config: ChartConfig = Object.fromEntries(
+    series.map((s, i) => [s.key, { label: unit && series.length === 1 ? `${s.label} (${unit})` : s.label, color: seriesColor(i) }]),
+  );
+  const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const tilt = data.length > 5;
+  const stacked = series.length > 1;
+  // Dữ liệu đổi (chuyển báo cáo, đổi bộ lọc) thì dựng lại biểu đồ: Recharts chạy hiệu ứng từ hình cột CŨ, chuyển giữa
+  // hai bộ dữ liệu khác số nhóm là cột lệch chỗ, thiếu cột.
+  const sig = data.map((d) => [d.__label, ...series.map((x) => d[x.key])].join(":")).join("|") + series.map((x) => x.key).join(",");
   return (
-    <Card className="gap-0 py-0">
-      <div>
-        <div className={cn("grid divide-y sm:divide-y-0 lg:divide-x", gridCols(items.length))}>
-          {items.map((it) => (
-            <div key={it.label} className="flex items-center gap-3 px-5 py-3.5">
-              <span className={cn("flex shrink-0 items-center justify-center [&_svg]:size-6", toneClass[it.tone ?? "primary"])}>
-                {it.icon}
-              </span>
-              <div className="min-w-0">
-                <p className="text-muted-foreground flex items-center gap-1 text-xs">
-                  <span className="truncate">{it.label}</span>
-                  {it.info ? <HelpHint>{it.info}</HelpHint> : null}
-                </p>
-                <p className="text-xl leading-tight font-bold tabular-nums">{it.value}</p>
-                {it.hint ? <p className="text-muted-foreground text-xs leading-snug">{it.hint}</p> : null}
-              </div>
-            </div>
+    <div className="space-y-1.5">
+      <ChartContainer key={sig} config={config} className={cn("w-full", height)}>
+        <BarChart data={data} barCategoryGap={data.length <= 3 ? "38%" : "22%"} margin={{ left: tilt ? 24 : -4, right: 8, top: 8, bottom: 0 }}>
+          {seriesGradients({ id: gid, keys: series.map((s) => s.key), dir: "down" })}
+          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+          <XAxis dataKey="__label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} interval={0}
+            tickFormatter={(v: string) => shorten(v, tilt ? 16 : 22)} angle={tilt ? -32 : 0} textAnchor={tilt ? "end" : "middle"}
+            height={tilt ? 72 : 28} />
+          <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} tickFormatter={axisNumber} />
+          <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<ChartTooltipContent />} />
+          {stacked ? <ChartLegend content={<ChartLegendContent />} /> : null}
+          {series.map((s, i) => (
+            <Bar key={s.key} dataKey={s.key} stackId={stacked ? "a" : undefined} fill={`var(--color-${s.key})`}
+              cursor={onPick ? "pointer" : undefined}
+              onClick={onPick ? (entry: any) => onPick(entry.payload) : undefined}
+              shape={(props: any) => <Rectangle {...props} fill={`url(#${gid}-${s.key})`} />}
+              radius={!stacked || i === series.length - 1 ? [5, 5, 0, 0] : 0}
+              maxBarSize={48}
+              isAnimationActive={!reducedMotion()} animationBegin={100 + i * 120} animationDuration={800} animationEasing="ease-out" />
           ))}
-        </div>
-      </div>
-    </Card>
+        </BarChart>
+      </ChartContainer>
+      {rows.length > limit ? (
+        <p className="text-muted-foreground text-xs">Vẽ {limit} / {count.format(rows.length)} nhóm, xem đủ ở số liệu chi tiết.{onPick ? " Bấm cột để xem chi tiết." : ""}</p>
+      ) : onPick ? (
+        <p className="text-muted-foreground text-xs">Bấm cột để xem chi tiết.</p>
+      ) : null}
+    </div>
   );
 }
 
-function gridCols(n: number) {
-  return n >= 5 ? "sm:grid-cols-2 lg:grid-cols-5" : n === 4 ? "sm:grid-cols-2 lg:grid-cols-4" : n === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
+/** Đường xu hướng theo thời gian (tháng): mỗi loạt một vùng tô nhạt dưới đường — thấy ngay tháng nào tăng, giảm. */
+export function TrendArea({
+  data,
+  xKey,
+  series,
+  height = "h-[var(--chart-h,18rem)]",
+}: {
+  data: Record<string, unknown>[];
+  xKey: string;
+  series: Series[];
+  height?: string;
+}) {
+  const config: ChartConfig = Object.fromEntries(series.map((s, i) => [s.key, { label: s.label, color: seriesColor(i) }]));
+  const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const sig = data.map((d) => [d[xKey], ...series.map((x) => d[x.key])].join(":")).join("|");
+  return (
+    <ChartContainer key={sig} config={config} className={cn("w-full", height)}>
+      <AreaChart data={data} margin={{ left: -4, right: 12, top: 8 }}>
+        <defs>
+          {series.map((s) => (
+            <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: `var(--color-${s.key})`, stopOpacity: 0.32 }} />
+              <stop offset="100%" style={{ stopColor: `var(--color-${s.key})`, stopOpacity: 0.02 }} />
+            </linearGradient>
+          ))}
+        </defs>
+        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} fontSize={11} minTickGap={12} />
+        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={40} fontSize={11} tickFormatter={axisNumber} />
+        <ChartTooltip cursor={{ stroke: "var(--border)" }} content={<ChartTooltipContent indicator="line" />} />
+        <ChartLegend content={<ChartLegendContent />} />
+        {series.map((s, i) => (
+          <Area key={s.key} dataKey={s.key} type="monotone" stroke={`var(--color-${s.key})`} strokeWidth={2.25}
+            fill={`url(#${gid}-${s.key})`} dot={data.length <= 12 ? { r: 2.5, strokeWidth: 0, fill: `var(--color-${s.key})` } : false}
+            activeDot={{ r: 4.5 }} isAnimationActive={!reducedMotion()} animationBegin={i * 120} animationDuration={900} />
+        ))}
+      </AreaChart>
+    </ChartContainer>
+  );
 }
+
+/**
+ * Đồng hồ tỷ lệ (nửa vòng): một con số % lớn ở giữa, cung tô theo mức — đạt (≥ `good`) xanh, giữa vàng, thấp đỏ.
+ * Dành cho chỉ số "bao nhiêu phần trăm" (hồ sơ chuẩn, đang dùng, đáp ứng định mức) — đọc nhanh hơn một ô số.
+ */
+export function Meter({
+  percent,
+  label,
+  hint,
+  good = 80,
+  warn = 50,
+}: {
+  percent: number | null;
+  label: ReactNode;
+  hint?: ReactNode;
+  good?: number;
+  warn?: number;
+}) {
+  const p = percent == null ? 0 : Math.max(0, Math.min(100, percent));
+  const shown = useCountUp(p);
+  const color = percent == null ? "var(--muted-foreground)"
+    : p >= good ? "var(--success)" : p >= warn ? "var(--warning)" : "var(--destructive)";
+  // Nửa vòng bán kính 80, tâm (100, 100): dài π·80 ≈ 251.
+  const len = Math.PI * 80;
+  return (
+    <div className="my-auto flex flex-col items-center gap-1 py-2">
+      <svg viewBox="0 0 200 116" className="w-full max-w-64" aria-hidden>
+        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--muted)" strokeWidth="16" strokeLinecap="round" />
+        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round"
+          strokeDasharray={len} strokeDashoffset={len * (1 - shown / 100)}
+          style={{ filter: `drop-shadow(0 4px 8px color-mix(in srgb, ${color} 35%, transparent))` }} />
+        <text x="100" y="92" textAnchor="middle" className="fill-foreground" style={{ fontSize: 34, fontWeight: 700 }}>
+          {percent == null ? "—" : `${shown}%`}
+        </text>
+      </svg>
+      <p className="text-sm font-semibold">{label}</p>
+      {hint ? <p className="text-muted-foreground max-w-64 text-center text-xs leading-snug">{hint}</p> : null}
+    </div>
+  );
+}
+

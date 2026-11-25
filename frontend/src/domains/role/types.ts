@@ -9,7 +9,8 @@
  * permissions endpoint's own response.
  */
 
-import { ACTION_LABELS } from "@/domains/permission/types";
+import { ACTION_LABELS, type PermissionScope } from "@/domains/permission/types";
+import type { UserType } from "@/domains/portal/types";
 
 export type {
   Permission,
@@ -33,6 +34,8 @@ export type Role = {
    * delete one or change its code, so the UI does not offer to.
    */
   systemRole: boolean;
+  /** Loại tài khoản dùng vai — cố định từ lúc tạo (docs/kien-truc/11 §11). */
+  roleType: UserType;
   permissions: PermissionSummary[];
 };
 
@@ -40,6 +43,7 @@ export type PermissionSummary = {
   id: number;
   code: string;
   name: string;
+  scope: PermissionScope;
 };
 
 export function actionLabel(action: string): string {
@@ -54,10 +58,6 @@ export const SYSTEM_ROLE_LABELS: Record<string, string> = {
   ADMIN: "Quản trị viên",
   SO_LEADER: "Lãnh đạo Sở",
   SO_SPECIALIST: "Chuyên viên Sở",
-  UBND_LEADER: "Lãnh đạo UBND",
-  UBND_SPECIALIST: "Chuyên viên UBND",
   SCHOOL_LEADER: "Lãnh đạo trường",
   SCHOOL_STAFF: "Cán bộ thiết bị",
-  SUBJECT_HEAD: "Trưởng bộ môn",
-  TEACHER: "Giáo viên",
 };

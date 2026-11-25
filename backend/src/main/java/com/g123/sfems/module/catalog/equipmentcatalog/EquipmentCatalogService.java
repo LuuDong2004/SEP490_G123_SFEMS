@@ -310,8 +310,6 @@ public class EquipmentCatalogService extends CatalogService<
         item.setTrackingType(request.trackingType());
         item.setAssetCategory(request.assetCategory());
         item.setPhysicalOrDigital(request.physicalOrDigital());
-        item.setDepreciationMethod(request.depreciationMethod());
-        item.setUsefulLifeYears(request.usefulLifeYears());
         // Thêm tay vào danh mục luôn là thiết bị NGOÀI thông tư. Cờ "thuộc danh mục tối thiểu" không gõ tay
         // được: nó do việc áp dụng một bộ tiêu chuẩn đặt (`EquipmentStandardService.apply`).
         item.setMinimumRequired(Boolean.FALSE);
@@ -622,12 +620,6 @@ public class EquipmentCatalogService extends CatalogService<
         if (request.physicalOrDigital() != null) {
             item.setPhysicalOrDigital(request.physicalOrDigital());
         }
-        if (request.depreciationMethod() != null) {
-            item.setDepreciationMethod(request.depreciationMethod());
-        }
-        if (request.usefulLifeYears() != null) {
-            item.setUsefulLifeYears(request.usefulLifeYears());
-        }
         if (request.statisticalCode() != null) {
             item.setStatisticalCode(blankToNull(request.statisticalCode()));
         }
@@ -829,7 +821,7 @@ public class EquipmentCatalogService extends CatalogService<
         return Specification.allOf(specs);
     }
 
-    /** {@code trackingType=bulk}: ô chọn vật tư của phiếu xuất kho, tiêu hao chỉ nhận nhóm quản lý theo lô. */
+    /** {@code trackingType=bulk}: chỉ lấy nhóm quản lý theo lô (vật tư tiêu hao). */
     private static Specification<EquipmentCatalog> trackingFilter(ListParams params) {
         List<Specification<EquipmentCatalog>> specs = params.filters().stream()
                 .filter(c -> c.field().equals("trackingType") && c.value() != null)

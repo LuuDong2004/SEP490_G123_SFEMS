@@ -6,13 +6,15 @@ import com.g123.sfems.module.catalog.base.CatalogService;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.organization.school.service.SchoolService;
+import com.g123.sfems.module.school.coderule.SchoolCodeService;
+import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
-import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
 import java.util.Optional;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 
 /**
@@ -21,21 +23,17 @@ import org.springframework.data.jpa.domain.Specification;
  * <p>Thêm ba việc so với danh mục:
  *
  * <ul>
- *   <li><b>Trường sở hữu</b> lấy từ payload ({@code school.id}); vắng thì lấy trường của TÀI KHOẢN
- *       đang đăng nhập — cán bộ trường không phải chọn trường của chính mình. Không có cả hai (Sở tạo
- *       mà quên chọn) là 422.</li>
- *   <li><b>Không đổi trường</b> sau khi tạo: dữ liệu chuyển trường là một nghiệp vụ, không phải một
- *       lần sửa form.</li>
+ *   <li><b>Trường sở hữu</b> lấy từ payload ({@code school.id}); vắng thì lấy
+ *       trường của TÀI KHOẢN đang đăng nhập — cán bộ trường không phải chọn
+ *       trường của chính mình. Không có cả hai (Sở tạo mà quên chọn) là 422.</li>
+ *   <li><b>Không đổi trường</b> sau khi tạo: chuyển dữ liệu sang trường khác không phải
+ *       là một lần sửa form.</li>
  *   <li><b>Mã duy nhất trong trường</b>, không phải trong cả bảng.</li>
  * </ul>
  *
- * <p>Việc "chỉ thấy/sửa trường mình" KHÔNG nằm ở đây mà ở phân quyền dòng: một cán bộ trường gửi
- * {@code school.id} của trường khác sẽ bị chặn ở {@code checkWritable}, và đọc thì chỉ thấy dòng
- * trong phạm vi.
- *
- * <p>Lớp con: {@link #applyCreateOwned} / {@link #applyUpdateOwned} ghi các trường riêng,
- * {@link #ownedFilters} thêm bộ lọc riêng, {@link #resolveCode} đổi cách cấp mã (TS-06 quy tắc mã của
- * trường đè lại hàm này).
+ * <p>Việc "chỉ thấy/sửa trường mình" KHÔNG nằm ở đây mà ở phân quyền dòng: một
+ * cán bộ trường gửi {@code school.id} của trường khác sẽ bị vế WITH CHECK chặn
+ * ở {@code checkWritable}, và đọc thì chỉ thấy dòng trong phạm vi.
  */
 public abstract class SchoolOwnedService<
                 T extends SchoolOwnedEntity, C extends SchoolOwnedInput, P extends SchoolOwnedInput>
@@ -44,6 +42,7 @@ public abstract class SchoolOwnedService<
     private final SchoolOwnedRepository<T> repository;
     private final SchoolService schools;
     private final RowLevelPrincipalResolver principals;
+    private SchoolCodeService schoolCodes;
 
     protected SchoolOwnedService(
             SchoolOwnedRepository<T> repository,
@@ -65,12 +64,22 @@ public abstract class SchoolOwnedService<
         return null;
     }
 
+    /**
+     * Tiêm qua setter như {@code CodeGenerator} của lớp cha — mọi loại dữ liệu trường có quy tắc mã
+     * đều được cấp mã ở đây, không lớp con nào phải nhớ nối.
+     */
+    @Autowired
+    void setSchoolCodes(SchoolCodeService schoolCodes) {
+        this.schoolCodes = schoolCodes;
+    }
+
     @Override
     protected final void applyCreate(T item, C request) {
         item.setSchool(resolveSchool(request.school()));
         applyCreateOwned(item, request);
-        // Sau móc tạo, trước kiểm trùng của lớp cha: mã cấp lại vẫn được kiểm như mã gõ tay.
-        item.setCode(resolveCode(item, item.getCode()));
+        // Sau móc tạo: mã phòng cần khối nhà + tầng, mã cán bộ cần loại — lớp con vừa gán chúng.
+        // Trước kiểm trùng của lớp cha, nên mã cấp lại vẫn được kiểm như mã gõ tay.
+        item.setCode(schoolCodes.resolveOnCreate(item, item.getCode()));
     }
 
     @Override
@@ -93,14 +102,6 @@ public abstract class SchoolOwnedService<
         return repository.findBySchoolIdAndCodeIgnoreCase(item.getSchool().getId(), code);
     }
 
-    /**
-     * Mã của bản ghi mới: mặc định giữ mã người dùng gõ (rỗng thì lớp cha báo "Mã là bắt buộc"). Loại
-     * dữ liệu có quy tắc sinh mã của trường (TS-05, TS-06) đè hàm này để cấp mã khi để trống.
-     */
-    protected String resolveCode(T item, String code) {
-        return code;
-    }
-
     /** Móc tạo cho trường riêng; trường sở hữu đã được gán. */
     protected void applyCreateOwned(T item, C request) {
     }
@@ -113,14 +114,14 @@ public abstract class SchoolOwnedService<
         return Specification.unrestricted();
     }
 
-    /** Bản ghi khác mà lớp con tham chiếu tới phải cùng trường (thiết bị -> phòng...). */
+    /** Trường của một bản ghi khác mà lớp con tham chiếu tới (phòng -> khối nhà...). */
     protected static void requireSameSchool(SchoolOwnedEntity item, SchoolOwnedEntity other, String field) {
         if (other != null && !other.getSchool().getId().equals(item.getSchool().getId())) {
             throw new FieldValidationException(field, "Phải thuộc cùng trường");
         }
     }
 
-    protected School resolveSchool(IdRef ref) {
+    private School resolveSchool(IdRef ref) {
         if (ref != null && ref.id() != null) {
             return schools.get(ref.id());
         }

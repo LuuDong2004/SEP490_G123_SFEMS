@@ -74,6 +74,13 @@ export const ToolbarLead = () => (
   </>
 );
 export const ToolbarTrail = () => <>{useContext(ToolbarExtras).trail}</>;
+/** Tách đôi `ToolbarLead` khi màn muốn bọc riêng các ô lọc (vd. cụm thu gọn của màn Thiết bị): chỗ đặt ô lọc… */
+export const ToolbarFilterSlot = () => <span ref={attachFilterSlot} className="contents" />;
+/** … và phần `lead` (nút chọn chế độ xem) đứng sau. */
+export const ToolbarLeadExtras = () => <>{useContext(ToolbarExtras).lead}</>;
+
+/** Đang ở trong một màn danh sách (`ListView`): `DataTable` tự cao kín cửa sổ. */
+export const useInListView = () => !!useContext(ListActionsSlot);
 
 export function ListView({ children, className }: ListViewProps) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -177,13 +184,13 @@ export const ListViewHeader = ({
           headerClassName
         )}
       >
-        <div className={cn("min-w-0 flex-1", hideTitle && "sr-only")}>
-          <h1 className="truncate text-3xl font-bold leading-9 tracking-tight">
+        <div className={cn("max-w-full min-w-0 flex-auto", hideTitle && "sr-only")}>
+          <h1 className="text-2xl leading-8 font-bold tracking-tight break-words sm:text-3xl sm:leading-9">
             {title}
           </h1>
         </div>
         {hasActions && (
-          <div data-print="hide" className={cn("flex shrink-0 items-center gap-2", hideTitle && "ms-auto")}>
+          <div data-print="hide" className={cn("flex max-w-full flex-wrap items-center gap-2", hideTitle && "ms-auto")}>
             {actionNodes}
           </div>
         )}

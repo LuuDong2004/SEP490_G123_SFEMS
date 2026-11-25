@@ -1,0 +1,27 @@
+# Chép thành application-local.properties (đã gitignore) rồi điền.
+# MinIO dùng chung của nhóm; bỏ trống file này thì app dùng MinIO local ở localhost:9100 (compose.yaml).
+app.storage.endpoint=http://10.123.123.174:9000
+app.storage.access-key=
+app.storage.secret-key=
+app.storage.bucket=sfems-dev
+
+# --- Thư điện tử -----------------------------------------------------------------------------------------------
+# Không khai gì thì thư (đặt lại mật khẩu, mã đăng nhập, thông báo) chỉ được ghi ra log. Chọn MỘT trong hai cách:
+#
+# (1) Dev — Mailpit: docker compose -f backend/compose.yaml up -d mailpit, xem thư ở http://localhost:8025
+#spring.mail.host=localhost
+#spring.mail.port=1025
+#
+# (2) Demo — Gmail SMTP (gửi thư thật). Tài khoản Gmail phải bật Xác minh 2 bước rồi tạo "Mật khẩu ứng dụng"
+#     (Google Account → Security → App passwords) — 16 ký tự, dán vào password, KHÔNG dùng mật khẩu Gmail thường.
+#spring.mail.host=smtp.gmail.com
+#spring.mail.port=587
+#spring.mail.username=tennhom@gmail.com
+#spring.mail.password=xxxx xxxx xxxx xxxx
+#spring.mail.properties.mail.smtp.auth=true
+#spring.mail.properties.mail.smtp.starttls.enable=true
+#spring.mail.properties.mail.smtp.starttls.required=true
+#app.mail.from=SFEMS <tennhom@gmail.com>
+#
+# Link trong thư trỏ về giao diện ở địa chỉ này (đổi nếu chạy frontend ở cổng khác, ví dụ 5173).
+#app.frontend-url=http://localhost:5555

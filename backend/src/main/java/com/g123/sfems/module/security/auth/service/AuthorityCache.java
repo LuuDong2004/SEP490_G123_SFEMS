@@ -1,5 +1,6 @@
 package com.g123.sfems.module.security.auth.service;
 
+import com.g123.sfems.shared.data.rls.RowSecurityDataSource;
 import com.g123.sfems.module.security.user.service.UserService;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.rowlevel.RowLevelGeneration;
@@ -228,9 +229,11 @@ public class AuthorityCache {
 
     private Entry load(long userId) {
         // Ba câu chiếu hẹp (mã quyền, vai, chỗ công tác), không nạp cả đồ thị User.
-        return userService.authorityFacts(userId)
+        // Không gắn phạm vi trường cho kết nối của lần nạp này (RowSecurityDataSource.unscoped): dò phạm vi lại cần
+        // chính các quyền đang nạp — không cắt thì luồng tự chờ nó mãi.
+        return RowSecurityDataSource.unscoped(() -> userService.authorityFacts(userId)
                 .map(facts -> Entry.of(facts, policies.generation()))
-                .orElse(null);
+                .orElse(null));
     }
 
     /**
@@ -258,7 +261,11 @@ public class AuthorityCache {
      *                    về, hoặc null. Đi cùng schoolId vì hai cột trả lời hai
      *                    câu hỏi khác nhau, và chính sách phạm vi dòng của tài
      *                    khoản cấp Sở hoặc UBND đọc cột này
+     * @param campusId    phạm vi cơ sở của tài khoản trường (270), hoặc null = cả trường. Đầu vào của phân quyền
+     *                    như schoolId: đổi nó phải xoá entry này ({@code SchoolUserService.assignCampus})
      * @param version     the stamp described on {@link #versionFor(long)}
+     * @param secondFactor đã bật lớp xác thực thứ hai (mã qua email) — {@code AdminPortalGuard} đọc ở mỗi
+     *                    yêu cầu của tài khoản SYSTEM. Bật / tắt phát {@code AuthoritiesChanged} nên có hiệu lực ngay
      * @param loadedAt    when this was read, for the expiry
      */
     public record Entry(
@@ -269,8 +276,10 @@ public class AuthorityCache {
             Set<Long> roleIds,
             Long schoolId,
             Long managingBodyId,
+            Long campusId,
             String version,
             Instant passwordChangedAt,
+            boolean secondFactor,
             long loadedAt) {
 
         static Entry of(UserService.AuthorityFacts user, String policyGeneration) {
@@ -298,8 +307,11 @@ public class AuthorityCache {
             // and this stamp is already on every response. Adding a second
             // header would mean a second thing to expose through CORS and a
             // second silent failure when somebody forgets.
+            // Cơ sở cũng vào dấu: đổi phạm vi cơ sở thì giao diện phải đọc lại /auth/permissions (ẩn / hiện bộ lọc
+            // Cơ sở) dù mã quyền không đổi.
             String stamp = Integer.toHexString(
-                    (String.join(",", codes) + "|" + policyGeneration).hashCode());
+                    (String.join(",", codes) + "|" + policyGeneration
+                            + (user.campusId() == null ? "" : "|c" + user.campusId())).hashCode());
 
             return new Entry(
                     user.canSignIn(),
@@ -309,8 +321,10 @@ public class AuthorityCache {
                     Set.copyOf(roleIds),
                     user.schoolId(),
                     user.managingBodyId(),
+                    user.campusId(),
                     stamp,
                     user.passwordChangedAt(),
+                    user.secondFactor(),
                     System.nanoTime() + jitter());
         }
 

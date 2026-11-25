@@ -1,7 +1,7 @@
 import type { BaseRecord, HttpError } from "@refinedev/core";
 import type { UseTableReturnType } from "@refinedev/react-table";
 import type { ColumnFiltersState } from "@tanstack/react-table";
-import { Check, ListFilter, Minus, X, type LucideIcon } from "lucide-react";
+import { Check, Funnel, Minus, X, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "@/shared/lib/utils";
@@ -24,7 +24,8 @@ export function FilterPopover<T extends BaseRecord>({ table, fields, children }:
     .filter((e) => fields.includes(e.id) && e.value != null && e.value !== "")
     .map((e) => e.id));
   return (
-    <FilterButton iconOnly count={ids.size}
+    // Nút có chữ "Bộ lọc" ở mọi màn — chỉ biểu tượng phễu thì người mới không nhận ra là chỗ lọc.
+    <FilterButton count={ids.size}
       onClear={() => setColumnFilters((prev) =>
         (prev as unknown as { id: string }[]).filter((e) => !fields.includes(e.id)) as ColumnFiltersState)}>
       {children}
@@ -36,8 +37,10 @@ export function FilterPopover<T extends BaseRecord>({ table, fields, children }:
  * Khung nút "Bộ lọc" không gắn bảng — màn tự giữ trạng thái lọc (vd. báo cáo) thì truyền số điều kiện đang bật và
  * cách xoá. Cùng hình dạng với {@link FilterPopover} để mọi màn lọc giống nhau.
  */
-export function FilterButton({ count, onClear, children, className, contentClassName, align = "start", iconOnly, hint }: {
+export function FilterButton({ count, onClear, children, className, contentClassName, align = "start", iconOnly, hint, modal }: {
   count: number;
+  /** Nằm trong hộp thoại: hộp lọc tự giữ cuộn, không thì lớp khoá cuộn của hộp thoại nuốt bánh xe chuột. */
+  modal?: boolean;
   /** Chỉ biểu tượng (hàng công cụ chật): chữ "Bộ lọc" hiện khi rê chuột, số điều kiện thành chấm số ở góc. */
   iconOnly?: boolean;
   /** Lời giải thích khi rê chuột lên nút chỉ biểu tượng — vd. "Lọc theo trạng thái, tình trạng". */
@@ -56,7 +59,7 @@ export function FilterButton({ count, onClear, children, className, contentClass
         {iconOnly ? (
           <Button type="button" variant="outline" size="icon" aria-label="Bộ lọc"
             className={cn("relative shrink-0", count && "border-primary/50 text-primary bg-primary/5", className)}>
-            <ListFilter />
+            <Funnel />
             {count ? (
               <span className="bg-primary text-primary-foreground ring-background absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] leading-none font-semibold tabular-nums ring-2">
                 {count}
@@ -65,7 +68,7 @@ export function FilterButton({ count, onClear, children, className, contentClass
           </Button>
         ) : (
           <Button type="button" variant="outline" className={cn(count && "border-primary/50 text-primary", className)}>
-            <ListFilter />
+            <Funnel />
             Bộ lọc
             {count ? <span className="bg-primary text-primary-foreground rounded-full px-1.5 text-xs leading-5 tabular-nums">{count}</span> : null}
           </Button>
@@ -73,12 +76,12 @@ export function FilterButton({ count, onClear, children, className, contentClass
       </PopoverTrigger>
   );
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       {iconOnly ? (
         <Tooltip delayDuration={200}>
           <TooltipTrigger asChild>{trigger}</TooltipTrigger>
           {open ? null : (
-            <TooltipContent side="bottom" sideOffset={4} className="font-medium">
+            <TooltipContent side="bottom" sideOffset={4} tone="light" className="font-medium">
               {hint ?? "Bộ lọc"}{count ? ` · ${count} đang bật` : ""}
             </TooltipContent>
           )}
@@ -88,7 +91,7 @@ export function FilterButton({ count, onClear, children, className, contentClass
         {/* Đầu hộp: tên + số ô đang lọc, "Xoá lọc" ngay góc — không cần một dải chân chỉ có một nút. */}
         <div className="bg-surface-subtle flex items-center justify-between gap-2 rounded-t-xl border-b px-4 py-2.5">
           <span className="flex items-center gap-2 text-sm font-semibold">
-            <ListFilter className="text-muted-foreground size-4" />
+            <Funnel className="text-muted-foreground size-4" />
             Bộ lọc
             {count ? <span className="text-muted-foreground text-xs font-normal">· {count} đang bật</span> : null}
           </span>
@@ -98,7 +101,8 @@ export function FilterButton({ count, onClear, children, className, contentClass
             </Button>
           ) : null}
         </div>
-        <div className="grid gap-4 p-4">{children}</div>
+        {/* Hộp dài (nhiều ô lọc) không tràn khỏi màn hình: cuộn bên trong, đầu hộp đứng yên. */}
+        <div className="grid max-h-[calc(var(--radix-popover-content-available-height)-3.5rem)] gap-4 overflow-y-auto p-4 [scrollbar-width:thin]">{children}</div>
       </PopoverContent>
     </Popover>
   );
@@ -154,16 +158,18 @@ export type FilterChoice = { value: string; label: string };
  * Danh sách lựa chọn của một ô lọc — dáng của bộ lọc màn Thiết bị (ô tích, hai cột khi nhãn ngắn, dài thì cuộn).
  * Chọn MỘT giá trị (API lọc mỗi trường theo một giá trị): bấm mục khác là đổi, bấm lại mục đang chọn là bỏ lọc.
  */
-export function ChoiceList({ value, onChange, options, columns }: {
+export function ChoiceList({ value, onChange, options, columns, className }: {
   value: string | null | undefined;
   onChange: (v: string | null) => void;
   options: FilterChoice[];
   /** Mặc định: hai cột khi mọi nhãn ngắn, một cột khi có nhãn dài. */
   columns?: 1 | 2;
+  /** Ghi đè, vd. chiều cao tối đa (`max-h-*`) khi danh sách đứng một mình một cột của hộp lọc rộng. */
+  className?: string;
 }) {
   const cols = columns ?? (options.every((o) => o.label.length <= 16) ? 2 : 1);
   return (
-    <div className={cn("-mx-2 grid max-h-[17rem] overflow-y-auto pe-1 [scrollbar-width:thin]", cols === 2 && "grid-cols-2")}>
+    <div className={cn("-mx-2 grid max-h-[17rem] overflow-y-auto pe-1 [scrollbar-width:thin]", cols === 2 && "grid-cols-2", className)}>
       {options.map((o) => (
         <FilterOption key={o.value} on={value === o.value} label={o.label}
           onToggle={() => onChange(value === o.value ? null : o.value)} />

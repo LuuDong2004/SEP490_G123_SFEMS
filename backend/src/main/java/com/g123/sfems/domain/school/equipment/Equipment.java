@@ -4,6 +4,7 @@ import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
+import com.g123.sfems.domain.catalog.equipmentconfig.EquipmentConfig;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
 import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.school.base.SchoolOwnedEntity;
@@ -12,7 +13,7 @@ import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.PhysicalDigitalType;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.intake.EquipmentIntakeLine;
-import com.g123.sfems.domain.security.user.User;
+import com.g123.sfems.domain.school.staff.Staff;
 import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,41 +23,47 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
-import org.hibernate.annotations.DynamicUpdate;
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
+import java.util.Map;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Hồ sơ thiết bị (TS-01) — một thiết bị, hoặc một lô thiết bị cùng loại, của trường.
+ * Một thiết bị (hoặc một lô thiết bị cùng loại) của trường.
  *
- * <p>{@code code} (lớp nền) là MÃ TÀI SẢN theo chuẩn {@code TT.TR.MH.LT.ST.NC} (TS-05, TS-06);
- * {@code name} là tên thiết bị. Mã duy nhất trong trường.
+ * <p>{@code code} (lớp nền) là MÃ ĐỊNH DANH theo chuẩn {@code TT.TR.MH.LT.ST.NC}
+ * — xem {@code EquipmentCodeService}. {@code name} là tên thiết bị.
  *
- * <p>{@code @DynamicUpdate}: chỉ ghi cột thật sự đổi. Không có {@code @Version}, nên ghi cả hàng từ bản
- * trong bộ nhớ thì phiếu kiểm kê (đổi phòng, tình trạng) và lần sửa hồ sơ (số serial…) chạy song song
- * sẽ đè nhau mà không để lại lịch sử.
+ * <p>Đây là NHÓM TRƯỜNG LÕI. Hoá đơn, hợp đồng, quyết định giao nằm ở phiếu
+ * ghi tăng sinh ra thiết bị.
  *
- * <p>Các quan hệ lớn nạp bằng SELECT riêng thay vì JOIN: mỗi cái kéo theo cây EAGER của nó, gộp vào
- * một câu khi tài sản được nạp qua phiếu là quá rộng.
+ * <p>Thông số kỹ thuật lưu ở {@link #specs} (JSONB: mã thông số → giá trị dạng
+ * chuỗi), theo định nghĩa trong bộ thông số {@link #config}.
  */
 @RowLevelResource("equipment")
 @Entity
 @Table(name = "equipment")
+/*
+ * @DynamicUpdate: chỉ ghi cột thật sự đổi. Không có @Version, nên ghi cả hàng từ bản trong bộ nhớ thì phiếu duyệt
+ * (đổi phòng, trạng thái) và lần sửa hồ sơ (số serial…) chạy song song sẽ đè nhau: bên commit sau trả cột của bên kia
+ * về giá trị cũ mà không để lại lịch sử nào.
+ */
 @DynamicUpdate
+/*
+ * Các quan hệ lớn (nhóm thiết bị, phòng, người quản lý, cấu hình, dòng phiếu nhập)
+ * nạp bằng câu SELECT riêng thay vì JOIN: mỗi cái kéo theo cây EAGER của nó, và
+ * khi tài sản được nạp theo id (qua một phiếu) Hibernate
+ * gộp tất cả vào một câu — vượt giới hạn 1664 cột của PostgreSQL.
+ */
 public class Equipment extends SchoolOwnedEntity {
-
-    /** Mã chuẩn của Sở: {@code TT.TR.MH.LT.ST.NC}, vd. {@code 79.MK.04.TB.001.25}. */
-    public static final Pattern STANDARD_CODE =
-            Pattern.compile("^\\d{2}\\.[A-Z0-9]{2}\\.\\d{2}\\.(TB|PM|HL)\\.\\d{3}\\.\\d{2}$");
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @Fetch(FetchMode.SELECT)
@@ -68,28 +75,43 @@ public class Equipment extends SchoolOwnedEntity {
     private PhysicalDigitalType physicalOrDigital = PhysicalDigitalType.PHYSICAL;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "asset_category", length = 30)
+    @Column(name = "asset_category", length = 20)
     private AssetCategory assetCategory;
 
-    /** Mã trước khi chuẩn hoá (sổ cũ, phần mềm trước, tệp nhập TS-07). Chỉ để tra cứu. */
+    /** Mã trước khi chuẩn hoá (sổ cũ, phần mềm trước, tệp nhập). Chỉ để tra cứu. */
     @Column(name = "legacy_code", length = 64)
     private String legacyCode;
 
     @Column(name = "serial_number", length = 100)
     private String serialNumber;
 
-    /** Model và hãng của CÁI này — khai ở dòng phiếu ghi tăng (theo lô mua) hoặc sửa tay. */
+    /** Model và hãng sản xuất của CÁI này — khai ở dòng phiếu ghi tăng (theo lô mua) hoặc sửa tay. */
     @Column(length = 255)
     private String model;
 
     @Column(length = 255)
     private String manufacturer;
 
+    /** Thông tin khác của cái này — cấu hình, công suất, xuất xứ…: chữ tự do, không tách trường. */
+    @Column(name = "other_info", length = 500)
+    private String otherInfo;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "unit_id")
     private Unit unit;
 
-    /** Số lượng — 1 với thiết bị quản lý từng cái; lớn hơn với lô ({@code TrackingType.BULK}). */
+    /**
+     * Quy cách bao bì của LÔ vật tư / hoá chất (182): đơn vị bao bì (Lọ, Chai…) và lượng trong một bao bì theo đơn vị
+     * của lô (10 ml). Số lượng của lô vẫn đếm theo đơn vị của lô; quy cách để nhập "3 lọ" thay cho "30 ml". Cùng
+     * trống hoặc cùng có. EAGER như {@code unit}: phản hồi đọc nó sau khi giao dịch đóng.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "pack_unit_id")
+    private Unit packUnit;
+
+    @Column(name = "pack_size", precision = 14, scale = 3)
+    private BigDecimal packSize;
+
     @Column(nullable = false)
     private BigDecimal quantity = BigDecimal.ONE;
 
@@ -97,7 +119,9 @@ public class Equipment extends SchoolOwnedEntity {
     @JoinColumn(name = "origin_source_id")
     private OriginSource originSource;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    // LAZY: chỉ hồ sơ tài sản (EquipmentResponse) đọc — không phải dòng phiếu (EquipmentSummary).
+    // EquipmentService.loadForResponse nạp nó cho các phản hồi của /api/equipment.
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "acquisition_method_id")
     private AcquisitionMethod acquisitionMethod;
 
@@ -105,13 +129,14 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(name = "funding_source", length = 30)
     private FundingSource fundingSource;
 
-    /** Ghi rõ khi nguồn hình thành / nguồn kinh phí / hình thức mua sắm là "Khác". */
+    /** Ghi rõ khi nguồn hình thành là "Khác" / nguồn kinh phí là "Nguồn hợp pháp khác". */
     @Column(name = "origin_note", length = 255)
     private String originNote;
 
     @Column(name = "funding_note", length = 255)
     private String fundingNote;
 
+    /** Ghi rõ khi hình thức mua sắm là "Khác". */
     @Column(name = "acquisition_note", length = 255)
     private String acquisitionNote;
 
@@ -136,21 +161,19 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(name = "warranty_expiry")
     private LocalDate warrantyExpiry;
 
-    /** Hạn sử dụng của lô vật tư tiêu hao, hoá chất (từ dòng phiếu nhập). */
+    /** Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất. */
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
-    /** Nơi đặt. {@code null} = chưa giao về phòng nào (kho). */
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "room_id")
     private Room room;
 
-    /** Người được giao quản lý / sử dụng. */
     @ManyToOne(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "manager_id")
-    private User manager;
+    private Staff manager;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "condition", length = 20)
@@ -160,15 +183,28 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(nullable = false, length = 30)
     private AssetStatus status = AssetStatus.IN_USE;
 
-    /** Thông số kỹ thuật tự do: tên thông số → giá trị dạng chuỗi (JSONB). */
+    // LAZY, như acquisitionMethod: chỉ hồ sơ tài sản đọc.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SELECT)
+    @JoinColumn(name = "config_id")
+    private EquipmentConfig config;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, String> specs = new LinkedHashMap<>();
 
     /**
-     * Dòng phiếu nhập đã sinh ra tài sản này (PN-03). {@code null} với tài sản nhập tay hoặc từ tệp.
-     * Khoá ngoại {@code RESTRICT}: xoá được phiếu đã sinh tài sản thì mất nguồn gốc của chúng.
+     * Dòng phiếu nhập đã sinh ra tài sản này. {@code null} với tài sản nhập tay
+     * — dữ liệu có trước khi có phiếu, và màn thêm thủ công vẫn còn.
+     *
+     * <p>Đây là cái làm cho "mọi tài sản truy ngược được về phiếu nhập" thành
+     * một khoá ngoại chứ không phải một lời hứa. {@code RESTRICT}: xoá được
+     * phiếu đã sinh ra tài sản thì mất luôn nguồn gốc của chúng.
      */
+    // LAZY: dòng phiếu nhập kéo theo sáu liên kết EAGER của nó và cả phiếu (trường, cơ quan...), mà chỉ
+    // hồ sơ tài sản cần (số phiếu, chứng từ). EAGER thì MỌI lần nạp tài sản — mỗi dòng của mọi phiếu,
+    // biên bản kiểm kê hàng nghìn dòng — đều kéo cả cây đó. Phản hồi của /api/equipment nạp nó qua
+    // EquipmentService.loadForResponse; mã khác chỉ đọc nó trong giao dịch.
     @ManyToOne(fetch = FetchType.LAZY)
     @Fetch(FetchMode.SELECT)
     @JoinColumn(name = "intake_line_id")
@@ -198,14 +234,6 @@ public class Equipment extends SchoolOwnedEntity {
         this.assetCategory = assetCategory;
     }
 
-    public String getLegacyCode() {
-        return legacyCode;
-    }
-
-    public void setLegacyCode(String legacyCode) {
-        this.legacyCode = legacyCode;
-    }
-
     public String getSerialNumber() {
         return serialNumber;
     }
@@ -230,12 +258,35 @@ public class Equipment extends SchoolOwnedEntity {
         this.manufacturer = manufacturer;
     }
 
+    public String getOtherInfo() {
+        return otherInfo;
+    }
+
+    public void setOtherInfo(String otherInfo) {
+        this.otherInfo = otherInfo;
+    }
+
     public Unit getUnit() {
         return unit;
     }
 
     public void setUnit(Unit unit) {
         this.unit = unit;
+    }
+
+    public Unit getPackUnit() {
+        return packUnit;
+    }
+
+    public BigDecimal getPackSize() {
+        return packSize;
+    }
+
+    /** Đặt quy cách (cả hai cùng có hoặc cùng trống — ràng buộc {@code ck_equipment_pack}). */
+    public void setPack(Unit packUnit, BigDecimal packSize) {
+        boolean has = packUnit != null && packSize != null && packSize.signum() > 0;
+        this.packUnit = has ? packUnit : null;
+        this.packSize = has ? packSize : null;
     }
 
     public BigDecimal getQuantity() {
@@ -366,11 +417,11 @@ public class Equipment extends SchoolOwnedEntity {
         this.room = room;
     }
 
-    public User getManager() {
+    public Staff getManager() {
         return manager;
     }
 
-    public void setManager(User manager) {
+    public void setManager(Staff manager) {
         this.manager = manager;
     }
 
@@ -390,6 +441,14 @@ public class Equipment extends SchoolOwnedEntity {
         this.status = status == null ? AssetStatus.IN_USE : status;
     }
 
+    public EquipmentConfig getConfig() {
+        return config;
+    }
+
+    public void setConfig(EquipmentConfig config) {
+        this.config = config;
+    }
+
     public Map<String, String> getSpecs() {
         return specs;
     }
@@ -406,9 +465,23 @@ public class Equipment extends SchoolOwnedEntity {
         this.intakeLine = intakeLine;
     }
 
+    /** Mã chuẩn của Sở: {@code TT.TR.MH.LT.ST.NC}, vd. {@code 79.A1.08.TB.01.25}. */
+    public static final Pattern STANDARD_CODE = Pattern.compile("^\\d{2}\\.[A-Z0-9]{2}\\.\\d{2}\\.(TB|PM|HL)\\.\\d{3,4}\\.\\d{2}$");
+    public static final String STANDARD_CODE_SQL = "^[0-9]{2}\\.[A-Z0-9]{2}\\.[0-9]{2}\\.(TB|PM|HL)\\.[0-9]{3,4}\\.[0-9]{2}$";
+
     /**
-     * Hồ sơ còn thiếu gì — TÍNH RA, không lưu. Rỗng là hồ sơ chuẩn. Phiếu nghiệp vụ chỉ nhận tài sản có
-     * hồ sơ chuẩn; số serial KHÔNG nằm trong điều kiện (bản đồ, bàn ghế không có serial).
+     * Hồ sơ còn thiếu gì — TÍNH RA, không lưu. Rỗng là hồ sơ chuẩn.
+     *
+     * <p>Hồ sơ thiếu mã chuẩn, đơn vị tính thì báo cáo và kiểm kê dựa trên nó đều sai theo.
+     *
+     * <p>Nguyên giá KHÔNG nằm trong điều kiện: HSMT 3.5.3 chỉ đòi "nguyên giá hoặc giá trị theo
+     * dữ liệu được cung cấp" — có thì ghi, không có thì để trống.
+     *
+     * <p>Số serial KHÔNG nằm trong điều kiện: bản đồ, tranh, bàn ghế không có serial của
+     * nhà sản xuất, và mã tài sản chuẩn đã phân biệt được từng cái.
+     *
+     * <p>Điều kiện này viết hai lần — ở đây và bằng SQL trong
+     * {@code EquipmentService.incompleteProfile} để lọc được ở server. Hai bản phải đi cùng nhau.
      */
     public List<String> missingProfile() {
         List<String> missing = new ArrayList<>();
@@ -424,13 +497,18 @@ public class Equipment extends SchoolOwnedEntity {
         if (receivedDate == null) {
             missing.add("ngày tiếp nhận");
         }
-        if (originalValue == null) {
-            missing.add("nguyên giá");
-        }
         return missing;
     }
 
     public boolean isProfileComplete() {
         return missingProfile().isEmpty();
+    }
+
+    public String getLegacyCode() {
+        return legacyCode;
+    }
+
+    public void setLegacyCode(String legacyCode) {
+        this.legacyCode = legacyCode;
     }
 }

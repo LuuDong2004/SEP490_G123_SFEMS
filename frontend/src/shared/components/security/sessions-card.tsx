@@ -9,6 +9,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
+import { LoadingText } from "@/shared/components/spinner";
 
 /** Số phiên mỗi trang của khối "Phiên đăng nhập". */
 const PAGE_SIZE = 5;
@@ -36,7 +37,7 @@ export function describeAgent(ua: string | null) {
 }
 
 /**
- * Các phiên đăng nhập đang mở của một tài khoản (QLTB-242): thiết bị, IP, lúc mở, lần dùng gần nhất; mỗi phiên một
+ * Các phiên đăng nhập đang mở của một tài khoản: thiết bị, IP, lúc mở, lần dùng gần nhất; mỗi phiên một
  * nút Đăng xuất. Đăng xuất là thu hồi refresh token của phiên — thiết bị kia mất phiên ở lần làm mới token kế tiếp
  * (tối đa 15 phút, thời hạn của access token).
  *
@@ -57,7 +58,7 @@ export function SessionsCard({ source, endPath, endOthers, canEnd = true, descri
   const [page, setPage] = useState(0);
   const { data, isLoading } = useQuery({
     queryKey: ["sessions", source],
-    queryFn: () => kyInstance.get(source).json<SessionRow[]>(),
+    queryFn: ({ signal }) => kyInstance.get(source, { signal }).json<SessionRow[]>(),
   });
   // Phiên đang dùng luôn đứng đầu; còn lại theo lần dùng gần nhất (máy chủ đã xếp). Phân trang ở máy khách:
   // danh sách đã về đủ, phiên cũ có thể dồn tới vài chục dòng.
@@ -99,7 +100,7 @@ export function SessionsCard({ source, endPath, endOthers, canEnd = true, descri
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-muted-foreground text-sm">Đang tải…</p>
+          <LoadingText />
         ) : rows.length === 0 ? (
           <p className="text-muted-foreground text-sm">Không có phiên nào đang mở.</p>
         ) : (

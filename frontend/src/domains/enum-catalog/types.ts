@@ -5,7 +5,6 @@
  */
 export const ENUM_CATALOG_RESOURCES = [
   "asset_categories",
-  "usage_purposes",
   "funding_sources",
   "staff_positions",
 ] as const;

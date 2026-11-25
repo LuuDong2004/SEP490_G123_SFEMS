@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Khoá tạm sau nhiều lần sai mật khẩu (QLTB-509): sai {@value #MAX_FAILURES} lần liên tiếp thì tài khoản khoá
+ * Khoá tạm sau nhiều lần sai mật khẩu: sai {@value #MAX_FAILURES} lần liên tiếp thì tài khoản khoá
  * 15 phút. Đăng nhập đúng xoá bộ đếm.
  *
  * <p>Lần sai được ghi trong giao dịch RIÊNG ({@code REQUIRES_NEW}): lần đăng nhập ném lỗi làm giao dịch ngoài lùi
- * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code MfaService.verifyForLogin}.
+ * lại, và nếu đếm trong đó thì bộ đếm không bao giờ tăng — cùng lý do với {@code EmailMfaService.verifyForLogin}.
  */
 @Service
 @Transactional(readOnly = true)
@@ -29,20 +29,16 @@ public class LoginGuard {
         this.repository = repository;
     }
 
-    /**
-     * Tài khoản đang bị khoá tạm thì từ chối, kể cả mật khẩu đúng.
-     *
-     * <p>Câu báo là {@code message} — đúng câu của lần sai mật khẩu (GBR-01, MSG02). Báo riêng "tài khoản tạm khoá"
-     * thì người ngoài biết tên đăng nhập đó có thật. Người gọi phải so mật khẩu TRƯỚC khi gọi hàm này, để tài khoản
-     * đang khoá không trả lời nhanh hơn tài khoản thường.
-     */
-    public void requireNotLocked(User user, Instant now, String message) {
+    /** Tài khoản đang bị khoá tạm thì từ chối ngay, trước khi so mật khẩu — kể cả mật khẩu đúng. */
+    public void requireNotLocked(User user, Instant now) {
         if (user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(now)) {
-            throw new BadCredentialsException(message);
+            long minutes = Math.max(1, (Duration.between(now, user.getLoginLockedUntil()).toSeconds() + 59) / 60);
+            throw new BadCredentialsException(
+                    "Tài khoản tạm khoá do sai mật khẩu nhiều lần — thử lại sau " + minutes + " phút");
         }
     }
 
-    /** Ghi một lần sai mật khẩu; lần thứ {@value #MAX_FAILURES} thì khoá. Luôn ném lỗi đăng nhập với {@code message}. */
+    /** Ghi một lần sai mật khẩu; lần thứ {@value #MAX_FAILURES} thì khoá. Luôn ném lỗi đăng nhập. */
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BadCredentialsException.class)
     public void recordFailure(Long userId, String message) {
         Instant now = Instant.now();
@@ -53,7 +49,8 @@ public class LoginGuard {
                 user.setFailedLoginCount(0);
                 user.setLoginLockedUntil(now.plus(LOCK));
                 repository.save(user);
-                throw new BadCredentialsException(message);
+                throw new BadCredentialsException("Sai mật khẩu " + MAX_FAILURES
+                        + " lần liên tiếp — tài khoản tạm khoá " + LOCK.toMinutes() + " phút");
             }
             user.setFailedLoginCount(failures);
             repository.save(user);

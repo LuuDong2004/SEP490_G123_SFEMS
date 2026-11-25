@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ProfileFields, profilePayload, type AnyControl, type ProfileKind } from "@/features/administration/users/profile-fields";
+import { useOne } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { Loader2, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -31,13 +33,14 @@ import {
   FormMessage,
 } from "@/shared/ui/form";
 import { PlacementField, placementProblem, type PlacementMode } from "@/features/administration/users/placement-field";
-import { RolePicker, useRolePlacement, type RoleRef } from "@/features/administration/users/role-picker";
+import { placementType, RolePicker, useRolePlacement, type RoleRef } from "@/features/administration/users/role-picker";
 import type { ManagingBodyRef } from "@/features/administration/users/managing-body-picker";
 import type { SchoolRef } from "@/features/administration/users/school-picker";
-import { STATUS_OPTIONS, type UserStatus } from "@/domains/user/types";
+import { STATUS_OPTIONS, type UserProfile, type UserStatus } from "@/domains/user/types";
 import { StepTitle } from "@/shared/components/voucher/voucher-layout";
 import { PasswordRules } from "@/shared/components/form/password-rules";
 import { passwordOk } from "@/shared/lib/password-policy";
+import { inputModeOf, maxLengthOf, mergeRules, textRules } from "@/shared/lib/field-rules";
 
 /**
  * The create payload, which is `UserRequest` on the backend rather than the
@@ -53,6 +56,7 @@ type UserFormValues = {
   roles: RoleRef[];
   school: SchoolRef;
   managingBody: ManagingBodyRef;
+  profile: Partial<UserProfile>;
 };
 
 /**
@@ -70,7 +74,14 @@ const DEFAULT_VALUES: UserFormValues = {
   // thuộc trường nào", và nó giữ giá trị của ô chọn luôn là một object ổn định.
   school: { id: null },
   managingBody: { id: null },
+  profile: {},
 };
+
+/** Tiền tố tài khoản của một trường — cùng phép với máy chủ (`UserService.schoolLogin`) và màn đăng nhập. */
+function loginPrefix(code: string): string {
+  return code.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/g, "d").replace(/Đ/g, "D")
+    .toLowerCase().replace(/[^a-z0-9._-]/g, "");
+}
 
 const GRID = "grid items-start gap-x-4 gap-y-5";
 /** Các phần trong hộp thoại không mang khung thẻ riêng — hộp đã là khung; ngăn nhau bằng một đường kẻ mảnh. */
@@ -82,8 +93,8 @@ const FORM_ID = "user-create-form";
  * Creating an account.
  *
  * This is the only way a user comes into existence — there is no
- * self-registration — so the password is set here by whoever creates the
- * account and handed over out of band.
+ * self-registration. Mật khẩu để trống thì máy chủ gửi thư mời tới email, chủ
+ * tài khoản tự đặt mật khẩu qua link; nhập thì người tạo tự giao mật khẩu.
  *
  * <p>Hộp thoại mở trên danh sách (route `create` lồng dưới route danh sách,
  * danh sách vẽ `<Outlet />`): các phần xếp theo thứ tự điền (tài khoản · nơi
@@ -96,19 +107,36 @@ export const UserCreate = () => {
     refineCore: { onFinish },
     ...form
   } = useForm({
-    refineCoreProps: {},
+    refineCoreProps: {
+      // Mật khẩu trống = mời qua email: nói rõ để người tạo không phải tự giao mật khẩu.
+      successNotification: (_data, values) => ({
+        type: "success",
+        message: (values as UserFormValues | undefined)?.password
+          ? "Đã thêm người dùng"
+          : "Đã thêm người dùng và gửi thư mời đặt mật khẩu tới email",
+      }),
+    },
     defaultValues: DEFAULT_VALUES,
   });
 
   const placement = useRolePlacement(form.watch("school"), form.watch("managingBody"));
   const [placementMode, setPlacementMode] = useState<PlacementMode>("school");
   const [placementError, setPlacementError] = useState<string | null>(null);
+  const profileKind: ProfileKind = placementMode === "school" ? "school" : placementMode === "body" ? "agency" : "system";
+  // Tài khoản trường mang tên <mã trường>.<tên> — máy chủ tự ghép; ô tên đăng nhập hiện sẵn tiền tố để người tạo thấy tên đầy đủ.
+  const schoolId = form.watch("school")?.id ?? null;
+  const { result: pickedSchool } = useOne<{ code: string }>({
+    resource: "schools",
+    id: schoolId ?? "",
+    queryOptions: { enabled: placementMode === "school" && schoolId != null },
+  });
+  const prefix = placementMode === "school" && schoolId != null && pickedSchool?.code ? loginPrefix(pickedSchool.code) : null;
 
   function onSubmit(values: UserFormValues) {
     const problem = placementProblem(placementMode, values.school, values.managingBody);
     setPlacementError(problem);
     if (problem) return;
-    onFinish(values);
+    onFinish({ ...values, profile: profilePayload(profileKind, values.profile) });
   }
 
   const main = (
@@ -119,12 +147,12 @@ export const UserCreate = () => {
           <FormField
             control={form.control}
             name="fullName"
-            rules={{ required: "Họ tên là bắt buộc" }}
+            rules={mergeRules(textRules("NAME", "Họ tên"), { required: "Họ tên là bắt buộc" })}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Họ tên</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="Nguyễn Văn A" />
+                  <Input {...field} value={field.value ?? ""} placeholder="Nguyễn Văn A" maxLength={maxLengthOf("NAME")} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -134,24 +162,29 @@ export const UserCreate = () => {
           <FormField
             control={form.control}
             name="username"
-            rules={{
+            rules={mergeRules(textRules("USERNAME", "Tên đăng nhập", { max: 100 }), {
               required: "Tên đăng nhập là bắt buộc",
-              minLength: { value: 3, message: "Tối thiểu 3 ký tự" },
-              // Mirrors the pattern the API enforces, so the message arrives
-              // before the round trip rather than after it.
-              pattern: {
-                value: /^[a-zA-Z0-9._-]+$/,
-                message: "Chỉ gồm chữ, số, dấu chấm, gạch dưới và gạch nối",
-              },
-            }}
+              minLength: { value: 3, message: "Tên đăng nhập tối thiểu 3 ký tự" },
+            })}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tên đăng nhập</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="nguyenvana" autoComplete="off" />
-                </FormControl>
+                <div className="flex">
+                  {prefix ? (
+                    <span className="bg-muted text-muted-foreground flex max-w-[50%] shrink-0 items-center truncate rounded-s-md border border-e-0 px-3 text-sm"
+                      title={`${prefix}.`}>
+                      {prefix}.
+                    </span>
+                  ) : null}
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ""} placeholder="nguyenvana" autoComplete="off" maxLength={maxLengthOf("USERNAME", 100)}
+                      className={prefix ? "rounded-s-none" : undefined} />
+                  </FormControl>
+                </div>
                 <FormHint>
-                  Dùng để đăng nhập. Không được trùng với tài khoản khác.
+                  {prefix
+                    ? `Tên đầy đủ là ${prefix}.${field.value || "…"} — đăng nhập thì chọn trường rồi gõ phần sau dấu chấm.`
+                    : "Dùng để đăng nhập. Không được trùng với tài khoản khác."}
                 </FormHint>
                 <FormMessage />
               </FormItem>
@@ -161,13 +194,7 @@ export const UserCreate = () => {
           <FormField
             control={form.control}
             name="email"
-            rules={{
-              required: "Email là bắt buộc",
-              pattern: {
-                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: "Nhập địa chỉ email hợp lệ",
-              },
-            }}
+            rules={mergeRules(textRules("EMAIL", "Email"), { required: "Email là bắt buộc" })}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
@@ -177,6 +204,8 @@ export const UserCreate = () => {
                     type="email"
                     value={field.value ?? ""}
                     placeholder="nguyenvana@example.com"
+                    maxLength={maxLengthOf("EMAIL")}
+                    inputMode={inputModeOf("EMAIL")}
                   />
                 </FormControl>
                 <FormHint>Có thể dùng email thay tên đăng nhập.</FormHint>
@@ -189,8 +218,7 @@ export const UserCreate = () => {
             control={form.control}
             name="password"
             rules={{
-              required: "Mật khẩu là bắt buộc",
-              validate: (v: string) => passwordOk(v ?? "") || "Mật khẩu chưa đủ các yêu cầu bên dưới",
+              validate: (v: string) => !v || passwordOk(v) || "Mật khẩu chưa đủ các yêu cầu bên dưới",
             }}
             render={({ field }) => (
               <FormItem>
@@ -200,15 +228,15 @@ export const UserCreate = () => {
                     {...field}
                     value={field.value ?? ""}
                     autoComplete="new-password"
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Để trống: gửi thư mời qua email"
                   />
                 </FormControl>
                 <FormHint>
-                  Lưu xong sẽ không xem lại được. Hãy gửi cho chủ tài khoản
-                  và nhắc họ đổi mật khẩu.
+                  Để trống thì hệ thống gửi tới email trên một link để chủ tài khoản tự đặt mật khẩu. Nhập mật khẩu
+                  thì bạn tự giao cho họ — lưu xong không xem lại được.
                 </FormHint>
                 <FormMessage />
-                <PasswordRules value={field.value ?? ""} className="pt-1" />
+                {field.value ? <PasswordRules value={field.value} className="pt-1" /> : null}
               </FormItem>
             )}
           />
@@ -254,6 +282,7 @@ export const UserCreate = () => {
           onModeChange={setPlacementMode}
           error={placementError}
         />
+        <ProfileFields control={form.control as unknown as AnyControl} kind={profileKind} />
       </section>
 
       <section className={SECTION}>
@@ -273,7 +302,7 @@ export const UserCreate = () => {
                 aside={field.value?.length ? `Đã chọn ${field.value.length}` : undefined}
               />
               <FormControl>
-                <RolePicker value={field.value} onChange={field.onChange} placement={placement} />
+                <RolePicker value={field.value} onChange={field.onChange} userType={placementType(placementMode, placement)} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -289,7 +318,7 @@ export const UserCreate = () => {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
-      <DialogContent className="flex max-h-[92dvh] max-w-[min(72rem,calc(100vw-2rem))] flex-col gap-0 overflow-hidden p-0 outline-none sm:max-w-[min(72rem,calc(100vw-4rem))]">
+      <DialogContent size="wide" className="flex flex-col gap-0 overflow-hidden p-0 outline-none">
         <DialogHeader className="border-b px-6 py-4 pr-12">
           <DialogTitle>Thêm người dùng</DialogTitle>
           <DialogDescription className="sr-only">Nhập tài khoản, nơi công tác và vai trò của người dùng mới.</DialogDescription>

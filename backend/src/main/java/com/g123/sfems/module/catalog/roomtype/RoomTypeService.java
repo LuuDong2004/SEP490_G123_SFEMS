@@ -76,7 +76,6 @@ public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, R
         item.setLevels(FacilityGroupService.levels(request.levels()));
         item.setStandard(request.standard() == null || request.standard());
         item.setLegalBasis(blankToNull(request.legalBasis()));
-        item.setLoanable(Boolean.TRUE.equals(request.loanable()));
         item.setFunctional(Boolean.TRUE.equals(request.functional()));
         item.setParams(params(request.params() == null ? List.of() : request.params()));
         requireNameFree(item.getName(), null, null);
@@ -125,9 +124,6 @@ public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, R
         }
         if (request.legalBasis() != null) {
             item.setLegalBasis(blankToNull(request.legalBasis()));
-        }
-        if (request.loanable() != null) {
-            item.setLoanable(request.loanable());
         }
         if (request.functional() != null) {
             item.setFunctional(request.functional());
@@ -180,8 +176,8 @@ public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, R
     }
 
     /**
-     * Loại ngoài danh mục của một trường: chỉ trường đó dùng, không thuộc danh mục chuẩn, mặc định không cho
-     * mượn. Người gọi (feature phòng) đã kiểm quyền {@code rooms:write} và trường nằm trong phạm vi.
+     * Loại ngoài danh mục của một trường: chỉ trường đó dùng, không thuộc danh mục chuẩn.
+     * Người gọi (feature phòng) đã kiểm quyền {@code rooms:write} và trường nằm trong phạm vi.
      */
     @Transactional
     public RoomType createForSchool(long schoolId, String name, Long groupId, String kind) {

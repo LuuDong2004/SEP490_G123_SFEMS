@@ -26,7 +26,7 @@ import { QueryError } from "@/shared/components/query-error";
 import { CampusFilterButton } from "@/shared/components/campus/campus";
 
 
-const num = new Intl.NumberFormat("vi-VN");
+const num = new Intl.NumberFormat("vi-VN", { useGrouping: false });
 
 /** Gộp danh sách tên thành một câu ngắn: "Toán, Ngữ văn, Tiếng Anh và 9 môn khác". */
 function names(items: string[], unit: string, max = 3): string {

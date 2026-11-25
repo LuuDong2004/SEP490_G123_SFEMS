@@ -3,16 +3,9 @@ import type { Control } from "react-hook-form";
 
 import { Badge } from "@/shared/ui/badge";
 import { SwitchRow } from "@/shared/components/form/switch-row";
-import { formatPlainDate } from "@/shared/lib/format";
+import { formatPlainDate, todayLocal } from "@/shared/lib/format";
 import { Input } from "@/shared/ui/input";
 import { DateInput } from "@/shared/components/form/date-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/select";
 import { FormHint } from "@/shared/components/form/help-hint";
 import {
   FormControl,
@@ -38,7 +31,6 @@ import { SUBJECT_TYPE_LABELS } from "@/domains/subject/types";
 
 export type { CatalogExtra } from "@/shared/components/catalog/types";
 import type { CatalogExtra } from "@/shared/components/catalog/types";
-import { REASON_TYPE_LABELS } from "@/domains/movement-reason/types";
 
 function TextField({
   control,
@@ -255,9 +247,11 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
     ],
   },
   school_years: {
+    // Năm học chỉ cần cờ Hiện hành: cờ Đang hoạt động không có nghĩa với năm học.
+    hideActive: true,
     section: { title: "Thời gian" },
     defaults: { startDate: null, endDate: null, current: false },
-    Fields: ({ control }) => (
+    Fields: ({ control, record }) => (
       <div className="form-flow">
         <DateField control={control} name="startDate" label="Ngày bắt đầu" />
         <DateField control={control} name="endDate" label="Ngày kết thúc"
@@ -267,10 +261,19 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         <FormField
           control={control}
           name="current"
+          // Cùng quy tắc `SchoolYearService.requireNotEnded`: năm đã kết thúc không làm hiện hành được.
+          rules={{
+            deps: ["endDate"],
+            validate: (v, values) => {
+              const end = values?.endDate ? String(values.endDate) : null;
+              const unchanged = record?.current === true && end === record?.endDate;
+              return !v || !end || unchanged || end >= todayLocal() || "Năm học đã kết thúc, không chọn làm năm hiện hành được";
+            },
+          }}
           render={({ field }) => (
             <FormItem className="@md:col-span-2">
-              <SwitchRow checked={field.value ?? false} onCheckedChange={field.onChange} title="Năm học hiện hành"
-                description="Chỉ một năm được chọn. Chọn năm này thì năm cũ tự bỏ." />
+              <SwitchRow checked={field.value ?? false} onCheckedChange={field.onChange} title="Năm học hiện hành" />
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -306,64 +309,6 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
       {
         label: "Hiện hành",
         value: r?.current ? <Badge variant="success">Hiện hành</Badge> : "Không",
-      },
-    ],
-  },
-  movement_reasons: {
-    section: { title: "Phân loại" },
-    defaults: { reasonType: "ghi_tang" },
-    Fields: ({ control }) => (
-      <div className="form-flow">
-      <FormField
-        control={control}
-        name="reasonType"
-        rules={{ required: "Vui lòng chọn loại lý do" }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Loại lý do</FormLabel>
-            {/* Tuỳ chọn là hằng số cục bộ, luôn mount sẵn — nên không vướng
-                bẫy "Select so khớp trước khi item tới" như ô chọn cấp học. */}
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Vui lòng chọn loại lý do" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {Object.entries(REASON_TYPE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormHint>
-              Phiếu chỉ hiện lý do cùng loại.
-            </FormHint>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      </div>
-    ),
-    columns: [
-      {
-        id: "reasonType",
-        accessorKey: "reasonType",
-        header: "Loại lý do",
-        enableSorting: false,
-        cell: ({ getValue }) => {
-          const v = getValue() as string;
-          const variant =
-            v === "ghi_tang" ? "success" : v === "ghi_giam" ? "warning" : "neutral";
-          return <Badge variant={variant}>{REASON_TYPE_LABELS[v] ?? v}</Badge>;
-        },
-      },
-    ],
-    show: (r) => [
-      {
-        label: "Loại lý do",
-        value: REASON_TYPE_LABELS[r?.reasonType] ?? r?.reasonType ?? "—",
       },
     ],
   },

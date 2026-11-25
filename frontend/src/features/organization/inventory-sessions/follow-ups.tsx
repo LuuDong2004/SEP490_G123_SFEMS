@@ -78,7 +78,7 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
 
 /**
  * Thiết bị thừa sau kiểm kê: duyệt biên bản đã tự lập phiếu ghi tăng nháp; nếu phiếu đó bị huỷ thì nút ở đây lập lại.
- * Thiếu, hỏng, sai vị trí không có phiếu — duyệt biên bản ghi thẳng vào hồ sơ thiết bị (KK-06).
+ * Thiếu, sai vị trí không có phiếu — duyệt biên bản ghi thẳng vào hồ sơ thiết bị (KK-06).
  */
 export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number; approved: boolean }) {
   const { data } = useQuery({
@@ -95,7 +95,7 @@ export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number
         title="Thiết bị thừa"
         hint={
           <>
-            Thiếu, hỏng, sai vị trí đã được ghi vào hồ sơ thiết bị khi duyệt biên bản. Thiết bị thừa thì lập phiếu ghi tăng
+            Thiếu, sai vị trí đã được ghi vào hồ sơ thiết bị khi duyệt biên bản. Thiết bị thừa thì lập phiếu ghi tăng
             nháp (nguồn "Kiểm kê thừa"), bổ sung thông tin rồi trình.
           </>
         }

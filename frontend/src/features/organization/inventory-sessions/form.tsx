@@ -1,9 +1,9 @@
-import { useList, useOne } from "@refinedev/core";
+import { useList, useNavigation, useOne } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
 import { Lock, Save } from "lucide-react";
 import { useEffect } from "react";
 import { Controller, useWatch, type Control } from "react-hook-form";
-import { useNavigate, useSearchParams } from "react-router";
+import { Navigate, useNavigate, useSearchParams } from "react-router";
 
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { StaffListField } from "@/shared/components/catalog/staff-list-field";
@@ -241,6 +241,7 @@ export const InventorySessionCreate = () => {
 
 export const InventorySessionEdit = () => {
   const navigate = useNavigate();
+  const { showUrl } = useNavigation();
   const {
     refineCore: { onFinish, query },
     ...form
@@ -284,6 +285,11 @@ export const InventorySessionEdit = () => {
         </Alert>
       </EditView>
     );
+  }
+
+  // Không sửa được (quản trị viên, Sở): xem ở trang chi tiết, không mở form.
+  if (record?._actions && !record._actions.includes("edit")) {
+    return <Navigate to={showUrl("inventory_sessions", record.id)} replace />;
   }
 
   return (

@@ -26,11 +26,14 @@ export function useInfiniteScroll({
   isFetching,
   onLoadMore,
   rootMargin = "200px",
+  revision,
 }: {
   hasMore: boolean;
   isFetching: boolean;
   onLoadMore: () => void;
   rootMargin?: string;
+  /** Đổi mỗi khi danh sách dài thêm mà KHÔNG qua `isFetching` (hiện thêm dòng đã có sẵn) — để observer dựng lại. */
+  revision?: unknown;
 }) {
   // Giữ trong ref để observer không phải dựng lại mỗi lần một trong hai cờ
   // đổi — dựng lại observer giữa lúc đang cuộn làm mất lần gọi lại.
@@ -61,7 +64,28 @@ export function useInfiniteScroll({
     // Dựng lại khi thẻ canh đổi, và khi một lần tải vừa XONG (`isFetching` về false): nếu thẻ canh vẫn đang
     // trong tầm nhìn (trang vừa tải chưa đủ dài để đẩy nó đi), observer mới báo ngay và tải tiếp — observer
     // cũ thì im, vì với nó trạng thái "đang thấy" chưa hề đổi.
-  }, [node, rootMargin, hasMore, isFetching]);
+  }, [node, rootMargin, hasMore, isFetching, revision]);
 
   return attach;
+}
+
+/**
+ * Cuộn tới đâu HIỆN thêm tới đó cho danh sách đã có đủ trong trình duyệt (hộp chọn cán bộ, phòng — tải một lần rồi lọc
+ * tại chỗ): mỗi lần điểm canh lọt vào tầm nhìn thì hiện thêm `step` dòng. Thay cho phân trang "Trước / Sau" trong hộp
+ * chọn (trưởng nhóm 13/11/2026).
+ *
+ * `reset()` khi đổi tìm / lọc; `reveal(n)` để chắc chắn dòng thứ n đã hiện (mở hộp ở chỗ dòng đang chọn).
+ */
+export function useShowMore(total: number, step: number) {
+  const [count, setCount] = useState(step);
+  const shown = Math.min(count, total);
+  const hasMore = shown < total;
+  const attach = useInfiniteScroll({ hasMore, isFetching: false, onLoadMore: () => setCount((c) => c + step), revision: shown });
+  return {
+    count: shown,
+    hasMore,
+    attach,
+    reset: () => setCount(step),
+    reveal: (n: number) => setCount(Math.max(step, Math.ceil(n / step) * step)),
+  };
 }

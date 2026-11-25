@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/shared/lib/utils";
 
-const KEY = "sfems.welcomed";
+const KEY = "qltb.welcomed";
 /** Đủ lâu để đọc trọn lời chào, kể cả khi dữ liệu về rất nhanh. */
 const MIN_MS = 2300;
 /** Máy chủ chậm cũng không giữ người dùng ở màn chào quá lâu. */
@@ -53,6 +53,14 @@ export function WelcomeSplash() {
     if (phase === "in" && ready && fetching === 0) setPhase("out");
   }, [phase, ready, fetching]);
 
+  // Người dùng vội: nhấn phím bất kỳ là bỏ qua (chạm / bấm chuột ở onPointerDown của khung).
+  useEffect(() => {
+    if (phase !== "in") return;
+    const skip = () => setPhase("out");
+    window.addEventListener("keydown", skip);
+    return () => window.removeEventListener("keydown", skip);
+  }, [phase]);
+
   useEffect(() => {
     if (phase !== "out") return;
     const t = setTimeout(() => setPhase("gone"), EXIT_MS);
@@ -63,8 +71,9 @@ export function WelcomeSplash() {
   const words = ["Xin", "chào"];
   return (
     <div role="status" aria-live="polite" aria-label={`Xin chào ${name}`}
+      onPointerDown={() => setPhase((p) => (p === "in" ? "out" : p))}
       className={cn(
-        "bg-background fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 px-6 pb-[12vh] text-center",
+        "bg-background fixed inset-0 cursor-pointer select-none z-[100] flex flex-col items-center justify-center gap-5 px-6 pb-[12vh] text-center",
         "transition-[opacity,filter,scale] duration-[650ms] ease-[cubic-bezier(.4,0,.2,1)]",
         phase === "out" && "pointer-events-none scale-[1.04] opacity-0 blur-sm",
       )}>
@@ -105,6 +114,11 @@ export function WelcomeSplash() {
       </h1>
       <p className={cn("text-foreground/80 animate-hello-sub relative text-2xl font-semibold sm:text-3xl", !name && "invisible")}>
         {name || " "}
+      </p>
+
+      {/* Lời nhắc bỏ qua — hiện sau lời chào, mờ, sát đáy. */}
+      <p className="animate-hello-sub text-muted-foreground absolute inset-x-0 bottom-8 text-sm" style={{ animationDelay: "1.4s" }}>
+        Chạm để bỏ qua
       </p>
     </div>
   );

@@ -41,6 +41,11 @@ public class RecordAccessRegistry {
         access.checkWritable(id);
     }
 
+    /** Luật tệp riêng của tài nguyên (đuôi nhận, trần dung lượng) — gọi SAU {@link #checkWritable}. */
+    public RecordAccess rulesOf(String resource) {
+        return access(resource, null);
+    }
+
     private RecordAccess access(String resource, Long id) {
         RecordAccess access = byResource.get(resource);
         if (access == null) {
