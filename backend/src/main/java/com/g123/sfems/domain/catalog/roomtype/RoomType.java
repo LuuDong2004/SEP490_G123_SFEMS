@@ -8,6 +8,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
 import com.g123.sfems.domain.catalog.educationlevel.EducationLevel;
 import com.g123.sfems.domain.catalog.facilitygroup.FacilityGroup;
+import com.g123.sfems.domain.catalog.base.SystemKeyed;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,7 +27,16 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "room_types")
-public class RoomType extends CatalogEntity {
+public class RoomType extends CatalogEntity implements SystemKeyed {
+
+    /** Khoá hệ thống (312) — mã chữ cố định nghiệp vụ dựa vào; chỉ đọc, {@code null} với mục thêm sau. */
+    @Column(name = "system_key", length = 64, insertable = false, updatable = false)
+    private String systemKey;
+
+    @Override
+    public String getSystemKey() {
+        return systemKey;
+    }
 
     /** Loại phòng, nhà. */
     public static final String ROOM = "ROOM";

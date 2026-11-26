@@ -72,7 +72,7 @@ export function AdjustDialog({ row, yearId, campusId, onClose, onSaved }: {
           <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
             <dl className="bg-surface-subtle divide-y rounded-lg border text-sm">
               <Fact label="Theo thông tư">
-                <span className="text-base font-semibold tabular-nums">{row.requiredTt ?? "—"}</span> {unit}
+                {row.requiredTt == null ? <span className="text-muted-foreground">Chưa tính được</span> : <><span className="text-base font-semibold tabular-nums">{row.requiredTt}</span> {unit}</>}
               </Fact>
               {row.allowedText ? <Fact label="Sở cho">{row.allowedText}</Fact> : null}
               {row.basisText ? <Fact label="Căn cứ"><span className="italic">{row.basisText}</span></Fact> : null}
@@ -92,7 +92,7 @@ export function AdjustDialog({ row, yearId, campusId, onClose, onSaved }: {
                       {unit ? <span className="text-muted-foreground text-sm">{unit}</span> : null}
                     </div>
                     <FormHint>
-                      Số lượng trường thực sự cần. Mức theo thông tư ({row.requiredTt ?? "—"} {unit}) giữ nguyên, số này hiện ở
+                      Số lượng trường thực sự cần. Mức theo thông tư ({row.requiredTt == null ? "chưa tính được" : `${row.requiredTt} ${unit}`.trim()}) giữ nguyên, số này hiện ở
                       cột Ngoài TT để Sở xem xét.
                     </FormHint>
                     <FormMessage />

@@ -14,7 +14,7 @@
  */
 import type { ResourceProps } from "@refinedev/core";
 import type { ReactNode } from "react";
-import { MonitorSmartphone, ShoppingCart, Workflow } from "lucide-react";
+import { ClipboardList, MonitorSmartphone, ShoppingCart, Workflow } from "lucide-react";
 
 import type { ProcessConfig } from "@/shared/components/process/process-page";
 
@@ -45,8 +45,6 @@ export const MODULES: ModuleDef[] = [
       // màn Trường học (`SchoolWorkspace`).
       ["equipment_minimum", "Chuẩn tối thiểu"],
       ["equipment_intakes", "Ghi tăng"],
-      ["inventory_campaigns", "Đợt kiểm kê"],
-      ["inventory_sessions", "Kiểm kê"],
     ],
     process: {
       title: "Quy trình quản lý thiết bị",
@@ -58,6 +56,29 @@ export const MODULES: ModuleDef[] = [
       ],
       catalogs: ["equipment_standards", "equipment_types", "units", "rooms", "origin_sources"],
       reports: ["report_equipment_by_school", "report_equipment_by_status", "report_inventory"],
+    },
+  },
+  // Kiểm kê là một mục RIÊNG trên menu của trường (trưởng nhóm 27/11/2026), không còn là tab trong Thiết bị —
+  // việc làm theo đợt, có hạn nộp, trường cần thấy ngay. Tab "Đợt kiểm kê" chỉ hiện ở góc nhìn Sở (audience).
+  {
+    name: "mod_inventory",
+    label: "Kiểm kê",
+    icon: icon(ClipboardList),
+    home: "inventory_sessions",
+    tabs: [
+      ["process_inventory", "Quy trình"],
+      ["inventory_sessions", "Phiếu kiểm kê"],
+      ["inventory_campaigns", "Đợt kiểm kê"],
+    ],
+    process: {
+      title: "Quy trình kiểm kê",
+      steps: [
+        { resource: "inventory_campaigns", title: "Mở đợt kiểm kê", maker: "Chuyên viên Sở", approver: "Lãnh đạo Sở", optional: true, result: "Trường nhận đợt kèm hạn nộp.", handoff: "Đợt kiểm kê" },
+        { resource: "inventory_sessions", title: "Lập phiếu, kiểm đếm", maker: "Cán bộ thiết bị", result: "Ghi có / không, vị trí, tình trạng của từng thiết bị.", handoff: "Biên bản" },
+        { resource: "inventory_sessions", title: "Duyệt biên bản", maker: "Cán bộ thiết bị", approver: "Lãnh đạo trường", result: "Sổ tài sản cập nhật theo kết quả; Sở thấy biên bản." },
+      ],
+      catalogs: ["rooms"],
+      reports: ["report_inventory"],
     },
   },
   {

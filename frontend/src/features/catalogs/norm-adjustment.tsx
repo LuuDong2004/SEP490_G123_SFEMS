@@ -373,7 +373,7 @@ function GroupFields({ control, record, standard }: { control: Control<any>; rec
       <div className="grid min-w-0 gap-2">
         <span className="text-sm leading-none font-medium">Trong nhóm</span>
         <div className="bg-muted/40 text-muted-foreground flex h-9 min-w-0 items-center rounded-full border px-3.5 text-sm">
-          <span className="truncate" title={members.join(" · ")}>{members.length ? members.join(" · ") : "—"}</span>
+          <span className="truncate" title={members.join(" · ")}>{members.length ? members.join(" · ") : "Chưa có thiết bị"}</span>
         </div>
       </div>
     </div>
@@ -409,26 +409,26 @@ export function AdjustmentView({ row, standardId }: { row: EquipmentNorm; standa
       {a?.kind === "REDUCE" ? (
         <>
           <KV label="Sau giảm"><b>{ratioLabel(a.quantity, unit, a.basisSize, a.basis)}</b></KV>
-          <KV label="Khi">{a.condition ?? "—"}</KV>
+          <KV label="Khi">{a.condition ?? <span className="text-muted-foreground">Chưa ghi điều kiện</span>}</KV>
         </>
       ) : null}
       {a?.kind === "SUBSTITUTE" ? (
         <>
           <KV label="Thay bằng">
-            {a.substituteCatalog ? <>{a.substituteCatalog.code ? `${a.substituteCatalog.code} · ` : ""}{a.substituteCatalog.name}</> : a.substituteText ?? "—"}
+            {a.substituteCatalog ? <>{a.substituteCatalog.code ? `${a.substituteCatalog.code} · ` : ""}{a.substituteCatalog.name}</> : a.substituteText ?? <span className="text-muted-foreground">Chưa khai</span>}
           </KV>
           <KV label="Đã có thứ thay">{a.substituteRequired ? "Không tính thiết bị này" : "Vẫn tính thiết bị này"}</KV>
         </>
       ) : null}
       {a?.kind === "SHARED" ? (
         <KV label="Dùng chung với">
-          {a.shared.length ? a.shared.map((c) => <div key={c.id}>{c.code ? `${c.code} · ` : ""}{c.name}</div>) : "—"}
+          {a.shared.length ? a.shared.map((c) => <div key={c.id}>{c.code ? `${c.code} · ` : ""}{c.name}</div>) : <span className="text-muted-foreground">Chưa chọn thiết bị</span>}
         </KV>
       ) : null}
       {a?.kind === "CHOOSE_IN_GROUP" ? (
         <>
-          <KV label="Nhóm">{a.group ?? "—"}</KV>
-          <KV label="Được chọn">{a.groupPick ?? "—"}{group ? ` trong ${group.items.length}` : ""}</KV>
+          <KV label="Nhóm">{a.group ?? <span className="text-muted-foreground">Chưa khai</span>}</KV>
+          <KV label="Được chọn">{a.groupPick ?? <span className="text-muted-foreground">Chưa khai</span>}{group ? ` trong ${group.items.length}` : ""}</KV>
           {group ? <KV label="Trong nhóm">{group.items.map((m) => m.name).join(" · ")}</KV> : null}
         </>
       ) : null}

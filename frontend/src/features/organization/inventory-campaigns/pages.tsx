@@ -27,7 +27,7 @@ import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { customResult } from "@/shared/hooks/use-custom-result";
 import { CAMPAIGN_STATE_VARIANTS, VOUCHER_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { errorMessage } from "@/shared/lib/api-error";
-import { maxLengthOf } from "@/shared/lib/field-rules";
+import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { Button } from "@/shared/ui/button";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { Textarea } from "@/shared/ui/textarea";
@@ -53,7 +53,7 @@ export const InventoryCampaignList = () => {
     const h = createColumnHelper<InventoryCampaign>();
     return [
       h.accessor("title", { id: "title", header: "Đợt kiểm kê", enableSorting: true }),
-      h.accessor("documentNo", { id: "documentNo", header: "Số công văn", cell: ({ getValue }) => getValue() ?? "—" }),
+      h.accessor("documentNo", { id: "documentNo", header: "Số công văn", cell: ({ getValue }) => getValue() ?? <span className="text-muted-foreground">Chưa có số</span> }),
       h.display({ id: "body", header: "Cơ quan phát động", cell: ({ row }) => row.original.managingBody.name }),
       h.accessor("cutoffDate", { id: "cutoffDate", header: "Ngày hiệu lực", enableSorting: true, cell: ({ getValue }) => formatPlainDate(getValue()) }),
       h.accessor("deadline", {
@@ -167,7 +167,7 @@ function CampaignStepButton({ campaign, step }: { campaign: InventoryCampaign; s
       <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
         <ConfirmContent tone={step === "return" ? "warning" : "neutral"} icon={text.icon} title={text.title} description={text.desc}
           cancelLabel="Chưa, để sau" confirmLabel={text.label} busy={busy} keepOpen
-          confirmDisabled={step === "return" && !note.trim()} onConfirm={() => void run()}>
+          confirmDisabled={step === "return" && !!textError("REASON", "Lý do", note.trim() || "", 500, 5) || (step === "return" && !note.trim())} onConfirm={() => void run()}>
           {step === "submit" ? null : (
             <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} maxLength={maxLengthOf("NOTE")}
               placeholder={step === "return" ? "Lý do trả lại (bắt buộc)" : "Ý kiến (không bắt buộc)"} />
@@ -194,7 +194,7 @@ function CampaignFields({ control, yearName, yearStart, nextStart, files }: {
   // Hộp hẹp một cột: tên; hai ngày đứng cạnh nhau theo bề rộng ô ngày (không giãn chừa khoảng trống); nội dung; tệp.
   return (
     <div className="grid gap-y-5">
-      <TextField control={control} name="documentNo" label="Số công văn" rule="SHORT_TEXT" max={100} placeholder="VD: 1234/SGDĐT-KHTC" className="max-w-64" />
+      <TextField control={control} name="documentNo" label="Số công văn" rule="DOC_NO" placeholder="VD: 1234/SGDĐT-KHTC" className="max-w-64" />
       <TextField control={control} name="title" label="Tên đợt" rule="NAME" rules={{ required: "Nhập tên đợt" }}
         placeholder={`VD: Kiểm kê cuối ${yearName ? yearName.toLowerCase() : "năm học"}`} />
       <div className="flex flex-wrap items-start gap-x-6 gap-y-5">
@@ -207,7 +207,16 @@ function CampaignFields({ control, yearName, yearStart, nextStart, files }: {
               || `Ngày hiệu lực phải trong ${yearName ?? "năm học"} (${day(yearStart)} – trước ${day(nextStart)})`,
           }} />
         <DateField control={control} name="deadline" label="Ngày kết thúc"
-          rules={{ required: "Chọn ngày", validate: notBefore("cutoffDate", "Ngày kết thúc không được trước ngày hiệu lực") }} />
+          rules={{ required: "Chọn ngày", validate: {
+            order: notBefore("cutoffDate", "Ngày kết thúc không được trước ngày hiệu lực"),
+            // Cùng luật InventoryCampaignService.MAX_MONTHS: một đợt kéo dài tối đa 12 tháng.
+            span: (v: unknown, values: any) => {
+              if (!v || !values?.cutoffDate) return true;
+              const limit = new Date(String(values.cutoffDate));
+              limit.setMonth(limit.getMonth() + 12);
+              return new Date(String(v)) <= limit || "Đợt kiểm kê kéo dài tối đa 12 tháng";
+            },
+          } }} />
       </div>
       <TextareaField control={control} name="note" label="Nội dung" rule="LONG_TEXT" max={1000} rows={3} className="max-w-none"
         placeholder="VD: Kiểm kê toàn bộ thiết bị đang có, nộp biên bản có chữ ký hiệu trưởng" />

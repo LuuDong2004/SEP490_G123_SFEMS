@@ -251,8 +251,25 @@ public class InventorySessionService
         if (request.council() != null) {
             voucher.setCouncil(requireCouncil(request.council()));
         }
+        // Kết luận (người kết luận, nội dung) chỉ ghi khi đã kiểm ĐỦ mọi dòng — chưa kiểm xong thì chưa có gì để kết luận.
+        boolean concluding = (request.conclusion() != null && !request.conclusion().isBlank())
+                || (request.concludedBy() != null && !request.concludedBy().isBlank());
+        if (concluding) {
+            long unchecked = voucher.getLines().stream().filter(l -> l.getFound() == null).count();
+            if (unchecked > 0) {
+                throw new FieldValidationException("conclusion",
+                        "Còn %d thiết bị chưa kiểm — kiểm đủ rồi mới nhập kết luận".formatted(unchecked));
+            }
+        }
         if (request.conclusion() != null) {
-            voucher.setConclusion(trimToNull(request.conclusion()));
+            String conclusion = trimToNull(request.conclusion());
+            if (conclusion != null && conclusion.length() < 10) {
+                throw new FieldValidationException("conclusion", "Kết luận quá ngắn (ít nhất 10 ký tự)");
+            }
+            voucher.setConclusion(conclusion);
+        }
+        if (request.concludedBy() != null) {
+            voucher.setConcludedBy(trimToNull(request.concludedBy().replaceAll("\\s+", " ")));
         }
         if (request.note() != null) {
             voucher.setNote(trimToNull(request.note()));
@@ -268,6 +285,10 @@ public class InventorySessionService
                 item.setName(input.name() == null || input.name().isBlank() ? item.getCatalog().getName() : input.name().trim());
                 item.setQuantity(input.quantity() == null ? 1 : input.quantity());
                 item.setRoom(input.room() == null || input.room().id() == null ? null : rooms.getAcrossCampuses(input.room().id()));
+                // Phòng của thiết bị thừa phải thuộc trường của phiếu — như phòng của cả phiếu (applyCreate).
+                if (item.getRoom() != null && !item.getRoom().getSchool().getId().equals(voucher.getSchool().getId())) {
+                    throw new FieldValidationException("surplus", "Thiết bị thừa %d: phòng không thuộc trường của phiếu".formatted(lineNo - 1));
+                }
                 item.setNote(trimToNull(input.note()));
                 items.add(item);
             }
@@ -336,6 +357,18 @@ public class InventorySessionService
         if (voucher.getCouncil() == null || voucher.getCouncil().isBlank()) {
             throw new FieldValidationException("council",
                     "Chưa khai tổ kiểm kê — sửa phiếu, chọn người trong tổ rồi trình lại biên bản");
+        }
+        // Biên bản kiểm kê phải có kết luận của tổ kiểm kê.
+        if (voucher.getConclusion() == null || voucher.getConclusion().isBlank()) {
+            throw new FieldValidationException("conclusion", "Nhập kết luận của tổ kiểm kê trước khi trình");
+        }
+        if (voucher.getConcludedBy() == null || voucher.getConcludedBy().isBlank()) {
+            throw new FieldValidationException("concludedBy", "Chọn người kết luận trước khi trình");
+        }
+        // Ngày kiểm kê không trước ngày hiệu lực của đợt.
+        if (voucher.getCampaign() != null && voucher.getInventoryDate() != null
+                && voucher.getInventoryDate().isBefore(voucher.getCampaign().getCutoffDate())) {
+            throw new FieldValidationException("inventoryDate", "Ngày kiểm kê không được trước ngày hiệu lực của đợt");
         }
     }
 

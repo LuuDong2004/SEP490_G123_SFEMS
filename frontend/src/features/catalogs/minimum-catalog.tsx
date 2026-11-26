@@ -1,5 +1,5 @@
 import { useCan, useCustom, useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
-import { ArrowLeftRight, BookOpen, Check, CheckCheck, CopyPlus, FileUp, ListChecks, Trash2, CircleStop, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, FileText, Pencil, Plus, Printer, Search, Timer, FunnelX, History, Undo2 } from "lucide-react";
+import { ArrowLeftRight, BookOpen, Check, CheckCheck, CopyPlus, FileUp, ListChecks, Trash2, CircleStop, GraduationCap, ChevronDown, ChevronLeft, FileSpreadsheet, Loader2, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, FileText, Pencil, Plus, Search, Timer, FunnelX, History, Undo2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -18,7 +18,6 @@ import { DeleteButton } from "@/shared/components/buttons/delete";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { FormDialog, type FormDialogState } from "@/shared/components/catalog/form-dialog";
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
-import { PrintSheet } from "@/shared/components/print/print-sheet";
 import { SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { Badge } from "@/shared/ui/badge";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
@@ -46,7 +45,6 @@ import {
   NORM_BASIS_LABELS,
   NORM_VALIDITY_LABELS,
   gradesLabel,
-  quantityLabel,
   ratioLabel,
   type EquipmentNorm,
   type NormSubjectGroup,
@@ -246,11 +244,9 @@ export function MinimumCatalog() {
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
   const activeOfLevel = levelStandards.find((s) => s.status === "ACTIVE");
-  const docsLine = ((standard?.documents ?? []) as StandardDoc[]).map((d) => d.documentNo).join(", ");
 
   const exportQuery: Record<string, string> = { ...query, ...(subject ? { "subject.id": String(subject.subjectId ?? "none") } : {}) };
-  const [printRows, setPrintRows] = useState<EquipmentNorm[] | null>(null);
-  const [transfer, setTransfer] = useState<"xlsx" | "pdf" | "import" | null>(null);
+  const [transfer, setTransfer] = useState<"xlsx" | "import" | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const levelName: string = standard?.educationLevel?.name ?? "";
   const docImport = useRef<NormDocumentImportHandle>(null);
@@ -317,32 +313,6 @@ export function MinimumCatalog() {
     }
   };
 
-  /** PDF = "In → Lưu thành PDF" của trình duyệt trên bản in (PrintSheet): đọc HẾT các dòng đang lọc rồi in. */
-  const exportPdf = async () => {
-    setTransfer("pdf");
-    try {
-      const rows = await kyInstance
-        .get("equipment_norms", { searchParams: { ...exportQuery, _start: "0", _end: "3000", _sort: "sortOrder", _order: "asc" } })
-        .json<EquipmentNorm[]>();
-      setPrintRows(rows);
-    } catch (error) {
-      notify?.({ type: "error", message: await errorMessage(error), description: "Không tạo được bản in" });
-      setTransfer(null);
-    }
-  };
-  useEffect(() => {
-    if (!printRows) return;
-    const done = () => {
-      setPrintRows(null);
-      setTransfer(null);
-    };
-    window.addEventListener("afterprint", done, { once: true });
-    const t = setTimeout(() => window.print(), 50);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("afterprint", done);
-    };
-  }, [printRows]);
 
   /** Nhập từ Excel vào BỘ NHÁP — cùng khuôn cột với file xuất; tất cả hoặc không gì. */
   const importXlsx = async (file: File) => {
@@ -385,30 +355,7 @@ export function MinimumCatalog() {
   };
 
   return (
-    <ListView className="print:[&>*:not([data-print-sheet])]:hidden">
-      {printRows ? (
-        <div data-print-sheet>
-          <PrintSheet
-            title={`Danh mục thiết bị dạy học tối thiểu cấp ${levelName.toLowerCase()}`}
-            subtitle={docsLine ? `Nguồn: ${docsLine}` : undefined}
-            table={{
-              headers: ["STT", "Môn học", "Chủ đề dạy học", "Tên thiết bị", "Mục đích sử dụng", "Mô tả chi tiết", "Đối tượng", "Đơn vị", "Số lượng", "Ghi chú"],
-              rows: printRows.map((r, i) => [
-                i + 1,
-                r.subject?.name ?? "",
-                topicOf(r) ?? "",
-                r.name,
-                <span key="p" className="whitespace-pre-line">{r.purpose ?? ""}</span>,
-                <span key="d" className="whitespace-pre-line">{r.description ?? ""}</span>,
-                [r.forTeacher ? "Giáo viên" : null, r.forStudent ? "Học sinh" : null].filter(Boolean).join(", "),
-                r.unit?.name ?? r.unitText ?? "",
-                quantityLabel(r),
-                r.note ?? "",
-              ]),
-            }}
-          />
-        </div>
-      ) : null}
+    <ListView>
       <ListViewHeader canCreate={false} title="Danh mục thiết bị dạy học tối thiểu" />
 
       {outside ? (
@@ -485,10 +432,6 @@ export function MinimumCatalog() {
                       <FileSpreadsheet />
                       Xuất Excel (.xlsx)
                     </DropdownMenuItem>
-                    <DropdownMenuItem disabled={transfer !== null} onSelect={() => void exportPdf()}>
-                      <Printer />
-                      In / lưu PDF
-                    </DropdownMenuItem>
                     {mayEditStandard && status !== "RETIRED" ? (
                       <>
                         <DropdownMenuSeparator />
@@ -559,7 +502,7 @@ export function MinimumCatalog() {
                       <TableHead className="w-20 text-center">Cần có</TableHead>
                       <TableHead className="w-16">ĐVT</TableHead>
                       <TableHead className="w-28 text-center">Số đối tượng</TableHead>
-                      <TableHead className="w-28">Đối tượng</TableHead>
+                      <TableHead className="w-36">Đối tượng</TableHead>
                       <TableHead className="w-20">Lớp</TableHead>
                       <TableHead className="w-36">Điều chỉnh</TableHead>
                       <TableHead className="w-28">Căn cứ</TableHead>
@@ -835,12 +778,12 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
   const doc = row.sourceDocument ? ctx.docIndex.get(row.sourceDocument.id) : undefined;
   // Dòng bị bỏ (bản nháp) hay đã thôi áp dụng (Sở ngừng / hết hiệu lực): mờ, gạch tên.
   const removed = kind === "REMOVED" || !effectiveNow(row);
-  const muted = <span className="text-muted-foreground">—</span>;
+  const muted = (text: string) => <span className="text-muted-foreground">{text}</span>;
   return (
     <TableRow onClick={() => onOpen(row.id)}
       className={cn("group/row", LIFT_ROW, "cursor-pointer", selected && "bg-primary/5", removed && "text-muted-foreground [&>td]:text-muted-foreground")}>
       <TableCell className={cn("text-muted-foreground text-center tabular-nums", kind && KIND_BAR[kind])}>{index}</TableCell>
-      <TableCell className="truncate font-mono text-xs">{row.catalog?.code ?? muted}</TableCell>
+      <TableCell className="truncate font-mono text-xs">{row.catalog?.code ?? <span className="text-muted-foreground font-sans text-sm">Chưa gắn mã</span>}</TableCell>
       <TableCell className="whitespace-normal">
         <div className="font-medium">
           <span className={cn(removed && "line-through")}>{row.name}</span>
@@ -853,15 +796,16 @@ function NormRow({ row, index, kind, ctx, editable, selected, onOpen, onEdit }: 
           ? <span className="text-muted-foreground text-xs" title={row.quantityText ?? undefined}>Không ghi</span>
           : <span className="text-[0.9375rem] font-semibold tabular-nums">{row.minQuantity}</span>}
       </TableCell>
-      <TableCell>{row.unit?.name ?? row.unitText ?? muted}</TableCell>
-      <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted : basisCount(row)}</TableCell>
-      <TableCell>{row.minQuantity == null ? muted : PER_LABEL[row.normBasis] ?? muted}</TableCell>
+      <TableCell>{row.unit?.name ?? row.unitText ?? muted("Chưa khai")}</TableCell>
+      <TableCell className="text-center tabular-nums">{row.minQuantity == null ? muted("Không ghi") : basisCount(row)}</TableCell>
+      {/* "học sinh trong phòng bộ môn" dài hơn cột: xuống dòng, không tràn sang cột Lớp. */}
+      <TableCell className="whitespace-normal">{row.minQuantity == null ? muted("Không ghi") : PER_LABEL[row.normBasis] ?? muted("Chưa khai")}</TableCell>
       <TableCell>{gradesShort(row, ctx.level)}</TableCell>
       <TableCell><AdjustableBadge row={row} /></TableCell>
       <TableCell className="whitespace-normal" onClick={(e) => e.stopPropagation()}>
         {doc ? (
           <DocLinks docs={basisOf(doc, ctx)} onDoc={ctx.onDoc} />
-        ) : <span className="text-muted-foreground">{docShort(row.sourceDocument?.documentNo)}</span>}
+        ) : <span className="text-muted-foreground">{row.sourceDocument?.documentNo ? docShort(row.sourceDocument.documentNo) : "Chưa có căn cứ"}</span>}
       </TableCell>
       {editable ? (
         <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
@@ -1024,7 +968,7 @@ function NormDrawer({ id, ctx, editable, standardId, onClose, onEdit, onOpenCata
   const doc = r?.sourceDocument ? ctx.docIndex.get(r.sourceDocument.id) : undefined;
   const removed = change?.kind === "REMOVED";
   const canChange = editable && !removed;
-  const day = (v?: string | null) => (v ? formatPlainDate(v) : "—");
+  const day = (v?: string | null) => (v ? formatPlainDate(v) : "chưa ghi ngày");
   const origin: { text: ReactNode; sub?: ReactNode }[] = [];
   if (r && doc) {
     const [first, ...amends] = ctx.chainOf(doc.id);
@@ -1060,7 +1004,7 @@ function NormDrawer({ id, ctx, editable, standardId, onClose, onEdit, onOpenCata
                     : <b>{ratioLabel(r.minQuantity, unit, r.basisSize, r.normBasis)}</b>}
                 </KV>
                 <KV label="Lớp">{grades}</KV>
-                <KV label="Môn">{r.subject?.name ?? "—"}</KV>
+                <KV label="Môn">{r.subject?.name ?? <span className="text-muted-foreground">Chưa gắn môn</span>}</KV>
                 {r.sectionName || r.itemNo ? (
                   <KV label="Nhóm phụ lục">{[r.sectionName, r.itemNo ? `mục ${r.itemNo}` : null].filter(Boolean).join(" · ")}</KV>
                 ) : null}
@@ -1069,12 +1013,12 @@ function NormDrawer({ id, ctx, editable, standardId, onClose, onEdit, onOpenCata
                     <button type="button" className="text-primary text-start hover:underline" onClick={() => onOpenCatalog(r.catalog!.id, r.id)}>
                       {r.catalog.code}
                     </button>
-                  ) : "—"}
+                  ) : <span className="text-muted-foreground">Chưa gắn mã</span>}
                 </KV>
               </DrawerSection>
               <DrawerSection title="Căn cứ">
                 <KV label="Văn bản">
-                  {doc ? <DocLinks docs={basisOf(doc, ctx)} onDoc={ctx.onDoc} full /> : r.sourceDocument?.documentNo ?? "—"}
+                  {doc ? <DocLinks docs={basisOf(doc, ctx)} onDoc={ctx.onDoc} full /> : r.sourceDocument?.documentNo ?? <span className="text-muted-foreground">Chưa có căn cứ</span>}
                 </KV>
                 <KV label="Hiệu lực">
                   <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -1214,14 +1158,6 @@ function Pager({ page, pageSize, total, onPage, onPageSize }: {
   );
 }
 
-/** Chủ đề dạy học: cột chủ đề, không thì phần "Chủ đề …" trong tiêu đề nhóm (Tiếng Việt ghi chủ đề ở đó). */
-function topicOf(row: EquipmentNorm): string | null {
-  if (row.topic) return row.topic;
-  const part = (row.sectionName ?? "").split(" › ").find((p) => /^chủ đề/i.test(p.trim()));
-  return part?.trim() ?? null;
-}
-
-
 export type CatalogView = { id: number; /** Dòng phụ lục đã mở nó — có thì bộ nháp sửa / xoá được dòng đó. */ normId?: number };
 
 /**
@@ -1341,9 +1277,9 @@ export function OutsideCatalog({ onOpen }: { onOpen: (id: number) => void }) {
                 <TableRow key={r.id} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => onOpen(r.id)}>
                   <TableCell className="font-mono text-xs">{r.code}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{r.equipmentType?.name ?? "—"}</TableCell>
-                  <TableCell>{r.unit?.name ?? "—"}</TableCell>
-                  <TableCell>{TRACKING_TYPE_LABELS[r.trackingType] ?? "—"}</TableCell>
+                  <TableCell>{r.equipmentType?.name ?? <span className="text-muted-foreground">Chưa phân loại</span>}</TableCell>
+                  <TableCell>{r.unit?.name ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
+                  <TableCell>{TRACKING_TYPE_LABELS[r.trackingType] ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
                   <TableCell>{r.ownerSchool ? r.ownerSchool.name : "Sở"}</TableCell>
                 </TableRow>
               ))
@@ -1435,7 +1371,7 @@ function NormFields({ control, record, standard }: { control: Control<any>; reco
         <FormItem>
           <FormLabel>Áp dụng từ</FormLabel>
           <div className="bg-muted/40 text-muted-foreground flex h-9 items-center rounded-full border px-3.5 text-sm tabular-nums">
-            {appliesFrom ? formatPlainDate(appliesFrom) : "—"}
+            {appliesFrom ? formatPlainDate(appliesFrom) : "Chưa chọn văn bản"}
           </div>
         </FormItem>
         {/* Danh mục tối thiểu là cấp cao nhất: dòng tự gắn thiết bị chuẩn của nó (thêm mới thì mã tự cấp) — chỉ hiện mã. */}

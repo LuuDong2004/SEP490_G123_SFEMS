@@ -13,6 +13,8 @@ import com.g123.sfems.module.organization.school.repo.SchoolRepository;
 import com.g123.sfems.module.organization.school.repo.SchoolSpecifications;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
+import com.g123.sfems.shared.exception.FieldValidationException;
+import java.math.BigDecimal;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.web.ListParams;
@@ -98,7 +100,7 @@ public class SchoolService {
             school.setAddress(trimToNull(address));
         }
         if (moetCode != null) {
-            school.setMoetCode(trimToNull(moetCode));
+            school.setMoetCode(requireMoetCodeAvailable(trimToNull(moetCode), school.getId()));
         }
     }
 
@@ -110,6 +112,13 @@ public class SchoolService {
 
     public List<School> getMany(List<Long> ids) {
         return repository.findAll(rowLevel.byIds(School.class, Action.READ, ids));
+    }
+
+    /** Diện tích xây dựng nằm trên đất của trường — lớn hơn diện tích đất là gõ nhầm (thiếu một ô trống thì không so). */
+    public static void requireAreasFit(BigDecimal landArea, BigDecimal constructionArea) {
+        if (landArea != null && constructionArea != null && constructionArea.compareTo(landArea) > 0) {
+            throw new FieldValidationException("constructionArea", "Diện tích xây dựng không được lớn hơn diện tích đất");
+        }
     }
 
     @Transactional
@@ -133,15 +142,17 @@ public class SchoolService {
         School school = new School(department, code, request.name().trim());
         // Ref có mặt nhưng id rỗng nghĩa là "chưa chọn cấp học" — ô chọn chưa
         // được chạm tới vẫn gửi cả đối tượng lên.
-        if (request.educationLevel() != null && request.educationLevel().id() != null) {
-            school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
+        // Cấp học quyết định khối lớp, danh mục tối thiểu, chuẩn CSVC của trường — trường không cấp học thì các màn đó trống.
+        if (request.educationLevel() == null || request.educationLevel().id() == null) {
+            throw new FieldValidationException("educationLevel", "Chọn cấp học");
         }
+        school.setEducationLevel(educationLevels.get(request.educationLevel().id()));
         String shortCode = SchoolShortCodes.normalize(trimToNull(request.shortCode()));
         if (shortCode != null) {
             requireShortCodeAvailable(shortCode, null);
         }
         school.setShortCode(shortCode == null ? nextShortCode() : shortCode);
-        school.setMoetCode(trimToNull(request.moetCode()));
+        school.setMoetCode(requireMoetCodeAvailable(trimToNull(request.moetCode()), null));
         if (request.ward() != null && request.ward().id() != null) {
             school.setWard(wards.get(request.ward().id()));
         }
@@ -149,6 +160,7 @@ public class SchoolService {
         school.setPrimaryColor(trimToNull(request.primaryColor()));
         school.setLandArea(request.landArea());
         school.setConstructionArea(request.constructionArea());
+        requireAreasFit(school.getLandArea(), school.getConstructionArea());
         school.setStatus(request.status());
 
         School saved = repository.persist(school);
@@ -222,7 +234,7 @@ public class SchoolService {
             school.setShortCode(shortCode);
         }
         if (request.moetCode() != null) {
-            school.setMoetCode(trimToNull(request.moetCode()));
+            school.setMoetCode(requireMoetCodeAvailable(trimToNull(request.moetCode()), school.getId()));
         }
         if (request.ward() != null) {
             Long wardId = request.ward().id();
@@ -239,6 +251,9 @@ public class SchoolService {
         }
         if (request.constructionArea() != null) {
             school.setConstructionArea(request.constructionArea());
+        }
+        if (request.landArea() != null || request.constructionArea() != null) {
+            requireAreasFit(school.getLandArea(), school.getConstructionArea());
         }
         if (request.status() != null) {
             school.setStatus(request.status());
@@ -265,6 +280,23 @@ public class SchoolService {
         repository.remove(school);
         managedSchools.invalidateAfterCommit();
         return school;
+    }
+
+    /**
+     * Mã định danh của Bộ là của MỘT trường: hai trường cùng mã thì báo cáo nộp Bộ gộp nhầm. Chỉ kiểm trùng, không kiểm
+     * khuôn — dữ liệu đang có lẫn mã 8 số và mã có chữ ("790007B6").
+     */
+    private String requireMoetCodeAvailable(String moetCode, Long selfId) {
+        if (moetCode == null) {
+            return null;
+        }
+        for (School existing : repository.findByMoetCodeIgnoreCase(moetCode)) {
+            if (!existing.getId().equals(selfId)) {
+                throw new FieldValidationException("moetCode",
+                        "Mã định danh Bộ %s đang là của trường %s".formatted(moetCode, existing.getName()));
+            }
+        }
+        return moetCode;
     }
 
     private void requireCodeAvailable(String code, Long selfId) {

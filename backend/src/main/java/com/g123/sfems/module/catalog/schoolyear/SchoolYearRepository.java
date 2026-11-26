@@ -29,6 +29,10 @@ public interface SchoolYearRepository extends CatalogRepository<SchoolYear> {
     @Query("select s from SchoolYear s where :day between s.startDate and s.endDate order by s.startDate desc")
     List<SchoolYear> containing(@Param("day") LocalDate day);
 
+    /** Năm học khác (trừ {@code selfId}) có khoảng ngày chồng lên {@code [start, end]}. */
+    @Query("select s from SchoolYear s where s.id <> :selfId and s.startDate <= :end and s.endDate >= :start")
+    List<SchoolYear> overlapping(@Param("selfId") Long selfId, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
     /** Năm học đang mang cờ hiện hành (tối đa một — chỉ mục duy nhất có điều kiện giữ). */
     @Query("select s from SchoolYear s where s.current = true")
     List<SchoolYear> currentYears();

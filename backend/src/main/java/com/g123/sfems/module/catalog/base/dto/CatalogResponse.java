@@ -1,6 +1,7 @@
 package com.g123.sfems.module.catalog.base.dto;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
+import com.g123.sfems.domain.catalog.base.SystemKeyed;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
@@ -16,6 +17,8 @@ public record CatalogResponse(
         String note,
         Instant createdAt,
         Instant updatedAt,
+        /** Khoá hệ thống (312) — chỉ danh mục có khoá, còn lại {@code null}. */
+        String systemKey,
         @JsonProperty("_can") Map<String, Boolean> can) {
 
     public static CatalogResponse from(CatalogEntity item, RowLevelSecurity rowLevel) {
@@ -28,6 +31,7 @@ public record CatalogResponse(
                 item.getNote(),
                 item.getCreatedAt(),
                 item.getUpdatedAt(),
+                item instanceof SystemKeyed keyed ? keyed.getSystemKey() : null,
                 rowLevel == null ? Map.of() : rowLevel.capabilities(item));
     }
 }

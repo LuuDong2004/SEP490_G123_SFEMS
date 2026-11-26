@@ -72,7 +72,7 @@ export const DepartmentOfEducationList = () => {
         id: "province",
         header: "Tỉnh/Thành phố",
         enableSorting: true,
-        cell: ({ getValue }) => <span className="text-sm">{getValue() ?? "—"}</span>,
+        cell: ({ getValue }) => <span className="text-sm">{getValue() ?? <span className="text-muted-foreground">Chưa khai</span>}</span>,
       }),
       columnHelper.accessor("status", {
         id: "status",

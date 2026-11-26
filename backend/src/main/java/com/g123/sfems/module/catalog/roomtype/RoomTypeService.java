@@ -37,6 +37,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RoomTypeService extends CatalogService<RoomType, RoomTypeRequest, RoomTypePatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     private static final Set<String> KINDS = Set.of(RoomType.ROOM, RoomType.AREA);
 
     private final RoomTypeRepository repository;

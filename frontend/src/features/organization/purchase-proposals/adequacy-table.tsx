@@ -3,7 +3,6 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { cn } from "@/shared/lib/utils";
-import { FillBox } from "@/shared/components/layout/fill-box";
 import { CrossLink } from "@/shared/components/cross-link";
 import { HelpHint } from "@/shared/components/form/help-hint";
 import { Badge } from "@/shared/ui/badge";
@@ -164,7 +163,7 @@ export type AdequacyView = {
 
 /** Ô "Phải có": số theo chuẩn Bộ gạch ngang khi điều chỉnh đã duyệt đổi nó. */
 function RequiredCell({ r }: { r: NormRow }) {
-  if (r.required == null || r.optional) return <span className="text-muted-foreground font-normal">—</span>;
+  if (r.required == null || r.optional) return <span className="text-muted-foreground font-normal">{r.optional ? "Tự chọn" : "Không ghi số"}</span>;
   if (r.adjustment && r.baseRequired != null && r.baseRequired !== r.required) {
     return (
       <span title={`Chuẩn Bộ ${r.baseRequired}, đã duyệt điều chỉnh còn ${r.required}`}>
@@ -305,7 +304,8 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
       else next.add(key);
       return next;
     });
-  const cols = (select ? 10 : 9) + (adjust ? 1 : 0);
+  // Ô tích đứng ĐÚNG chỗ cột STT (chọn thì không cần số thứ tự) — thêm một cột nữa thì cột Thiết bị bị bóp mất.
+  const cols = 9 + (adjust ? 1 : 0);
 
   /** Một dòng thiết bị — dùng chung cho bảng nhóm theo môn và bảng phẳng của cột lọc trái. */
   const row = (r: NormRow, i: number) => (
@@ -328,9 +328,10 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
             );
           })() : null}
         </TableCell>
-      ) : null}
-      <TableCell className="text-muted-foreground py-2 text-center tabular-nums">{i + 1}</TableCell>
-      <TableCell className="text-muted-foreground truncate py-2 font-mono text-xs">{r.catalogCode ?? "—"}</TableCell>
+      ) : (
+        <TableCell className="text-muted-foreground py-2 text-center tabular-nums">{i + 1}</TableCell>
+      )}
+      <TableCell className="text-muted-foreground truncate py-2 font-mono text-xs">{r.catalogCode ?? <span className="font-sans">Chưa gắn mã</span>}</TableCell>
       <TableCell className="truncate py-2" title={`${r.normName}${r.typeName ? ` · ${r.typeName}` : ""}`}>
         {/* Trong hộp chọn thì tên là chữ thường: bấm vào là tích dòng, không rời form đang lập. */}
         {r.catalogId && !select ? (
@@ -390,24 +391,22 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
   const tableHead = (
     <>
       <colgroup>
-        {select ? <col className="w-10" /> : null}
         <col className="w-12" />
-        <col className={adjust ? "w-28" : "w-36"} />
+        <col className="w-28" />
         <col />
-        <col className={adjust ? "w-20" : "w-24"} />
-        <col className={adjust ? "w-24" : "w-36"} />
         <col className="w-20" />
-        <col className="w-20" />
-        {/* Đề xuất: tiêu đề ngắn ("Đề xuất" + ⓘ), số nhỏ — cùng cỡ cột số bên cạnh; phần dư cho cột Thiết bị. */}
         <col className="w-24" />
-        <col className={adjust ? "w-28" : "w-36"} />
+        <col className="w-18" />
+        <col className="w-18" />
+        {/* Đề xuất: tiêu đề ngắn ("Đề xuất" + ⓘ), số nhỏ — cùng cỡ cột số bên cạnh; phần dư cho cột Thiết bị. */}
+        <col className="w-20" />
+        <col className="w-28" />
         {adjust ? <col className="w-52" /> : null}
       </colgroup>
       <TableHeader sticky>
         <TableRow>
-          {select ? <TableHead /> : null}
-          <TableHead className="text-center">STT</TableHead>
-          <TableHead>Mã DM thiết bị</TableHead>
+          {select ? <TableHead /> : <TableHead className="text-center">STT</TableHead>}
+          <TableHead title="Mã danh mục thiết bị">Mã DM</TableHead>
           <TableHead>Thiết bị</TableHead>
           <TableHead>Lớp</TableHead>
           <TableHead>Định mức</TableHead>
@@ -438,15 +437,17 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
       else chunks.push({ key, name: r.subjectName ?? "Chưa gắn môn", rows: [r] });
     }
     return (
-      <FillBox className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+      // Không khoá chiều cao theo cửa sổ (trước: cột lọc và bảng cuộn BÊN TRONG, thêm thanh cuộn ngang): cột lọc hiện
+      // đủ, bảng cao theo số dòng một trang, cả trang cuộn như mọi màn (trưởng nhóm 27/11/2026).
+      <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         {/* MỘT cột lọc, cùng khuôn cột trái màn Thiết bị: "Tất cả thiết bị", rồi Tình trạng, rồi Môn học — số cạnh môn
             tính trong tình trạng đang chọn. Bấm lại mục đang chọn là bỏ lọc mục đó. */}
-        <Card className="flex max-h-[75vh] flex-col gap-0 overflow-hidden py-0 lg:h-full lg:max-h-none">
+        <Card className="flex flex-col gap-0 overflow-hidden py-0">
           <div className="shrink-0 border-b p-2">
             <AsideRow root selected={filter === "all" && !subjectOn} onClick={() => { setFilter("all"); setSubject("all"); }}
               icon={<LayoutGrid />} label="Tất cả thiết bị" count={counts.all} />
           </div>
-          <div className="scrollbar-fade min-h-0 flex-1 space-y-1 overflow-y-auto p-2 [scrollbar-gutter:stable]">
+          <div className="space-y-1 p-2">
             <p className="text-overline text-muted-foreground px-2 pt-1 pb-0.5">Tình trạng</p>
             {FILTERS.filter((f) => f.value !== "all" && (f.value !== "excluded" || counts.excluded > 0)).map((f) => {
               const v = f.value as Exclude<Filter, "all">;
@@ -463,7 +464,7 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
           </div>
         </Card>
 
-        <Card className="min-h-0 min-w-0 gap-3 px-4 py-4">
+        <Card className="min-w-0 gap-3 px-4 py-4">
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             <div className="relative w-full sm:w-80">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
@@ -473,8 +474,9 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
           </div>
           {reasonsNote}
           {chunks.length === 0 ? emptyNote : (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-              <div className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+            <div className="flex flex-col overflow-hidden rounded-lg border">
+              <div className="[&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
+              {/* Cột cố định hẹp (~39rem) để bảng vừa khung không cuộn ngang; cột Thiết bị nhận phần còn lại. */}
               <Table className={cn("table-fixed", adjust && "min-w-[73.75rem]")}>
                 {tableHead}
                 <TableBody>
@@ -502,7 +504,7 @@ export function AdequacyTable({ data, select, collapsed, actions, onView, adjust
             </div>
           )}
         </Card>
-      </FillBox>
+      </div>
     );
   }
 

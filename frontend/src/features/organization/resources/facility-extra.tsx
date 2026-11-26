@@ -248,11 +248,11 @@ const campusColumn: ColumnDef<any, any> = {
   cell: ({ row }) => <CampusCell campus={row.original.campus} />,
 };
 
-export const refCell = (key: string, header: string): ColumnDef<any, any> => ({
+export const refCell = (key: string, header: string, empty = "Chưa khai"): ColumnDef<any, any> => ({
   id: key,
   header,
   enableSorting: false,
-  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">—</span>,
+  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">{empty}</span>,
 });
 
 const conditionCell: ColumnDef<any, any> = {
@@ -348,7 +348,7 @@ export const CAMPUS_EXTRA = {
       id: "address",
       header: "Địa chỉ",
       enableSorting: false,
-      cell: ({ row }) => row.original.address ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => row.original.address ?? <span className="text-muted-foreground">Chưa khai</span>,
     },
     {
       id: "primaryCampus",
@@ -376,13 +376,18 @@ function buildingInputs(control: Control<any>, record?: any) {
     managingStaff: <SameSchoolRef control={control} record={record} name="managingStaff" resource="staff" label="Cán bộ phụ trách" hint="Người chịu trách nhiệm." current={record?.managingStaff} />,
     floorCount: (
       <TextField control={control} name="floorCount" label="Số tầng" hint="Tầng của phòng không được vượt số này." number numberRule="COUNT"
-        rules={{ validate: { range: (v: unknown) => v == null || v === "" || Number(v) <= 200 || "Số tầng tối đa 200" } }} />
+        // Cùng luật máy chủ (`BuildingRequest`): 1–50 tầng.
+        rules={{ validate: { range: (v: unknown) => v == null || v === "" || (Number(v) >= 1 && Number(v) <= 50) || "Số tầng từ 1 đến 50" } }} />
     ),
     builtYear: (
       <TextField control={control} name="builtYear" label="Năm đưa vào sử dụng" number
-        rules={{ validate: { year: (v: unknown) => v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1800 && Number(v) <= 2100) || "Năm đưa vào sử dụng không hợp lệ" } }} />
+        rules={{ validate: {
+          year: (v: unknown) => v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1900) || "Năm đưa vào sử dụng phải từ 1900",
+          notFuture: (v: unknown) => v == null || v === "" || Number(v) <= new Date().getFullYear() || "Năm đưa vào sử dụng không được sau năm nay",
+        } }} />
     ),
-    floorArea: <TextField control={control} name="floorArea" label="Diện tích sàn (m²)" number />,
+    floorArea: <TextField control={control} name="floorArea" label="Diện tích sàn (m²)" number numberRule="AREA"
+      rules={{ validate: { positive: (v: unknown) => v == null || v === "" || Number(v) > 0 || "Diện tích sàn phải lớn hơn 0" } }} />,
     condition: <EnumSelect control={control} name="condition" label="Hiện trạng" hint="Tình trạng hiện tại. “Cần sửa chữa” và “Xuống cấp” sẽ có trong báo cáo cơ sở vật chất." options={CONDITION_LABELS} />,
     structure: <EnumSelect control={control} name="structure" label="Kết cấu" hint="Kiên cố, bán kiên cố, tạm hay nhờ, mượn, thuê — theo biểu CSVC của Sở." options={STRUCTURE_LABELS} />,
   };
@@ -473,13 +478,13 @@ export const BUILDING_EXTRA = {
       id: "floorCount",
       header: "Số tầng",
       enableSorting: false,
-      cell: ({ row }) => <span className="tabular-nums">{row.original.floorCount ?? "—"}</span>,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.floorCount ?? <span className="text-muted-foreground">Chưa khai</span>}</span>,
     },
     {
       id: "structure",
       header: "Kết cấu",
       enableSorting: false,
-      cell: ({ row }) => STRUCTURE_LABELS[row.original.structure] ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => STRUCTURE_LABELS[row.original.structure] ?? <span className="text-muted-foreground">Chưa khai</span>,
     },
     conditionCell,
     schoolColumn,
@@ -765,7 +770,7 @@ function roomInputs(control: Control<any>, record: any, buildingId: unknown, flo
     // Bắt buộc với phòng học, nhà ăn, thư viện (dùng để xếp lớp, cộng chỗ nhà ăn / thư viện); > 0, ≤ 2.000.
     capacity: <TextField control={control} name="capacity" label="Sức chứa" hint="Số chỗ ngồi tối đa." number numberRule="COUNT"
       // `required` (không phải validate) để nhãn tự có dấu * khi loại phòng bắt buộc sức chứa (M2-07, 13/11/2026).
-      rules={{ required: CAPACITY_REQUIRED.has(roomType?.code) ? "Nhập sức chứa" : false, validate: {
+      rules={{ required: CAPACITY_REQUIRED.has(roomType?.systemKey) ? "Nhập sức chứa" : false, validate: {
         positive: (v: unknown) => v == null || v === "" || Number(v) > 0 || "Sức chứa phải lớn hơn 0",
         max: (v: unknown) => v == null || v === "" || Number(v) <= 2000 || "Sức chứa tối đa 2.000 chỗ",
       } }} />,
@@ -822,7 +827,7 @@ function useRoomMissing(control: any) {
     place: [!area && blank(building) && "Khối nhà", !area && blank(floor) && "Tầng", blank(size) && "Diện tích",
       blank(structure) && "Kết cấu"].filter(Boolean) as string[],
     // Sức chứa bắt buộc với phòng học, nhà ăn, thư viện — cùng luật với ô (M2-07).
-    use: [CAPACITY_REQUIRED.has(roomType?.code) && blank(capacity) && "Sức chứa"].filter(Boolean) as string[],
+    use: [CAPACITY_REQUIRED.has(roomType?.systemKey) && blank(capacity) && "Sức chứa"].filter(Boolean) as string[],
   };
 }
 
@@ -1155,7 +1160,7 @@ function roomMissing(r: any) {
     info: [blank(r?.name) && "Tên", !r?.roomType?.id && "Loại CSVC"].filter(Boolean) as string[],
     place: [!area && !r?.building?.id && "Khối nhà", !area && blank(r?.floor) && "Tầng", blank(r?.area) && "Diện tích",
       blank(r?.structure) && "Kết cấu"].filter(Boolean) as string[],
-    use: [CAPACITY_REQUIRED.has(r?.roomType?.code) && blank(r?.capacity) && "Sức chứa"].filter(Boolean) as string[],
+    use: [CAPACITY_REQUIRED.has(r?.roomType?.systemKey) && blank(r?.capacity) && "Sức chứa"].filter(Boolean) as string[],
   };
 }
 
@@ -1295,7 +1300,7 @@ function RoomInfo({ record: r }: { record: any }) {
       </div>
       <div id="room-sec-use" className={ROOM_SEC_CLASS.use}>
       <TopGroup icon={Users} title="Sử dụng, quản lý" cols={4} plain>
-        {area ? null : <ViewField label="Sức chứa" value={r?.capacity != null && r.capacity !== "" ? Number(r.capacity).toLocaleString("vi-VN", { useGrouping: false }) : null} required={CAPACITY_REQUIRED.has(r?.roomType?.code)} blank="Chưa ghi sức chứa" />}
+        {area ? null : <ViewField label="Sức chứa" value={r?.capacity != null && r.capacity !== "" ? Number(r.capacity).toLocaleString("vi-VN", { useGrouping: false }) : null} required={CAPACITY_REQUIRED.has(r?.roomType?.systemKey)} blank="Chưa ghi sức chứa" />}
         <ViewField label="Cán bộ phụ trách" value={r?.managingStaff?.name} blank="Chưa phân công" />
         <ViewField label="Đơn vị quản lý" value={r?.managingUnit} blank="Chưa ghi đơn vị" />
         {area ? null : <ViewField label="Buổi mở cửa" value={sessions} />}
@@ -1364,20 +1369,20 @@ export const ROOM_EXTRA: CatalogExtra = {
     // Sở) thì "phòng của trường nào" là thứ phải thấy đầu tiên, không phải thứ phải cuộn ngang mới thấy.
     schoolColumn,
     campusColumn,
-    refCell("building", "Khối nhà"),
-    refCell("roomType", "Loại CSVC"),
-    refCell("subject", "Môn"),
+    refCell("building", "Khối nhà", "Chưa gắn"),
+    refCell("roomType", "Loại CSVC", "Chưa phân loại"),
+    refCell("subject", "Môn", "Không theo môn"),
     {
       id: "structure",
       header: "Kết cấu",
       enableSorting: false,
-      cell: ({ row }) => STRUCTURE_LABELS[row.original.structure] ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => STRUCTURE_LABELS[row.original.structure] ?? <span className="text-muted-foreground">Chưa khai</span>,
     },
     {
       id: "usageStatus",
       header: "Sử dụng",
       enableSorting: false,
-      cell: ({ row }) => USAGE_STATUS_LABELS[row.original.usageStatus] ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => USAGE_STATUS_LABELS[row.original.usageStatus] ?? <span className="text-muted-foreground">Chưa khai</span>,
     },
     conditionCell,
   ] as ColumnDef<any, any>[],

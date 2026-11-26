@@ -16,7 +16,7 @@ import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views
 import { RefreshItem, ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/types";
-import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
+import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, RESOURCE } from "./plan-editor";
 import { StandardTraceBlock } from "../school-year/standard-trace";
 
 const PLAN_SORTS = [
@@ -108,7 +108,6 @@ export const ProcurementPlanShow = () => {
         more={
           <RowActions gear label="Thao tác khác">
             <RefreshItem resource={RESOURCE} id={plan?.id} />
-            {plan ? <PrintButton /> : null}
             {plan ? <ExportButton plan={plan} /> : null}
           </RowActions>
         }

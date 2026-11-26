@@ -9,7 +9,7 @@ import { DataTablePagination } from "@/shared/components/data-table/data-table-p
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
-import { PrintButton, PrintSheet } from "@/shared/components/print/print-sheet";
+import { PrintSheet } from "@/shared/components/print/print-sheet";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { useSettled } from "@/shared/hooks/use-settled";
@@ -148,9 +148,9 @@ export const ReportSnapshotList = () => {
                     <Link to={`/report-snapshots/show/${r.id}`} className="font-medium hover:underline">{r.title}</Link>
                     {r.subtitle ? <div className="text-muted-foreground text-xs">{r.subtitle}</div> : null}
                   </TableCell>
-                  <TableCell>{r.note ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell>{r.note ?? <span className="text-muted-foreground">Không có ghi chú</span>}</TableCell>
                   <TableCell>
-                    {r.createdByName ?? "—"}
+                    {r.createdByName ?? <span className="text-muted-foreground">Không rõ</span>}
                     <Badge variant="outline" className="ms-1.5">{LEVEL_LABELS[r.level] ?? r.level}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{number.format(r.rowCount)}</TableCell>
@@ -207,7 +207,6 @@ export const ReportSnapshotShow = () => {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               {mayExport ? <Button type="button" variant="outline" disabled={!s} onClick={() => void exportXlsx()}><FileSpreadsheet />Xuất Excel</Button> : null}
-              <PrintButton />
               {s && me && s.createdById === me.id ? (
                 <Button type="button" variant="ghost" onClick={() => setRemoving(true)}><Trash2 />Xoá bản lưu</Button>
               ) : null}
@@ -223,7 +222,7 @@ export const ReportSnapshotShow = () => {
             <div>
               <h2 className="text-lg font-semibold">{s.title}</h2>
               <p className="text-muted-foreground text-sm">
-                {s.subtitle ? `${s.subtitle} · ` : ""}Lưu lúc {formatDateTime(s.createdAt)} bởi {s.createdByName ?? "—"}
+                {s.subtitle ? `${s.subtitle} · ` : ""}Lưu lúc {formatDateTime(s.createdAt)} bởi {s.createdByName ?? "người dùng không rõ"}
                 {s.note ? <> · <span className="text-foreground">{s.note}</span></> : null}
               </p>
             </div>

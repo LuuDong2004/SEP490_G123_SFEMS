@@ -449,7 +449,7 @@ export function ColumnChart({
   /** Đơn vị trong ô nổi khi chỉ có một loạt ("tài sản", "phiếu"). */
   unit?: string;
 }) {
-  const data: Record<string, unknown>[] = rows.slice(0, limit).map((r) => ({ ...r, __label: String(r[labelKey] ?? "—") }));
+  const data: Record<string, unknown>[] = rows.slice(0, limit).map((r) => ({ ...r, __label: String(r[labelKey] ?? "Chưa phân loại") }));
   const config: ChartConfig = Object.fromEntries(
     series.map((s, i) => [s.key, { label: unit && series.length === 1 ? `${s.label} (${unit})` : s.label, color: seriesColor(i) }]),
   );
@@ -562,8 +562,9 @@ export function Meter({
         <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round"
           strokeDasharray={len} strokeDashoffset={len * (1 - shown / 100)}
           style={{ filter: `drop-shadow(0 4px 8px color-mix(in srgb, ${color} 35%, transparent))` }} />
-        <text x="100" y="92" textAnchor="middle" className="fill-foreground" style={{ fontSize: 34, fontWeight: 700 }}>
-          {percent == null ? "—" : `${shown}%`}
+        <text x="100" y="92" textAnchor="middle" className={percent == null ? "fill-muted-foreground" : "fill-foreground"}
+          style={{ fontSize: percent == null ? 18 : 34, fontWeight: percent == null ? 500 : 700 }}>
+          {percent == null ? "Chưa có số liệu" : `${shown}%`}
         </text>
       </svg>
       <p className="text-sm font-semibold">{label}</p>

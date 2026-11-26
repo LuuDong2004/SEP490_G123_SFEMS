@@ -164,12 +164,12 @@ export const UserEdit = () => {
               <FormField
                 control={form.control}
                 name="fullName"
-                rules={mergeRules(textRules("NAME", "Họ tên"), { required: "Họ tên là bắt buộc" })}
+                rules={mergeRules(textRules("PERSON_NAME", "Họ tên", { min: 2 }), { required: "Họ tên là bắt buộc" })}
                 render={({ field }) => (
                   <FormItem className="@3xl:col-span-2">
                     <FormLabel>Họ tên</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ""} maxLength={maxLengthOf("NAME")} />
+                      <Input {...field} value={field.value ?? ""} maxLength={maxLengthOf("PERSON_NAME")} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

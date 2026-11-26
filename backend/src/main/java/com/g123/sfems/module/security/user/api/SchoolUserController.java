@@ -9,6 +9,8 @@ import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import com.g123.sfems.shared.web.ListResponse;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -40,10 +42,13 @@ public class SchoolUserController {
     }
 
     public record CreateRequest(
+            @NotBlank(message = "Nhập tên đăng nhập")
+            @Size(min = 3, message = "Tên đăng nhập tối thiểu 3 ký tự")
             @Text(value = FieldRule.USERNAME, label = "Tên đăng nhập", max = 100)
             String username,
 
-            @Text(value = FieldRule.NAME, label = "Họ tên")
+            @NotBlank(message = "Nhập họ tên")
+            @Text(value = FieldRule.PERSON_NAME, label = "Họ tên", min = 2)
             String fullName,
 
             @Text(value = FieldRule.EMAIL, label = "Email")
@@ -57,7 +62,7 @@ public class SchoolUserController {
     }
 
     public record PatchRequest(
-            @Text(value = FieldRule.NAME, label = "Họ tên")
+            @Text(value = FieldRule.PERSON_NAME, label = "Họ tên", min = 2)
             String fullName,
 
             @Text(value = FieldRule.EMAIL, label = "Email")

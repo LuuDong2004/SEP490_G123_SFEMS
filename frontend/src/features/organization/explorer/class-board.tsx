@@ -26,7 +26,7 @@ const COLUMNS: MiniColumn[] = [
       </span>
     ),
   },
-  { header: "Sĩ số", className: "w-24 text-right tabular-nums", cell: (c) => (c.studentCount != null ? num.format(c.studentCount) : "—") },
+  { header: "Sĩ số", className: "w-24 text-right tabular-nums", cell: (c) => (c.studentCount != null ? num.format(c.studentCount) : <span className="text-muted-foreground">Chưa khai</span>) },
   { header: "GV chủ nhiệm", className: "w-80", cell: (c) => c.homeroomTeacher?.name ?? missing },
   { header: "Phòng học", cell: (c) => c.room?.name ?? missing },
 ];

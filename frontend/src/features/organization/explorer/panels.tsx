@@ -475,7 +475,7 @@ export function SchoolFacilityTabs({
     const col: MiniColumn = {
       header: "Lớp",
       cell: (r) => classesByRoom.get(r.id)?.join(", ")
-        ?? (r.roomType?.code === "PHONG_HOC" ? <span className="text-muted-foreground/70 text-xs">Chưa có lớp</span> : dash),
+        ?? (r.roomType?.systemKey === "PHONG_HOC" ? <span className="text-muted-foreground/70 text-xs">Chưa có lớp</span> : dash),
       className: "w-24",
     };
     return [...cols.slice(0, 2), col, ...cols.slice(2)];

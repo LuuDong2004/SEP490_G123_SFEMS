@@ -1,11 +1,12 @@
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useInvalidate, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ClipboardCheck, ListPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ClipboardCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
-import { AddLinesEmpty } from "@/shared/components/voucher/add-lines";
+import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { StepTitle } from "@/shared/components/voucher/voucher-layout";
 import { errorMessage } from "@/shared/lib/api-error";
 import { maxLengthOf } from "@/shared/lib/field-rules";
@@ -85,26 +86,33 @@ export function InventoryFacilityPanel({ record }: { record: InventorySession })
   const { open } = useNotification();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const mobile = useIsMobile();
+  // Phân trang 20 hạng mục một trang — bảng cao theo số dòng, không cuộn trong khung.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const { data } = useQuery({
     queryKey: [...key(record.id), record.status],
     queryFn: ({ signal }) => kyInstance.get(`inventory_sessions/${record.id}/facility-lines`, { signal }).json<InventoryFacilityLines>(),
   });
+  // Biên bản nháp chưa có hạng mục: TỰ lập danh sách (khối nhà, phòng của trường / phòng của phiếu) — không bắt người
+  // dùng bấm "Lập danh sách hạng mục". Mỗi biên bản gọi một lần.
+  const canGenerate = !!data?.editable && !!record._actions?.includes("count") && data?.total === 0;
+  const generated = useRef<number | null>(null);
+  const [generatedFor, setGeneratedFor] = useState<number | null>(null);
+  useEffect(() => {
+    if (!canGenerate || generated.current === record.id) return;
+    generated.current = record.id;
+    void kyInstance.post(`inventory_sessions/${record.id}/facility-lines/generate`).json<InventoryFacilityLines>()
+      .then((next) => queryClient.setQueryData([...key(record.id), record.status], next))
+      .finally(() => setGeneratedFor(record.id))
+      .catch(async (error) => open?.({ type: "error", message: await errorMessage(error) }));
+  }, [canGenerate, record.id, record.status, queryClient, open]);
   if (!data) return null;
   const editable = data.editable && record._actions?.includes("count");
   // Biên bản cũ (lập trước khi có phần này) không có hạng mục nào và không sửa được nữa: không vẽ gì.
   if (data.total === 0 && !editable) return null;
   const set = (next: InventoryFacilityLines) => queryClient.setQueryData([...key(record.id), record.status], next);
-
-  async function generate() {
-    setBusy(true);
-    try {
-      set(await kyInstance.post(`inventory_sessions/${record.id}/facility-lines/generate`).json<InventoryFacilityLines>());
-    } catch (error) {
-      open?.({ type: "error", message: await errorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function save(line: InventoryFacilityLine, patch: Patch) {
     const next = { structureFound: line.structureFound, conditionFound: line.conditionFound, checked: true, note: line.note, ...patch };
@@ -136,6 +144,8 @@ export function InventoryFacilityPanel({ record }: { record: InventorySession })
     }
   }
 
+  const pageCount = Math.max(1, Math.ceil(data.lines.length / pageSize));
+  const pageLines = data.lines.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize);
   const changed = (l: InventoryFacilityLine) =>
     l.checked && ((!!l.structureFound && l.structureFound !== l.structureBefore) || (!!l.conditionFound && l.conditionFound !== l.conditionBefore));
   const aside = data.total ? `${data.checked}/${data.total} đã kiểm${data.changed ? ` · ${data.changed} khác sổ` : ""}` : undefined;
@@ -143,14 +153,9 @@ export function InventoryFacilityPanel({ record }: { record: InventorySession })
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <CardContent className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <StepTitle title="Hạng mục CSVC" aside={aside} />
+        <StepTitle title="Hạng mục CSVC" aside={aside} open={expanded} onToggle={() => setExpanded(!expanded)} />
         <div className="flex flex-wrap items-center gap-2">
           {data.applied ? <span className="text-muted-foreground text-xs">Đã áp dụng {data.applied} hạng mục</span> : null}
-          {editable && data.total ? (
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void generate()}>
-              <ListPlus /> Bổ sung hạng mục
-            </Button>
-          ) : null}
           {data.applicable ? (
             <Button type="button" size="sm" disabled={busy} onClick={() => setConfirming(true)}>
               <ClipboardCheck /> Áp dụng vào hồ sơ CSVC
@@ -158,73 +163,132 @@ export function InventoryFacilityPanel({ record }: { record: InventorySession })
           ) : null}
         </div>
       </CardContent>
-      {data.total === 0 ? (
-        <AddLinesEmpty label="Lập danh sách hạng mục" icon={<Building2 />} disabled={busy} onClick={() => void generate()}
-          hint={record.room ? `Kiểm ${record.room.name}: kết cấu, hiện trạng` : "Khối nhà, phòng, hạng mục của trường: kết cấu, hiện trạng"} />
+      {!expanded ? null : data.total === 0 ? (
+        <p className="text-muted-foreground border-t px-4 py-6 text-center text-sm">
+          {generatedFor === record.id ? "Trường chưa khai khối nhà, phòng nào để kiểm." : "Đang lập danh sách hạng mục…"}
+        </p>
       ) : (
-        <div className="max-h-[min(32rem,60vh)] overflow-auto border-t [&>[data-slot=table-container]]:overflow-visible">
-          <Table className={cn("table-fixed", editable ? "min-w-[62rem]" : "min-w-[52rem]")}>
+        <div className="border-t">
+          {/* Không cuộn ngang: mã và loại về dòng phụ dưới tên; "Đã kiểm" đứng trước — tích rồi mới khai kết quả. */}
+          <Table className="table-fixed">
+            {mobile ? null : (
             <colgroup>
-              <col className="w-24" />
               <col />
-              <col className="w-32" />
-              <col className="w-40" />
-              <col className="w-40" />
               <col className="w-20" />
+              <col className="w-36" />
+              <col className="w-36" />
               <col className="w-44" />
             </colgroup>
-            <TableHeader sticky>
+            )}
+            <TableHeader className={mobile ? "hidden" : undefined}>
               <TableRow className={EDGE}>
-                <TableHead>Mã</TableHead>
-                <TableHead>Tên</TableHead>
-                <TableHead>Loại</TableHead>
-                <TableHead title="Hệ thống ghi → thấy thực tế">Kết cấu</TableHead>
-                <TableHead title="Hệ thống ghi → thấy thực tế">Hiện trạng</TableHead>
+                <TableHead>Hạng mục</TableHead>
                 <TableHead align="center">Đã kiểm</TableHead>
+                <TableHead title="Chỉ khai được khi hồ sơ chưa có kết cấu">Kết cấu</TableHead>
+                <TableHead title="Hệ thống ghi → thấy thực tế">Hiện trạng</TableHead>
                 <TableHead>Ghi chú</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.lines.map((l) => (
+              {pageLines.map((l) => mobile ? (
+                // Điện thoại: một thẻ xếp dọc — tên, ô "Đã kiểm" to; tích rồi mới hiện kết cấu (nếu chưa khai), hiện trạng, ghi chú.
+                <TableRow key={l.id} className={cn("hover:bg-transparent", changed(l) && "bg-warning-subtle/40")}>
+                  <TableCell colSpan={5} className="space-y-2 !px-4 py-3 whitespace-normal">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium break-words">{l.name}</div>
+                        <div className="text-muted-foreground text-xs">
+                          <span className="font-mono">{l.code}</span>{l.typeName ? ` · ${l.typeName}` : ""}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          Kết cấu: <Change before={l.structureBefore} found={l.checked ? l.structureFound : null} labels={STRUCTURE_LABELS} />
+                        </div>
+                      </div>
+                      {editable ? (
+                        <label className="flex shrink-0 items-center gap-2 text-sm">
+                          <Checkbox aria-label={`Đã kiểm ${l.name}`} checked={l.checked}
+                            onCheckedChange={(on) => void save(l, on === true ? { checked: true } : { checked: false, structureFound: null, conditionFound: null, note: null })} />
+                          Đã kiểm
+                        </label>
+                      ) : (
+                        <span className={cn("shrink-0 text-sm", l.checked ? "text-success-text" : "text-muted-foreground")}>{l.checked ? "Đã kiểm" : "Chưa"}</span>
+                      )}
+                    </div>
+                    {editable && l.checked ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {!l.structureBefore ? (
+                          <FoundSelect label={`Kết cấu ${l.name}`} before={null} found={l.structureFound} labels={STRUCTURE_LABELS}
+                            onChange={(v) => void save(l, { structureFound: v })} />
+                        ) : null}
+                        <div className={l.structureBefore ? "col-span-2" : undefined}>
+                          <FoundSelect label={`Hiện trạng ${l.name}`} before={l.conditionBefore} found={l.conditionFound} labels={CONDITION_LABELS}
+                            onChange={(v) => void save(l, { conditionFound: v })} />
+                        </div>
+                        <div className="col-span-2"><NoteInput value={l.note} onSave={(v) => void save(l, { note: v })} /></div>
+                      </div>
+                    ) : !editable && l.checked ? (
+                      <div className="text-muted-foreground text-xs">
+                        Hiện trạng: <Change before={l.conditionBefore} found={l.conditionFound} labels={CONDITION_LABELS} />
+                        {l.note ? ` · ${l.note}` : ""}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ) : (
                 <TableRow key={l.id} className={cn(EDGE, !editable && cn("group/row", LIFT_ROW), changed(l) && "bg-warning-subtle/40")}>
-                  <TableCell className="text-muted-foreground truncate font-mono text-xs">{l.code}</TableCell>
-                  <TableCell className="truncate" title={l.buildingName ? `${l.name} — ${l.buildingName}` : l.name}>
-                    {l.name}
-                    {l.buildingName ? <span className="text-muted-foreground"> · {l.buildingName}</span> : null}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground truncate text-sm">{l.typeName}</TableCell>
-                  <TableCell className={editable ? "py-1" : undefined}>
-                    {editable ? (
-                      <FoundSelect label={`Kết cấu ${l.name}`} before={l.structureBefore} found={l.structureFound} labels={STRUCTURE_LABELS}
-                        onChange={(v) => void save(l, { structureFound: v })} />
-                    ) : (
-                      <Change before={l.structureBefore} found={l.checked ? l.structureFound : null} labels={STRUCTURE_LABELS} />
-                    )}
-                  </TableCell>
-                  <TableCell className={editable ? "py-1" : undefined}>
-                    {editable ? (
-                      <FoundSelect label={`Hiện trạng ${l.name}`} before={l.conditionBefore} found={l.conditionFound} labels={CONDITION_LABELS}
-                        onChange={(v) => void save(l, { conditionFound: v })} />
-                    ) : (
-                      <Change before={l.conditionBefore} found={l.checked ? l.conditionFound : null} labels={CONDITION_LABELS} />
-                    )}
+                  <TableCell>
+                    <div className="truncate font-medium" title={l.buildingName ? `${l.name} — ${l.buildingName}` : l.name}>
+                      {l.name}
+                      {l.buildingName ? <span className="text-muted-foreground font-normal"> · {l.buildingName}</span> : null}
+                    </div>
+                    <div className="text-muted-foreground truncate text-xs">
+                      <span className="font-mono">{l.code}</span>{l.typeName ? ` · ${l.typeName}` : ""}
+                    </div>
                   </TableCell>
                   <TableCell align="center">
                     {editable ? (
-                      <Checkbox aria-label={`Đã kiểm ${l.name}`} checked={l.checked} onCheckedChange={(on) => void save(l, { checked: on === true })} />
+                      <Checkbox aria-label={`Đã kiểm ${l.name}`} checked={l.checked}
+                        onCheckedChange={(on) => void save(l, on === true ? { checked: true } : { checked: false, structureFound: null, conditionFound: null, note: null })} />
                     ) : l.checked ? (
                       <span className="text-success-text text-sm">Đã kiểm</span>
                     ) : (
                       <span className="text-muted-foreground text-sm">Chưa</span>
                     )}
                   </TableCell>
-                  <TableCell className={editable ? "py-1" : "text-muted-foreground truncate"}>
-                    {editable ? <NoteInput value={l.note} onSave={(v) => void save(l, { note: v })} /> : (l.note ?? "—")}
+                  {/* Kết cấu: hồ sơ ĐÃ khai thì chỉ xem; chưa khai thì tích "Đã kiểm" rồi khai bổ sung. */}
+                  <TableCell className={editable && l.checked && !l.structureBefore ? "py-1" : undefined}>
+                    {editable && l.checked && !l.structureBefore ? (
+                      <FoundSelect label={`Kết cấu ${l.name}`} before={null} found={l.structureFound} labels={STRUCTURE_LABELS}
+                        onChange={(v) => void save(l, { structureFound: v })} />
+                    ) : (
+                      <Change before={l.structureBefore} found={l.checked ? l.structureFound : null} labels={STRUCTURE_LABELS} />
+                    )}
+                  </TableCell>
+                  {/* Hiện trạng, ghi chú: chỉ hiện ô khi đã tích "Đã kiểm". */}
+                  <TableCell className={editable && l.checked ? "py-1" : undefined}>
+                    {editable && l.checked ? (
+                      <FoundSelect label={`Hiện trạng ${l.name}`} before={l.conditionBefore} found={l.conditionFound} labels={CONDITION_LABELS}
+                        onChange={(v) => void save(l, { conditionFound: v })} />
+                    ) : l.checked ? (
+                      <Change before={l.conditionBefore} found={l.conditionFound} labels={CONDITION_LABELS} />
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Chưa kiểm</span>
+                    )}
+                  </TableCell>
+                  <TableCell className={editable && l.checked ? "py-1" : "text-muted-foreground truncate text-sm"}>
+                    {editable && l.checked ? <NoteInput value={l.note} onSave={(v) => void save(l, { note: v })} />
+                      : l.checked ? (l.note ?? "Không có ghi chú") : null}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          {data.lines.length > pageSize || pageSize !== 20 ? (
+            <div className="bg-surface-subtle border-t px-4 py-2">
+              <DataTablePagination compact currentPage={Math.min(page, pageCount)} pageCount={pageCount} setCurrentPage={setPage}
+                pageSize={pageSize} setPageSize={(n) => { setPageSize(n); setPage(1); }} total={data.lines.length} pageSizeLabel="Số dòng mỗi trang" />
+            </div>
+          ) : null}
         </div>
       )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>

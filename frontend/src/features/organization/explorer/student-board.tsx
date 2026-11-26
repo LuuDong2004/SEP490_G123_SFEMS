@@ -30,9 +30,9 @@ const COLUMNS: MiniColumn[] = [
     className: "w-[10%]",
     cell: (s) => (s.gender in GENDER_LABELS
       ? <Badge variant={GENDER_VARIANTS[s.gender as StudentGender]}>{GENDER_LABELS[s.gender as StudentGender]}</Badge>
-      : <span className="text-muted-foreground">—</span>),
+      : <span className="text-muted-foreground">Chưa khai</span>),
   },
-  { header: "Lớp", className: "w-[12%]", cell: (s) => s.class?.code ?? s.class?.name ?? "—" },
+  { header: "Lớp", className: "w-[12%]", cell: (s) => s.class?.code ?? s.class?.name ?? <span className="text-muted-foreground">Chưa xếp lớp</span> },
   {
     header: "Ghi chú",
     className: "whitespace-normal",

@@ -43,6 +43,7 @@ function TextInput({
   className,
   rule,
   max,
+  readOnly,
 }: {
   control: Control<any>;
   name: string;
@@ -54,6 +55,8 @@ function TextInput({
   /** Kiểu trường chuẩn — cùng `@Text` của DTO ở máy chủ; `max` khi cột ngắn hơn trần của kiểu. */
   rule?: TextRule;
   max?: number;
+  /** Mã của bộ đã lưu: khoá, máy chủ cũng từ chối đổi mã. */
+  readOnly?: boolean;
 }) {
   const own = required ? { required: `Nhập ${label.toLowerCase()}` } : undefined;
   return (
@@ -73,6 +76,8 @@ function TextInput({
                 value={field.value ?? ""}
                 onChange={(e) => field.onChange(e.target.value)}
                 onBlur={field.onBlur}
+                readOnly={readOnly}
+                className={readOnly ? "bg-muted/60 text-muted-foreground" : undefined}
                 name={field.name}
                 ref={field.ref}
                 placeholder={placeholder}
@@ -184,7 +189,7 @@ function StandardFormBody({ control, record, inDialog }: { control: Control<any>
     <div className="@container space-y-4">
       {/* Không có công tắc "Đang hoạt động": trạng thái của bộ chỉ đổi qua Lập bộ mới → Áp dụng. */}
       <div className="grid items-start gap-x-4 gap-y-5 @md:grid-cols-2">
-        <TextInput control={control} name="code" label="Mã" placeholder="STD-TH" required rule="CODE" className="max-w-[12rem]" />
+        <TextInput control={control} name="code" label="Mã" placeholder="STD-TH" required rule="CODE" className="max-w-[12rem]" readOnly={!!record?.id} />
         <RefField control={control} name="educationLevel" resource="education_levels" label="Cấp học" current={record?.educationLevel} />
         <TextInput control={control} name="name" label="Tên bộ" required className="@md:col-span-2" rule="NAME" />
         <TextInput control={control} name="standardVersion" label="Phiên bản" placeholder="TT 37/2021 + 26/2023" rule="SHORT_TEXT" max={50} />
@@ -267,7 +272,7 @@ function StandardFields({ control, record }: { control: Control<any>; record?: a
 const refCell = (key: string): ColumnDef<any, any> => ({
   id: key,
   enableSorting: false,
-  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">—</span>,
+  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">Mọi cấp học</span>,
 });
 
 export const STANDARD_EXTRA = {
@@ -292,7 +297,7 @@ export const STANDARD_EXTRA = {
       accessorKey: "standardVersion",
       header: "Phiên bản",
       enableSorting: false,
-      cell: ({ getValue }) => (getValue() as string) ?? "—",
+      cell: ({ getValue }) => (getValue() as string) ?? <span className="text-muted-foreground">Chưa khai</span>,
     },
     {
       id: "years",

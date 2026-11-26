@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { ChoiceWithNote } from "@/shared/components/form/choice-with-note";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { FormItem, FormLabel } from "@/shared/ui/form";
-import { OTHER_ACQUISITION_CODE } from "@/domains/equipment/types";
+import { OTHER_ACQUISITION_KEY } from "@/domains/equipment/types";
 
-type Method = { id: number; code: string; name: string };
+type Method = { id: number; code: string; name: string; systemKey?: string | null };
 type Value = { id?: number | null; code?: string | null; name?: string | null } | null | undefined;
 
 /**
@@ -37,7 +37,7 @@ export function AcquisitionChoice({ label, hint, value, onChange, note, onNoteCh
     ...(value?.id && !methods.some((m) => m.id === value.id) ? [{ value: String(value.id), label: value.name ?? "…" }] : []),
     ...methods.map((m) => ({ value: String(m.id), label: m.name })),
   ];
-  const other = methods.find((m) => m.code === OTHER_ACQUISITION_CODE);
+  const other = methods.find((m) => m.systemKey === OTHER_ACQUISITION_KEY);
   return (
     <FormItem>
       <FormLabel>{label}</FormLabel>

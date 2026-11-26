@@ -2,7 +2,7 @@ import { canWriteRecord } from "@/shared/lib/can-write";
 import { ASSET_STATUS_VARIANTS } from "@/shared/lib/status-variants";
 import { FormHint } from "@/shared/components/form/help-hint";
 import { LengthCounter } from "@/shared/components/form/simple-fields";
-import { useCan, useCustom, useInvalidate, useList, useNotification, useOne } from "@refinedev/core";
+import { useCan, useCustom, useInvalidate, useNotification } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArchiveRestore, BadgeCheck, Lock, PackagePlus, Sparkles } from "lucide-react";
 import { Link } from "react-router";
@@ -26,7 +26,6 @@ import { OFF_BOOK_STATUSES } from "@/domains/equipment/types";
 import { Badge } from "@/shared/ui/badge";
 import { Input } from "@/shared/ui/input";
 import { DateInput } from "@/shared/components/form/date-input";
-import { Switch } from "@/shared/ui/switch";
 import {
   Select,
   SelectContent,
@@ -261,82 +260,6 @@ function CodeSuggestion({ control }: { control: Control<any> }) {
   ) : null;
 }
 
-/** Các ô thông số kỹ thuật theo bộ đã chọn, lưu vào `specs.<mã>`. */
-function SpecsFields({ control, className = "form-flow" }: { control: Control<any>; className?: string }) {
-  const configId = useWatch({ control, name: "config.id" });
-  const { result } = useOne<any>({
-    resource: "equipment_configs",
-    id: configId ?? "",
-    queryOptions: { enabled: !!configId },
-  });
-  const attrs: any[] = configId ? (result?.attributes ?? []) : [];
-  if (!configId) return null;
-  if (attrs.length === 0) {
-    return <p className="text-muted-foreground text-sm">Bộ thông số này chưa có thông số nào.</p>;
-  }
-  return (
-    <div className={className}>
-      {attrs.map((a) => (
-        <FormField
-          key={a.code}
-          control={control}
-          name={`specs.${a.code}`}
-          rules={a.required ? { required: `Nhập ${a.name.toLowerCase()}` } : undefined}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {a.name}
-                {a.measureUnit ? <span className="text-muted-foreground font-normal"> ({a.measureUnit})</span> : null}
-              </FormLabel>
-              {a.dataType === "boolean" ? (
-                <FormControl>
-                  <Switch
-                    checked={field.value === "true"}
-                    onCheckedChange={(c) => field.onChange(c ? "true" : "false")}
-                  />
-                </FormControl>
-              ) : a.dataType === "enum" ? (
-                <Select onValueChange={(v) => field.onChange(v === NONE ? "" : v)} value={field.value || ""}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {(a.options ?? []).map((o: string) => (
-                      <SelectItem key={o} value={o}>
-                        {o}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : a.dataType === "date" ? (
-                <FormControl>
-                  <DateInput value={field.value || null} onChange={(v) => field.onChange(v ?? "")} onBlur={field.onBlur} name={field.name} />
-                </FormControl>
-              ) : (
-                <FormControl>
-                  <Input
-                    type={a.dataType === "text" ? "text" : "number"}
-                    step={a.dataType === "decimal" ? "any" : undefined}
-                    placeholder={a.dataType === "text" ? "Nhập giá trị" : "Nhập số"}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value)}
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
 function SameSchoolRef({
   control,
   record,
@@ -370,33 +293,6 @@ function SameSchoolRef({
       filters={schoolId ? [{ field: "school.id", operator: "eq", value: schoolId }] : undefined}
     />
   );
-}
-
-/**
- * Ô "Bộ thông số" nửa hàng. Danh mục bộ thông số trống (Sở chưa khai) thì không bày một ô
- * chọn rỗng: nói rõ là chưa có, và ai khai báo được thì có lối tới danh mục. Trường không tạo
- * bộ thông số — đó là danh mục dùng chung của Sở.
- */
-function ConfigField({ control, current }: { control: Control<any>; current?: RefValue }) {
-  const { result } = useList({ resource: "equipment_configs", pagination: { currentPage: 1, pageSize: 1 },
-    filters: [{ field: "active", operator: "eq", value: true }] });
-  const canCreate = useCan({ resource: "equipment_configs", action: "create" }).data?.can ?? false;
-  if (result?.total === 0 && !current) {
-    return (
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Bộ thông số</p>
-        <p className="text-muted-foreground bg-muted/40 rounded-md border border-dashed px-3 py-2 text-xs">
-          Chưa có bộ thông số nào.{" "}
-          {canCreate ? (
-            <Link to="/equipment-configs/create" className="text-primary font-medium hover:underline">Khai báo bộ thông số</Link>
-          ) : (
-            "Do Sở khai báo ở Danh mục dùng chung."
-          )}
-        </p>
-      </div>
-    );
-  }
-  return <RefField control={control} name="config" resource="equipment_configs" label="Bộ thông số" current={current} />;
 }
 
 /** Ô chọn phòng ở trang thêm mới: trường là trường đang chọn trên form. */
@@ -523,10 +419,17 @@ function TechDates({ control, consumable }: { control: Control<any>; consumable:
   return (
     <>
       <Field control={control} name="productionYear" label="Năm sản xuất" type="number" numberRule="YEAR"
-        rules={{ validate: { notAfterUse: (v: number | null) => {
-          const use = getValues("usageStartYear");
-          return v == null || use == null || v <= use || `Năm sản xuất không được sau năm đưa vào sử dụng (${use})`;
-        } } }} />
+        rules={{ validate: {
+          notAfterUse: (v: number | null) => {
+            const use = getValues("usageStartYear");
+            return v == null || use == null || v <= use || `Năm sản xuất không được sau năm đưa vào sử dụng (${use})`;
+          },
+          notAfterAcquired: (v: number | null) => {
+            const acquired: string | null = getValues("purchaseDate") || getValues("receivedDate") || null;
+            const year = acquired ? Number(acquired.slice(0, 4)) : null;
+            return v == null || year == null || Number(v) <= year || `Năm sản xuất không được sau năm mua/tiếp nhận (${year})`;
+          },
+        } }} />
       <Field control={control} name="warrantyExpiry" label="Hết hạn bảo hành" type="date"
         rules={{ validate: { afterPurchase: (v: string | null) => {
           const bought: string | null = getValues("purchaseDate") || getValues("receivedDate") || null;
@@ -548,17 +451,11 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
   // Trong ba cột của form (cùng ba cột của hồ sơ): ô xếp một cột, rộng bằng cột. Form gộp ("all"): ô nối tiếp.
   const flow = part === "all" ? "form-flow" : STACK;
   const { setValue, getValues } = useFormContext();
-  // Các bộ thông số — để chọn sẵn bộ MẶC ĐỊNH của loại thiết bị khi chọn nhóm.
-  const { result: configs } = useList<any>({
-    resource: "equipment_configs",
-    pagination: { pageSize: 200 },
-    filters: [{ field: "active", operator: "eq", value: true }],
-  });
 
   /**
    * Chọn mặt hàng thì điền sẵn những gì danh mục đã biết.
    *
-   * <p>Hai mức, và sự khác nhau là cố ý. Tên, đơn vị tính và bộ thông số chỉ
+   * <p>Hai mức, và sự khác nhau là cố ý. Tên và đơn vị tính chỉ
    * điền vào ô CÒN TRỐNG — chúng là thứ người nhập có lý do chính đáng để sửa
    * cho riêng cái tài sản này ("Máy chiếu Epson EB-X51" thay cho "Máy chiếu đa
    * năng"), nên đè lên là xoá công người ta vừa gõ.
@@ -573,15 +470,6 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
     if (!getValues("unit.id") && cat?.unit?.id) setValue("unit.id", cat.unit.id, { shouldDirty: true });
     if (cat?.assetCategory) setValue("assetCategory", cat.assetCategory, { shouldDirty: true });
     if (cat?.physicalOrDigital) setValue("physicalOrDigital", cat.physicalOrDigital, { shouldDirty: true });
-    if (!getValues("config.id")) {
-      const typeId = cat?.equipmentType?.id;
-      const def = (configs?.data ?? []).find(
-        (c: any) =>
-          c.defaultConfig &&
-          ((c.scopeTypes ?? []).length === 0 || (typeId && c.scopeTypes.some((t: any) => t.id === typeId))),
-      );
-      if (def) setValue("config.id", def.id, { shouldDirty: true });
-    }
   };
 
   const assetCategory = useWatch({ control, name: "assetCategory" });
@@ -626,7 +514,8 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
         ) : (
           <Field control={control} name="quantity" label="Số lượng" type="number"
             hint="Thiết bị quản lý từng cái thì để 1. Vật tư tiêu hao thì ghi số lượng của cả lô." numberRule="DECIMAL_QUANTITY"
-            rules={{ min: { value: 1, message: "Tối thiểu 1" } }} />
+            // Lô vật tư, hoá chất được số lẻ (0,5 kg) — như máy chủ: lớn hơn 0, tối đa 3 số lẻ (DECIMAL_QUANTITY).
+            rules={{ validate: { positive: (v: unknown) => v == null || v === "" || Number(v) > 0 || "Số lượng phải lớn hơn 0" } }} />
         )}
       </div>
       {/* Câu này nói về ô Thiết bị ngay trên nó, nên nó phải đứng ở đây.
@@ -642,7 +531,11 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
         {record?.receivedDate ? <LockedValue label="Ngày tiếp nhận" value={formatPlainDate(record.receivedDate)} why={keptWhy(record)} />
           : <Field control={control} name="receivedDate" label="Ngày tiếp nhận" type="date" dateRule="PAST_OR_TODAY" />}
         {record?.purchaseDate ? <LockedValue label="Ngày mua" value={formatPlainDate(record.purchaseDate)} why={keptWhy(record)} />
-          : <Field control={control} name="purchaseDate" label="Ngày mua" type="date" dateRule="PAST_OR_TODAY" />}
+          : <Field control={control} name="purchaseDate" label="Ngày mua" type="date" dateRule="PAST_OR_TODAY"
+            rules={{ validate: { notAfterReceived: (v: string | null) => {
+              const received: string | null = getValues("receivedDate") || null;
+              return !v || !received || v <= received || "Ngày mua không được sau ngày tiếp nhận";
+            } } }} />}
         {part === "all" ? <TechDates control={control} consumable={consumable} /> : null}
         {record?.usageStartYear != null ? <LockedValue label="Năm đưa vào sử dụng" value={record.usageStartYear} why={keptWhy(record)} />
           : <Field control={control} name="usageStartYear" label="Năm đưa vào sử dụng" type="number" numberRule="YEAR" />}
@@ -656,8 +549,6 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
         <div className={flow}>
           <TechIdentity control={control} />
           <TechDates control={control} consumable={consumable} />
-          <ConfigField control={control} current={record?.config} />
-          <SpecsFields control={control} className={STACK} />
         </div>
       ) : null}
 
@@ -686,18 +577,6 @@ function EquipmentFields({ control, record, part = "all" }: { control: Control<a
 
       </>) : null}
 
-      {part === "all" ? (<>
-      <SubHeading>Thông số kỹ thuật</SubHeading>
-      <RefField
-        control={control}
-        name="config"
-        resource="equipment_configs"
-        label="Bộ thông số"
-        current={record?.config}
-        className="sm:max-w-md"
-      />
-      <SpecsFields control={control} />
-      </>) : null}
     </>
   );
 }
@@ -939,8 +818,6 @@ export const EQUIPMENT_EXTRA = {
     room: { id: null },
     manager: { id: null },
     condition: "TOT",
-    config: { id: null },
-    specs: {},
   },
   Fields: EquipmentFields,
   // Một cột "Thiết bị": tên trên hồ sơ, dòng phụ là mặt hàng (khi khác tên) và ghi chú —
@@ -956,7 +833,7 @@ export const EQUIPMENT_EXTRA = {
       id: "room",
       header: "Phòng",
       enableSorting: false,
-      cell: ({ row }) => row.original.room?.name ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => row.original.room?.name ?? <span className="text-muted-foreground">Chưa xếp chỗ</span>,
     },
     {
       id: "status",
@@ -994,7 +871,7 @@ export const EQUIPMENT_EXTRA = {
             {row.original.intake.code ?? "Phiếu nháp"}
           </Link>
         ) : (
-          <span className="text-muted-foreground text-xs">khai đầu kỳ</span>
+          <span className="text-muted-foreground text-xs">Nhập ban đầu</span>
         ),
     },
     schoolColumn,
@@ -1008,7 +885,7 @@ export const EQUIPMENT_EXTRA = {
           Phiếu ghi tăng {r.intake.code}
         </Link>
       ) : (
-        "Khai đầu kỳ (thiết bị có sẵn, không qua phiếu ghi tăng)"
+        "Nhập ban đầu (thiết bị có sẵn, không qua phiếu ghi tăng)"
       ),
     },
     {
@@ -1077,22 +954,6 @@ export const EQUIPMENT_EXTRA = {
     {
       label: "Trạng thái",
       value: r?.status ? <Badge variant={ASSET_STATUS_VARIANTS[r.status] ?? "neutral"}>{ASSET_STATUS_LABELS[r.status]}</Badge> : "—",
-    },
-    {
-      label: "Thông số kỹ thuật",
-      value:
-        !r?.config ? (
-          "—"
-        ) : (
-          <div className="space-y-1">
-            <p className="text-muted-foreground font-normal">{r.config.name}</p>
-            {Object.entries(r.specs ?? {}).map(([k, v]) => (
-              <p key={k}>
-                <span className="text-muted-foreground font-normal">{k}:</span> {String(v)}
-              </p>
-            ))}
-          </div>
-        ),
     },
   ],
 };

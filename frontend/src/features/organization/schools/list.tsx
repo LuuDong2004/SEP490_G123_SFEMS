@@ -60,7 +60,7 @@ export const SchoolList = () => {
         enableSorting: false,
         cell: ({ row }) => {
           const department = row.original.departmentOfEducation;
-          if (!department) return <span className="text-muted-foreground">—</span>;
+          if (!department) return <span className="text-muted-foreground">Chưa gán</span>;
           return (
             <Link
               to={`/departments-of-education/show/${department.id}`}
@@ -79,7 +79,7 @@ export const SchoolList = () => {
         meta: { fixed: true },
         cell: ({ row }) => {
           const level = row.original.educationLevel;
-          if (!level) return <span className="text-muted-foreground">—</span>;
+          if (!level) return <span className="text-muted-foreground">Chưa khai</span>;
           return <Badge variant="info">{level.shortName ?? level.name}</Badge>;
         },
       }),

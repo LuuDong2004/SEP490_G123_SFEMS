@@ -7,7 +7,7 @@ import com.g123.sfems.module.organization.departmentofeducation.repo.DepartmentO
 import com.g123.sfems.module.organization.departmentofeducation.repo.DepartmentOfEducationSpecifications;
 import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
-import com.g123.sfems.shared.exception.ConflictException;
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.web.ListParams;
@@ -67,6 +67,7 @@ public class DepartmentOfEducationService {
     public DepartmentOfEducation create(DepartmentOfEducationRequest request) {
         String code = request.code().trim();
         requireCodeAvailable(code, null);
+        requireNameAvailable(request.name().trim(), null);
 
         DepartmentOfEducation department =
                 new DepartmentOfEducation(code, request.name().trim(), request.type());
@@ -97,6 +98,7 @@ public class DepartmentOfEducationService {
             department.setCode(code);
         }
         if (request.name() != null) {
+            requireNameAvailable(request.name().trim(), department.getId());
             department.setName(request.name().trim());
         }
         if (request.province() != null) {
@@ -137,10 +139,21 @@ public class DepartmentOfEducationService {
     }
 
     /** Từ chối mã trùng bằng thông báo nói về trường, không phải về index. */
+    /** Hai cơ quan cùng tên thì ô chọn cơ quan quản lý của trường, tài khoản không phân biệt được. */
+    private void requireNameAvailable(String name, Long selfId) {
+        for (DepartmentOfEducation existing : repository.findByNameIgnoreCase(name)) {
+            if (!existing.getId().equals(selfId)) {
+                throw new FieldValidationException("name",
+                        "Đã có cơ quan tên \"%s\" (mã %s)".formatted(existing.getName(), existing.getCode()));
+            }
+        }
+    }
+
+    // Trùng là lỗi của một ô — trả về ô đó để form hiện ngay dưới ô.
     private void requireCodeAvailable(String code, Long selfId) {
         repository.findByCodeIgnoreCase(code).ifPresent(existing -> {
             if (!existing.getId().equals(selfId)) {
-                throw new ConflictException("Sở/Phòng GD có mã %s đã tồn tại".formatted(code));
+                throw new FieldValidationException("code", "Sở/Phòng GD có mã %s đã tồn tại".formatted(code));
             }
         });
     }

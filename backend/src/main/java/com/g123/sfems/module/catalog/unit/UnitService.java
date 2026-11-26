@@ -14,6 +14,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class UnitService extends CatalogService<Unit, UnitRequest, UnitPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     public UnitService(UnitRepository repository, RowLevelSecurity rowLevel) {
         super(repository, rowLevel, Unit.class, Unit::new, "Đơn vị tính");
     }

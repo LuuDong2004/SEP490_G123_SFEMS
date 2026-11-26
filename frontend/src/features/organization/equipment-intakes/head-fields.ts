@@ -37,7 +37,8 @@ export function headFieldsOf(code: string | undefined): HeadFields {
 export const isCentralized = (code: string | undefined, centralized: unknown) => code === PURCHASE_CODE && centralized === true;
 
 /** Mã hình thức "Mua sắm tập trung" (danh mục Hình thức mua sắm). */
-export const CENTRALIZED_METHOD_CODE = "TAP_TRUNG";
+/** Khoá hệ thống (312) của "Mua sắm tập trung". */
+export const CENTRALIZED_METHOD_KEY = "TAP_TRUNG";
 
 /** Luật của ô "Số hoá đơn" / số chứng từ — cùng `checkDocuments` ở máy chủ. */
 export const documentNoRules = (head: HeadFields) =>

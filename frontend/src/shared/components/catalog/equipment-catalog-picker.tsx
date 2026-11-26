@@ -168,11 +168,11 @@ export function EquipmentCatalogPicker({
                     const active = r.id === value?.id;
                     return (
                       <TableRow key={r.id} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer", active && "bg-primary/10 hover:bg-primary/10")} onClick={() => pick(r)}>
-                        <TableCell className="text-muted-foreground truncate px-4 font-mono text-xs">{r.code ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground truncate px-4 font-mono text-xs">{r.code ?? "Chưa có mã"}</TableCell>
                         <TableCell className={cn("truncate px-4 font-medium", active && "text-primary")} title={r.name}>{r.name}</TableCell>
-                        <TableCell className="truncate px-4">{r.unit?.name ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground truncate px-4" title={r.equipmentType?.name}>{r.equipmentType?.name ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground truncate px-4" title={r.subject?.name}>{r.subject?.name ?? "—"}</TableCell>
+                        <TableCell className="truncate px-4">{r.unit?.name ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
+                        <TableCell className="text-muted-foreground truncate px-4" title={r.equipmentType?.name}>{r.equipmentType?.name ?? "Chưa phân loại"}</TableCell>
+                        <TableCell className="text-muted-foreground truncate px-4" title={r.subject?.name}>{r.subject?.name ?? "Chưa gắn môn"}</TableCell>
                       </TableRow>
                     );
                   })

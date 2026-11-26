@@ -105,6 +105,7 @@ public class RoleService {
     public Role create(RoleRequest request) {
         String code = request.code().trim();
         requireCodeAvailable(code, null);
+        requireNameAvailable(request.name().trim(), request.roleType(), null);
 
         Role role = new Role(code, request.name().trim(), trimToNull(request.description()), false,
                 request.roleType());
@@ -128,6 +129,7 @@ public class RoleService {
             role.setCode(code);
         }
         if (request.name() != null) {
+            requireNameAvailable(request.name().trim(), role.getRoleType(), role.getId());
             role.setName(request.name().trim());
         }
         if (request.description() != null) {
@@ -218,6 +220,16 @@ public class RoleService {
                 throw new ConflictException("Vai trò có mã %s đã tồn tại".formatted(code));
             }
         });
+    }
+
+    /**
+     * Tên vai không trùng trong cùng loại tài khoản (không phân biệt hoa thường): ô chọn vai chỉ hiện tên, hai vai
+     * cùng tên thì người cấp quyền không phân biệt được. Khác loại thì được trùng (vd. "Cán bộ thiết bị" ở Sở và trường).
+     */
+    private void requireNameAvailable(String name, UserType roleType, Long selfId) {
+        if (repository.existsByRoleTypeAndNameIgnoreCaseAndIdNot(roleType, name, selfId == null ? -1L : selfId)) {
+            throw new FieldValidationException("name", "Tên vai trò đã có");
+        }
     }
 
     private static String trimToNull(String value) {

@@ -3,7 +3,6 @@ package com.g123.sfems.module.catalog.facilitystandard;
 import com.g123.sfems.domain.catalog.facilitystandard.FacilityStandardRule;
 import com.g123.sfems.module.catalog.base.CatalogController;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
-import com.g123.sfems.shared.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,7 +31,7 @@ public class FacilityStandardRuleController extends CatalogController<
     @PutMapping("/types/{roomTypeId}")
     @PreAuthorize("hasAuthority('facility_standard_rules:write')")
     public List<Object> saveType(@PathVariable Long roomTypeId, @Valid @RequestBody FacilityStandardTypeRequest request) {
-        return rules.saveType(roomTypeId, request, CurrentUser.has("facility_standard_rules:delete")).stream()
+        return rules.saveType(roomTypeId, request).stream()
                 .map(r -> respond(r, security)).toList();
     }
 

@@ -51,8 +51,11 @@ class ProposalApprovalFlowTest {
     String HIEUTRUONG;
     String SO_LANHDAO;
     String SO_CHUYENVIEN;
-    /** Năm ngân sách không có dữ liệu thật, để kế hoạch thử không đụng kế hoạch đang có. */
-    private static final int YEAR = 2098;
+    /**
+     * Năm ngân sách xa nhất đề xuất được phép (năm nay + 5, PurchaseProposalService.BUDGET_YEAR_AHEAD) — chưa có dữ
+     * liệu thật, để kế hoạch thử không đụng kế hoạch đang có.
+     */
+    private static final int YEAR = LocalDate.now().getYear() + 5;
 
     @Autowired
     PurchaseProposalService proposals;

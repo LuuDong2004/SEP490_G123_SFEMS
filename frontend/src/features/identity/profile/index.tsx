@@ -128,7 +128,7 @@ export const Profile = () => {
             {initialsOf(identity?.fullName ?? identity?.username)}
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{identity?.fullName ?? "—"}</h1>
+            <h1 className="truncate text-xl font-semibold tracking-tight">{identity?.fullName ?? <span className="text-muted-foreground">Chưa khai họ tên</span>}</h1>
             <p className="text-muted-foreground truncate text-sm">
               {[roleNames.join(", "), school?.name].filter(Boolean).join(" · ") || `@${identity?.username ?? ""}`}
             </p>
@@ -266,7 +266,10 @@ function ChangePasswordCard() {
 
   const privileged = isPrivileged(getAuthorities()?.roles);
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
-  const canSubmit = currentPassword.length > 0 && passwordOk(newPassword, privileged) && newPassword === confirmPassword;
+  // Máy chủ cũng chặn; báo sớm để người dùng không phải đợi một lần gửi hỏng.
+  const sameAsCurrent = newPassword.length > 0 && newPassword === currentPassword;
+  const canSubmit = currentPassword.length > 0 && passwordOk(newPassword, privileged) && newPassword === confirmPassword
+    && !sameAsCurrent;
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -355,6 +358,7 @@ function ChangePasswordCard() {
             </div>
           </div>
           {mismatch && <p className="text-destructive text-sm">Hai mật khẩu không khớp.</p>}
+          {sameAsCurrent && <p className="text-destructive text-sm">Mật khẩu mới phải khác mật khẩu hiện tại.</p>}
 
           <div>
             <Button type="submit" disabled={!canSubmit || mutation.isPending}>

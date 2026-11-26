@@ -41,7 +41,6 @@ public final class Permissions {
     /** Danh mục dùng chung: cấp học. */
     public static final String EDUCATION_LEVELS_READ = "education_levels:read";
     public static final String EDUCATION_LEVELS_WRITE = "education_levels:write";
-    public static final String EDUCATION_LEVELS_DELETE = "education_levels:delete";
 
     // ADMIN only, and 010 spells that out rather than joining: editing a data
     // scope is editing the security model, so it is not a grant to hand around.

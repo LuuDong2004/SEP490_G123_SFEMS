@@ -11,6 +11,7 @@ import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.system.approvalflow.ApprovalFlowService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import jakarta.persistence.criteria.Predicate;
@@ -384,10 +385,7 @@ public class VoucherWorkflow {
      * nhắn bắt buộc vì chính nó là nội dung: bên kia cần biết thiếu cái gì để bổ sung.
      */
     public void remark(SchoolVoucher voucher, String resource, Action action, String note) {
-        String message = trimToNull(note);
-        if (message == null) {
-            throw new FieldValidationException("note", "Ghi rõ thiếu hoặc sai ở đâu để trường chuyển bổ sung");
-        }
+        String message = requireNote(note, "Ghi rõ thiếu hoặc sai ở đâu để trường chuyển bổ sung");
         record(voucher, resource, action, voucher.getStatus(), null, message);
     }
 
@@ -419,10 +417,18 @@ public class VoucherWorkflow {
         return body == null ? null : body.getId();
     }
 
+    /** Lý do tối thiểu (ký tự) khi trả lại / từ chối: "x" hay "." không nói được cần sửa gì. */
+    static final int NOTE_MIN = 5;
+
     private static String requireNote(String note, String message) {
         String trimmed = trimToNull(note);
         if (trimmed == null) {
             throw new FieldValidationException("note", message);
+        }
+        // Phải có chữ, đủ dài (luật REASON) — "....." hay "@@@" không phải một lý do (rà soát 27/11/2026).
+        String problem = FieldRule.REASON.violation(trimmed, 500, NOTE_MIN);
+        if (problem != null) {
+            throw new FieldValidationException("note", "Lý do " + problem);
         }
         return trimmed;
     }

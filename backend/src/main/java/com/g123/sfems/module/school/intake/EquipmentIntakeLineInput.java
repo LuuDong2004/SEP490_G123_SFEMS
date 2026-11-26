@@ -48,7 +48,7 @@ public record EquipmentIntakeLineInput(
         IdRef room,
         Map<String, Object> details,
         // Khai riêng của dòng — để trống thì theo đầu phiếu.
-        @Text(value = FieldRule.SHORT_TEXT, label = "Nhà cung cấp", max = 200, min = 2)
+        @Text(value = FieldRule.NAME, label = "Nhà cung cấp", max = 200, min = 2)
         String supplier,
         @Text(value = FieldRule.SHORT_TEXT, label = "Số hoá đơn", max = 100)
         String documentNo,
@@ -60,7 +60,7 @@ public record EquipmentIntakeLineInput(
         IdRef acquisitionMethod,
         @Text(value = FieldRule.SHORT_TEXT, label = "Ghi rõ hình thức mua sắm", max = 200, min = 5)
         String acquisitionNote,
-        @Num(value = NumberRule.COUNT, label = "Bảo hành (tháng)")
+        @Num(value = NumberRule.WARRANTY_MONTHS, label = "Bảo hành (tháng)")
         Integer warrantyMonths,
         // Model/hãng của LÔ hàng này — khác nhau giữa các lần mua, nên theo dòng chứ không theo nhóm.
         @Text(value = FieldRule.SHORT_TEXT, label = "Model", max = 50)
@@ -92,7 +92,7 @@ public record EquipmentIntakeLineInput(
         @Size(max = 10000, message = "Quá nhiều dòng")
         List<@Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất", max = 100) String> unitManufacturers,
         @Size(max = 10000, message = "Quá nhiều dòng")
-        List<@Num(value = NumberRule.COUNT, label = "Bảo hành (tháng)") Integer> unitWarrantyMonths,
+        List<@Num(value = NumberRule.WARRANTY_MONTHS, label = "Bảo hành (tháng)") Integer> unitWarrantyMonths,
         @Size(max = 10000, message = "Quá nhiều dòng")
         List<@Text(value = FieldRule.NOTE, label = "Thông tin khác") String> unitOtherInfos,
         // Vị trí (từ 0) của hoá đơn của dòng trong `documents` của phiếu (254); vắng thì theo hoá đơn đầu tiên.

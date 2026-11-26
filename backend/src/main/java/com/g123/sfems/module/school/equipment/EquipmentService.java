@@ -6,8 +6,6 @@ import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.domain.catalog.equipmentcatalog.TrackingType;
 import com.g123.sfems.domain.catalog.originsource.OriginRule;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
-import com.g123.sfems.domain.catalog.equipmentconfig.EquipmentConfig;
-import com.g123.sfems.domain.catalog.equipmentconfig.EquipmentConfigAttribute;
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.Equipment;
 import com.g123.sfems.domain.school.equipment.EquipmentEnums.AssetStatus;
@@ -18,7 +16,6 @@ import com.g123.sfems.module.catalog.acquisitionmethod.AcquisitionMethodService;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.equipmentcatalog.EquipmentCatalogService;
-import com.g123.sfems.module.catalog.equipmentconfig.EquipmentConfigService;
 import com.g123.sfems.module.catalog.originsource.OriginSourceService;
 import com.g123.sfems.module.catalog.unit.UnitService;
 import com.g123.sfems.module.organization.school.service.SchoolService;
@@ -49,7 +46,6 @@ import java.math.BigDecimal;
 import com.g123.sfems.shared.validation.FieldRule;
 import java.time.LocalDate;
 import java.util.Objects;
-import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -96,7 +92,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private final AcquisitionMethodService acquisitionMethods;
     private final RoomService rooms;
     private final StaffService staff;
-    private final EquipmentConfigService configs;
     private final EquipmentHistoryService history;
     private final RowLevelSecurity scopes;
 
@@ -119,7 +114,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
             AcquisitionMethodService acquisitionMethods,
             RoomService rooms,
             StaffService staff,
-            EquipmentConfigService configs,
             EquipmentHistoryService history,
             OpeningBalance openingBalance,
             InventoryFreeze inventoryFreeze) {
@@ -132,7 +126,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         this.acquisitionMethods = acquisitionMethods;
         this.rooms = rooms;
         this.staff = staff;
-        this.configs = configs;
         this.history = history;
         this.scopes = rowLevel;
         this.openingBalance = openingBalance;
@@ -208,7 +201,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     @Override
     protected void loadForResponse(Equipment item) {
         Hibernate.initialize(item.getIntakeLine());
-        Hibernate.initialize(item.getConfig());
         Hibernate.initialize(item.getAcquisitionMethod());
         if (item.getCatalog() != null) {
             Hibernate.initialize(item.getCatalog().getExtraSubjects());
@@ -259,14 +251,13 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         item.setOriginalValue(request.originalValue());
         item.setWarrantyExpiry(request.warrantyExpiry());
         item.setExpiryDate(bulk(item) ? request.expiryDate() : null);
+        requireDatesConsistent(item, NO_DATES);
         item.setRoom(ref(request.room(), rooms::get));
         item.setManager(ref(request.manager(), staff::get));
         item.setCondition(request.condition() != null ? request.condition() : EquipmentCondition.TOT);
         // Trạng thái không chọn tay: ở kho là "trong kho", ở phòng là "đang sử dụng". Hỏng
         // và Mất chỉ duyệt kiểm kê mới đặt được.
         item.setStatus(isStoreroom(item.getRoom()) ? AssetStatus.IN_STOCK : AssetStatus.IN_USE);
-        item.setConfig(ref(request.config(), configs::get));
-        item.setSpecs(checkedSpecs(item.getConfig(), request.specs()));
         requireRules(item);
         // Hồ sơ khai tay / nhập từ tệp là số dư đầu kỳ: sau khi hiệu trưởng chốt, thiết bị mới vào sổ qua phiếu ghi
         // tăng có duyệt. Và không thêm vào chỗ đang kiểm kê — tài sản mới không có trong danh sách phiếu đã chụp.
@@ -600,20 +591,39 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
     }
 
+    /** "Trước khi sửa" của hồ sơ mới: mọi mốc coi như vừa khai, nên lúc tạo mọi luật đều kiểm. */
+    private static final DateFacts NO_DATES = new DateFacts(null, null, null, null, null, null);
+
+    private static void requireDatesConsistent(Equipment item, DateFacts before) {
+        requireDatesConsistent(DateFacts.of(item), before);
+    }
+
     /**
-     * Ràng buộc giữa các mốc năm / ngày khi sửa trên hồ sơ — chỉ kiểm luật có mốc VỪA ĐỔI, để hồ sơ cũ (nhập từ MISA,
-     * số dư đầu kỳ) lỡ lệch vẫn sửa được tên, ghi chú… mà không bị chặn vì một mốc người sửa không chạm vào. Không
-     * đặt ở lúc tạo: nhập dữ liệu đầu vào cũng tạo qua {@code create}, và dữ liệu cũ sai mốc không được làm hỏng cả tệp.
+     * Ràng buộc giữa các mốc năm / ngày — khi sửa chỉ kiểm luật có mốc VỪA ĐỔI, để hồ sơ cũ (nhập từ MISA, số dư đầu
+     * kỳ) lỡ lệch vẫn sửa được tên, ghi chú… mà không bị chặn vì một mốc người sửa không chạm vào.
      *
      * <ul>
-     *   <li>Năm sản xuất không sau năm đưa vào sử dụng.</li>
+     *   <li>Năm sản xuất không sau năm đưa vào sử dụng, không sau năm mua (chưa có ngày mua thì năm tiếp nhận).</li>
+     *   <li>Ngày mua không sau ngày tiếp nhận.</li>
      *   <li>Hết hạn bảo hành sau ngày mua (chưa có ngày mua thì sau ngày tiếp nhận); ngày đã qua vẫn được — bảo hành
      *       hết rồi.</li>
      *   <li>Hạn sử dụng của lô vật tư, hoá chất sau ngày tiếp nhận.</li>
      * </ul>
      */
-    private static void requireDatesConsistent(Equipment item, DateFacts before) {
-        DateFacts now = DateFacts.of(item);
+    private static void requireDatesConsistent(DateFacts now, DateFacts before) {
+        if (now.purchaseDate() != null && now.receivedDate() != null && now.purchaseDate().isAfter(now.receivedDate())
+                && (!Objects.equals(now.purchaseDate(), before.purchaseDate())
+                    || !Objects.equals(now.receivedDate(), before.receivedDate()))) {
+            throw new FieldValidationException("purchaseDate", "Ngày mua không được sau ngày tiếp nhận");
+        }
+        LocalDate acquired = now.purchaseDate() != null ? now.purchaseDate() : now.receivedDate();
+        LocalDate acquiredBefore = before.purchaseDate() != null ? before.purchaseDate() : before.receivedDate();
+        if (now.productionYear() != null && acquired != null && now.productionYear() > acquired.getYear()
+                && (!Objects.equals(now.productionYear(), before.productionYear())
+                    || !Objects.equals(acquired, acquiredBefore))) {
+            throw new FieldValidationException("productionYear",
+                    "Năm sản xuất không được sau năm mua/tiếp nhận (" + acquired.getYear() + ")");
+        }
         if (now.productionYear() != null && now.usageStartYear() != null
                 && now.productionYear() > now.usageStartYear()
                 && (!Objects.equals(now.productionYear(), before.productionYear())
@@ -711,13 +721,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
         }
         if (request.status() != null) {
             item.setStatus(request.status());
-        }
-        if (request.config() != null) {
-            item.setConfig(ref(request.config(), configs::get));
-        }
-        if (request.config() != null || request.specs() != null) {
-            item.setSpecs(checkedSpecs(item.getConfig(),
-                    request.specs() != null ? request.specs() : item.getSpecs()));
         }
         requireRules(item);
     }
@@ -913,7 +916,7 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
 
     public static boolean isStoreroom(Room room) {
         return room == null
-                || (room.getRoomType() != null && "KHO".equals(room.getRoomType().getCode()));
+                || (room.getRoomType() != null && "KHO".equals(room.getRoomType().getSystemKey()));
     }
 
     /**
@@ -1161,63 +1164,6 @@ public class EquipmentService extends SchoolOwnedService<Equipment, EquipmentReq
     private static void requireRules(Equipment item) {
         requireSameSchool(item, item.getRoom(), "room");
         requireSameSchool(item, item.getManager(), "manager");
-    }
-
-    /**
-     * Thông số hợp lệ theo bộ: bỏ ô trống, từ chối mã lạ, bắt đủ thông số bắt
-     * buộc, kiểm kiểu. Không có bộ thì không lưu thông số nào.
-     */
-    private static Map<String, String> checkedSpecs(EquipmentConfig config, Map<String, String> input) {
-        Map<String, String> result = new LinkedHashMap<>();
-        if (config == null) {
-            return result;
-        }
-        Map<String, EquipmentConfigAttribute> byCode = new LinkedHashMap<>();
-        for (EquipmentConfigAttribute attr : config.getAttributes()) {
-            byCode.put(attr.getCode(), attr);
-        }
-        Map<String, String> values = input == null ? Map.of() : input;
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            if (!byCode.containsKey(entry.getKey())) {
-                throw new FieldValidationException("specs", "Thông số " + entry.getKey() + " không thuộc bộ đã chọn");
-            }
-        }
-        for (EquipmentConfigAttribute attr : byCode.values()) {
-            String raw = values.get(attr.getCode());
-            String value = raw == null ? "" : raw.trim();
-            if (value.isEmpty()) {
-                if (Boolean.TRUE.equals(attr.getRequired())) {
-                    throw new FieldValidationException("specs", "Nhập thông số " + attr.getName());
-                }
-                continue;
-            }
-            requireType(attr, value);
-            result.put(attr.getCode(), value);
-        }
-        return result;
-    }
-
-    private static void requireType(EquipmentConfigAttribute attr, String value) {
-        boolean ok = switch (attr.getDataType()) {
-            case TEXT -> true;
-            case INTEGER -> value.matches("-?\\d+");
-            case DECIMAL -> parses(() -> new BigDecimal(value));
-            case BOOLEAN -> value.equals("true") || value.equals("false");
-            case DATE -> parses(() -> LocalDate.parse(value));
-            case ENUM -> attr.getOptionList().contains(value);
-        };
-        if (!ok) {
-            throw new FieldValidationException("specs", "Thông số " + attr.getName() + " sai định dạng");
-        }
-    }
-
-    private static boolean parses(Runnable parse) {
-        try {
-            parse.run();
-            return true;
-        } catch (NumberFormatException | DateTimeParseException e) {
-            return false;
-        }
     }
 
     private static boolean present(IdRef ref) {

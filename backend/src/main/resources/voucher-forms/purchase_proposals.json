@@ -9,7 +9,8 @@
      "key": "submittedDocNo",
      "label": "Số công văn trình",
      "kind": "text",
-     "max": 100
+     "max": 50,
+     "rule": "DOC_NO"
     }
    ]
   }

@@ -739,11 +739,8 @@ def field_of(comp, pkg, cls, ef):
     elif jt in ("Lesson", "SchoolClass", "Subject", "BorrowOrder"):
         f["kind"] = "text"
         f["max"] = 255
-    elif jt == "MovementReason":
-        f["kind"] = "ref"
-        f["resource"] = "movement_reasons"
     else:
-        return None  # FileRef, Equipment, danh mục thiết bị: đã có chỗ khác
+        return None  # MovementReason: danh mục đã gỡ (309); FileRef, Equipment, danh mục thiết bị: đã có chỗ khác
     if comp.get("colspan"):
         f["wide"] = True
     if f["kind"] == "textarea":

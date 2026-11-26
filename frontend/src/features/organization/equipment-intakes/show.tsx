@@ -105,9 +105,7 @@ function assetsLink(record: { id: number; code?: string | null }) {
 }
 
 /** Nút "⋯" của hồ sơ phiếu: xem tài sản đã sinh, tải lại — như menu ⋯ của hồ sơ thiết bị. */
-function IntakeMoreMenu({ record, onTimeline, onAction, onPrint }: {
-  /** In phiếu: bản in là tờ ở dạng Văn bản, nên màn chuyển sang dạng đó rồi mới in. */
-  onPrint: () => void;
+function IntakeMoreMenu({ record, onTimeline, onAction }: {
   record: EquipmentIntake | undefined;
   onTimeline: () => void;
   /** Huỷ phiếu / Xoá: việc ít dùng nằm cuối menu, hộp hỏi lại do `VoucherActions` mở. */
@@ -116,7 +114,7 @@ function IntakeMoreMenu({ record, onTimeline, onAction, onPrint }: {
   const navigate = useNavigate();
   const generated = record?.status === "COMPLETED" ? record.generatedCount ?? 0 : 0;
   return (
-    <VoucherMoreMenu resource="equipment_intakes" record={record} onTimeline={onTimeline} onAction={onAction} onPrint={onPrint}>
+    <VoucherMoreMenu resource="equipment_intakes" record={record} onTimeline={onTimeline} onAction={onAction}>
       {generated > 0 && record ? (
         <DropdownMenuItem onSelect={() => navigate(assetsLink(record))}>
           <CheckCircle2 />
@@ -145,7 +143,7 @@ function Fact({ label, children, wide }: { label: string; children: ReactNode; w
   return (
     <div className={cn("flex min-w-0 items-baseline gap-1.5 text-sm", wide && "sm:col-span-2")}>
       <dt className="text-muted-foreground shrink-0">{label}:</dt>
-      <dd className="min-w-0 font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</dd>
+      <dd className="min-w-0 font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">Chưa khai</span>}</dd>
     </div>
   );
 }
@@ -406,7 +404,7 @@ export const EquipmentIntakeShow = () => {
   const eventCount = useVoucherEventCount("equipment_intakes", record?.id);
   const catalogOf = (l: any) => ({ trackingType: l?.trackingType, unit: l?.unit, assetCategory: l?.assetCategory });
   const rule = useOriginRules().ruleOf(record?.originSource?.id);
-  const head = headFieldsOf(rule?.code ?? record?.originSource?.code);
+  const head = headFieldsOf(rule?.code ?? record?.originSource?.systemKey);
   const readiness = intakeReadiness(record ?? {}, catalogOf, config, rule);
   const missing = readiness.filter((i) => !i.ok);
   const lines = record?.lines ?? [];
@@ -483,7 +481,7 @@ export const EquipmentIntakeShow = () => {
               const docAt = docs.findIndex((d) => d.id === line.documentId);
               const doc = docAt >= 0 ? docs[docAt] : null;
               const firstOfDoc = !!doc && lines.findIndex((x: any) => x.documentId === line.documentId) === i;
-              const docNoun = documentNoun(record?.originSource?.code) ?? "chứng từ";
+              const docNoun = documentNoun(record?.originSource?.systemKey) ?? "chứng từ";
               const mismatch = line.receivedQuantity !== line.documentQuantity;
               return (
                 <Fragment key={line.id ?? line.lineNo}>
@@ -576,7 +574,7 @@ export const EquipmentIntakeShow = () => {
       {record && (record.documents ?? []).length ? (
         <div className={cn("grid gap-4", (record.documents ?? []).length > 1 && "lg:grid-cols-2")}>
           {(record.documents ?? []).map((d, i) => {
-            const n = documentNoun(record?.originSource?.code) ?? "chứng từ";
+            const n = documentNoun(record?.originSource?.systemKey) ?? "chứng từ";
             return (
               <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={canAttach} compact
                 title={`Tệp ${n} ${(record.documents ?? []).length > 1 ? i + 1 : ""}`.trim()}
@@ -735,11 +733,7 @@ export const EquipmentIntakeShow = () => {
           ) : null
         }
         more={
-          <IntakeMoreMenu record={record} onTimeline={() => setTimelineOpen(true)} onAction={setMenuAction}
-            onPrint={() => {
-              setView("document");
-              setTimeout(() => window.print(), 300);
-            }} />
+          <IntakeMoreMenu record={record} onTimeline={() => setTimelineOpen(true)} onAction={setMenuAction} />
         }
         actions={
           <>

@@ -366,11 +366,11 @@ export const DataImports = () => {
                 const created = Object.entries(b.created);
                 return (
                   <TableRow key={b.id} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => go({ to: `/data-imports/${b.id}` })}>
-                    {schoolCol ? <TableCell className="font-medium">{b.school?.name ?? "—"}</TableCell> : null}
+                    {schoolCol ? <TableCell className="font-medium">{b.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>}</TableCell> : null}
                     <TableCell className="max-w-56 truncate">{b.fileName}</TableCell>
                     {/* Vai trò người tải lên; họ tên khi rê chuột. */}
                     <TableCell className="text-muted-foreground max-w-56 truncate text-sm" title={b.createdBy ?? undefined}>
-                      {b.createdByRole ?? b.createdBy ?? "—"}
+                      {b.createdByRole ?? b.createdBy ?? "Không rõ"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{formatDateTime(b.createdAt)}</TableCell>
                     <TableCell className="max-w-72 text-sm whitespace-normal">

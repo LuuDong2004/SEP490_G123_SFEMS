@@ -19,12 +19,11 @@ import { CODE_RULE_EXTRA } from "@/features/catalogs/code-rule-extra";
 import { NORM_EXTRA } from "@/features/catalogs/norm-extra";
 import { LEGAL_DOCUMENT_EXTRA } from "@/features/catalogs/legal-document-extra";
 import { EQUIPMENT_CATALOG_EXTRA } from "@/features/catalogs/equipment-catalog-extra";
-import { CONFIG_EXTRA } from "@/features/catalogs/config-extra";
 import { STANDARD_EXTRA } from "@/features/catalogs/standard-extra";
 import { EducationLevelField } from "@/features/catalogs/education-level-field";
 import { FACILITY_GROUP_EXTRA, ROOM_TYPE_EXTRA } from "@/features/catalogs/facility-catalog-extra";
 import { FACILITY_STANDARD_EXTRA } from "@/features/catalogs/facility-standard-extra";
-import { SubjectLevelsField, SubjectPickerField } from "@/features/catalogs/relations";
+import { SubjectLevelsField } from "@/features/catalogs/relations";
 import { SUBJECT_TYPE_LABELS } from "@/domains/subject/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -89,7 +88,7 @@ const levelColumn: ColumnDef<any, any> = {
     return level ? (
       <Badge variant="neutral">{level.name}</Badge>
     ) : (
-      <span className="text-muted-foreground">—</span>
+      <span className="text-muted-foreground">Chưa gắn cấp học</span>
     );
   },
 };
@@ -149,7 +148,6 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
   equipment_standards: STANDARD_EXTRA,
   equipment_norms: NORM_EXTRA,
   equipment_catalogs: EQUIPMENT_CATALOG_EXTRA,
-  equipment_configs: CONFIG_EXTRA,
 
   subjects: {
     section: { title: "Giảng dạy" },
@@ -181,7 +179,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         enableSorting: false,
         cell: ({ row }) => {
           const levels: SubjectLevelRow[] = row.original.educationLevels ?? [];
-          if (levels.length === 0) return <span className="text-muted-foreground">—</span>;
+          if (levels.length === 0) return <span className="text-muted-foreground">Chưa gắn cấp học</span>;
           return (
             <div className="flex flex-wrap gap-1">
               {levels.map((l) => (
@@ -212,40 +210,6 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
       },
     ],
   },
-  subject_groups: {
-    section: { title: "Thành phần tổ" },
-    defaults: { educationLevel: { id: null }, subjects: [] },
-    Fields: ({ control, record }) => (
-      <div className="form-flow">
-        <EducationLevelField control={control} current={record?.educationLevel} />
-        <div className="@md:col-span-2 @3xl:col-span-3">
-          <SubjectPickerField control={control} />
-        </div>
-      </div>
-    ),
-    columns: [
-      levelColumn,
-      {
-        id: "subjects",
-        header: "Số môn",
-        enableSorting: false,
-        cell: ({ row }) => (
-          <span className="tabular-nums">{(row.original.subjects ?? []).length}</span>
-        ),
-      },
-    ],
-    show: (r) => [
-      levelShow(r),
-      {
-        label: "Môn học thuộc tổ",
-        span: 3,
-        value:
-          (r?.subjects ?? []).length === 0
-            ? "Chưa gán môn nào"
-            : (r.subjects as any[]).map((s) => s.name).join(", "),
-      },
-    ],
-  },
   school_years: {
     // Năm học chỉ cần cờ Hiện hành: cờ Đang hoạt động không có nghĩa với năm học.
     hideActive: true,
@@ -256,8 +220,8 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         <DateField control={control} name="startDate" label="Ngày bắt đầu" />
         <DateField control={control} name="endDate" label="Ngày kết thúc"
           // `@DateRange` của `SchoolYearRequest`.
-          validate={(v, values) => !v || !values?.startDate || String(v) >= String(values.startDate)
-            || "Ngày kết thúc không được trước ngày bắt đầu"} />
+          validate={(v, values) => !v || !values?.startDate || String(v) > String(values.startDate)
+            || "Ngày kết thúc phải sau ngày bắt đầu"} />
         <FormField
           control={control}
           name="current"
@@ -317,13 +281,14 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
     defaults: { teachingCode: "", educationLevel: { id: null } },
     Fields: ({ control, record }) => (
       <div className="form-flow">
-        <EducationLevelField control={control} current={record?.educationLevel} />
+        <EducationLevelField control={control} current={record?.educationLevel} required />
         <TextField
           control={control}
           name="teachingCode"
           label="Mã khối dạy học"
           rule="CODE"
-          max={32}
+          max={2}
+          rules={{ pattern: { value: /^\d{1,2}$/, message: "Mã khối dạy học gồm 1–2 chữ số, vd. 10" } }}
           placeholder="10"
           description="Theo chương trình dạy học, khác mã danh mục."
         />
@@ -337,7 +302,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         header: "Mã khối",
         enableSorting: false,
         cell: ({ getValue }) => (
-          <span className="font-mono text-xs">{(getValue() as string) ?? "—"}</span>
+          <span className="font-mono text-xs">{(getValue() as string) ?? <span className="text-muted-foreground font-sans">Chưa có mã</span>}</span>
         ),
       },
     ],
@@ -367,7 +332,7 @@ export const CATALOG_EXTRAS: Record<string, CatalogExtra> = {
         id: "allowsFraction",
         header: "Số lẻ",
         enableSorting: false,
-        cell: ({ row }) => (row.original.allowsFraction ? <Badge variant="success">Cho phép</Badge> : <span className="text-muted-foreground">—</span>),
+        cell: ({ row }) => (row.original.allowsFraction ? <Badge variant="success">Cho phép</Badge> : <span className="text-muted-foreground">Không</span>),
       },
     ] as ColumnDef<any, any>[],
     show: (r) => [{ label: "Cho phép số lẻ", span: 2, value: r?.allowsFraction ? "Có, đơn vị chia được" : "Không" }],

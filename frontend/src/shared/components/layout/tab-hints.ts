@@ -34,20 +34,17 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   // Năm học và môn học
   school_years: "Các năm học, ngày bắt đầu và kết thúc",
   grades: "Khối lớp 1 đến 12",
-  subject_groups: "Tổ chuyên môn theo nhóm môn",
   subjects: "Môn học dùng cho thiết bị và tổ bộ môn",
   // Thiết bị
   equipment_catalogs: "Tất cả thiết bị trong danh mục chung",
   equipment_types: "Nhóm thiết bị: dùng chung, vật tư, hoá chất…",
   units: "Cái, bộ, chiếc, lít…",
-  equipment_configs: "Thông số kỹ thuật theo từng thiết bị",
   equipment_standards: "Danh mục thiết bị tối thiểu theo thông tư",
   equipment_norms: "Số lượng tối thiểu từng thiết bị theo cấp, khối",
   // Tài chính, nghiệp vụ
   origin_sources: "Thiết bị từ đâu ra: kế hoạch mua sắm, được cấp phát, được tặng…",
   funding_sources: "Tiền từ đâu: ngân sách, học phí, tài trợ…",
   acquisition_methods: "Mua mới, tài trợ…",
-  movement_reasons: "Lý do ghi tăng thiết bị",
 
   // Tổ chức của trường
   staff: "Cán bộ, giáo viên của trường",

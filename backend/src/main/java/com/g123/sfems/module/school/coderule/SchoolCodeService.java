@@ -5,6 +5,7 @@ import com.g123.sfems.domain.school.base.SchoolOwnedEntity;
 import com.g123.sfems.domain.school.coderule.SchoolCodeRule;
 import com.g123.sfems.module.organization.school.service.SchoolService;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.validation.FieldRule;
 import jakarta.persistence.Table;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,6 +95,19 @@ public class SchoolCodeService {
         int start = startNumber == null ? 1 : startNumber;
         if (start < 0) {
             throw new FieldValidationException("startNumber", "Số bắt đầu không được âm");
+        }
+        // Số bắt đầu dài hơn phần số thì mã đầu tiên đã vượt mẫu (phần số 2 chữ số mà bắt đầu từ 100).
+        int top = (int) Math.pow(10, length) - 1;
+        if (start > top) {
+            throw new FieldValidationException("startNumber",
+                    "Số bắt đầu tối đa %d với phần số %d chữ số".formatted(top, length));
+        }
+        // Mã sinh ra phải lọt cột mã của loại đó, kẻo mã tự cấp bị chặn ngay lúc lưu bản ghi.
+        int max = codeMax(target);
+        int used = (cleaned == null ? 0 : cleaned.length()) + length;
+        if (used > max) {
+            throw new FieldValidationException("prefix", "Ký hiệu cộng phần số dài %d ký tự — mã %s tối đa %d ký tự"
+                    .formatted(used, TARGETS.get(target).toLowerCase(Locale.ROOT), max));
         }
         SchoolCodeRule rule = rules.findBySchoolIdAndTarget(schoolId, target).orElseGet(SchoolCodeRule::new);
         rule.setSchool(school);
@@ -205,6 +219,14 @@ public class SchoolCodeService {
         Table table = item.getClass().getAnnotation(Table.class);
         String name = table == null ? null : table.name();
         return name != null && TARGETS.containsKey(name) ? name : null;
+    }
+
+    /** Trần độ dài mã của từng loại: phòng, cán bộ 20 (form và service của hai loại này); còn lại trần chung của ô mã. */
+    public static int codeMax(String target) {
+        return switch (target) {
+            case "rooms", "staff" -> 20;
+            default -> FieldRule.CODE.max();
+        };
     }
 
     private static void requireTarget(String target) {

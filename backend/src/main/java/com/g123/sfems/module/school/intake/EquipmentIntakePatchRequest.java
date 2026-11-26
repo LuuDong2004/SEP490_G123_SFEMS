@@ -6,6 +6,8 @@ import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.shared.validation.DateRule;
 import com.g123.sfems.shared.validation.DateValue;
 import com.g123.sfems.shared.validation.FieldRule;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -29,7 +31,7 @@ public record EquipmentIntakePatchRequest(
         String documentNo,
         @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày chứng từ")
         LocalDate documentDate,
-        @Text(value = FieldRule.SHORT_TEXT, label = "Nhà cung cấp", max = 200, min = 2)
+        @Text(value = FieldRule.NAME, label = "Nhà cung cấp", max = 200, min = 2)
         String supplier,
         FundingSource fundingSource,
         IdRef originSource,
@@ -38,8 +40,7 @@ public record EquipmentIntakePatchRequest(
         // Năm học của lần ghi tăng; để trống thì lấy năm học chứa ngày nhập.
         IdRef schoolYear,
         IdRef acquisitionMethod,
-        @Min(value = 0, message = "Thời hạn bảo hành không được âm")
-        @Max(value = 600, message = "Thời hạn bảo hành tối đa 600 tháng")
+        @Num(value = NumberRule.WARRANTY_MONTHS, label = "Thời hạn bảo hành (tháng)")
         Integer warrantyMonths,
         @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,

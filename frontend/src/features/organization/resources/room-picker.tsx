@@ -232,11 +232,11 @@ export function RoomPickerField({
                             <span className={cn("truncate font-medium", active && "text-primary")}>{r.name}</span>
                           </span>
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate px-4" title={r.building?.name}>{r.building?.name ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground truncate px-4" title={r.building?.name}>{r.building?.name ?? "Chưa gắn"}</TableCell>
                         <TableCell className="truncate px-4">
-                          {r.roomType?.name ? <Badge variant={isStore(r) ? "info" : "neutral"}>{r.roomType.name}</Badge> : <span className="text-muted-foreground">—</span>}
+                          {r.roomType?.name ? <Badge variant={isStore(r) ? "info" : "neutral"}>{r.roomType.name}</Badge> : <span className="text-muted-foreground">Chưa phân loại</span>}
                         </TableCell>
-                        <TableCell className="text-muted-foreground px-4 tabular-nums">{r.floor ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground px-4 tabular-nums">{r.floor ?? "Chưa khai"}</TableCell>
                       </TableRow>
                     );
                   })

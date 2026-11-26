@@ -12,6 +12,8 @@ import java.util.Map;
 public record RoomTypeResponse(
         Long id,
         String code,
+        /** Khoá hệ thống (312): PHONG_HOC, KHO, THU_VIEN… — {@code null} với loại thêm sau. */
+        String systemKey,
         String name,
         Integer sortOrder,
         Boolean active,
@@ -44,7 +46,7 @@ public record RoomTypeResponse(
         var level = item.getEducationLevel();
         var group = item.getGroup();
         return new RoomTypeResponse(
-                item.getId(), item.getCode(), item.getName(), item.getSortOrder(),
+                item.getId(), item.getCode(), item.getSystemKey(), item.getName(), item.getSortOrder(),
                 item.getActive(), item.getNote(), item.getRoomGroup(),
                 level == null ? null : new EducationLevelSummary(level.getId(), level.getCode(), level.getName()),
                 group == null ? null : new GroupSummary(group.getId(), group.getCode(), group.getName()),

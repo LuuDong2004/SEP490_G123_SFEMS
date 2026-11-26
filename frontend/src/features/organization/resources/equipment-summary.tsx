@@ -423,7 +423,7 @@ export function EquipmentSummary({ by, filters, drill }: {
                             ) : <span className="text-muted-foreground text-xs italic">Chưa gắn môn</span>}
                           </td>
                         ) : null}
-                        <td className="text-muted-foreground px-3 py-2.5 whitespace-nowrap">{readableUnit(n(r.total as number), r.unit).unit ?? "—"}</td>
+                        <td className="text-muted-foreground px-3 py-2.5 whitespace-nowrap">{readableUnit(n(r.total as number), r.unit).unit ?? <span className="text-xs italic">Chưa khai</span>}</td>
                         {QTY.map((c, i) => {
                           // Cả dòng theo MỘT đơn vị, chọn theo cột Tổng: 15.750 gam hiện 15,75 kg.
                           const v = n(r[c.key] as number) / readableUnit(n(r.total as number), r.unit).factor;

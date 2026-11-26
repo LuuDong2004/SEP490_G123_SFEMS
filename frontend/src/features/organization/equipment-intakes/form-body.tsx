@@ -94,7 +94,7 @@ export function IntakeFormBody({ record, onFinish, header }: {
   const { origins, ruleOf } = useOriginRules();
   const originId = values.originSource?.id;
   const rule = ruleOf(originId);
-  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   // Cấp trên (Sở / UBND) mua tập trung rồi giao về — `details.centralized` (trưởng nhóm 17/11/2026).
   const centralized = isCentralized(originCode, values.details?.centralized);
   const [busy, setBusy] = useState<"save" | "submit" | null>(null);

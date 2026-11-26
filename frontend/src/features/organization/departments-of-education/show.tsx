@@ -234,7 +234,7 @@ export const DepartmentOfEducationShow = () => {
               <div className="min-w-0 flex-1">
                 <h2 className="text-xl font-semibold">{record?.name ?? "—"}</h2>
                 <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-sm">
-                  <span className="font-mono">{record?.code ?? "—"}</span>
+                  <span className="font-mono">{record?.code ?? "Chưa có mã"}</span>
                   <span aria-hidden>·</span>
                   <span>{record?.type ? MANAGING_BODY_TYPE_LABELS[record.type] ?? record.type : "Cơ quan quản lý"}</span>
                 </p>
@@ -249,7 +249,7 @@ export const DepartmentOfEducationShow = () => {
             <div className="border-border grid gap-x-6 gap-y-3 border-t px-4 py-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
               <Fact label="Địa chỉ">{record?.address || "Chưa khai"}</Fact>
               <Fact label="Tỉnh, thành phố">{record?.province || "Chưa khai"}</Fact>
-              <Fact label="Ngày tạo">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</Fact>
+              <Fact label="Ngày tạo">{record?.createdAt ? formatDateTime(record.createdAt) : <span className="text-muted-foreground">Không rõ</span>}</Fact>
               <Fact label="Cập nhật lần cuối">{record?.updatedAt ? formatDateTime(record.updatedAt) : "Chưa sửa"}</Fact>
             </div>
 

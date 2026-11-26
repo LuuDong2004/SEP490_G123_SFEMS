@@ -20,12 +20,15 @@
      "label": "Cơ quan chủ quản",
      "kind": "text",
      "max": 255,
-     "wide": true
+     "wide": true,
+     "rule": "NAME",
+     "min": 2
     },
     {
      "key": "submittedDate",
      "label": "Ngày gửi",
-     "kind": "date"
+     "kind": "date",
+     "date": "past"
     },
     {
      "key": "approvalLevel",
@@ -37,8 +40,9 @@
      "key": "approvalDocNo",
      "label": "Số văn bản phê duyệt",
      "kind": "text",
-     "max": 100,
-     "wide": true
+     "max": 50,
+     "wide": true,
+     "rule": "DOC_NO"
     }
    ]
   }

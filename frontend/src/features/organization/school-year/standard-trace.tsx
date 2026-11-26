@@ -84,10 +84,10 @@ export function StandardTraceBlock({ proposalId, planId }: { proposalId?: number
                       <div className="truncate font-medium" title={t.catalogName}>{t.catalogName}</div>
                       <div className="text-muted-foreground font-mono text-xs">{t.catalogCode}</div>
                     </TableCell>
-                    <TableCell>{t.campusName ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{t.requiredTt ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{t.requiredAdjusted ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{t.current ?? "—"}</TableCell>
+                    <TableCell>{t.campusName ?? <span className="text-muted-foreground">Cả trường</span>}</TableCell>
+                    <TableCell className="text-right tabular-nums">{t.requiredTt ?? <span className="text-muted-foreground">Chưa tính được</span>}</TableCell>
+                    <TableCell className="text-right tabular-nums">{t.requiredAdjusted ?? <span className="text-muted-foreground">Chưa tính được</span>}</TableCell>
+                    <TableCell className="text-right tabular-nums">{t.current ?? <span className="text-muted-foreground">Chưa tính được</span>}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{t.quantity}</TableCell>
                     <TableCell className="max-w-[22rem]">
                       {t.outsideStandard ? <Badge variant="warning">Ngoài thông tư</Badge>

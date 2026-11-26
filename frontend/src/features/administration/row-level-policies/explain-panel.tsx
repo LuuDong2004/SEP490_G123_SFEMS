@@ -191,7 +191,7 @@ export function ExplainPanel({
               ))}
               <span className="text-muted-foreground">Phòng ban:</span>
               <span className="font-mono text-xs">
-                {explanation.principal.departmentId ?? "—"}
+                {explanation.principal.departmentId ?? <span className="font-sans">Không có</span>}
               </span>
             </div>
 

@@ -36,7 +36,7 @@ class FacilityStandardTypeSaveTest {
 
     @BeforeEach
     void pick() {
-        List<Long> types = jdbc.queryForList("SELECT id FROM room_types WHERE code = 'PHONG_HOP'", Long.class);
+        List<Long> types = jdbc.queryForList("SELECT id FROM room_types WHERE system_key = 'PHONG_HOP'", Long.class);
         List<Long> docs = jdbc.queryForList("SELECT id FROM legal_documents WHERE code = '13/2020/TT-BGDĐT'", Long.class);
         Assumptions.assumeTrue(!types.isEmpty() && !docs.isEmpty(), "Thiếu danh mục mẫu");
         type = types.get(0);
@@ -44,20 +44,20 @@ class FacilityStandardTypeSaveTest {
     }
 
     @Test
-    void savesAllTiersAndDropsBlankOnes() {
-        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", 2, true), tier("LEVEL2", null, false)), true);
+    void savesAllTiersAndStopsBlankOnes() {
+        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", 2, true), tier("LEVEL2", null, false)));
         assertThat(tiers()).containsEntry("MIN", 1).containsEntry("LEVEL1", 2).doesNotContainKey("LEVEL2");
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM facility_standard_rule_documents x JOIN facility_standard_rules r ON r.id = x.rule_id
                 WHERE r.room_type_id = ?""", Integer.class, type)).isEqualTo(2);
-        service.saveType(type, request(tier("MIN", 3, true), tier("LEVEL1", null, false), tier("LEVEL2", null, false)), true);
+        service.saveType(type, request(tier("MIN", 3, true), tier("LEVEL1", null, false), tier("LEVEL2", null, false)));
         assertThat(tiers()).containsEntry("MIN", 3).doesNotContainKey("LEVEL1");
     }
 
     @Test
-    void withoutDeleteRightBlankTierIsDeactivated() {
-        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", 2, true), tier("LEVEL2", null, false)), false);
-        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", null, false), tier("LEVEL2", null, false)), false);
+    void blankTierIsDeactivatedNotDeleted() {
+        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", 2, true), tier("LEVEL2", null, false)));
+        service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", null, false), tier("LEVEL2", null, false)));
         em.flush();
         assertThat(jdbc.queryForObject("SELECT active FROM facility_standard_rules WHERE room_type_id = ? AND tier = 'LEVEL1'",
                 Boolean.class, type)).isFalse();
@@ -67,14 +67,14 @@ class FacilityStandardTypeSaveTest {
     void errorNamesTheTier() {
         FieldValidationException e = catchThrowableOfType(FieldValidationException.class,
                 () -> service.saveType(type, request(tier("MIN", 1, true), tier("LEVEL1", 2, false),
-                        tier("LEVEL2", null, false)), true));
+                        tier("LEVEL2", null, false))));
         assertThat(e.errors()).containsKey("LEVEL1.legalDocuments");
     }
 
     private Map<String, Integer> tiers() {
         em.flush();
         Map<String, Integer> out = new java.util.HashMap<>();
-        jdbc.query("SELECT tier, min_count FROM facility_standard_rules WHERE room_type_id = ? AND level_code = 'THPT'",
+        jdbc.query("SELECT tier, min_count FROM facility_standard_rules WHERE room_type_id = ? AND level_code = 'THPT' AND active",
                 rs -> {
                     out.put(rs.getString(1), rs.getInt(2));
                 }, type);

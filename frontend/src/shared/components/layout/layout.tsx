@@ -75,7 +75,8 @@ export function Layout({ children }: PropsWithChildren) {
         >
           {/* Breadcrumb nằm trên thanh header (lg trở lên); hẹp hơn header không đủ chỗ nên nó
               về đầu trang, trên thanh tab phân hệ. */}
-          <div className="empty:hidden lg:hidden">
+          {/* Điện thoại: không có đường dẫn — màn nào cũng có mũi tên quay lại cạnh tiêu đề. */}
+          <div className="empty:hidden max-md:hidden lg:hidden">
             <Breadcrumb />
           </div>
           {/* Tạm tắt dải nhắc bảo mật (xác thực qua email, đổi mật khẩu) — giai đoạn này chưa cần. Bật lại: bỏ comment. */}

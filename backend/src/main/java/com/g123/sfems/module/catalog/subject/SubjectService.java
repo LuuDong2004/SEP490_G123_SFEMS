@@ -34,6 +34,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class SubjectService extends CatalogService<Subject, SubjectRequest, SubjectPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     private final EducationLevelService educationLevels;
     private final CallerSchoolLevel callerLevel;
 

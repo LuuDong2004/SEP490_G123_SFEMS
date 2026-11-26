@@ -106,7 +106,7 @@ function useEquipmentStandard(equipmentId: number) {
 export function EquipmentStandardSummary({ equipmentId }: { equipmentId: number }) {
   const { data, isLoading } = useEquipmentStandard(equipmentId);
   if (isLoading) return <Skeleton className="h-4 w-24" />;
-  if (!data) return <span className="text-muted-foreground">—</span>;
+  if (!data) return <span className="text-muted-foreground">Chưa có dữ liệu</span>;
   const a = data.adequacy;
   if (!a || data.status !== "MINIMUM") {
     return <span className="text-muted-foreground font-normal">{data.status === "OTHER_LEVEL" ? "Cấp học khác" : "Ngoài danh mục"}</span>;
@@ -146,11 +146,11 @@ export function EquipmentStandardMini({ equipmentId }: { equipmentId: number }) 
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
-        <div className={cn(box, "bg-gold-subtle")}><div className="text-gold-text text-xl font-bold tabular-nums">{a.required != null ? num.format(a.required) : "—"}</div>{caption("Cần có")}</div>
+        <div className={cn(box, "bg-gold-subtle")}><div className="text-gold-text text-xl font-bold tabular-nums">{a.required != null ? num.format(a.required) : <span className="text-muted-foreground text-sm font-medium">Không ghi số</span>}</div>{caption("Cần có")}</div>
         <div className={cn(box, "bg-info-subtle")}><div className="text-info-text text-xl font-bold tabular-nums">{num.format(a.current)}</div>{caption("Đang có")}</div>
         <div className={cn(box, diff != null && diff < 0 ? "bg-destructive-subtle" : diff != null ? "bg-success-subtle" : "bg-surface-subtle")}>
           <div className={cn("text-xl font-bold", diff != null && diff < 0 ? "text-destructive-text" : "text-success-text")}>
-            {diff == null ? "—" : diff > 0 ? `+${num.format(diff)}` : num.format(diff)}
+            {diff == null ? <span className="text-muted-foreground text-sm font-medium">Chưa tính được</span> : diff > 0 ? `+${num.format(diff)}` : num.format(diff)}
           </div>
           {caption(diff != null && diff < 0 ? "Thiếu" : "Thừa")}
         </div>
@@ -205,7 +205,7 @@ export function EquipmentStandardCard({ equipmentId }: { equipmentId: number; ca
             <Stat label="Đang có, dùng được" value={withUnit(a.current, unit)} note={a.proposed ? `đang đề xuất mua thêm ${withUnit(a.proposed, unit)}` : undefined} />
             <Stat
               label="Kết quả"
-              value={a.optional ? "Tự chọn" : a.shortage == null ? "—" : a.shortage === 0 ? "Đủ" : `Thiếu ${withUnit(a.shortage, unit)}`}
+              value={a.optional ? "Tự chọn" : a.shortage == null ? "Chưa tính được" : a.shortage === 0 ? "Đủ" : `Thiếu ${withUnit(a.shortage, unit)}`}
               note={a.optional ? "chỉ trang bị khi trường chọn phương án / môn này" : surplus > 0 ? `thừa ${withUnit(surplus, unit)}` : undefined}
               tone={a.optional || a.shortage == null ? undefined : a.shortage === 0 ? "ok" : "short"}
             />

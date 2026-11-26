@@ -31,14 +31,17 @@
      "key": "receiverPosition",
      "label": "Chức vụ người nhận",
      "kind": "text",
-     "max": 100
+     "max": 100,
+     "rule": "NAME",
+     "min": 2
     },
     {
      "key": "handoverMinutesNo",
      "label": "Số biên bản",
      "kind": "text",
      "max": 30,
-     "min": 1
+     "min": 1,
+     "rule": "DOC_NO"
     }
    ]
   },
@@ -61,14 +64,16 @@
      "label": "Đơn vị giao",
      "kind": "text",
      "max": 255,
-     "min": 2
+     "min": 2,
+     "rule": "NAME"
     },
     {
      "key": "assignmentDecisionNo",
      "label": "Số quyết định giao",
      "kind": "text",
      "max": 50,
-     "min": 1
+     "min": 1,
+     "rule": "DOC_NO"
     },
     {
      "key": "assignmentDecisionDate",

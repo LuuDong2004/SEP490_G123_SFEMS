@@ -28,6 +28,7 @@ export const InventorySessionList = lazyNamed(() => import("./inventory-sessions
 export const InventorySessionCreate = lazyNamed(() => import("./inventory-sessions"), "InventorySessionCreate");
 export const InventorySessionEdit = lazyNamed(() => import("./inventory-sessions"), "InventorySessionEdit");
 export const InventorySessionShow = lazyNamed(() => import("./inventory-sessions"), "InventorySessionShow");
+export const MobilePreview = lazyNamed(() => import("./inventory-sessions"), "MobilePreview");
 export const DepartmentOfEducationList = lazyNamed(() => import("./departments-of-education/list"), "DepartmentOfEducationList");
 export const DepartmentOfEducationCreate = lazyNamed(() => import("./departments-of-education/create"), "DepartmentOfEducationCreate");
 export const DepartmentOfEducationEdit = lazyNamed(() => import("./departments-of-education/edit"), "DepartmentOfEducationEdit");

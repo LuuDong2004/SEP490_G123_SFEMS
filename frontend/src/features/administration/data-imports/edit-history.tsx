@@ -172,7 +172,7 @@ export function EditHistory({ batchId, sheet, rows, onClose }: {
                         <>
                           <td rowSpan={lines.length} className={cn("px-3 py-1.5 font-semibold tabular-nums", span)}>{r.rowNo}</td>
                           <td rowSpan={lines.length} className={cn("px-3 py-1.5", span)}>
-                            <div className="flex min-w-0 items-center gap-2"><span className="truncate" title={name}>{name || <span className="text-muted-foreground">—</span>}</span>
+                            <div className="flex min-w-0 items-center gap-2"><span className="truncate" title={name}>{name || <span className="text-muted-foreground">Chưa có tên</span>}</span>
                             {r.skipped === true ? <Badge variant="destructive" className="shrink-0">Bỏ dòng</Badge>
                               : r.skipped === false ? <Badge variant="success" className="shrink-0">Dùng lại dòng</Badge> : null}</div>
                           </td>

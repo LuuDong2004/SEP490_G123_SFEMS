@@ -251,7 +251,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
     const draftList = drafts.data ?? [];
     if (kind === "KIEM_KE_THUA") {
       return draftList.filter((d) => d.source?.resource === "inventory_sessions").map((d) => ({
-        key: `d${d.id}`, code: d.source?.code ?? "—", date: d.intakeDate, info: d.note ?? "", lines: d.lineCount, amount: null, draftId: d.id,
+        key: `d${d.id}`, code: d.source?.code ?? "Chưa cấp số", date: d.intakeDate, info: d.note ?? "", lines: d.lineCount, amount: null, draftId: d.id,
       }));
     }
     // Chỉ đề xuất còn thiết bị chưa nhập (còn hành động "intake"); đã nhập đủ — kể cả bằng phiếu còn nháp — thì
@@ -261,7 +261,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
       // Chỉ đề xuất ĐÃ VÀO kế hoạch (có kế hoạch) — "Kế hoạch mua sắm" không nhận hàng ngoài kế hoạch.
       .filter((p) => p._actions?.includes("intake") && p.plan != null)
       .map((p) => ({
-        key: `p${p.id}`, code: p.code ?? "—", date: p.proposalDate, info: p.plan?.title ?? "", lines: p.lineCount, amount: p.totalAmount ?? 0,
+        key: `p${p.id}`, code: p.code ?? "Chưa cấp số", date: p.proposalDate, info: p.plan?.title ?? "", lines: p.lineCount, amount: p.totalAmount ?? 0,
         body: p.plan ? planOf.get(p.plan.id)?.managingBody?.name : undefined, year: (p.plan ? planOf.get(p.plan.id)?.budgetYear : null) ?? p.budgetYear,
         draftId: null, proposal: p,
       }));
@@ -405,9 +405,9 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
                   <TableRow key={r.key} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer")} onClick={() => busy == null && void pick(r)}>
                     {withAmount ? (
                       <>
-                        <TableCell className="truncate px-4 font-medium" title={r.info || undefined}>{r.info || "—"}</TableCell>
-                        <TableCell className="text-muted-foreground truncate px-4" title={r.body}>{r.body ?? "—"}</TableCell>
-                        <TableCell className="px-4 tabular-nums">{r.year ?? "—"}</TableCell>
+                        <TableCell className="truncate px-4 font-medium" title={r.info || undefined}>{r.info || <span className="text-muted-foreground">Chưa đặt tên</span>}</TableCell>
+                        <TableCell className="text-muted-foreground truncate px-4" title={r.body}>{r.body ?? "Không rõ"}</TableCell>
+                        <TableCell className="px-4 tabular-nums">{r.year ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
                         <TableCell className="truncate px-4 font-mono text-xs">{r.code}</TableCell>
                         <TableCell className="px-4 text-end tabular-nums">{money.format(r.amount ?? 0)}</TableCell>
                       </>
@@ -415,7 +415,7 @@ export function IntakeSourcePicker({ kind, schoolId, open, onOpenChange, onCance
                       <>
                         <TableCell className="truncate px-4 font-mono text-xs">{r.code}</TableCell>
                         <TableCell className="px-4">{formatPlainDate(r.date)}</TableCell>
-                        <TableCell className="truncate px-4" title={r.info || undefined}>{r.info || "—"}</TableCell>
+                        <TableCell className="truncate px-4" title={r.info || undefined}>{r.info || <span className="text-muted-foreground">Không có ghi chú</span>}</TableCell>
                         <TableCell className="px-4 text-end tabular-nums">{r.lines}</TableCell>
                       </>
                     )}

@@ -12,17 +12,18 @@ package com.g123.sfems.domain.catalog.enums;
  *
  * <p>Nguồn nào chọn được cho một lần ghi tăng là do NGUỒN HÌNH THÀNH của phiếu quyết định — xem
  * {@link com.g123.sfems.domain.catalog.originsource.OriginRule}. Tên hằng là giá trị lưu trong
- * database: đổi tên phải kèm changelog đổi dữ liệu (lần gần nhất: {@code 109}).
+ * database: đổi tên phải kèm changelog đổi dữ liệu (lần gần nhất: {@code 109}). Mã ({@link #code()}) chỉ để hiển
+ * ở danh mục — mã chuẩn NKP001… cùng kiểu mã của các danh mục dùng chung, không lưu ở đâu.
  */
 public enum FundingSource implements LabeledEnum {
-    STATE_BUDGET("NGAN_SACH", "Ngân sách"),
-    TUITION("HOC_PHI", "Học phí"),
-    REVENUE("THU_SU_NGHIEP", "Nguồn thu sự nghiệp"),
-    DEVELOPMENT_FUND("QUY_PHAT_TRIEN_SU_NGHIEP", "Quỹ phát triển sự nghiệp"),
-    SPONSORSHIP("TAI_TRO", "Tài trợ"),
+    STATE_BUDGET("NKP001", "Ngân sách"),
+    TUITION("NKP002", "Học phí"),
+    REVENUE("NKP003", "Nguồn thu sự nghiệp"),
+    DEVELOPMENT_FUND("NKP004", "Quỹ phát triển sự nghiệp"),
+    SPONSORSHIP("NKP005", "Tài trợ"),
     /** Nguồn có thật nhưng ngoài năm nguồn trên. Khác "Chưa xác định": người khai biết là nguồn khác. */
-    OTHER("KHAC", "Nguồn khác"),
-    UNDETERMINED("CHUA_XAC_DINH", "Chưa xác định nguồn");
+    OTHER("NKP006", "Nguồn khác"),
+    UNDETERMINED("NKP007", "Chưa xác định nguồn");
 
     private final String code;
     private final String label;

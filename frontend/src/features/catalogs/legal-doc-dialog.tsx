@@ -129,6 +129,11 @@ function EffectAction({ record }: { record: any }) {
       setError("Chọn ngày hết hiệu lực");
       return;
     }
+    // Cùng luật `LegalDocumentService.end`: hết hiệu lực đúng ngày có hiệu lực là văn bản chưa từng có hiệu lực ngày nào.
+    if (!ended && record.effectiveFrom && String(date) <= String(record.effectiveFrom).slice(0, 10)) {
+      setError("Ngày hết hiệu lực phải sau ngày có hiệu lực");
+      return;
+    }
     setBusy(true);
     try {
       await kyInstance.post(`${RESOURCE}/${record.id}/${ended ? "reinstate" : "end"}`, ended ? {} : { json: { endDate: date } });
@@ -375,7 +380,7 @@ export function LegalDocDialog({ state, onClose, onSaved }: {
                   <div className="grid min-w-0 items-start gap-x-4 gap-y-5">
                     <div className="grid items-start gap-x-4 gap-y-5 sm:grid-cols-[14rem_minmax(0,1fr)]">
                       <TextField control={form.control} name="code" label="Số hiệu" rule="SHORT_TEXT" max={50}
-                        placeholder="37/2021/TT-BGDĐT"
+                        placeholder="37/2021/TT-BGDĐT" readOnly={id != null}
                         rules={{ required: "Vui lòng nhập số hiệu", pattern: { value: LEGAL_DOC_NUMBER, message: "Số hiệu chỉ gồm chữ, số và dấu / . -" } }} />
                       <TextField control={form.control} name="name" label="Tên văn bản" rule="NAME" rules={{ required: "Vui lòng nhập tên văn bản" }}
                         placeholder="Ban hành Danh mục thiết bị dạy học tối thiểu cấp Tiểu học" />

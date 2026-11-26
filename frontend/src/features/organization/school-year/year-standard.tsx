@@ -70,9 +70,9 @@ export function useYearStandard(schoolId: number | null | undefined, yearId: num
   });
 }
 
-/** Đủ / thiếu một cột: "Đủ" xanh, "Thiếu n" đỏ, chưa tính được "—". */
+/** Đủ / thiếu một cột: "Đủ" xanh, "Thiếu n" đỏ, chưa tính được thì ghi chữ nhạt. */
 function Gap({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-muted-foreground">—</span>;
+  if (value == null) return <span className="text-muted-foreground">Chưa tính được</span>;
   return value === 0 ? <span className="text-success-text font-medium">Đủ</span>
     : <span className="text-destructive-text font-medium tabular-nums">Thiếu {num.format(value)}</span>;
 }
@@ -255,7 +255,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
         {canPropose && selected.size ? (
           <Button type="button" disabled={busy} onClick={() => void toProposal([...selected])}>
             <ShoppingCart />
-            Đưa {selected.size} dòng vào đề xuất
+            Đưa {selected.size} loại thiết bị vào đề xuất
           </Button>
         ) : null}
         <Button type="button" variant="outline" disabled={!d || exporting} onClick={() => void exportXlsx()}>
@@ -364,11 +364,11 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                       </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-muted-foreground truncate" title={r.unitName ?? undefined}>{r.unitName ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.requiredTt == null ? "—" : num.format(r.requiredTt)}</TableCell>
+                    <TableCell className="text-muted-foreground truncate" title={r.unitName ?? undefined}>{r.unitName ?? "Chưa khai"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.requiredTt == null ? <span className="text-muted-foreground">Chưa tính được</span> : num.format(r.requiredTt)}</TableCell>
                     {showAdjusted ? (
                       <TableCell className={cn("text-right tabular-nums", r.requiredAdjusted !== r.requiredTt && "text-primary font-semibold")}>
-                        {r.requiredAdjusted == null ? "—" : num.format(r.requiredAdjusted)}
+                        {r.requiredAdjusted == null ? <span className="text-muted-foreground">Chưa tính được</span> : num.format(r.requiredAdjusted)}
                       </TableCell>
                     ) : null}
                     {showOutside ? <TableCell className="text-right tabular-nums">{r.outsideNeed == null ? "" : num.format(r.outsideNeed)}</TableCell> : null}

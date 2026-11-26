@@ -84,7 +84,7 @@ export const PermissionShow = () => {
               </ReadField>
               <ReadField label="Tài nguyên">{humanizeResource(resource)}</ReadField>
               <ReadField label="Hành động">
-                <Badge variant={ACTION_VARIANTS[action] ?? "outline"}>{ACTION_LABELS[action] ?? (action || "—")}</Badge>
+                <Badge variant={ACTION_VARIANTS[action] ?? "outline"}>{ACTION_LABELS[action] ?? (action || "Không có")}</Badge>
               </ReadField>
               <ReadField label="Mô tả" className="@md:col-span-2">{record?.description || null}</ReadField>
             </div>

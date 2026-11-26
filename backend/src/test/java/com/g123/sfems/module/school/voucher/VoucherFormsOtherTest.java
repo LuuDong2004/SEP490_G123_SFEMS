@@ -40,7 +40,8 @@ class VoucherFormsOtherTest {
     @Test
     void enumFieldsAreOpen() {
         assertThat(field("inventory_sessions", "inventoryType")).containsEntry("other", true);
-        assertThat(field("inventory_sessions", "proposedAction")).containsEntry("other", true);
+        assertThat(field("inventory_sessions", "councilChair")).containsEntry("other", true);
+        assertThat(field("inventory_sessions", "councilSecretary")).containsEntry("other", true);
     }
 
     @Test
@@ -52,7 +53,19 @@ class VoucherFormsOtherTest {
 
     @Test
     void openEnumTextIsBounded() {
-        assertThatThrownBy(() -> forms.line("inventory_sessions", Map.of("proposedAction", "x".repeat(300)), 1L, 1))
+        assertThatThrownBy(() -> forms.header("inventory_sessions", Map.of("inventoryType", "x".repeat(300)), null, 1L))
+                .isInstanceOf(FieldValidationException.class);
+    }
+
+    /** "Người khác" của ô cán bộ: họ tên gõ tay giữ lại (đã gọn khoảng trắng); chuỗi không phải họ tên bị chặn. */
+    @Test
+    void staffOtherKeepsTypedPersonName() {
+        String json = forms.header("inventory_sessions",
+                Map.of("councilSecretary", Map.of("name", "  Trần   Thị B ", "other", true)), null, 1L);
+        assertThat(VoucherForms.read(json).get("councilSecretary"))
+                .isEqualTo(Map.of("name", "Trần Thị B", "other", true));
+        assertThatThrownBy(() -> forms.header("inventory_sessions",
+                Map.of("councilChair", Map.of("name", "@@123", "other", true)), null, 1L))
                 .isInstanceOf(FieldValidationException.class);
     }
 }

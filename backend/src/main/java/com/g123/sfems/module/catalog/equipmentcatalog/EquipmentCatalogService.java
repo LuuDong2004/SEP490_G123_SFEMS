@@ -51,6 +51,11 @@ import com.g123.sfems.domain.catalog.enums.AssetCategory;
 public class EquipmentCatalogService extends CatalogService<
         EquipmentCatalog, EquipmentCatalogRequest, EquipmentCatalogPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     /** Chặn trên cho vòng dò tổ tiên — cây thật chỉ vài tầng. */
     private static final int MAX_DEPTH = 32;
 

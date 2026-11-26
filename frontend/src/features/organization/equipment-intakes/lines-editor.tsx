@@ -222,11 +222,11 @@ function IntInput({ value, onChange, className, ...rest }: {
   );
 }
 
-type Room = { id: number; name: string; roomType?: { code?: string } | null };
+type Room = { id: number; name: string; roomType?: { code?: string; systemKey?: string | null } | null };
 
 /** Kho của trường: phòng loại KHO — cùng quy tắc `isStoreroom` ở máy chủ; không có mã loại thì theo tên. */
 export function storeroomOf(rooms: Room[]): Room | undefined {
-  return rooms.find((r) => r.roomType?.code === "KHO") ?? rooms.find((r) => /(^|\s)kho(\s|$)/i.test(r.name ?? ""));
+  return rooms.find((r) => r.roomType?.systemKey === "KHO") ?? rooms.find((r) => /(^|\s)kho(\s|$)/i.test(r.name ?? ""));
 }
 
 const NO_ROOM = "__store__";
@@ -584,7 +584,7 @@ function LineDetail({ control, path, line, catalog, preview, offset, onSplit, ro
         <FormField
           control={control}
           name={`${path}.warrantyMonths`}
-          rules={numberRules("COUNT", "Bảo hành (tháng)")}
+          rules={numberRules("WARRANTY_MONTHS", "Bảo hành (tháng)")}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Bảo hành</FormLabel>
@@ -850,7 +850,7 @@ function UnitsPanel({ control, path, tracking, count, received, outcome, code, r
               {canPick ? <Checkbox aria-label={`Chọn thiết bị ${i + 1}`} checked={picked.has(i)} onCheckedChange={() => toggle(i)} /> : null}
               <span className="text-muted-foreground text-sm tabular-nums">{i + 1}</span>
               <span className="truncate font-mono text-xs">
-                {split && first != null && first + i <= 9999 ? <SeqCode code={withSeq(code!, first + i)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
+                {split && first != null && first + i <= 9999 ? <SeqCode code={withSeq(code!, first + i)} /> : reason ? <span className="text-warning-text font-sans" title={reason}>Chưa cấp mã</span> : "…"}
               </span>
               <Input id={serialId(i)} value={slots[i] ?? ""} aria-label={`Số serial thiết bị ${i + 1}`} placeholder="Quét hoặc nhập serial" maxLength={50}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); nextSerial(i); } }}
@@ -1012,7 +1012,7 @@ function LotPanel({ control, path, line, catalog, rooms, received, code, reason,
           <div className={cn("grid items-center px-4 py-0.5", cols)}>
             <span className="text-muted-foreground text-sm tabular-nums">1</span>
             <span className="truncate font-mono text-xs">
-              {split && first != null && first <= 9999 ? <SeqCode code={withSeq(code!, first)} /> : reason ? <span className="text-warning-text font-sans">—</span> : "…"}
+              {split && first != null && first <= 9999 ? <SeqCode code={withSeq(code!, first)} /> : reason ? <span className="text-warning-text font-sans" title={reason}>Chưa cấp mã</span> : "…"}
             </span>
             <FormField
               control={control}
@@ -1096,7 +1096,7 @@ export function IntakeLinesEditor({ control, catalogs, reveal, name = "lines", o
   const originId = useWatch({ control, name: "originSource.id" });
   const { origins, ruleOf } = useOriginRules();
   const rule = ruleOf(originId);
-  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   const noun = documentNoun(originCode);
   // Lập từ kế hoạch mua sắm: đơn giá KHÔNG điền sẵn (đó là dự toán, không phải giá thật) — ô đơn giá hiện dự toán làm
   // chữ mờ để người lập so khi gõ giá theo chứng từ / quyết định giao.

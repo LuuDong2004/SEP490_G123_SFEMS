@@ -95,9 +95,15 @@ export function VoucherFormPage({
   /**
    * Ô BẮT BUỘC của phần chính (Lý do đề xuất…) — vào danh sách "Cần hoàn thiện" như
    * dòng và thông tin bổ sung, để nút Trình không sáng khi máy chủ sẽ từ chối. `when` làm bắt buộc
-   * CÓ ĐIỀU KIỆN: vắng mặt là luôn bắt buộc.
+   * CÓ ĐIỀU KIỆN: vắng mặt là luôn bắt buộc. `valid` trả lỗi của giá trị đã điền (vd. năm ngân sách 110) — mục chỉ
+   * "đã đủ" khi có giá trị VÀ hợp lệ, không chỉ khi có chữ.
    */
-  required?: { name: string; label: string; when?: (values: Record<string, unknown>) => boolean }[];
+  required?: {
+    name: string;
+    label: string;
+    when?: (values: Record<string, unknown>) => boolean;
+    valid?: (value: unknown, values: Record<string, unknown>) => string | null;
+  }[];
   /** Lỗi của từng dòng (số lượng, trùng dòng khác…); hiện trong “Cần hoàn thiện” và chặn gửi phiếu. `lines`: mọi dòng. */
   lineIssue?: (line: any, index: number, lines: any[]) => string | null;
   defaults: Record<string, any>;
@@ -236,16 +242,21 @@ export function VoucherFormPage({
       ? [{ key: "school", label: "Trường", ok: filledValue(schoolId), onClick: goTo("voucher-head", "Trường") }]
       : []),
     // Ô có `when` không đúng điều kiện thì KHÔNG hiện — không phải mục "đã đủ".
-    ...required.flatMap(({ name, label, when }, i) => (when && !when(formValues) ? [] : [{
-      key: `f:${name}`,
-      label,
-      ok: filledValue(requiredValues?.[i]),
-      onClick: () => {
-        // Đánh dấu ô là lỗi (viền đỏ, câu nhắc dưới ô) rồi mới tới ô đó — chỉ nhảy tới thì ô trông như bình thường.
-        form.setError(name, { type: MISSING, message: `Vui lòng ${/^(Ngày|Trường)/.test(label) ? "chọn" : "nhập"} ${lowerLabel(label)}` });
-        goTo("voucher-head", label)();
-      },
-    }])),
+    ...required.flatMap(({ name, label, when, valid }, i) => {
+      if (when && !when(formValues)) return [];
+      const filled = filledValue(requiredValues?.[i]);
+      const invalid = filled && valid ? valid(requiredValues?.[i], formValues) : null;
+      return [{
+        key: `f:${name}`,
+        label: invalid ? `${label}: ${invalid}` : label,
+        ok: filled && !invalid,
+        onClick: () => {
+          // Đánh dấu ô là lỗi (viền đỏ, câu nhắc dưới ô) rồi mới tới ô đó — chỉ nhảy tới thì ô trông như bình thường.
+          form.setError(name, { type: MISSING, message: invalid ?? `Vui lòng ${/^(Ngày|Trường)/.test(label) ? "chọn" : "nhập"} ${lowerLabel(label)}` });
+          goTo("voucher-head", label)();
+        },
+      }];
+    }),
     ...(hasLines ? [{ key: "lines", label: "Dòng trên phiếu", ok: lineCount > 0, onClick: goTo("voucher-lines") }] : []),
     ...(lineIssue && Array.isArray(formValues.lines) ? formValues.lines : []).flatMap((line: any, index: number) => {
       const issue = lineIssue?.(line, index, formValues.lines);

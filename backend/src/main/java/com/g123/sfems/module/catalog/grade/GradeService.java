@@ -8,6 +8,7 @@ import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.educationlevel.service.EducationLevelService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -23,8 +24,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class GradeService extends CatalogService<Grade, GradeRequest, GradePatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     private final EducationLevelService educationLevels;
     private final CallerSchoolLevel callerLevel;
+    private final GradeRepository grades;
 
     public GradeService(
             GradeRepository repository,
@@ -34,15 +41,19 @@ public class GradeService extends CatalogService<Grade, GradeRequest, GradePatch
         super(repository, rowLevel, Grade.class, Grade::new, "Khối lớp");
         this.educationLevels = educationLevels;
         this.callerLevel = callerLevel;
+        this.grades = repository;
     }
 
     @Override
     protected void applyCreate(Grade item, GradeRequest request) {
         item.setTeachingCode(blankToNull(request.teachingCode()));
         IdRef level = request.educationLevel();
-        if (level != null && level.id() != null) {
-            item.setEducationLevel(educationLevels.get(level.id()));
+        // Khối lớp không cấp học thì không trường nào thấy (lọc theo cấp của trường) — vô dụng ngay từ lúc tạo.
+        if (level == null || level.id() == null) {
+            throw new FieldValidationException("educationLevel", "Chọn cấp học");
         }
+        item.setEducationLevel(educationLevels.get(level.id()));
+        requireNameFreeInLevel(item, null);
     }
 
     @Override
@@ -53,7 +64,25 @@ public class GradeService extends CatalogService<Grade, GradeRequest, GradePatch
         // Ba trạng thái: vắng mặt là để nguyên, id null là xoá, id n là gán.
         IdRef level = request.educationLevel();
         if (level != null) {
-            item.setEducationLevel(level.id() == null ? null : educationLevels.get(level.id()));
+            if (level.id() == null) {
+                throw new FieldValidationException("educationLevel", "Chọn cấp học");
+            }
+            item.setEducationLevel(educationLevels.get(level.id()));
+        }
+        if (request.name() != null || level != null) {
+            requireNameFreeInLevel(item, item.getId());
+        }
+    }
+
+    /** Hai "Lớp 10" trong cùng một cấp học là hai lựa chọn không ai phân biệt được; khác cấp thì không sao. */
+    private void requireNameFreeInLevel(Grade item, Long selfId) {
+        if (item.getEducationLevel() == null || item.getName() == null) {
+            return;
+        }
+        if (grades.existsByEducationLevelIdAndNameIgnoreCaseAndIdNot(
+                item.getEducationLevel().getId(), item.getName(), selfId == null ? -1L : selfId)) {
+            throw new FieldValidationException("name",
+                    "Khối lớp \"%s\" đã có trong cấp học này".formatted(item.getName()));
         }
     }
 

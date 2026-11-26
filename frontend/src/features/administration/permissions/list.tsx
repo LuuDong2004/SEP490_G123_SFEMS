@@ -87,7 +87,7 @@ export const PermissionList = () => {
         enableSorting: false,
         cell: ({ getValue }) => (
           <span className="text-muted-foreground text-sm">
-            {getValue() ?? "—"}
+            {getValue() ?? "Không có mô tả"}
           </span>
         ),
       }),

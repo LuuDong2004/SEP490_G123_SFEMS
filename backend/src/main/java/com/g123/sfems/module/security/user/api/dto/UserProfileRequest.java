@@ -15,7 +15,7 @@ import com.g123.sfems.shared.validation.Text;
  * @param allowedIps IP / CIDR được đăng nhập, cách nhau dấu phẩy — quản trị; chỉ quản trị cấp cao đặt được
  */
 public record UserProfileRequest(
-        @Text(value = FieldRule.SHORT_TEXT, label = "Chức danh") String jobTitle,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Chức danh", max = 100, min = 2) String jobTitle,
         @Text(value = FieldRule.PHONE, label = "Điện thoại cơ quan") String workPhone,
         @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
         Boolean superAdmin,

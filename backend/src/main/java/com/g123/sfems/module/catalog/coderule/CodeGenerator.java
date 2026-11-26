@@ -125,6 +125,34 @@ public class CodeGenerator {
                 Boolean.class, target));
     }
 
+    /** Mã lớn nhất đã có trong bảng đích theo đúng khuôn tiền tố + số + hậu tố. */
+    public record Issued(long number, String code) {
+    }
+
+    /**
+     * Số lớn nhất mà một mã trong bảng {@code target} đang mang theo khuôn {@code prefix<số>suffix} (không phân biệt
+     * hoa thường) — để quy tắc không bị đặt lùi xuống dưới số đã cấp. Bảng không có cột mã thì rỗng.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Issued> largestIssued(String target, String prefix, String suffix) {
+        if (!hasCodeColumn(target)) {
+            return Optional.empty();
+        }
+        Pattern shape = Pattern.compile(Pattern.quote(prefix == null ? "" : prefix) + "(\\d{1,18})"
+                + Pattern.quote(suffix == null ? "" : suffix), Pattern.CASE_INSENSITIVE);
+        Issued best = null;
+        for (String code : jdbc.queryForList("SELECT code FROM " + target + " WHERE code IS NOT NULL", String.class)) {
+            var m = shape.matcher(code.trim());
+            if (m.matches()) {
+                long n = Long.parseLong(m.group(1));
+                if (best == null || n > best.number()) {
+                    best = new Issued(n, code.trim());
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
     private boolean taken(String target, String code) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "SELECT EXISTS (SELECT 1 FROM " + target + " WHERE LOWER(code) = LOWER(?))", Boolean.class, code));

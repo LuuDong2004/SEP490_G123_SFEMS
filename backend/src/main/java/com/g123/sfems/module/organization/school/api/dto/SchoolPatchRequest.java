@@ -1,7 +1,8 @@
 package com.g123.sfems.module.organization.school.api.dto;
 
 import java.math.BigDecimal;
-import jakarta.validation.constraints.DecimalMin;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.domain.organization.OrgStatus;
 import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
@@ -62,10 +63,10 @@ public record SchoolPatchRequest(
                 message = "Màu chủ đạo phải có dạng #RRGGBB")
         String primaryColor,
 
-        @DecimalMin(value = "0", message = "Diện tích đất không được âm")
+        @Num(value = NumberRule.AREA, label = "Diện tích đất")
         BigDecimal landArea,
 
-        @DecimalMin(value = "0", message = "Diện tích xây dựng không được âm")
+        @Num(value = NumberRule.AREA, label = "Diện tích xây dựng")
         BigDecimal constructionArea,
 
         OrgStatus status) {

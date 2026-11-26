@@ -147,12 +147,12 @@ export const UserCreate = () => {
           <FormField
             control={form.control}
             name="fullName"
-            rules={mergeRules(textRules("NAME", "Họ tên"), { required: "Họ tên là bắt buộc" })}
+            rules={mergeRules(textRules("PERSON_NAME", "Họ tên", { min: 2 }), { required: "Họ tên là bắt buộc" })}
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Họ tên</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="Nguyễn Văn A" maxLength={maxLengthOf("NAME")} />
+                  <Input {...field} value={field.value ?? ""} placeholder="Nguyễn Văn A" maxLength={maxLengthOf("PERSON_NAME")} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

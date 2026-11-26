@@ -95,6 +95,14 @@ public abstract class CatalogService<
      * Tên danh mục trong quy tắc sinh mã — mặc định là tên bảng, trùng tên
      * resource. {@code null} là danh mục không sinh mã.
      */
+    /**
+     * Móc: mã đã cấp thì khoá, sửa bản ghi không đổi được mã. Danh mục dùng chung ghi đè {@code true} — mục khác,
+     * dữ liệu của trường và quy tắc sinh mã dựa vào mã.
+     */
+    protected boolean codeLocked() {
+        return false;
+    }
+
     protected String codeTarget() {
         Table table = type.getAnnotation(Table.class);
         return table == null ? null : table.name();
@@ -277,6 +285,9 @@ public abstract class CatalogService<
             // đang sửa xuống DB, và mã trùng sẽ vấp unique index trước khi ta kịp
             // trả 409 có nghĩa.
             String code = request.code().trim();
+            if (codeLocked() && !code.equalsIgnoreCase(item.getCode())) {
+                throw new FieldValidationException("code", "Mã không sửa được sau khi tạo — dữ liệu khác đang dùng mã này");
+            }
             requireCodeAvailable(item, code, item.getId());
             item.setCode(code);
         }

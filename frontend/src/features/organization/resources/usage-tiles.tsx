@@ -44,12 +44,12 @@ export function UsageTiles({
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1.35fr_1.35fr_1fr_1fr]">
       {tile(<MapPin />, "Vị trí", record.room ? "các phiếu nghiệp vụ" : null,
-        record.room ? <span className="block truncate">{record.room.name}</span> : (roomSlot ?? "—"))}
+        record.room ? <span className="block truncate">{record.room.name}</span> : (roomSlot ?? <span className="text-muted-foreground font-normal">Chưa xếp chỗ</span>))}
       {tile(<UserRound />, "Người quản lý", record.manager ? "các phiếu nghiệp vụ" : null,
-        record.manager ? <span className="block truncate">{record.manager.name}</span> : (managerSlot ?? "—"))}
+        record.manager ? <span className="block truncate">{record.manager.name}</span> : (managerSlot ?? <span className="text-muted-foreground font-normal">Chưa giao</span>))}
       {tile(<Activity />, "Tình trạng", "các phiếu nghiệp vụ",
         EQUIPMENT_CONDITION_LABELS[record.condition] ?? "Chưa đánh giá")}
-      {tile(<CircleDot />, "Trạng thái", "các phiếu nghiệp vụ", statusBadge ?? "—")}
+      {tile(<CircleDot />, "Trạng thái", "các phiếu nghiệp vụ", statusBadge ?? <span className="text-muted-foreground font-normal">Chưa có</span>)}
     </div>
   );
 }

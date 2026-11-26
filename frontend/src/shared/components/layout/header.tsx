@@ -85,7 +85,8 @@ export function Header() {
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-4">
                 {title.icon}
               </div>
-              <span className="truncate text-sm font-bold tracking-tight">
+              {/* Điện thoại: chỉ biểu tượng — chữ tên hệ thống chen vào ô năm học. */}
+              <span className="hidden truncate text-sm font-bold tracking-tight sm:inline">
                 {title.text}
               </span>
             </div>
@@ -102,10 +103,11 @@ export function Header() {
           <HeaderSearch />
           {/* Các nút biểu tượng gom vào một khung bo tròn — một cụm gọn thay vì năm nút rời rạc. */}
           <div className="bg-muted/50 flex h-9 items-center gap-0.5 rounded-full border px-0.5 [&_button]:size-8 [&_button]:rounded-full [&_button]:transition-[background-color,scale] [&_button]:active:scale-95 [&_button:hover]:bg-card [&_button:hover]:shadow-e1">
-            <HelpButton />
+            {/* Điện thoại: chỉ giữ chuông — trợ giúp, sáng / tối, đổi giao diện dùng trên máy tính. */}
+            <span className="contents max-md:hidden"><HelpButton /></span>
             <NotificationBell />
-            <ThemeToggle />
-            <ThemeCustomizer />
+            <span className="contents max-md:hidden"><ThemeToggle /></span>
+            <span className="contents max-md:hidden"><ThemeCustomizer /></span>
           </div>
           <UserMenu />
         </div>

@@ -40,4 +40,7 @@ public interface SchoolRepository extends SecuredRepository<School, Long> {
     /** Trường đang giữ mã hai ký tự này (không phân biệt hoa thường) — kiểm trùng trước khi gán. Không phạm vi, như trên. */
     @Query("SELECT s FROM School s WHERE upper(s.shortCode) = upper(:shortCode)")
     List<School> findByShortCode(String shortCode);
+
+    /** Chống trùng mã định danh Bộ GD&ĐT (cột không có unique index). */
+    List<School> findByMoetCodeIgnoreCase(String moetCode);
 }

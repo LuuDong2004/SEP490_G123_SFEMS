@@ -152,7 +152,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
     });
   });
   // Cột của một nhóm trong báo cáo số đếm: các con số của riêng nhóm đó.
-  const pickRecord = (labelKey: string) => onDrill && ((row: Row) => onDrill({ title: String(row[labelKey] ?? "—"), record: row }));
+  const pickRecord = (labelKey: string) => onDrill && ((row: Row) => onDrill({ title: String(row[labelKey] ?? "Chưa phân loại"), record: row }));
   // Biểu đồ cột vẽ từ các phần đã tính sẵn (mỗi cột là một phần của vòng): dòng của cột chính là phần đó.
   const asSlice = (pick?: (s: Slice) => void) => pick && ((row: Row) => pick(row as Slice));
   switch (report.name) {
@@ -180,7 +180,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
               </PickTile>
             ) : <div key={v}>{tile}</div>;
           })}
-          <StatTile flat icon={<Gauge />} label="Mức đạt bình quân" value={avg == null ? "—" : `${avg}%`}
+          <StatTile flat icon={<Gauge />} label="Mức đạt bình quân" value={avg == null ? <span className="text-muted-foreground text-base font-medium">Chưa tính được</span> : `${avg}%`}
             hint="Thiết bị đã đủ trên thiết bị phải có, bình quân các phòng" />
         </Tiles>
       ) : (
@@ -213,10 +213,10 @@ export function ReportVisual({ report, part, filter, onDrill }: {
         const groups = (school.groups ?? []) as Row[];
         return part === "stats" ? (
           <Tiles>
-            <StatTile flat icon={<ShieldCheck />} tone={n(school.failed_min) ? "warning" : "success"} label="Mức đạt" value={String(school.reached ?? "—")}
+            <StatTile flat icon={<ShieldCheck />} tone={n(school.failed_min) ? "warning" : "success"} label="Mức đạt" value={school.reached != null ? String(school.reached) : <span className="text-muted-foreground text-base font-medium">Chưa tính được</span>}
               hint={n(school.failed_min) ? `${count.format(n(school.failed_min))} loại chưa đạt tối thiểu` : undefined} />
             {tiers.map(([key, label]) => (
-              <StatTile key={key} flat icon={<Gauge />} label={label} value={String(school[key] ?? "—")}
+              <StatTile key={key} flat icon={<Gauge />} label={label} value={school[key] != null ? String(school[key]) : <span className="text-muted-foreground text-base font-medium">Chưa đặt chuẩn</span>}
                 hint={n(school[`${key}_total`]) ? `${pct(n(school[`${key}_passed`]), n(school[`${key}_total`]))}% loại đạt` : "Chưa đặt chuẩn"} />
             ))}
           </Tiles>
@@ -251,7 +251,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
             hint={`${pct(rows.length - below, rows.length)}% số trường`} />
           <StatTile flat icon={<CircleAlert />} tone="warning" label="Chưa đạt tối thiểu" value={count.format(below)}
             hint={`${pct(below, rows.length)}% số trường`} />
-          <StatTile flat icon={<Gauge />} label="Loại đạt tối thiểu" value={sum(rows, "min_total") ? `${pct(sum(rows, "min_passed"), sum(rows, "min_total"))}%` : "—"}
+          <StatTile flat icon={<Gauge />} label="Loại đạt tối thiểu" value={sum(rows, "min_total") ? `${pct(sum(rows, "min_passed"), sum(rows, "min_total"))}%` : <span className="text-muted-foreground text-base font-medium">Chưa đặt chuẩn</span>}
             hint={`${count.format(sum(rows, "min_passed"))} trên ${count.format(sum(rows, "min_total"))} loại phải có`} />
         </Tiles>
       ) : (
@@ -385,7 +385,7 @@ export function ReportVisual({ report, part, filter, onDrill }: {
         <Tiles>
           <StatTile flat icon={<ShieldCheck />} tone={total && complete / total >= 0.8 ? "success" : "warning"} label="Hồ sơ chuẩn"
             info="Thiết bị có đủ mã chuẩn, đơn vị tính, nguồn kinh phí, ngày tiếp nhận. Chỉ thiết bị đủ hồ sơ mới vào được phiếu."
-            value={total ? `${Math.round((complete / total) * 100)}%` : "—"} hint={`${count.format(complete)} / ${count.format(total)} thiết bị`} />
+            value={total ? `${Math.round((complete / total) * 100)}%` : <span className="text-muted-foreground text-base font-medium">Chưa có thiết bị</span>} hint={`${count.format(complete)} / ${count.format(total)} thiết bị`} />
           <StatTile flat icon={<CircleAlert />} tone="destructive" label="Hồ sơ chưa chuẩn" value={count.format(total - complete)} />
           <StatTile flat icon={<School />} tone="warning" label="Nhóm dưới 80% chuẩn" value={count.format(weak)}
             hint={`Trên ${count.format(rows.length)} nhóm`} />

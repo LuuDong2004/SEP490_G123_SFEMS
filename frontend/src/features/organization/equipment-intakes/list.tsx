@@ -154,7 +154,7 @@ export const EquipmentIntakeList = () => {
       }),
       h.display({
         id: "school", header: "Trường", size: 160,
-        cell: ({ row }) => row.original.school?.name ?? "—",
+        cell: ({ row }) => row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>,
       }),
       h.display({
         id: "actions",

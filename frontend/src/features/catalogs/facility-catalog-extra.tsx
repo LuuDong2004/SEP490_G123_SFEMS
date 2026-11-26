@@ -272,13 +272,13 @@ export const ROOM_TYPE_EXTRA: CatalogExtra = {
       id: "group",
       header: "Khối",
       enableSorting: false,
-      cell: ({ row }) => <span className="text-sm">{row.original.group?.name ?? "—"}</span>,
+      cell: ({ row }) => <span className="text-sm">{row.original.group?.name ?? <span className="text-muted-foreground">Chưa xếp khối</span>}</span>,
     },
     {
       id: "kind",
       header: "Dạng",
       enableSorting: false,
-      cell: ({ row }) => <span className="text-sm whitespace-nowrap">{FACILITY_KIND_LABELS[row.original.kind as FacilityKind] ?? "—"}</span>,
+      cell: ({ row }) => <span className="text-sm whitespace-nowrap">{FACILITY_KIND_LABELS[row.original.kind as FacilityKind] ?? <span className="text-muted-foreground">Chưa khai</span>}</span>,
     },
     levelsColumn,
     {

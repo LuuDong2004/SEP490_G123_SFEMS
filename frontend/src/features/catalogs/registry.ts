@@ -1,5 +1,4 @@
 import {
-  ArrowLeftRight,
   Award,
   BadgeCheck,
   Banknote,
@@ -9,13 +8,11 @@ import {
   FileBadge,
   FolderTree,
   Gauge,
-  SlidersHorizontal,
   HandCoins,
   Hash,
   MapPin,
   Package,
   Tags,
-  Users,
   ScrollText,
 } from "lucide-react";
 
@@ -32,8 +29,8 @@ import { CATALOG_EXTRAS } from "@/features/catalogs/extras";
  * <p>`group` và `icon` theo đúng menu của bản Jmix (`menu.xml`, nhóm
  * `menu.catalog.group.*`): người dùng chuyển từ hệ thống cũ sang tìm được danh
  * mục ở đúng chỗ quen thuộc. Thứ tự trong mảng là thứ tự trong nhóm, cũng
- * theo Jmix. Hai danh mục bản Jmix không đặt lên menu — Hình thức mua sắm và
- * Lý do biến động — được xếp vào nhóm gần nghĩa nhất.
+ * theo Jmix. Hình thức mua sắm (bản Jmix không đặt lên menu) được xếp vào nhóm gần
+ * nghĩa nhất.
  *
  * <p>Nhãn lấy từ `docs/i18n/jmix-vi.json`, không tự nghĩ lại.
  */
@@ -48,6 +45,8 @@ const BASE: CatalogConfig[] = [
     description: "Phường, xã của TP.HCM theo địa giới mới từ 2025.",
     codeExample: "26734",
     nameExample: "Phường Thủ Đức",
+    // Cùng luật `WardService`: mã hành chính quốc gia 5 chữ số.
+    codePattern: { value: /^[0-9]{5}$/, message: "Mã phường/xã gồm 5 chữ số, vd. 26734" },
   },
   {
     resource: "facility_groups",
@@ -66,7 +65,7 @@ const BASE: CatalogConfig[] = [
     icon: Building,
     label: "Loại CSVC",
     description: "Phòng, nhà, khu vực theo danh mục CSVC của Sở.",
-    codeExample: "PHONG_HOC",
+    codeExample: "LPH001",
     nameExample: "Phòng học",
   },
   {
@@ -95,6 +94,11 @@ const BASE: CatalogConfig[] = [
     description: "Các năm học và năm đang diễn ra.",
     codeExample: "2026-2027",
     nameExample: "Năm học 2026-2027",
+    // Cùng luật SchoolYearService: "Năm học YYYY-YYYY", năm sau = năm trước + 1 (máy chủ kiểm thêm ngày khớp tên).
+    namePattern: {
+      value: /^Năm học (\d{4})\s*[-–]\s*(\d{4})$/,
+      message: "Tên năm học phải có dạng \"Năm học 2026-2027\"",
+    },
   },
   {
     resource: "grades",
@@ -105,16 +109,6 @@ const BASE: CatalogConfig[] = [
     description: "Khối lớp 1 đến 12 theo từng cấp học.",
     codeExample: "LOP_10",
     nameExample: "Lớp 10",
-  },
-  {
-    resource: "subject_groups",
-    path: "/subject-groups",
-    group: "catalog_academic",
-    icon: Users,
-    label: "Tổ chuyên môn",
-    description: "Tổ chuyên môn và các môn trong tổ.",
-    codeExample: "THPT-KHTN",
-    nameExample: "Tổ Khoa học tự nhiên",
   },
   {
     resource: "subjects",
@@ -178,21 +172,10 @@ const BASE: CatalogConfig[] = [
     icon: Tags,
     label: "Đơn vị tính",
     description: "Đơn vị đếm thiết bị và vật tư.",
-    codeExample: "BO",
+    codeExample: "DVT001",
     nameExample: "Bộ",
   },
 
-  {
-    resource: "equipment_configs",
-    pageForm: true,
-    path: "/equipment-configs",
-    group: "catalog_equip",
-    icon: SlidersHorizontal,
-    label: "Bộ thông số kỹ thuật",
-    description: "Các thông số mà từng loại thiết bị phải khai.",
-    codeExample: "TS-MAY-CHIEU",
-    nameExample: "Thông số máy chiếu",
-  },
   {
     resource: "equipment_standards",
     // Sửa bộ (văn bản căn cứ nhiều dòng) mở TRANG riêng, không hộp thoại.
@@ -245,7 +228,7 @@ const BASE: CatalogConfig[] = [
     icon: Banknote,
     label: "Nguồn hình thành",
     description: "Thiết bị từ đâu ra. Sáu nguồn cố định, chọn ở đầu phiếu ghi tăng, không thêm hay sửa được.",
-    codeExample: "MUA_SAM",
+    codeExample: "NG001",
     nameExample: "Mua sắm",
   },
   {
@@ -255,20 +238,8 @@ const BASE: CatalogConfig[] = [
     icon: HandCoins,
     label: "Hình thức mua sắm",
     description: "Cách trường mua hoặc nhận thiết bị.",
-    codeExample: "DAU_THAU",
+    codeExample: "HTM001",
     nameExample: "Đấu thầu",
-  },
-
-  // ---- Danh mục nghiệp vụ ----
-  {
-    resource: "movement_reasons",
-    path: "/movement-reasons",
-    group: "catalog_business",
-    icon: ArrowLeftRight,
-    label: "Lý do biến động",
-    description: "Lý do tăng, giảm thiết bị trên phiếu.",
-    codeExample: "GT01",
-    nameExample: "Mua sắm mới",
   },
 
   // ---- Quản trị hệ thống ----
@@ -289,4 +260,10 @@ const BASE: CatalogConfig[] = [
 ];
 
 /** Mỗi danh mục kèm phần riêng của nó — bộ màn dùng chung đọc `config.extra`. */
-export const CATALOGS: CatalogConfig[] = BASE.map((c) => ({ ...c, extra: CATALOG_EXTRAS[c.resource] }));
+// Mã của danh mục dùng chung khoá khi sửa — trừ chuẩn CSVC, định mức: mã do máy chủ sinh lại theo loại / cấp / mức.
+const CODE_DERIVED = new Set(["facility_standard_rules", "equipment_norms"]);
+export const CATALOGS: CatalogConfig[] = BASE.map((c) => ({
+  ...c,
+  codeLockedOnEdit: !CODE_DERIVED.has(c.resource),
+  extra: CATALOG_EXTRAS[c.resource],
+}));

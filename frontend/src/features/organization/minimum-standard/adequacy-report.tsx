@@ -1,4 +1,4 @@
-import { BookOpen, Boxes, GraduationCap, ListChecks, Printer } from "lucide-react";
+import { BookOpen, Boxes, GraduationCap, ListChecks } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { DetailTable, type DetailColumn, type DetailFilter } from "@/shared/components/data-table/detail-table";
@@ -43,12 +43,12 @@ const text = (r: NormRow, c: DetailColumn): string => {
   switch (c.key) {
     case "code": return r.catalogCode ?? r.normCode;
     case "name": return r.normName;
-    case "subject": return r.subjectName ?? "—";
-    case "required": return r.required == null || r.optional ? "—" : num.format(r.required);
+    case "subject": return r.subjectName ?? "Chưa gắn môn";
+    case "required": return r.optional ? "Tự chọn" : r.required == null ? "Không ghi số" : num.format(r.required);
     case "current": return num.format(r.current);
-    // Có số thì in số, kể cả 0; trống (dòng tự chọn / chưa tính được) thì "—" như cột Phải có.
-    case "shortage": return r.shortage == null ? "—" : num.format(r.shortage);
-    case "surplus": return r.surplus == null ? "—" : num.format(r.surplus);
+    // Có số thì in số, kể cả 0; trống (dòng tự chọn / chưa tính được) thì ghi chữ nhạt.
+    case "shortage": return r.shortage == null ? "Không tính" : num.format(r.shortage);
+    case "surplus": return r.surplus == null ? "Không tính" : num.format(r.surplus);
     default: return "";
   }
 };
@@ -56,10 +56,10 @@ const text = (r: NormRow, c: DetailColumn): string => {
 const cell = (r: NormRow, c: DetailColumn): ReactNode => {
   const v = text(r, c);
   if (c.key === "required" || c.key === "current") {
-    return <span className={cn("font-semibold tabular-nums", v === "—" ? "text-muted-foreground" : TONE[c.key].text)}>{v}</span>;
+    return <span className={cn("font-semibold tabular-nums", c.key === "required" && (r.required == null || r.optional) ? "text-muted-foreground font-normal" : TONE[c.key].text)}>{v}</span>;
   }
   if (c.key === "shortage" || c.key === "surplus") {
-    // Chỉ số khác 0 mới tô chip; 0 và "—" in nhạt như số 0 của các cột khác.
+    // Chỉ số khác 0 mới tô chip; 0 và ô không tính in nhạt như số 0 của các cột khác.
     return r[c.key] ? (
       <span className={cn("inline-block rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums", TONE[c.key].chip)}>
         {v}
@@ -128,11 +128,6 @@ export function AdequacyReportDialog({ open, onOpenChange, rows, initial, counts
     onViewChange({ rows: shown, filterLabel: parts.join(" · "), status: next, subject: picked.subject ?? undefined });
   }, [onViewChange]);
 
-  const print = () => {
-    onOpenChange(false);
-    // Đợi hộp đóng hẳn, kẻo lớp phủ của hộp lọt vào bản in.
-    window.setTimeout(() => window.print(), 300);
-  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="wide" className="gap-4">
@@ -156,10 +151,6 @@ export function AdequacyReportDialog({ open, onOpenChange, rows, initial, counts
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
           {actions}
-          <Button type="button" onClick={print}>
-            <Printer />
-            In
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

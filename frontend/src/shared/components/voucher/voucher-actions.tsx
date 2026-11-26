@@ -27,6 +27,8 @@ type ActionText = {
   /** Lời nhắn: không hỏi, hỏi nhưng không bắt buộc, hay bắt buộc. */
   note?: "optional" | "required";
   noteLabel?: string;
+  /** Có = chưa làm được việc này: nút mờ, lý do ghi ngay dưới nút (vd. "Còn 3191 thiết bị chưa kiểm"). */
+  blocked?: string | null;
 };
 
 const DEFAULT_TEXT: Record<WorkflowAction, ActionText> = {
@@ -185,8 +187,11 @@ export function VoucherActions({
       open?.({ type: "error", message: `Hãy ghi ${t.noteLabel?.toLowerCase() ?? "lời nhắn"}` });
       return;
     }
-    // `VoucherController.NoteRequest`: NOTE, tối đa 500.
-    const noteProblem = textError("NOTE", t.noteLabel ?? "Ghi chú", note);
+    // `VoucherController.NoteRequest`: NOTE, tối đa 500. Lý do bắt buộc (trả lại, từ chối…) thêm luật REASON của
+    // `VoucherWorkflow.requireNote`: có chữ, tối thiểu 5 ký tự.
+    const noteProblem = t.note === "required"
+      ? textError("REASON", t.noteLabel ?? "Lý do", note, 500, 5)
+      : textError("NOTE", t.noteLabel ?? "Ghi chú", note);
     if (noteProblem) {
       open?.({ type: "error", message: noteProblem });
       return;
@@ -208,15 +213,18 @@ export function VoucherActions({
   }
 
   const side = layout === "side";
-  const button = (action: WorkflowAction, variant: "default" | "outline" | "destructive" = "outline", className?: string) =>
-    allowed.has(action) ? (
+  const button = (action: WorkflowAction, variant: "default" | "outline" | "destructive" = "outline", className?: string) => {
+    if (!allowed.has(action)) return null;
+    const why = texts(action).blocked;
+    const el = (
       <Button
         key={action}
         type="button"
         variant={variant}
         size={side && variant === "default" ? "lg" : undefined}
         className={cn(side && "w-full", className)}
-        disabled={busy}
+        disabled={busy || !!why}
+        title={why ?? undefined}
         onClick={() => {
           setNote("");
           setPending(action);
@@ -225,7 +233,14 @@ export function VoucherActions({
         {ICONS[action]}
         {texts(action).label}
       </Button>
-    ) : null;
+    );
+    return why ? (
+      <div key={action} className={cn("space-y-1", side && "w-full")}>
+        {el}
+        <p className="text-muted-foreground text-center text-xs">{why}</p>
+      </div>
+    ) : el;
+  };
 
   // Huỷ phiếu thường nằm trong menu ⚙. Phiếu bị trả về thì đưa ra ngoài: lúc đó người lập chỉ còn hai lựa chọn — sửa
   // rồi trình lại, hoặc huỷ hẳn.

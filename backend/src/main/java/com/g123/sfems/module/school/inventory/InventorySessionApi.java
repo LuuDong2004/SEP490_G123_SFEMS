@@ -37,10 +37,10 @@ public final class InventorySessionApi {
     public record Request(
             IdRef school,
             IdRef campaign,
-            @NotBlank(message = "Nhập tên đợt kiểm kê")
-            @Text(value = FieldRule.NAME, label = "Tên đợt kiểm kê") String title,
+            @NotBlank(message = "Nhập tên phiếu kiểm kê")
+            @Text(value = FieldRule.NAME, label = "Tên phiếu kiểm kê") String title,
             @NotNull(message = "Chọn ngày kiểm kê")
-            @DateValue(value = DateRule.ANY, label = "Ngày kiểm kê") LocalDate inventoryDate,
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày kiểm kê") LocalDate inventoryDate,
             IdRef room,
             @Text(value = FieldRule.LONG_TEXT, label = "Tổ kiểm kê", max = 1000) String council,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
@@ -50,10 +50,11 @@ public final class InventorySessionApi {
     /** Sửa đầu phiếu và danh sách tài sản thừa. Danh sách tài sản trên sổ không sửa ở đây. */
     public record Patch(
             IdRef school,
-            @Text(value = FieldRule.NAME, label = "Tên đợt kiểm kê") String title,
-            @DateValue(value = DateRule.ANY, label = "Ngày kiểm kê") LocalDate inventoryDate,
+            @Text(value = FieldRule.NAME, label = "Tên phiếu kiểm kê") String title,
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày kiểm kê") LocalDate inventoryDate,
             @Text(value = FieldRule.LONG_TEXT, label = "Tổ kiểm kê", max = 1000) String council,
             @Text(value = FieldRule.LONG_TEXT, label = "Kết luận", max = 2000) String conclusion,
+            @Text(value = FieldRule.PERSON_NAME, label = "Người kết luận", max = 100) String concludedBy,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
             @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid SurplusInput> surplus,
             Map<String, Object> details) implements VoucherRequest {
@@ -61,6 +62,7 @@ public final class InventorySessionApi {
 
     public record SurplusInput(@NotNull IdRef catalog,
             @Text(value = FieldRule.NAME, label = "Tên thiết bị thừa") String name,
+            @NotNull(message = "Nhập số lượng thừa")
             @Num(value = NumberRule.QUANTITY, label = "Số lượng") Integer quantity,
             IdRef room,
             @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255) String note) {
@@ -88,6 +90,7 @@ public final class InventorySessionApi {
             RefSummary room,
             String council,
             String conclusion,
+            String concludedBy,
             Summary summary,
             List<Line> lines,
             List<Surplus> surplus,
@@ -132,7 +135,7 @@ public final class InventorySessionApi {
             var campaign = s.getCampaign();
             return new Response(VoucherHeader.of(s, can, actions),
                     campaign == null ? null : new RefSummary(campaign.getId(), null, campaign.getTitle()),
-                    s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(),
+                    s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(), s.getConcludedBy(),
                     summary, List.of(), List.of(), summary.total());
         }
 
@@ -147,7 +150,7 @@ public final class InventorySessionApi {
             var campaign = s.getCampaign();
             return new Response(VoucherHeader.of(s, can, actions),
                     campaign == null ? null : new RefSummary(campaign.getId(), null, campaign.getTitle()),
-                    s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(),
+                    s.getTitle(), s.getInventoryDate(), RefSummary.of(s.getRoom()), s.getCouncil(), s.getConclusion(), s.getConcludedBy(),
                     new Summary(lines.size(), checked, matched, missing, wrong, condition, surplus), lines,
                     s.getSurplus().stream().map(Surplus::from).toList(), lines.size());
         }

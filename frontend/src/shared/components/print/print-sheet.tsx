@@ -1,9 +1,9 @@
 import { useResourceParams } from "@refinedev/core";
-import { Printer } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import {  } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 import { logExport } from "@/shared/api/export-log";
-import { Button } from "@/shared/ui/button";
 
 export type PrintTable = { headers: string[]; rows: ReactNode[][]; alignRight?: number[] };
 
@@ -18,6 +18,10 @@ export type PrintTable = { headers: string[]; rows: ReactNode[][]; alignRight?: 
  *
  * <p>"Lưu thành PDF" của hộp thoại in là đường xuất PDF: trình duyệt nhúng đúng
  * phông tiếng Việt đang hiển thị, thứ một bộ sinh PDF phía máy chủ phải tự lo.
+ *
+ * <p>Thân bản in chỉ DỰNG lúc trình duyệt in (`beforeprint` → `afterprint`): một biên bản kiểm kê 3.000 thiết bị dựng sẵn
+ * ẩn là ~27.000 phần tử trên trang làm việc, màn giật từng lần gõ (rà soát 27/11/2026). `flushSync` để bản in có trên
+ * trang ngay trước khi trình duyệt chụp trang in.
  *
  * <p>Mỗi lần mở hộp thoại in (nút In, menu, hay Ctrl+P) khi bản in đang có trên trang thì ghi một dòng
  * nhật ký hoạt động "xuất PDF" — tên bản in, phụ đề (phạm vi, bộ lọc), số dòng bảng. Trình duyệt không cho biết
@@ -45,14 +49,23 @@ export function PrintSheet(props: PrintSheetProps) {
     detail: [title, typeof subtitle === "string" ? subtitle : null].filter(Boolean).join(" · "),
     rows: table?.rows.length,
   };
+  const [printing, setPrinting] = useState(false);
   useEffect(() => {
-    const onPrint = () => logExport({ ...latest.current, format: "PDF" });
+    const onPrint = () => {
+      flushSync(() => setPrinting(true));
+      logExport({ ...latest.current, format: "PDF" });
+    };
+    const onDone = () => setPrinting(false);
     window.addEventListener("beforeprint", onPrint);
-    return () => window.removeEventListener("beforeprint", onPrint);
+    window.addEventListener("afterprint", onDone);
+    return () => {
+      window.removeEventListener("beforeprint", onPrint);
+      window.removeEventListener("afterprint", onDone);
+    };
   }, []);
   return (
     <div className="hidden print:block">
-      <PrintSheetBody {...props} />
+      {printing ? <PrintSheetBody {...props} /> : null}
     </div>
   );
 }
@@ -130,15 +143,5 @@ export function PrintSheetBody({ unit, parentUnit, title, subtitle, facts = [], 
         </div>
       ) : null}
     </div>
-  );
-}
-
-/** Nút in — mở hộp thoại in của trình duyệt (in giấy hoặc lưu PDF). */
-export function PrintButton({ label = "In / Xuất PDF" }: { label?: string }) {
-  return (
-    <Button type="button" variant="outline" onClick={() => window.print()}>
-      <Printer />
-      {label}
-    </Button>
   );
 }

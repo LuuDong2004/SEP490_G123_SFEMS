@@ -27,6 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class LegalDocumentService
         extends CatalogService<LegalDocument, LegalDocumentRequest, LegalDocumentPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     /** Số hiệu văn bản: chữ (cả Đ), số, / . - — vd. 37/2021/TT-BGDĐT. */
     public static final String NUMBER_PATTERN = "^[0-9A-Za-zĐđ/.\\-]*$";
     public static final String NUMBER_MESSAGE = "Số hiệu chỉ gồm chữ, số và dấu / . - (vd. 37/2021/TT-BGDĐT)";

@@ -7,7 +7,10 @@ import com.g123.sfems.module.catalog.base.CampusRule;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.catalog.subject.SubjectService;
 import com.g123.sfems.module.organization.school.service.SchoolService;
+import com.g123.sfems.domain.school.staff.StaffType;
+import com.g123.sfems.module.school.base.SameName;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.staff.StaffService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
@@ -74,6 +77,7 @@ public class SubjectTeamService
             syncMembers(item, request.members());
         }
         keepLeaderInTeam(item);
+        requireNameFree(item);
     }
 
     @Override
@@ -88,12 +92,34 @@ public class SubjectTeamService
             syncMembers(item, request.members());
         }
         keepLeaderInTeam(item);
+        if (request.name() != null || request.active() != null) {
+            requireNameFree(item);
+        }
     }
 
     private void setLeader(SubjectTeam item, IdRef ref) {
         Staff leader = ref == null || ref.id() == null ? null : staff.get(ref.id());
         requireSameSchool(item, leader, "leader");
+        // Chỉ kiểm khi đổi tổ trưởng: tổ cũ đang trỏ vào một nhân viên vẫn sửa được ô khác.
+        if (leader != null && (item.getLeader() == null || !item.getLeader().getId().equals(leader.getId()))) {
+            requireTeacher(leader, "leader");
+        }
         item.setLeader(leader);
+    }
+
+    /** Tổ bộ môn là tổ chuyên môn của giáo viên — nhân viên, cán bộ thiết bị không vào tổ. */
+    private static void requireTeacher(Staff person, String field) {
+        if (person.getStaffType() != StaffType.TEACHER) {
+            throw new FieldValidationException(field,
+                    "%s không phải giáo viên — tổ trưởng/thành viên phải là giáo viên".formatted(person.getName()));
+        }
+    }
+
+    /** Hai tổ cùng tên trong một trường thì ô chọn tổ không phân biệt được. */
+    private void requireNameFree(SubjectTeam item) {
+        if (SameName.taken(entityManager(), SubjectTeam.class, item, "school", item.getSchool().getId())) {
+            throw new FieldValidationException("name", "Trường đã có tổ \"%s\"".formatted(item.getName().trim()));
+        }
     }
 
     private void keepLeaderInTeam(SubjectTeam item) {
@@ -125,6 +151,7 @@ public class SubjectTeamService
             }
             Staff member = staff.get(id);
             requireSameSchool(item, member, "members");
+            requireTeacher(member, "members");
             leaveOtherTeam(item, member);
             item.getMembers().add(member);
         }

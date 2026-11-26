@@ -241,6 +241,7 @@ const TOP_ORDER: Record<string, number> = {
   organization: 1,
   equipment_mgmt: 2,
   mod_procurement: 6,
+  mod_inventory: 7,
   reports: 8,
   catalog: 9,
   administration: 10,

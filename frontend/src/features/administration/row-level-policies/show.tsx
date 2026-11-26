@@ -156,14 +156,14 @@ export const RowLevelPolicyShow = () => {
 
               <div className="text-muted-foreground grid gap-2 text-xs sm:grid-cols-2">
                 <span>
-                  Tạo bởi {record?.createdBy?.username ?? "—"}
+                  Tạo bởi {record?.createdBy?.username ?? "không rõ"}
                   {record?.createdAt
                     ? ` lúc ${formatDateTime(record.createdAt)}`
                     : ""}
                 </span>
                 {editedAt(record) ? (
                   <span>
-                    Sửa lần cuối bởi {record?.updatedBy?.username ?? "—"}
+                    Sửa lần cuối bởi {record?.updatedBy?.username ?? "không rõ"}
                     {` lúc ${formatDateTime(editedAt(record)!)}`}
                   </span>
                 ) : null}

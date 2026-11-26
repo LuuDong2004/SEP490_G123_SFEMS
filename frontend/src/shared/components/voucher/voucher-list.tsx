@@ -144,7 +144,7 @@ export function VoucherList<T extends VoucherBase>({
           size: 220,
           meta: { fill: !ownFill },
           enableSorting: false,
-          cell: ({ row }) => row.original.school?.name ?? "—",
+          cell: ({ row }) => row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>,
         } satisfies ColumnDef<T, any>]),
     ...columns,
     // Cơ sở mà phiếu chạm tới — chỉ hiện với tài khoản cả trường của trường nhiều cơ sở (bật / tắt ở dưới).

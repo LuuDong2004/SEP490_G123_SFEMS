@@ -58,7 +58,7 @@ import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
 import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { cn } from "@/shared/lib/utils";
-import { CatalogFields, DEFAULT_VALUES, type CatalogFormValues } from "@/shared/components/catalog/fields";
+import { CatalogEditingContext, CatalogFields, DEFAULT_VALUES, type CatalogFormValues } from "@/shared/components/catalog/fields";
 import { SuggestCode, useSuggestedCode } from "@/shared/components/catalog/use-suggested-code";
 import { VoucherTwoColumn } from "@/shared/components/voucher/voucher-layout";
 import { AssetCode } from "@/shared/components/asset-code";
@@ -517,7 +517,11 @@ function CatalogCreatePage({ config }: { config: CatalogConfig }) {
 }
 
 export function CatalogEdit({ config }: { config: CatalogConfig }) {
-  return usesDialog(config) ? <CatalogRouteDialog config={config} editing /> : <CatalogEditPage config={config} />;
+  return (
+    <CatalogEditingContext.Provider value>
+      {usesDialog(config) ? <CatalogRouteDialog config={config} editing /> : <CatalogEditPage config={config} />}
+    </CatalogEditingContext.Provider>
+  );
 }
 
 /** Id của form sửa — nút Lưu trên đầu trang (ngoài `<form>`) nộp form qua thuộc tính `form`. */
@@ -729,7 +733,7 @@ function CatalogDetailSections({ config, record }: { config: CatalogConfig; reco
         </div>
       ) : null}
       <p className={cn("text-muted-foreground flex flex-wrap gap-x-6 text-xs", shown.length || record?.note ? "border-t pt-3" : undefined)}>
-        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</span></span>
+        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "không rõ"}</span></span>
         <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
       </p>
     </div>
@@ -782,7 +786,7 @@ function GroupedInfo({ config, record, fields }: { config: CatalogConfig; record
         </section>
       ))}
       <p className="text-muted-foreground flex flex-wrap gap-x-6 text-xs">
-        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</span></span>
+        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "không rõ"}</span></span>
         <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
       </p>
     </div>
@@ -804,13 +808,13 @@ function CatalogInfoTab({ config, record }: { config: CatalogConfig; record: Cat
           {config.hideCode ? null : (
             <div className="min-w-0">
               <dt className="text-muted-foreground text-xs">Mã</dt>
-              <dd className="mt-0.5 text-sm font-medium break-words">{record?.code ?? "—"}</dd>
+              <dd className="mt-0.5 text-sm font-medium break-words">{record?.code ?? <span className="text-muted-foreground/70 font-normal italic">Chưa có mã</span>}</dd>
             </div>
           )}
           {config.hideName ? null : (
             <div className="min-w-0">
               <dt className="text-muted-foreground text-xs">Tên</dt>
-              <dd className="mt-0.5 text-sm font-medium break-words">{record?.name ?? "—"}</dd>
+              <dd className="mt-0.5 text-sm font-medium break-words">{record?.name ?? <span className="text-muted-foreground/70 font-normal italic">Chưa khai</span>}</dd>
             </div>
           )}
         </dl>
@@ -835,7 +839,7 @@ function CatalogInfoTab({ config, record }: { config: CatalogConfig; record: Cat
         </p>
       </section>
       <p className="text-muted-foreground flex flex-wrap gap-x-6 border-t pt-3 text-xs">
-        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</span></span>
+        <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "không rõ"}</span></span>
         <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
       </p>
     </div>
@@ -1029,7 +1033,7 @@ export function CatalogFormDialog({
       onSaved={onSaved}
     >
       {(control, record) => (
-        <>
+        <CatalogEditingContext.Provider value={!!state.id}>
           {state.id || config.hideCode ? null : <SuggestCode target={config.resource} />}
           {/* Sửa mà bản ghi chưa về: chưa vẽ form. Vẽ sớm thì `useSchoolNextCode` (record còn trống) hỏi mã kế tiếp,
               ghi vào ô Mã và đánh dấu "đã gõ" — bản ghi về sau bị `keepDirtyValues` bỏ qua, CB0001 thành CB0007. */}
@@ -1051,7 +1055,7 @@ export function CatalogFormDialog({
             }
           />
           )}
-        </>
+        </CatalogEditingContext.Provider>
       )}
     </FormDialog>
   );

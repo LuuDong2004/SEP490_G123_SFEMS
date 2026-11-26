@@ -17,7 +17,7 @@ const ALL = "all";
 
 /** Tên cơ sở + nhãn loại nhỏ (Trường chính / Phân hiệu / Điểm trường). */
 export function CampusName({ campus, className }: { campus: CampusLike | null | undefined; className?: string }) {
-  if (!campus) return <span className="text-muted-foreground">—</span>;
+  if (!campus) return <span className="text-muted-foreground">Chưa gắn cơ sở</span>;
   const kind = kindOf(campus);
   return (
     <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
@@ -31,7 +31,7 @@ export function CampusName({ campus, className }: { campus: CampusLike | null | 
 
 /** Ô Cơ sở của danh sách phiếu: một cơ sở thì tên + loại; nhiều cơ sở (phiếu chạm cả hai) thì nối tên. */
 export function CampusesCell({ campuses }: { campuses: CampusLike[] | null | undefined }) {
-  if (!campuses?.length) return <span className="text-muted-foreground">—</span>;
+  if (!campuses?.length) return <span className="text-muted-foreground">Chưa gắn cơ sở</span>;
   if (campuses.length === 1) return <CampusName campus={campuses[0]} />;
   const names = campuses.map((c) => c.name ?? String(c.id)).join(", ");
   return <span className="block min-w-0 truncate" title={names}>{names}</span>;

@@ -247,7 +247,7 @@ class IntakeSourceLimitTest {
     private long intake(String status, String origin, String sourceResource, Long sourceId) {
         return jdbc.queryForObject("INSERT INTO equipment_intakes (school_id, intake_date, status, origin_source_id,"
                 + " source_resource, source_id, source_code, created_at)"
-                + " VALUES (?, CURRENT_DATE, ?, (SELECT id FROM origin_sources WHERE upper(code) = ?), ?, ?, ?, now())"
+                + " VALUES (?, CURRENT_DATE, ?, (SELECT id FROM origin_sources WHERE system_key = ?), ?, ?, ?, now())"
                 + " RETURNING id", Long.class, school, status, origin, sourceResource, sourceId,
                 sourceResource == null ? null : "THU-NGUON");
     }

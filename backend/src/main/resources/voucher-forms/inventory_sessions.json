@@ -14,68 +14,33 @@
      "key": "councilDecisionNo",
      "label": "Số QĐ lập hội đồng",
      "kind": "text",
-     "max": 100
+     "max": 50,
+     "rule": "DOC_NO"
     },
     {
      "key": "councilChair",
      "label": "Chủ tịch hội đồng",
      "kind": "staff",
-     "wide": true
+     "wide": true,
+     "other": true
     },
     {
      "key": "councilSecretary",
      "label": "Thư ký hội đồng",
-     "kind": "text",
-     "max": 255,
-     "suggest": "staff"
-    },
-    {
-     "key": "inventoryMinutesNo",
-     "label": "Số biên bản kiểm kê",
-     "kind": "text",
-     "max": 100,
+     "kind": "staff",
+     "other": true,
      "wide": true
     }
    ]
   }
  ],
- "line": [
-  {
-   "key": "systemQty",
-   "label": "Số lượng theo sổ sách",
-   "kind": "integer"
-  },
-  {
-   "key": "differenceReason",
-   "label": "Nguyên nhân chênh lệch",
-   "kind": "text",
-   "max": 255,
-   "wide": true
-  },
-  {
-   "key": "handlingStatus",
-   "label": "Kết luận kiểm kê",
-   "kind": "text",
-   "max": 255,
-   "wide": true
-  },
-  {
-   "key": "proposedAction",
-   "label": "Kiến nghị xử lý",
-   "kind": "enum",
-   "enum": "InventoryAction"
-  },
-  {
-   "key": "differenceValue",
-   "label": "Giá trị chênh lệch",
-   "kind": "money",
-   "hint": "Giá trị phần thừa hoặc thiếu so với sổ sau khi kiểm kê."
-  }
- ],
+ "line": [],
  "lineTables": {},
  "retired": [
   "accumulatedDepreciation",
   "description",
+  "differenceReason",
+  "differenceValue",
   "documentCategory",
   "documentName",
   "documentNo",
@@ -84,16 +49,20 @@
   "exploitationStatusAfter",
   "fiscalYear",
   "handlingProposal",
+  "handlingStatus",
+  "inventoryMinutesNo",
   "inventoryUnit",
   "issueDate",
   "issuingUnit",
   "linkedDocuments",
   "periodYear",
+  "proposedAction",
   "requestedBy",
   "schoolYear",
   "scope",
   "signedBy",
   "sourceDocument",
+  "systemQty",
   "totalCheckedValue"
  ],
  "enums": {

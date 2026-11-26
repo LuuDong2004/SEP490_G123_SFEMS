@@ -43,7 +43,7 @@ public class InventoryDiscrepancies {
 
     private static final String LINES = """
             SELECT l.session_id, l.expected_room_id AS room_id, r.name AS room_name,
-                   (r.id IS NULL OR rt.code = 'KHO') AS storeroom,
+                   (r.id IS NULL OR rt.system_key = 'KHO') AS storeroom,
                    c.subject_id, sj.name AS subject_name, l.found,
                    COALESCE(l.found AND l.expected_room_id IS DISTINCT FROM l.found_room_id, FALSE) AS wrong_room,
                    COALESCE(l.found AND l.found_condition IS NOT NULL

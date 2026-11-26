@@ -66,10 +66,10 @@ public class ProcurementPlanController {
     /** {@code lines} có mặt thì THAY tập dòng của kế hoạch — xem {@link ProcurementPlanService.Input}. */
     public record Request(IdRef managingBody,
             @Text(value = FieldRule.NAME, label = "Tên kế hoạch") String title,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             IdRef schoolYear,
-            @DateValue(value = DateRule.ANY, label = "Ngày lập") LocalDate planDate,
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày lập") LocalDate planDate,
             @Text(value = FieldRule.LONG_TEXT, label = "Ghi chú", max = 1000) String note,
             @Valid List<ProcurementPlanService.LineQuantity> lines, Map<String, Object> details) {
     }

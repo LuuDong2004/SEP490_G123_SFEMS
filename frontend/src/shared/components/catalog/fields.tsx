@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { Control } from "react-hook-form";
 import { Sparkles } from "lucide-react";
 
@@ -96,6 +96,11 @@ export function CatalogFields({
 }
 
 
+/** Form đang sửa một bản ghi đã có — ô Mã của danh mục `codeLockedOnEdit` khoá lại. */
+export const CatalogEditingContext = createContext(false);
+
+export const CODE_LOCKED_HINT = "Mã không sửa được sau khi tạo — dữ liệu khác đang dùng mã này.";
+
 /**
  * Ô mã của danh mục — tách riêng để form có bố cục riêng (`FormBody`, vd. lớp học) dùng lại đúng luật mã.
  * `fill`: lấp đủ ô lưới, bỏ bề rộng hẹp `codeWidth` (chỉ hợp với hàng `form-flow`).
@@ -106,6 +111,8 @@ export function CatalogCodeField({ control, config, suggestedCode, fill }: {
   suggestedCode?: string | null;
   fill?: boolean;
 }) {
+  const editing = useContext(CatalogEditingContext);
+  const readOnly = config.codeReadOnly ?? (editing && config.codeLockedOnEdit ? CODE_LOCKED_HINT : undefined);
   return (
     <FormField
       control={control}
@@ -114,7 +121,7 @@ export function CatalogCodeField({ control, config, suggestedCode, fill }: {
         // Mã theo khuôn riêng của danh mục (tên lớp mầm non "Chồi A"…) giữ khuôn đó, chỉ thêm trần độ dài.
         config.codePattern ? undefined : textRules("CODE", config.codeLabel ?? "Mã", { max: config.codeMax }),
         {
-          required: config.codeReadOnly
+          required: readOnly
             ? "Chưa cấp được mã, xem gợi ý bên dưới"
             : config.codeAuto
               ? "Chọn đủ thông tin để được cấp mã"
@@ -132,7 +139,7 @@ export function CatalogCodeField({ control, config, suggestedCode, fill }: {
       render={({ field }) => (
         <FormItem style={config.codeWidth && !fill ? { width: config.codeWidth } : undefined}>
           <FormLabel>{config.codeLabel ?? "Mã"}</FormLabel>
-          {config.codeAuto && !config.codeReadOnly ? (
+          {config.codeAuto && !readOnly ? (
             <FormHint>Mã được điền sẵn, bạn vẫn sửa được. Không được trùng mã đã có.</FormHint>
           ) : null}
           <FormControl>
@@ -141,13 +148,13 @@ export function CatalogCodeField({ control, config, suggestedCode, fill }: {
               value={field.value ?? ""}
               placeholder={config.codeExample}
               maxLength={maxLengthOf("CODE", config.codeMax)}
-              readOnly={!!config.codeReadOnly}
-              tabIndex={config.codeReadOnly ? -1 : undefined}
-              className={config.codeReadOnly ? "bg-muted/60 font-mono text-sm" : undefined}
+              readOnly={!!readOnly}
+              tabIndex={readOnly ? -1 : undefined}
+              className={readOnly ? "bg-muted/60 font-mono text-sm" : undefined}
             />
           </FormControl>
-          {config.codeReadOnly ? (
-            <FormHint>{config.codeReadOnly}</FormHint>
+          {readOnly ? (
+            <FormHint>{readOnly}</FormHint>
           ) : suggestedCode && !config.codeAuto ? (
             <FormDescription className="flex items-center gap-1">
               <Sparkles className="size-3 shrink-0" />
@@ -173,7 +180,12 @@ export function CatalogNameField({ control, config, className }: {
       name="name"
       rules={mergeRules(textRules(config.nameRule ?? "NAME", config.nameLabel ?? "Tên", { max: config.nameMax }), {
         required: `Vui lòng nhập ${lowerLabel(config.nameLabel ?? "Tên")}`,
-        validate: { blank: (v: unknown) => String(v ?? "").trim() !== "" || `Vui lòng nhập ${lowerLabel(config.nameLabel ?? "Tên")}` },
+        validate: {
+          blank: (v: unknown) => String(v ?? "").trim() !== "" || `Vui lòng nhập ${lowerLabel(config.nameLabel ?? "Tên")}`,
+          ...(config.namePattern
+            ? { pattern: (v: unknown) => !String(v ?? "").trim() || config.namePattern!.value.test(String(v).trim()) || config.namePattern!.message }
+            : {}),
+        },
       })}
       render={({ field }) => (
         <FormItem className={className}>

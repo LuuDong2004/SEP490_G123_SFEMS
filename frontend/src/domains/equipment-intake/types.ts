@@ -99,7 +99,7 @@ export type EquipmentIntake = VoucherBase & {
   supplier: string | null;
   fundingSource: string | null;
   /** Nguồn hình thành của CẢ PHIẾU — quyết định nguồn kinh phí nào chọn được ở từng dòng. */
-  originSource: { id: number; code?: string; name: string } | null;
+  originSource: { id: number; code?: string; name: string; systemKey?: string } | null;
   originNote: string | null;
   /** Năm học của lần ghi tăng. */
   schoolYear: { id: number; code?: string; name: string } | null;

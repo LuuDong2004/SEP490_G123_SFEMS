@@ -1,5 +1,8 @@
+import { useCustom } from "@refinedev/core";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useWatch, type Control } from "react-hook-form";
+
+import { API_URL } from "@/shared/api/constants";
 
 import { maxLengthOf, textRules } from "@/shared/lib/field-rules";
 import { Input } from "@/shared/ui/input";
@@ -142,7 +145,26 @@ function Preview({ control }: { control: Control<any> }) {
   );
 }
 
-function CodeRuleFields({ control }: { control: Control<any> }) {
+/** Số lớn nhất đã cấp theo khuôn đang gõ — cùng `CodeGenerator.largestIssued` ở máy chủ. */
+function useLargestIssued(control: Control<any>) {
+  const [target, prefix, suffix] = useWatch({ control, name: ["target", "prefix", "suffix"] });
+  const { result } = useCustom<{ number: number | null; code: string | null }>({
+    url: `${API_URL}/code_rules/largest`,
+    method: "get",
+    config: { query: { target: target ?? "", prefix: prefix ?? "", suffix: suffix ?? "" } },
+    queryOptions: { enabled: !!target },
+  });
+  const data = result?.data;
+  return data && typeof data.number === "number" ? { number: data.number, code: data.code ?? "" } : null;
+}
+
+// Máy chủ chỉ kiểm khi khuôn hay số đổi (quy tắc cũ đặt lùi vẫn sửa được tên); form cũng vậy.
+const SHAPE = ["target", "prefix", "suffix", "numberLength", "currentNumber"] as const;
+const shapeUnchanged = (values: any, record: any) =>
+  !!record && SHAPE.every((k) => String(values?.[k] ?? "") === String(record?.[k] ?? ""));
+
+function CodeRuleFields({ control, record }: { control: Control<any>; record?: any }) {
+  const largest = useLargestIssued(control);
   return (
     <>
       <FormField
@@ -202,7 +224,19 @@ function CodeRuleFields({ control }: { control: Control<any> }) {
         rules={{
           min: { value: 0, message: "Số hiện tại không được âm" },
           max: { value: Number.MAX_SAFE_INTEGER - 1, message: "Số hiện tại quá lớn" },
-          validate: (v: unknown) => v == null || Number.isInteger(Number(v)) || "Đã cấp đến số phải là số nguyên",
+          validate: {
+            integer: (v: unknown) => v == null || Number.isInteger(Number(v)) || "Đã cấp đến số phải là số nguyên",
+            // 3 chữ số thì tối đa 999 — số kế tiếp 1000 dài hơn khuôn mã.
+            fits: (v: unknown, values: any) => {
+              const width = Number(values?.numberLength);
+              if (v == null || !Number.isInteger(width) || width < 1 || shapeUnchanged(values, record)) return true;
+              const ceiling = 10 ** width;
+              return Number(v) < ceiling || `Đã cấp đến số phải nhỏ hơn ${ceiling} (phần số dài ${width} chữ số)`;
+            },
+            notBelowIssued: (v: unknown, values: any) =>
+              !largest || shapeUnchanged(values, record) || Number(v ?? 0) >= largest.number
+              || `Đã cấp đến số không được nhỏ hơn ${largest.number} — mã ${largest.code} đã cấp`,
+          },
         }}
         render={({ field }) => (
           <FormItem className="sm:max-w-[13rem]">
@@ -252,7 +286,7 @@ export const CODE_RULE_EXTRA = {
     { label: "Đã cấp đến số", value: r?.currentNumber ?? "—" },
     {
       label: "Mã tiếp theo",
-      value: <span className="font-mono text-xs font-medium">{r?.nextCode ?? "—"}</span>,
+      value: <span className="font-mono text-xs font-medium">{r?.nextCode ?? <span className="text-muted-foreground font-sans">Chưa tính được</span>}</span>,
     },
   ],
 };

@@ -14,6 +14,7 @@ import com.g123.sfems.module.organization.departmentofeducation.service.Departme
 import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.voucher.VoucherForms;
+import com.g123.sfems.module.school.voucher.BodyRecipients;
 import com.g123.sfems.module.school.voucher.VoucherWorkflow;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -23,6 +24,7 @@ import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
+import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Num;
 import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.shared.web.ListParams;
@@ -79,11 +81,13 @@ public class ProcurementPlanService {
     private final VoucherForms forms;
     private final SchoolYearService schoolYears;
     private final NotificationService notifications;
+    private final BodyRecipients bodyRecipients;
 
     public ProcurementPlanService(ProcurementPlanRepository repository, PurchaseProposalRepository proposals,
             RowLevelPrincipalResolver principals, RowLevelSecurity rowLevel, DepartmentOfEducationService bodies,
             ManagedSchoolsCache managedSchools, VoucherWorkflow workflow, VisibleSchools visibleSchools,
-            JdbcTemplate jdbc, VoucherForms forms, SchoolYearService schoolYears, NotificationService notifications) {
+            JdbcTemplate jdbc, VoucherForms forms, SchoolYearService schoolYears, NotificationService notifications,
+            BodyRecipients bodyRecipients) {
         this.repository = repository;
         this.proposals = proposals;
         this.principals = principals;
@@ -96,6 +100,7 @@ public class ProcurementPlanService {
         this.forms = forms;
         this.schoolYears = schoolYears;
         this.notifications = notifications;
+        this.bodyRecipients = bodyRecipients;
     }
 
     /**
@@ -113,7 +118,7 @@ public class ProcurementPlanService {
      */
     public record LineQuantity(Long lineId,
             @Num(value = NumberRule.QUANTITY_OR_ZERO, label = "Số lượng đưa vào kế hoạch") Integer plannedQuantity,
-            @Num(value = NumberRule.MONEY, label = "Đơn giá") BigDecimal unitPrice) {
+            @Num(value = NumberRule.UNIT_PRICE, label = "Đơn giá") BigDecimal unitPrice) {
     }
 
     /** Cộng theo nhóm thiết bị trên mọi đề xuất trong kế hoạch. */
@@ -319,7 +324,7 @@ public class ProcurementPlanService {
         plan.setManagingBody(ownBody(input.managingBodyId()));
         plan.setStatus(Status.DRAFT);
         apply(plan, input);
-        plan.setPlanDate(input.planDate() != null ? input.planDate() : LocalDate.now());
+        plan.setPlanDate(input.planDate() != null ? input.planDate() : LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
         plan.setCode(nextCode(plan.getBudgetYear()));
         plan.setDetails(forms.header("procurement_plans", input.details(), null, null));
         ProcurementPlan saved = repository.save(plan);
@@ -529,7 +534,34 @@ public class ProcurementPlanService {
         requirePriced(id);
         plan.setStatus(Status.PENDING);
         plan.setApprovalNote(null);
-        return repository.save(plan);
+        ProcurementPlan saved = repository.save(plan);
+        // Báo lãnh đạo cùng cơ quan có kế hoạch chờ duyệt (quả chuông).
+        notifyAll(bodyRecipients.holding("procurement_plans:approve", saved.getManagingBody().getId()),
+                NotificationType.VOUCHER_PENDING, NotificationLevel.INFO, "Kế hoạch mua sắm chờ duyệt: " + saved.getTitle(),
+                "Chuyên viên đã trình kế hoạch mua sắm năm %d — duyệt hoặc trả lại.".formatted(saved.getBudgetYear()),
+                link(saved));
+        return saved;
+    }
+
+    /** Người lập kế hoạch (tài khoản tạo bản ghi). */
+    private Long authorOf(Long planId) {
+        return jdbc.queryForList("SELECT created_by_id FROM procurement_plans WHERE id = ?", Long.class, planId)
+                .stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private static String link(ProcurementPlan plan) {
+        return "/procurement-plans/show/" + plan.getId();
+    }
+
+    /** Gửi cho từng người, trừ chính người đang thao tác. */
+    private void notifyAll(List<Long> to, NotificationType type, NotificationLevel level, String title, String body,
+            String link) {
+        Long me = CurrentUser.id().orElse(null);
+        for (Long recipient : to) {
+            if (recipient != null && !Objects.equals(recipient, me)) {
+                notifications.notify(type, recipient, level, title, body, link);
+            }
+        }
     }
 
     /**
@@ -560,9 +592,21 @@ public class ProcurementPlanService {
             } else {
                 workflow.complete(p, PurchaseProposalService.RESOURCE, message);
                 proposals.persist(p);
+                // Trường được báo đề xuất đã vào kế hoạch được duyệt — bước tiếp là chờ mua, rồi ghi tăng.
+                Long submitter = p.getSubmittedById() != null ? p.getSubmittedById() : p.getCreatedById();
+                notifyAll(submitter == null ? List.of() : List.of(submitter), NotificationType.VOUCHER_RESULT,
+                        NotificationLevel.SUCCESS,
+                        "Đề xuất mua sắm " + (p.getCode() == null ? "" : p.getCode() + " ") + "đã vào kế hoạch được duyệt",
+                        message + ".", "/purchase-proposals/show/" + p.getId());
             }
         }
-        return repository.save(plan);
+        ProcurementPlan saved = repository.save(plan);
+        Long author = authorOf(saved.getId());
+        notifyAll(author == null ? List.of() : List.of(author), NotificationType.VOUCHER_RESULT, NotificationLevel.SUCCESS,
+                "Kế hoạch mua sắm đã được duyệt: " + saved.getTitle(),
+                saved.getApprovalNote() == null ? "Lãnh đạo Sở đã duyệt kế hoạch." : "Ý kiến: " + saved.getApprovalNote(),
+                link(saved));
+        return saved;
     }
 
     /** Đề xuất bị cắt hết (mọi dòng 0) khi kế hoạch được duyệt: ra khỏi kế hoạch, giữ "Đã duyệt", báo trường. */
@@ -616,10 +660,18 @@ public class ProcurementPlanService {
         if (reason == null) {
             throw new FieldValidationException("note", "Ghi lý do trả lại để chuyên viên biết phải sửa gì");
         }
+        String reasonProblem = FieldRule.REASON.violation(reason, 500, 5);
+        if (reasonProblem != null) {
+            throw new FieldValidationException("note", "Lý do " + reasonProblem);
+        }
         ProcurementPlan plan = pendingForApprover(id);
         plan.setStatus(Status.DRAFT);
         plan.setApprovalNote(reason);
-        return repository.save(plan);
+        ProcurementPlan saved = repository.save(plan);
+        Long author = authorOf(saved.getId());
+        notifyAll(author == null ? List.of() : List.of(author), NotificationType.VOUCHER_RESULT, NotificationLevel.WARNING,
+                "Kế hoạch mua sắm bị trả lại: " + saved.getTitle(), reason, link(saved));
+        return saved;
     }
 
     public boolean canManage(ProcurementPlan plan) {

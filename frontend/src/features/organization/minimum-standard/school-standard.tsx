@@ -1,12 +1,12 @@
 import { usePersistentState } from "@/shared/hooks/use-persistent-state";
-import { useNotification } from "@refinedev/core";
+import { useCan, useNotification } from "@refinedev/core";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, DoorOpen, Eye, EyeOff, FileSpreadsheet, FileText, GraduationCap, ListChecks, Loader2, PackagePlus, Printer, Settings, Users } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, DoorOpen, Eye, EyeOff, FileSpreadsheet, FileText, GraduationCap, ListChecks, Loader2, PackagePlus, Settings, ShoppingCart, Users } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PrintSheet, type PrintSheetProps } from "@/shared/components/print/print-sheet";
 import { AdequacyReportDialog, reportTitle } from "./adequacy-report";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
 import { StatTile } from "@/shared/components/charts/charts";
@@ -16,7 +16,7 @@ import { errorMessage } from "@/shared/lib/api-error";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
-import type { SchoolAdequacy, StandardInputs } from "@/domains/procurement/types";
+import type { NormRow, SchoolAdequacy, StandardInputs } from "@/domains/procurement/types";
 
 import { AdequacyTable, type AdequacyView } from "../purchase-proposals/adequacy-table";
 import { GapActions, QuickAssignRooms, QuickAssignTeachers } from "./gap-actions";
@@ -178,6 +178,26 @@ export function SchoolStandard({ schoolId, onBack }: {
   }, []);
   // Cơ sở (trường nhiều cơ sở, tài khoản cả trường / Sở): định mức tính trên lớp, giáo viên, phòng, thiết bị của cơ sở.
   const [campusId, setCampusId] = useState<number | null>(null);
+  // Tích chọn thiết bị rồi lập đề xuất mua sắm — như màn Chuẩn tối thiểu của menu Thiết bị; chỉ trường mình.
+  const navigate = useNavigate();
+  const canPropose = (useCan({ resource: "purchase_proposals", action: "create" }).data?.can ?? false) && perspective === "school";
+  const [picked, setPicked] = useState<Map<number, NormRow>>(new Map());
+  // Đổi điểm trường thì bỏ chọn — không mang thiết bị của điểm này sang điểm khác.
+  useEffect(() => setPicked(new Map()), [campusId]);
+  const togglePick = (r: NormRow) =>
+    setPicked((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.catalogId!)) next.delete(r.catalogId!);
+      else next.set(r.catalogId!, r);
+      return next;
+    });
+  // Mở màn lập đề xuất kèm sẵn các dòng: số lượng gợi ý = phần còn thiếu trừ phần đã đề xuất, ít nhất 1 (sửa lại được).
+  const toProposal = () =>
+    navigate("/purchase-proposals/create", { state: { picked: [...picked.values()].map((r) => ({
+      catalogId: r.catalogId!,
+      label: `${r.catalogCode} · ${r.normName}`,
+      quantity: Math.max((r.shortage ?? 0) - r.proposed, 1),
+    })) } });
   const params = {
     ...(schoolId ? { schoolId: String(schoolId) } : {}),
     ...(campusId != null ? { campusId: String(campusId) } : {}),
@@ -300,8 +320,15 @@ export function SchoolStandard({ schoolId, onBack }: {
         aside
         data={d}
         onView={showView}
+        select={canPropose ? { selected: new Set(picked.keys()), onToggle: togglePick } : undefined}
         actions={
           <>
+            {canPropose && picked.size ? (
+              <Button type="button" size="sm" onClick={toProposal}>
+                <ShoppingCart />
+                Đưa {picked.size} loại thiết bị vào đề xuất
+              </Button>
+            ) : null}
             <CampusFilterButton schoolId={schoolId} value={campusId} onChange={setCampusId} />
             {/* Xem ngay trên màn hình đúng các dòng đang lọc — không phải tải về mới xem được. */}
             <Button type="button" variant="outline" size="sm" disabled={!sheet} onClick={() => setPreviewing(true)}>
@@ -318,14 +345,6 @@ export function SchoolStandard({ schoolId, onBack }: {
                 <DropdownMenuItem disabled={exporting} onSelect={() => void exportXlsx()}>
                   {exporting ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
                   Xuất Excel
-                </DropdownMenuItem>
-                {/* In đúng các dòng đang lọc: chọn "Còn thiếu" hay "Thừa" rồi bấm In. */}
-                <DropdownMenuItem disabled={!sheet} onSelect={() => {
-                  setReportView(undefined);
-                  window.setTimeout(() => window.print(), 100);
-                }}>
-                  <Printer />
-                  In
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setHideStats(!hideStats)}>
                   {hideStats ? <Eye /> : <EyeOff />}

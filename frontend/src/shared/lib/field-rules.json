@@ -19,8 +19,8 @@
     },
     "NAME" : {
       "max" : 255,
-      "pattern" : "^(?=.*[\\p{L}\\p{N}])[^\\p{Cc}]*$",
-      "message" : "phải có chữ hoặc số và không chứa ký tự điều khiển"
+      "pattern" : "^(?=.*\\p{L})[\\p{L}\\p{N}(\"'][\\p{L}\\p{M}\\p{N} .,:;/()'\"&+%°…–_-]*$",
+      "message" : "phải có chữ cái, chỉ gồm chữ, số, khoảng trắng và các dấu , . : ; / ( ) - ' \" & + %"
     },
     "PERSON_NAME" : {
       "max" : 100,
@@ -47,10 +47,20 @@
       "pattern" : "^[^\\p{Cc}]*$",
       "message" : "không được chứa ký tự điều khiển"
     },
+    "DOC_NO" : {
+      "max" : 50,
+      "pattern" : "^(?=.*\\p{N})[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}/._ -]*$",
+      "message" : "phải có chữ số, chỉ gồm chữ, số và / - . _"
+    },
+    "REASON" : {
+      "max" : 1000,
+      "pattern" : "^(?=.*\\p{L})[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]*$",
+      "message" : "phải có chữ, không chứa ký tự điều khiển"
+    },
     "EMAIL" : {
       "max" : 254,
-      "pattern" : "^$|^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
-      "message" : "không đúng định dạng (vd. ten@truong.edu.vn; phần trước @ tối đa 64 ký tự)"
+      "pattern" : "^$|^(?!\\.)(?!.*\\.\\.)[A-Za-z0-9._%+-]{1,64}(?<!\\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,6}$",
+      "message" : "không đúng định dạng (vd. ten@truong.edu.vn)"
     },
     "PHONE" : {
       "max" : 20,
@@ -113,6 +123,11 @@
     "COUNT" : {
       "min" : 0,
       "max" : 99999,
+      "scale" : 0
+    },
+    "WARRANTY_MONTHS" : {
+      "min" : 0,
+      "max" : 600,
       "scale" : 0
     },
     "YEAR" : {

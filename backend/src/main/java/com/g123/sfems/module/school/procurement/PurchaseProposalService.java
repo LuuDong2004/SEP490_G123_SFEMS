@@ -49,6 +49,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class PurchaseProposalService
         extends VoucherService<PurchaseProposal, PurchaseProposalApi.Request, PurchaseProposalApi.Patch> {
 
+    /** Năm ngân sách xa nhất so với năm của ngày đề xuất. */
+    static final int BUDGET_YEAR_AHEAD = 5;
+
     public static final String RESOURCE = "purchase_proposals";
 
     private final EquipmentCatalogService catalogs;
@@ -122,8 +125,14 @@ public class PurchaseProposalService
                         "Nhóm thiết bị %s xuất hiện hai lần — gộp thành một dòng".formatted(line.getCatalog().getName()));
             }
         }
-        if (voucher.getBudgetYear() != null && (voucher.getBudgetYear() < 2000 || voucher.getBudgetYear() > 2100)) {
-            throw new FieldValidationException("budgetYear", "Năm ngân sách phải từ 2000 đến 2100");
+        // Từ năm của ngày đề xuất tới 5 năm sau: không xin kinh phí cho năm đã qua, xa hơn là gõ nhầm (cùng form).
+        if (voucher.getBudgetYear() != null) {
+            int from = voucher.getProposalDate() != null ? voucher.getProposalDate().getYear()
+                    : java.time.LocalDate.now().getYear();
+            if (voucher.getBudgetYear() < from || voucher.getBudgetYear() > from + BUDGET_YEAR_AHEAD) {
+                throw new FieldValidationException("budgetYear",
+                        "Năm ngân sách phải từ %d đến %d".formatted(from, from + BUDGET_YEAR_AHEAD));
+            }
         }
     }
 

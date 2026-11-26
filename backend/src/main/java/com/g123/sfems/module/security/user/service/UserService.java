@@ -28,6 +28,7 @@ import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.AuthoritiesChanged;
 import com.g123.sfems.shared.security.CurrentUser;
+import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.web.ListParams;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -201,8 +202,8 @@ public class UserService {
     @Transactional
     public User create(UserRequest request) {
         School school = resolveSchool(request.school(), null);
-        String username = schoolLogin(school, request.username().trim());
-        String email = request.email().trim().toLowerCase();
+        String username = requireUsernameFits(schoolLogin(school, request.username().trim()));
+        String email = FieldRule.EMAIL.normalize(request.email().trim());
 
         requireUsernameAvailable(username, null);
         requireEmailAvailable(email, null);
@@ -247,12 +248,15 @@ public class UserService {
 
         if (request.username() != null) {
             // Đơn vị không đổi khi sửa — tài khoản trường giữ tiền tố mã trường dù người sửa gõ tên trơn.
-            String username = schoolLogin(user.schoolOrNull(), request.username().trim());
+            String username = requireUsernameFits(schoolLogin(user.schoolOrNull(), request.username().trim()));
             requireUsernameAvailable(username, user.getId());
             user.setUsername(username);
         }
         if (request.email() != null) {
-            String email = request.email().trim().toLowerCase();
+            String email = FieldRule.EMAIL.normalize(request.email().trim());
+            if (email.isEmpty()) {
+                throw new FieldValidationException("email", "Email là bắt buộc");
+            }
             requireEmailAvailable(email, user.getId());
             user.setEmail(email);
         }
@@ -343,6 +347,10 @@ public class UserService {
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new ConflictException("Mật khẩu hiện tại không đúng");
         }
+        // Đặt lại đúng mật khẩu cũ thì "đổi mật khẩu" không đổi gì — mật khẩu lộ vẫn dùng được.
+        if (newPassword != null && passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new FieldValidationException("newPassword", "Mật khẩu mới phải khác mật khẩu hiện tại");
+        }
         PasswordPolicy.check("newPassword", newPassword, user.getUsername(), privileged(user.getRoles()));
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         User saved = repository.save(user);
@@ -432,7 +440,7 @@ public class UserService {
             case SystemUser admin -> {
                 rejectField("workPhone", profile.workPhone());
                 // Form gửi lại nguyên giá trị đang có thì không phải là "đặt" — chỉ thay đổi thật mới cần quản trị cấp cao.
-                String ips = profile.allowedIps() == null ? null : AdminIps.normalize(profile.allowedIps());
+                String ips = profile.allowedIps() == null ? null : checkAllowedIps(AdminIps.normalize(profile.allowedIps()));
                 boolean superChanges = profile.superAdmin() != null && profile.superAdmin() != admin.isSuperAdmin();
                 boolean ipsChange = profile.allowedIps() != null && !Objects.equals(ips, admin.getAllowedIps());
                 if (superChanges || ipsChange) {
@@ -462,7 +470,7 @@ public class UserService {
                     agency.setJobTitle(blankToNull(profile.jobTitle()));
                 }
                 if (profile.workPhone() != null) {
-                    agency.setWorkPhone(blankToNull(profile.workPhone()));
+                    agency.setWorkPhone(blankToNull(FieldRule.PHONE.normalize(profile.workPhone())));
                 }
             }
             case SchoolUser member -> {
@@ -475,6 +483,43 @@ public class UserService {
             }
             default -> throw new IllegalStateException("Loại tài khoản chưa xử lý: " + user.getUserType());
         }
+    }
+
+    /** Trần số mục và độ dài cột {@code user_systems.allowed_ips}. */
+    private static final int MAX_ALLOWED_IPS = 50;
+    private static final int ALLOWED_IPS_COLUMN = 1000;
+
+    /**
+     * Danh sách IP đã đúng cú pháp ({@link AdminIps#normalize}) còn phải đủ hẹp: "0.0.0.0/0" hay "/4" đúng cú pháp
+     * nhưng mở khu quản trị cho cả mạng — giới hạn IP thành vô nghĩa. Bỏ mục trùng; chuẩn hoá xong mới đo độ dài
+     * vì ", " nối vào có thể vượt cột dù chữ gõ vào ngắn hơn.
+     */
+    static String checkAllowedIps(String normalized) {
+        if (normalized == null) {
+            return null;
+        }
+        LinkedHashSet<String> items = new LinkedHashSet<>(List.of(normalized.split(", ")));
+        if (items.size() > MAX_ALLOWED_IPS) {
+            throw new FieldValidationException("profile.allowedIps", "Tối đa " + MAX_ALLOWED_IPS + " IP / dải IP");
+        }
+        for (String item : items) {
+            int slash = item.indexOf('/');
+            if (slash < 0) {
+                continue;
+            }
+            int prefix = Integer.parseInt(item.substring(slash + 1));
+            int floor = item.contains(":") ? 16 : 8;
+            if (prefix < floor) {
+                throw new FieldValidationException("profile.allowedIps",
+                        "Dải IP quá rộng: " + item + " (tối thiểu /" + floor + ")");
+            }
+        }
+        String joined = String.join(", ", items);
+        if (joined.length() > ALLOWED_IPS_COLUMN) {
+            throw new FieldValidationException("profile.allowedIps",
+                    "IP được đăng nhập tối đa " + ALLOWED_IPS_COLUMN + " ký tự");
+        }
+        return joined;
     }
 
     private static void rejectAdminFields(UserProfileRequest profile) {
@@ -567,10 +612,20 @@ public class UserService {
         }
     }
 
+    /** Tiền tố mã trường ghép vào có thể đẩy tên đăng nhập quá cột {@code users.username} (100) dù tên gõ vào ngắn. */
+    private static String requireUsernameFits(String username) {
+        if (username.length() > 100) {
+            throw new FieldValidationException("username",
+                    "Tên đăng nhập (kể cả tiền tố mã trường) tối đa 100 ký tự");
+        }
+        return username;
+    }
+
+    // Trùng là lỗi của MỘT ô — trả về ô đó để form hiện ngay dưới ô, không phải một thông báo chung.
     private void requireUsernameAvailable(String username, Long selfId) {
         repository.findByUsernameIgnoreCase(username).ifPresent(existing -> {
             if (!existing.getId().equals(selfId)) {
-                throw new ConflictException("Tên đăng nhập %s đã có người dùng".formatted(username));
+                throw new FieldValidationException("username", "Tên đăng nhập %s đã có người dùng".formatted(username));
             }
         });
     }
@@ -578,7 +633,7 @@ public class UserService {
     private void requireEmailAvailable(String email, Long selfId) {
         repository.findByEmailIgnoreCase(email).ifPresent(existing -> {
             if (!existing.getId().equals(selfId)) {
-                throw new ConflictException("Email %s đã được dùng cho một tài khoản khác".formatted(email));
+                throw new FieldValidationException("email", "Email %s đã được dùng cho một tài khoản khác".formatted(email));
             }
         });
     }

@@ -13,6 +13,7 @@ import com.g123.sfems.module.organization.school.service.CallerSchoolLevel;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -159,25 +160,27 @@ public class FacilityStandardRuleService
      * đã ngừng dùng để nguyên. Lỗi ô báo kèm mức ({@code MIN.minCount}) để màn hình chỉ đúng cột.
      */
     @Transactional
-    public List<FacilityStandardRule> saveType(Long roomTypeId, FacilityStandardTypeRequest request, boolean mayDelete) {
+    public List<FacilityStandardRule> saveType(Long roomTypeId, FacilityStandardTypeRequest request) {
         String level = level(request.levelCode());
         RoomType type = resolveType(roomTypeId, level);
         IdRef ref = new IdRef(type.getId());
         List<FacilityStandardRule> saved = new ArrayList<>();
+        // Hai khối cùng một mức trong một lần lưu: khối sau ghi đè khối trước, người dùng mất số mà không hay.
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (FacilityStandardTypeRequest.Tier x : request.tiers()) {
             String tier = tier(x.tier());
+            if (!seen.add(tier)) {
+                throw new FieldValidationException("tiers", "Mức " + tier + " khai hai lần trong một lần lưu");
+            }
             FacilityStandardRule existing = rules.findByCodeIgnoreCase(codeOf(type, level, tier)).orElse(null);
             try {
                 if (x.blank()) {
                     if (x.largeClassFrom() != null || x.largeMinCount() != null || x.studentPercent() != null) {
                         throw new FieldValidationException("minCount", "Nhập ít nhất một điều kiện");
                     }
+                    // Bỏ trống một mức: chuẩn của mức ấy ngừng dùng, không xoá (310 — danh mục chỉ ngừng dùng).
                     if (existing != null && Boolean.TRUE.equals(existing.getActive())) {
-                        if (mayDelete) {
-                            delete(existing.getId());
-                        } else {
-                            getWritable(existing.getId()).setActive(false);
-                        }
+                        getWritable(existing.getId()).setActive(false);
                     }
                     continue;
                 }
@@ -255,6 +258,26 @@ public class FacilityStandardRuleService
             throw new FieldValidationException(item.getLargeClassFrom() == null ? "largeClassFrom" : "largeMinCount",
                     "Khai đủ cả số lớp và số phòng của trường lớn");
         }
+        // Điều kiện bằng 0 là "không đòi gì" — muốn không xét thì để trống, không phải khai 0.
+        positive("minCount", "Số phòng tối thiểu", item.getMinCount());
+        positive("countPerClass", "Số phòng mỗi lớp", item.getCountPerClass());
+        positive("minRoomArea", "Diện tích mỗi phòng", item.getMinRoomArea());
+        positive("areaPerStudent", "Diện tích mỗi học sinh", item.getAreaPerStudent());
+        positive("minTotalArea", "Tổng diện tích", item.getMinTotalArea());
+        positive("largeClassFrom", "Trường lớn hơn số lớp", item.getLargeClassFrom());
+        positive("largeMinCount", "Số phòng của trường lớn", item.getLargeMinCount());
+        // Trần nghiệp vụ (TT 13/2020 cao nhất vài m²/học sinh, 1 phòng/lớp): số vượt xa là gõ nhầm đơn vị hay dấu phẩy.
+        if (item.getCountPerClass() != null && item.getCountPerClass().compareTo(BigDecimal.TEN) > 0) {
+            throw new FieldValidationException("countPerClass", "Số phòng mỗi lớp tối đa 10");
+        }
+        if (item.getAreaPerStudent() != null && item.getAreaPerStudent().compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new FieldValidationException("areaPerStudent", "Diện tích mỗi học sinh tối đa 100 m²");
+        }
+        if (item.getMinCount() != null && item.getLargeMinCount() != null
+                && item.getLargeMinCount() < item.getMinCount()) {
+            throw new FieldValidationException("largeMinCount",
+                    "Số phòng của trường lớn không được ít hơn số phòng tối thiểu (" + item.getMinCount() + ")");
+        }
         if (item.getStudentPercent() != null) {
             if (item.getAreaPerStudent() == null) {
                 throw new FieldValidationException("studentPercent", "Chỉ khai khi có diện tích theo số học sinh");
@@ -262,6 +285,12 @@ public class FacilityStandardRuleService
             if (item.getStudentPercent().signum() == 0) {
                 throw new FieldValidationException("studentPercent", "Phần trăm học sinh phải lớn hơn 0");
             }
+        }
+    }
+
+    private static void positive(String field, String label, Number value) {
+        if (value != null && new BigDecimal(value.toString()).signum() <= 0) {
+            throw new FieldValidationException(field, label + " phải lớn hơn 0");
         }
     }
 

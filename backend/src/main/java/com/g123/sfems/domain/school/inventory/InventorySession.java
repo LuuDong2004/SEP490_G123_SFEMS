@@ -64,6 +64,10 @@ public class InventorySession extends SchoolVoucher {
     @Column(length = 2000)
     private String conclusion;
 
+    /** Họ tên người kết luận (thường là chủ tịch hội đồng / tổ trưởng tổ kiểm kê). */
+    @Column(name = "concluded_by", length = 100)
+    private String concludedBy;
+
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("lineNo ASC")
     @BatchSize(size = 50)
@@ -143,6 +147,14 @@ public class InventorySession extends SchoolVoucher {
 
     public void setConclusion(String conclusion) {
         this.conclusion = conclusion;
+    }
+
+    public String getConcludedBy() {
+        return concludedBy;
+    }
+
+    public void setConcludedBy(String concludedBy) {
+        this.concludedBy = concludedBy;
     }
 
     public List<InventoryLine> getLines() {

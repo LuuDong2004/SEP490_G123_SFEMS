@@ -18,6 +18,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class OriginSourceService extends CatalogService<OriginSource, CatalogRequest, CatalogPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     private final OriginSourceRepository repository;
 
     public OriginSourceService(OriginSourceRepository repository, RowLevelSecurity rowLevel) {
@@ -32,7 +37,7 @@ public class OriginSourceService extends CatalogService<OriginSource, CatalogReq
 
     /** Dòng danh mục của một nguồn hình thành cố định — cho phiếu ghi tăng sinh từ phiếu nghiệp vụ khác. */
     public OriginSource of(OriginRule rule) {
-        return repository.findByCodeIgnoreCase(rule.name())
+        return repository.findBySystemKey(rule.name())
                 .orElseThrow(() -> new IllegalStateException("Thiếu nguồn hình thành " + rule.name() + " trong danh mục"));
     }
 

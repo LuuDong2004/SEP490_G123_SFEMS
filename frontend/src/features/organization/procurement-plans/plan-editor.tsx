@@ -3,7 +3,7 @@ import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-l
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
-import { ArrowLeft, Check, ChevronDown, CornerUpLeft, FileSpreadsheet, Loader2, Printer, Save, Send, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, CornerUpLeft, FileSpreadsheet, Loader2, Save, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useWatch, type Control } from "react-hook-form";
 import { Link, useSearchParams } from "react-router";
@@ -39,7 +39,7 @@ import {
   type ProcurementPlan,
   type ProcurementPlanStatus,
 } from "@/domains/procurement/types";
-import { maxLengthOf, numberMax } from "@/shared/lib/field-rules";
+import { maxLengthOf, numberMax, textError } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { ROW_ACTION_ITEM, useRowActionsMenu } from "@/shared/components/data-table/row-actions";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
@@ -268,7 +268,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
             <ViewFact label="Tên kế hoạch" wide>{plan.title}</ViewFact>
             <ViewFact label="Ngày lập">{formatPlainDate(plan.planDate)}</ViewFact>
             <ViewFact label="Năm học">{plan.schoolYear ? `Năm học ${yearLabel(plan.schoolYear)}` : `Năm ngân sách ${plan.budgetYear}`}</ViewFact>
-            <ViewFact label="Người lập">{plan.createdBy?.name ?? "—"}</ViewFact>
+            <ViewFact label="Người lập">{plan.createdBy?.name ?? <span className="text-muted-foreground">Không rõ</span>}</ViewFact>
             {plan.note ? <ViewFact label="Mô tả" wide>{plan.note}</ViewFact> : null}
           </dl>
         ) : (
@@ -279,12 +279,12 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
           </div>
           <TextField control={control} name="title" label="Tên kế hoạch" rule="NAME" rules={{ required: "Nhập tên kế hoạch" }}
             className="sm:col-span-2" placeholder="VD: Kế hoạch mua sắm thiết bị dạy học năm học 2026-2027" />
-          <DateField control={control} name="planDate" label="Ngày lập" rules={{ required: "Chọn ngày lập" }} />
+          <DateField control={control} name="planDate" label="Ngày lập" dateRule="PAST_OR_TODAY" rules={{ required: "Chọn ngày lập" }} />
           <RefField control={control} name="schoolYear" resource="school_years" label="Năm học" required labelField="name" current={plan?.schoolYear ?? undefined} />
           <div className="grid gap-2">
             <Label>Người lập</Label>
             <Input readOnly tabIndex={-1} className="bg-muted/60"
-              value={plan ? (plan.createdBy?.name ?? "—") : (me?.fullName ?? me?.username ?? "")} />
+              value={plan ? (plan.createdBy?.name ?? "Không rõ") : (me?.fullName ?? me?.username ?? "")} />
           </div>
           <TextareaField control={control} name="note" label="Mô tả" rule="LONG_TEXT" max={1000} inGrid placeholder="Mục đích, phạm vi của kế hoạch" />
         </fieldset>
@@ -581,7 +581,7 @@ function PlanLinesTable({ lines, groups, editable, onPlanned, onPrice, onApplyPr
                       <MoneyInput value={l.unitPrice} onChange={(v) => onPrice(l.lineId, v)} placeholder="Nhập giá"
                         aria-label="Đơn giá dự toán" aria-invalid={!off && !price ? true : undefined}
                         maxValue={numberMax("MONEY")} className="ms-auto h-8 w-full text-right" />
-                    ) : l.unitPrice != null ? money.format(l.unitPrice) : "—"}
+                    ) : l.unitPrice != null ? money.format(l.unitPrice) : <span className="text-muted-foreground text-xs">Chưa có giá</span>}
                     {editable && l.proposedUnitPrice != null && Number(l.unitPrice) !== Number(l.proposedUnitPrice) ? (
                       <span className="text-muted-foreground mt-1 block text-[0.6875rem]">Trường tham khảo {money.format(l.proposedUnitPrice)}</span>
                     ) : null}
@@ -725,7 +725,7 @@ export function PlanReviewButton({ plan, step, onDone }: { plan: ProcurementPlan
           confirmLabel={text.label}
           busy={busy}
           keepOpen
-          confirmDisabled={step === "return" && !note.trim()}
+          confirmDisabled={step === "return" && !!textError("REASON", "Lý do", note.trim() || "", 500, 5) || (step === "return" && !note.trim())}
           onConfirm={() => void run()}
         >
           <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} maxLength={maxLengthOf("NOTE")}
@@ -733,19 +733,6 @@ export function PlanReviewButton({ plan, step, onDone }: { plan: ProcurementPlan
         </ConfirmContent>
       </AlertDialog>
     </>
-  );
-}
-
-/** In: bản in là chính màn này — thanh bên, nút bấm và thẻ tóm tắt tự ẩn khi in. */
-/** In kế hoạch — dòng trong menu ⚙ của màn kế hoạch. Đóng menu rồi mới in, kẻo menu nằm trên bản in. */
-export function PrintButton() {
-  const menu = useRowActionsMenu();
-  return (
-    <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM}
-      onClick={() => { menu?.close(); setTimeout(() => window.print(), 200); }}>
-      <Printer />
-      In kế hoạch
-    </Button>
   );
 }
 

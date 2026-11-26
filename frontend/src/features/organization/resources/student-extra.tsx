@@ -51,7 +51,7 @@ function StudentFields({ control, record }: { control: Control<any>; record?: an
             ...(schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }] : []),
             ...(yearId ? [{ field: "schoolYear.id", operator: "eq" as const, value: yearId }] : []),
           ]} />
-        <DateField control={control} name="birthDate" label="Ngày sinh" dateRule="PAST_OR_TODAY" />
+        <DateField control={control} name="birthDate" label="Ngày sinh" dateRule="PAST_OR_TODAY" rules={BIRTH_DATE_RULES} />
         <SelectField control={control} name="gender" label="Giới tính" options={GENDER_OPTIONS} placeholder="Chọn giới tính" />
       </div>
     </>
@@ -123,7 +123,7 @@ function StudentFormBody({ control, record, config, inDialog }: { control: any; 
         </div>
         <NeedBox on={need("info", "Mã HS")}><CatalogCodeField control={control} config={config} fill /></NeedBox>
         <NeedBox on={need("info", "Họ và tên")}><CatalogNameField control={control} config={config} /></NeedBox>
-        <DateField control={control} name="birthDate" label="Ngày sinh" dateRule="PAST_OR_TODAY" />
+        <DateField control={control} name="birthDate" label="Ngày sinh" dateRule="PAST_OR_TODAY" rules={BIRTH_DATE_RULES} />
         <SelectField control={control} name="gender" label="Giới tính" options={GENDER_OPTIONS} placeholder="Chọn giới tính" />
       </NavSectionBox>
       <NavSectionBox k="study" title="Học tập">
@@ -242,6 +242,15 @@ function StudentFormFooterNote({ control }: { control: any }) {
   return n ? <span className="text-warning-text text-sm">Còn {n} ô bắt buộc chưa điền</span> : null;
 }
 
+/** Cùng luật máy chủ (`StudentService.birthDateViolation`): học sinh từ 3 đến 25 tuổi tính tới hôm nay. */
+const BIRTH_DATE_RULES = { validate: { plausibleAge: (v: unknown) => {
+  if (!v) return true;
+  const [y, m, d] = String(v).slice(0, 10).split("-").map(Number);
+  const now = new Date();
+  const age = now.getFullYear() - y - (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d) ? 1 : 0);
+  return (age >= 3 && age <= 25) || "Ngày sinh không hợp lý — học sinh phải từ 3 đến 25 tuổi";
+} } };
+
 export const STUDENT_EXTRA = {
   FormBody: StudentFormBody,
   FormHeading: StudentFormHeading,
@@ -272,9 +281,9 @@ export const STUDENT_EXTRA = {
       id: "gender",
       header: "Giới tính",
       enableSorting: false,
-      cell: ({ row }) => genderText(row.original.gender),
+      cell: ({ row }) => (row.original.gender ? genderText(row.original.gender) : <span className="text-muted-foreground">Chưa khai</span>),
     },
-    refCell("class", "Lớp"),
+    refCell("class", "Lớp", "Chưa xếp lớp"),
   ] as ColumnDef<any, any>[],
   show: (r: any) => [
     { label: "Lớp", value: r?.class?.name ?? "—" },
@@ -329,7 +338,7 @@ export function ClassStudents({ record }: { record: any }) {
       ) : (
         <DetailTable columns={CLASS_STUDENT_COLUMNS} rows={rows} compact searchPlaceholder="Tìm mã, họ tên…"
           text={(r, c) => c.key === "birthDate" ? formatPlainDate(r.birthDate)
-            : c.key === "gender" ? genderText(r.gender)
+            : c.key === "gender" ? (r.gender ? genderText(r.gender) : "Chưa khai")
               : String((r as any)[c.key] ?? "")} />
       )}
     </section>

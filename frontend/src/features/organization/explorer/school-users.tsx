@@ -34,13 +34,13 @@ const STATUS = {
   locked: { label: "Bị khoá (bảo mật)", variant: "warning" },
 } as const;
 
-const dash = <span className="text-muted-foreground">—</span>;
+const muted = (text: string) => <span className="text-muted-foreground">{text}</span>;
 
 const COLUMNS: MiniColumn[] = [
   { header: "Tên đăng nhập", cell: (r) => <span className="font-mono text-sm">{r.username}</span>, className: "w-56" },
   { header: "Họ tên", cell: (r) => r.fullName },
-  { header: "Email", cell: (r) => (r.email?.endsWith("@qltb.local") ? dash : r.email) },
-  { header: "Vai trò", cell: (r) => r.roles?.map((x: any) => x.name).join(", ") || dash },
+  { header: "Email", cell: (r) => (r.email?.endsWith("@qltb.local") ? muted("Chưa có email") : r.email) },
+  { header: "Vai trò", cell: (r) => r.roles?.map((x: any) => x.name).join(", ") || muted("Chưa gán vai trò") },
   { header: "Phạm vi", cell: (r) => <CampusScopeBadge campus={r.campus} /> },
   {
     header: "Trạng thái",

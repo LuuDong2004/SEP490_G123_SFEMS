@@ -21,4 +21,6 @@ public interface DepartmentOfEducationRepository
      * một thông báo về constraint thay vì về trường.
      */
     Optional<DepartmentOfEducation> findByCodeIgnoreCase(String code);
+
+    java.util.List<DepartmentOfEducation> findByNameIgnoreCase(String name);
 }

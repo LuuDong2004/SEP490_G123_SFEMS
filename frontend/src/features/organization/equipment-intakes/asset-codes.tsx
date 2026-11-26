@@ -50,7 +50,7 @@ export function AssetCodesCell({ assets, loading, open, onToggle }: {
   onToggle: () => void;
 }) {
   if (loading) return <span className="text-muted-foreground text-xs">Đang tải…</span>;
-  if (!assets || assets.length === 0) return <span className="text-muted-foreground">—</span>;
+  if (!assets || assets.length === 0) return <span className="text-muted-foreground">Chưa có thiết bị</span>;
   // Luôn "N thiết bị ⌄", kể cả một cái (trưởng nhóm 15/11/2026: để chung một kiểu) — mã, serial, vị trí, tình trạng nằm
   // trong danh sách xổ ra.
   return (
