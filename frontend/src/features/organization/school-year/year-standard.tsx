@@ -218,7 +218,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
 
   if (isError && !d) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   // Không cột Hỏng / mất (trưởng nhóm 24/11/2026).
-  const cols = 5 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
+  const cols = 6 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -304,6 +304,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                   </TableHead>
                 ) : null}
                 <TableHead className="min-w-[14rem]">Thiết bị</TableHead>
+                <TableHead className="w-24">ĐVT</TableHead>
                 {/* Cột số rộng đều nhau, căn phải; cột Thiết bị lấy phần còn lại (không để cột nào giãn lệch). */}
                 <TableHead className={NUM_COL}>{showAdjusted ? "Cần theo TT" : "Cần có"}</TableHead>
                 {showAdjusted ? <TableHead className={NUM_COL}>Cần sau điều chỉnh</TableHead> : null}
@@ -363,6 +364,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                       </div>
                       ) : null}
                     </TableCell>
+                    <TableCell className="text-muted-foreground truncate" title={r.unitName ?? undefined}>{r.unitName ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.requiredTt == null ? "—" : num.format(r.requiredTt)}</TableCell>
                     {showAdjusted ? (
                       <TableCell className={cn("text-right tabular-nums", r.requiredAdjusted !== r.requiredTt && "text-primary font-semibold")}>
