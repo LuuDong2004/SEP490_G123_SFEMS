@@ -1,6 +1,6 @@
 package com.g123.sfems.domain.school.procurement;
 
-import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
@@ -8,8 +8,6 @@ import com.g123.sfems.shared.security.rowlevel.RowLevelResource;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -26,9 +24,9 @@ import org.hibernate.annotations.BatchSize;
 /**
  * Đề xuất mua sắm của một trường.
  *
- * <p>Hai bước duyệt: lãnh đạo trường, rồi cơ quan quản lý (UBND với Tiểu học,
- * THCS; Sở với THPT). Duyệt xong đề xuất CHƯA có tiền — nó chờ được đưa vào kế
- * hoạch mua sắm của cơ quan quản lý. Kế hoạch được duyệt thì đề xuất hoàn tất, và
+ * <p>Trường xin Sở cấp kinh phí: nêu thiết bị, số lượng, giá tham khảo và lý do đề xuất. Nguồn kinh phí do Sở
+ * quyết định khi lập kế hoạch, không do trường chọn (301). Hai bước duyệt: lãnh đạo trường, rồi Sở. Duyệt xong
+ * đề xuất CHƯA có tiền — nó chờ được đưa vào kế hoạch mua sắm của Sở. Kế hoạch được duyệt thì đề xuất hoàn tất, và
  * từ đó trường lập phiếu nhập khi hàng về.
  */
 @RowLevelResource("purchase_proposals")
@@ -42,16 +40,17 @@ public class PurchaseProposal extends SchoolVoucher {
     @Column(name = "budget_year")
     private Integer budgetYear;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "funding_source", length = 30)
-    private FundingSource fundingSource;
-
     @Column(length = 1000)
     private String reason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plan_id")
     private ProcurementPlan plan;
+
+    /** Cơ sở của người lập (297): tài khoản một cơ sở lập thì ghi cơ sở đó; trống = cơ sở chính. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
 
     /** Phiếu nhập lập từ đề xuất này khi hàng về. */
     @Column(name = "intake_id")
@@ -77,12 +76,6 @@ public class PurchaseProposal extends SchoolVoucher {
         return ApprovalFlowType.PURCHASE_PROPOSALS.defaultSteps();
     }
 
-
-    @Override
-    public BigDecimal approvalAmount() {
-        return totalAmount();
-    }
-
     public BigDecimal totalAmount() {
         return lines.stream().map(PurchaseProposalLine::amount).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -104,20 +97,20 @@ public class PurchaseProposal extends SchoolVoucher {
         this.budgetYear = budgetYear;
     }
 
-    public FundingSource getFundingSource() {
-        return fundingSource;
-    }
-
-    public void setFundingSource(FundingSource fundingSource) {
-        this.fundingSource = fundingSource;
-    }
-
     public String getReason() {
         return reason;
     }
 
     public void setReason(String reason) {
         this.reason = reason;
+    }
+
+    public Campus getCampus() {
+        return campus;
+    }
+
+    public void setCampus(Campus campus) {
+        this.campus = campus;
     }
 
     public ProcurementPlan getPlan() {

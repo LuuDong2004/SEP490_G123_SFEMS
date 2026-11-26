@@ -32,6 +32,7 @@ public final class NormAdjustments {
      */
     private static final Map<NormBasis, Integer> RANK = Map.of(
             NormBasis.PER_STUDENT, 0,
+            NormBasis.PER_ROOM_STUDENT, 0,
             NormBasis.PER_CLASS, 1,
             NormBasis.PER_TEACHER, 1,
             NormBasis.PER_ROOM, 1,
@@ -39,6 +40,7 @@ public final class NormAdjustments {
 
     private static final Map<NormBasis, String> PER = Map.of(
             NormBasis.PER_STUDENT, "học sinh",
+            NormBasis.PER_ROOM_STUDENT, "học sinh trong phòng bộ môn",
             NormBasis.PER_CLASS, "lớp",
             NormBasis.PER_TEACHER, "giáo viên",
             NormBasis.PER_ROOM, "phòng bộ môn",

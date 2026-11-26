@@ -8,8 +8,7 @@ package com.g123.sfems.domain.school.voucher;
  *
  * <ul>
  *   <li>{@link #SCHOOL} — tài khoản gắn với trường của phiếu (lãnh đạo trường).</li>
- *   <li>{@link #MANAGING_BODY} — tài khoản gắn với cơ quan quản lý của trường:
- *       Sở GD&amp;ĐT.</li>
+ *   <li>{@link #MANAGING_BODY} — tài khoản gắn với Sở GD&amp;ĐT quản lý trường (lãnh đạo Sở).</li>
  * </ul>
  *
  * <p>Không có bước nào gắn với một chức danh cụ thể. Ai là lãnh đạo trường là

@@ -1,4 +1,4 @@
-import { useCan, useList, type CrudFilter } from "@refinedev/core";
+import { useCan, useList, type CrudFilter, type CrudSort } from "@refinedev/core";
 import { ChevronDown, ChevronRight, Eye, FoldVertical, Pencil, Plus, Search, Trash2, UnfoldVertical } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
@@ -129,6 +129,7 @@ export function MiniTable({
   groupSummary,
   facet,
   choice,
+  sorters,
   extraActions,
   createMenu,
   tools,
@@ -189,6 +190,8 @@ export function MiniTable({
   groupSummary?: (rows: any[]) => ReactNode;
   facet?: MiniFacet;
   choice?: MiniChoice;
+  /** Thứ tự máy chủ trả về — bảng có `groupBy` phân trang phải xếp theo nhóm để mỗi nhóm nằm liền một khúc. */
+  sorters?: CrudSort[];
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
@@ -237,6 +240,7 @@ export function MiniTable({
       ...(choice && choiceValue !== ALL ? [{ field: choice.field, operator: "eq" as const, value: choiceValue }] : []),
     ],
     pagination: { currentPage: page, pageSize },
+    sorters,
     queryOptions: { enabled: mayRead && !lazy },
   });
   const rows = result?.data ?? [];

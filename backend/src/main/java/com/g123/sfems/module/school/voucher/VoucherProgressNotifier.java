@@ -9,7 +9,6 @@ import com.g123.sfems.shared.security.CurrentUser;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.context.event.EventListener;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,28 +18,19 @@ import org.springframework.stereotype.Component;
  *
  * <p>"Người duyệt được" là cùng một luật với {@link VoucherWorkflow#inTier} cộng mã quyền
  * {@code <loại phiếu>:approve}: bước TRƯỜNG — tài khoản của trường đó; bước CƠ QUAN QUẢN LÝ / CƠ QUAN NHẬN —
- * tài khoản của cơ quan chủ quản trực tiếp của trường (hoặc trường nhận). Chỉ tài khoản đang hoạt động.
+ * tài khoản của Sở quản lý trường (hoặc trường nhận). Chỉ tài khoản đang hoạt động.
  *
  * <p>Nghe đồng bộ như {@link VoucherDecisionNotifier}: thông báo là bản ghi, đi cùng giao dịch của việc trình / duyệt.
  */
 @Component
 class VoucherProgressNotifier {
 
-    private static final String APPROVERS = """
-            SELECT DISTINCT u.id FROM users u
-            JOIN user_roles ur ON ur.user_id = u.id
-            JOIN role_permissions rp ON rp.role_id = ur.role_id
-            JOIN permissions p ON p.id = rp.permission_id
-            LEFT JOIN user_schools us ON us.id = u.id
-            LEFT JOIN (SELECT id, managing_body_id FROM user_sos) ag ON ag.id = u.id
-            WHERE p.code = ? AND u.status = 'ACTIVE' AND\s""";
-
     private final NotificationService notifications;
-    private final JdbcTemplate jdbc;
+    private final VoucherApprovers approvers;
 
-    VoucherProgressNotifier(NotificationService notifications, JdbcTemplate jdbc) {
+    VoucherProgressNotifier(NotificationService notifications, VoucherApprovers approvers) {
         this.notifications = notifications;
-        this.jdbc = jdbc;
+        this.approvers = approvers;
     }
 
     @EventListener
@@ -48,11 +38,8 @@ class VoucherProgressNotifier {
         if (event.step() == null) {
             return;
         }
-        String permission = event.resource() + ":approve";
-        List<Long> recipients = switch (event.step()) {
-            case SCHOOL -> jdbc.queryForList(APPROVERS + "us.school_id = ?", Long.class, permission, event.schoolId());
-            case MANAGING_BODY -> bodyApprovers(permission, event.schoolId());
-        };
+        // Lãnh đạo một cơ sở chỉ nhận phiếu chỉ chạm cơ sở của mình (cùng luật với VoucherWorkflow.inTier).
+        List<Long> recipients = approvers.of(event.resource(), event.step(), event.schoolId(), event.campuses());
         Long me = CurrentUser.id().orElse(null);
         String title = kind(event.resource()) + number(event.code()) + " chờ duyệt";
         String body = "Trường " + event.schoolName() + " trình, đang chờ " + stepLabel(event.step()) + " duyệt.";
@@ -76,15 +63,6 @@ class VoucherProgressNotifier {
                 link(event.resource(), event.voucherId()));
     }
 
-    private List<Long> bodyApprovers(String permission, Long schoolId) {
-        if (schoolId == null) {
-            return List.of();
-        }
-        return jdbc.queryForList(APPROVERS
-                + "ag.managing_body_id = (SELECT s.department_of_education_id FROM schools s WHERE s.id = ?)",
-                Long.class, permission, schoolId);
-    }
-
     private static String kind(String resource) {
         return ApprovalFlowType.of(resource).map(ApprovalFlowType::label).orElse("Phiếu");
     }
@@ -100,13 +78,13 @@ class VoucherProgressNotifier {
     private static String stepLabel(ApprovalStep step) {
         return switch (step) {
             case SCHOOL -> "lãnh đạo trường";
-            case MANAGING_BODY -> "cơ quan quản lý";
+            case MANAGING_BODY -> "lãnh đạo Sở";
         };
     }
 
     /** Phiếu vừa tới bước {@code step} (sau khi trình, hoặc sau khi bước trước duyệt). */
     record VoucherAwaiting(String resource, Long voucherId, String code, ApprovalStep step, Long schoolId,
-            String schoolName) {
+            String schoolName, java.util.Set<Long> campuses) {
     }
 
     /** Phiếu vừa qua bước duyệt cuối. {@code recipientId}: người trình, không có thì người lập. */

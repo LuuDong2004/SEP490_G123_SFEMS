@@ -1,6 +1,6 @@
 import { useCan, useGo, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, DoorOpen, Download, FileSpreadsheet, GraduationCap, History, MoreHorizontal, Package, RefreshCw, School, Trash2, Undo2, Upload, Users, MapPin } from "lucide-react";
+import { Backpack, Building2, DoorOpen, Download, FileSpreadsheet, GraduationCap, History, MoreHorizontal, Package, RefreshCw, School, Trash2, Undo2, Upload, Users, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import {
   UNDO_HOURS,
 } from "@/domains/data-import/types";
 
-import { AiSuggestButton } from "./ai-suggest";
+import { QuickFixButton } from "./quick-fix";
 import { CatalogPreviewBar } from "./catalog-preview";
 import { EditHistory } from "./edit-history";
 import { BATCHES_KEY, download } from "./download";
@@ -43,7 +43,9 @@ const SHEET_ICON: Record<string, React.ReactNode> = {
   building: <Building2 />,
   room: <DoorOpen />,
   class: <GraduationCap />,
+  student: <Backpack />,
   equipment: <Package />,
+  equipment_outside: <Package />,
   schools: <School />,
   wards: <MapPin />,
 };
@@ -299,12 +301,12 @@ export const DataImportBatch = () => {
   const warnings = batch.sheets.reduce((n, s) => n + s.warning, 0);
   // Hộp xác nhận nói lô sẽ THÊM gì, theo từng trang — "140 dòng" không cho biết sắp có gì trên hệ thống.
   const adding = batch.sheets.map((s) => ({ s, n: s.ok + s.warning })).filter((x) => x.n > 0)
-    .map(({ s, n }) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${s.sheet === "equipment" ? "dòng thiết bị" : s.title.toLowerCase()}`);
+    .map(({ s, n }) => `${n.toLocaleString("vi-VN", { useGrouping: false })} ${s.sheet === "equipment" ? "dòng thiết bị" : s.sheet === "equipment_outside" ? "dòng thiết bị ngoài danh mục" : s.title.toLowerCase()}`);
   const existing = batch.sheets.reduce((n, s) => n + s.exists, 0);
   // Hoàn tác chỉ trong UNDO_HOURS giờ sau khi ghi — máy chủ kiểm lại (OnboardingService.UNDO_HOURS).
   const undoUntil = batch.committedAt ? new Date(batch.committedAt).getTime() + UNDO_HOURS * 3_600_000 : 0;
   const canUndo = !draft && Date.now() < undoUntil;
-  const isEquipment = active === "equipment";
+  const isEquipment = active === "equipment" || active === "equipment_outside";
   const catalog = batch.kind !== "school_data";
   const subject = batch.school?.name ?? batch.kindTitle;
   const pv = batch.preview;
@@ -431,7 +433,7 @@ export const DataImportBatch = () => {
             }
             toolbar={<>
               {isFetching || busy ? <span className="text-muted-foreground text-xs">Đang kiểm tra…</span> : null}
-              {editable && !catalog && sheet.key !== "staff" ? <AiSuggestButton batchId={id!} sheet={sheet} rows={rows} onApply={editRows} onAddRooms={addRooms} /> : null}
+              {editable && !catalog ? <QuickFixButton batchId={id!} sheet={sheet} rows={rows} onApply={editRows} onAddRooms={addRooms} /> : null}
               <Button type="button" size="sm" variant="outline" className="px-2" onClick={() => setCompare(true)}
                 title="So sánh với tệp gốc — xem trang này đã đổi gì" aria-label="So sánh với tệp gốc">
                 <History />

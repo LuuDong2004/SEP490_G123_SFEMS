@@ -27,7 +27,6 @@ final class ProcurementPlanExcel {
 
     private static final Locale VI = Locale.forLanguageTag("vi-VN");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final Map<Integer, String> PRIORITY = Map.of(1, "Cấp thiết", 2, "Cần", 3, "Nên có");
     private static final Map<ProcurementPlan.Status, String> STATUS = Map.of(
             ProcurementPlan.Status.DRAFT, "Nháp",
             ProcurementPlan.Status.PENDING, "Chờ duyệt",
@@ -67,9 +66,7 @@ final class ProcurementPlanExcel {
                 new Column("school", "Trường", "text"),
                 new Column("catalog_code", "Mã DM thiết bị", "text"),
                 new Column("name", "Thiết bị", "text"),
-                new Column("specification", "Thông số", "text"),
                 new Column("unit", "Đơn vị tính", "text"),
-                new Column("priority", "Mức ưu tiên", "text"),
                 new Column("requested", "Số đề nghị", "number"),
                 new Column("planned", "Số đưa vào kế hoạch", "number"),
                 new Column("unit_price", "Đơn giá (đ)", "money"),
@@ -92,9 +89,7 @@ final class ProcurementPlanExcel {
                 row.put("catalog_code", l.getCatalog() == null ? null : l.getCatalog().getCode());
                 row.put("name", l.getName() != null ? l.getName()
                         : l.getCatalog() == null ? null : l.getCatalog().getName());
-                row.put("specification", l.getSpecification());
                 row.put("unit", l.getUnitName());
-                row.put("priority", l.getPriority() == null ? null : PRIORITY.get(l.getPriority()));
                 row.put("requested", asked);
                 row.put("planned", kept);
                 row.put("unit_price", l.effectiveUnitPrice());

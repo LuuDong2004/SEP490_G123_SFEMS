@@ -5,8 +5,8 @@ import java.util.Set;
 
 /**
  * Các trang của tệp dữ liệu đầu vào, theo THỨ TỰ GHI: trang sau tham chiếu mã của trang trước (khối nhà
- * cần cơ sở và cán bộ phụ trách, phòng cần khối nhà, lớp cần phòng và giáo viên, thiết bị cần phòng và người
- * quản lý). Cán bộ đứng trước khối nhà vì khối nhà, phòng đều có cột "Mã cán bộ phụ trách".
+ * cần cơ sở và cán bộ phụ trách, phòng cần khối nhà, lớp cần phòng và giáo viên, học sinh cần lớp, thiết bị cần
+ * phòng và người quản lý). Cán bộ đứng trước khối nhà vì khối nhà, phòng đều có cột "Mã cán bộ phụ trách".
  *
  * <p>Trang được nhận ra theo DÒNG TIÊU ĐỀ (đủ các cột bắt buộc), không theo tên trang: trường đổi tên trang,
  * xếp lại thứ tự hay chèn dòng ghi chú lên đầu đều không sao. Mỗi cột nhận thêm các tên hay gặp ở tệp của
@@ -89,7 +89,7 @@ public enum OnboardingSheet {
             col("note", "Ghi chú", false, ""))),
 
     CLASS("Lớp học", List.of(
-            col("code", "Tên lớp", true, "Chữ, số, khoảng trắng và . _ - /, vd 6A1, 1/1", "Lớp", "Mã lớp", "Lớp học"),
+            col("code", "Mã lớp", true, "Chữ, số, khoảng trắng và . _ - /, vd 6A1, 1/1", "Lớp", "Tên lớp", "Lớp học"),
             col("grade", "Khối lớp", true, "Vd Lớp 6", "Khối", "Khối học"),
             col("year", "Năm học", true, "Vd 2026-2027", "Niên khóa"),
             col("students", "Sĩ số", true, "Số học sinh của lớp", "Số học sinh", "Số HS", "Tổng số học sinh",
@@ -97,6 +97,20 @@ public enum OnboardingSheet {
             col("teacher", "Mã giáo viên chủ nhiệm", false, "Theo trang Cán bộ – giáo viên", "Giáo viên chủ nhiệm",
                     "GVCN", "Mã GVCN", "Chủ nhiệm"),
             col("room", "Mã phòng học", false, "Theo trang Phòng", "Phòng học", "Mã phòng", "Phòng"),
+            col("note", "Ghi chú", false, ""))),
+
+    // Danh sách học sinh (304): lớp có học sinh thì sĩ số tự đếm từ trang này. Lớp theo trang Lớp học của tệp hoặc
+    // lớp đã có trên hệ thống; năm học suy ra từ lớp.
+    STUDENT("Học sinh", List.of(
+            col("code", "Mã học sinh", true, "Mã do trường đặt (hoặc mã trên phần mềm cũ), duy nhất trong một lớp",
+                    "Mã HS", "Mã số học sinh", "Mã số HS", "Mã định danh học sinh", "Mã học viên", "MSHS"),
+            col("name", "Họ và tên", true, "Họ và tên đầy đủ, có dấu", "Họ tên", "Tên học sinh", "Họ tên học sinh",
+                    "Họ và tên học sinh", "Học sinh"),
+            col("class", "Mã lớp", true, "Tên lớp như trang Lớp học, vd 10A1", "Lớp", "Tên lớp", "Lớp học",
+                    "Lớp đang học"),
+            col("birthDate", "Ngày sinh", false, "dd/mm/yyyy", "Ngày tháng năm sinh", "Ngày, tháng, năm sinh",
+                    "NTNS", "Sinh ngày"),
+            col("gender", "Giới tính", false, "Nam hoặc Nữ", "Phái", "Nam/Nữ", "Nam / Nữ", "GT"),
             col("note", "Ghi chú", false, ""))),
 
     EQUIPMENT("Thiết bị", List.of(
@@ -126,8 +140,6 @@ public enum OnboardingSheet {
                     "Cán bộ quản lý", "Người sử dụng", "Người giữ", "Người phụ trách", "Mã người quản lý"),
             col("originalValue", "Nguyên giá (đ)", false, "Giá của MỘT cái. Không bắt buộc",
                     "Nguyên giá", "Đơn giá", "Giá", "Giá trị", "Giá mua", "Nguyên giá một cái"),
-            col("remainingValue", "Giá trị còn lại (đ)", false, "Để trống = bằng nguyên giá", "Giá trị còn lại",
-                    "GTCL", "Còn lại", "Giá trị còn lại một cái"),
             col("receivedDate", "Ngày tiếp nhận", false, "dd/mm/yyyy. Để trống thì lấy 01/01 của năm đưa vào sử dụng",
                     "Ngày nhận", "Ngày ghi tăng", "Ngày tăng", "Ngày mua", "Ngày nhập", "Ngày đưa vào sử dụng",
                     "Ngày sử dụng", "Ngày bắt đầu sử dụng"),
@@ -142,7 +154,33 @@ public enum OnboardingSheet {
             col("condition", "Tình trạng", false, "Tốt; Khá; Trung bình; Kém; Hỏng; Không sử dụng "
                     + "(nhận cả Bình thường, Hỏng nhẹ, Hỏng nặng). Để trống = Tốt", "Hiện trạng",
                     "Tình trạng sử dụng", "Chất lượng", "Tình trạng hiện tại"),
-            col("note", "Ghi chú", false, "", "Ghi chú khác")));
+            col("note", "Ghi chú", false, "", "Ghi chú khác"))),
+
+    /**
+     * Thiết bị trường có mà danh mục tối thiểu không liệt kê — trang riêng của tệp mẫu, có cột Môn để thiết bị ngoài
+     * danh mục mang môn ngay khi tạo (trước đây chỉ suy được từ môn của phòng, còn lại "Chưa gắn môn"). Cùng các cột
+     * của trang Thiết bị, bỏ cột Mã DM; ghi như trang Thiết bị.
+     */
+    EQUIPMENT_OUTSIDE("Thiết bị ngoài danh mục", outsideColumns());
+
+    /** Cột trang Thiết bị ngoài danh mục: như trang Thiết bị, thay cột Mã DM bằng cột Môn (bắt buộc). */
+    private static List<Column> outsideColumns() {
+        List<Column> out = new java.util.ArrayList<>();
+        for (Column c : EQUIPMENT.columns()) {
+            if (c.key().equals("catalog")) {
+                out.add(col("subject", "Môn", true, "Môn dùng thiết bị, vd Hóa học. Dùng cho mọi môn thì ghi Dùng chung",
+                        "Môn học", "Bộ môn"));
+            } else {
+                out.add(c);
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** Hai trang thiết bị — cùng cách kiểm, cùng cách ghi. */
+    public boolean equipment() {
+        return this == EQUIPMENT || this == EQUIPMENT_OUTSIDE;
+    }
 
     /**
      * Cột bắt buộc trong DỮ LIỆU nhưng không bắt buộc có trên TỆP: thiếu cột này trang vẫn được nhận, ô trống thì

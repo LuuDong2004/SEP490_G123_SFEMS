@@ -1,13 +1,17 @@
-import { useCan, useGo, useList } from "@refinedev/core";
+import { useCan, useGo, useList, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CloudUpload, Download, FileSpreadsheet, Inbox, Upload, X } from "lucide-react";
-import { useRef, useState, type DragEvent } from "react";
+import { CloudUpload, Download, FileSpreadsheet, Inbox, LockKeyhole, Trash2, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 
 import { kyInstance } from "@/shared/api/data";
+import { CrossLink } from "@/shared/components/cross-link";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
+import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { FillBox } from "@/shared/components/layout/fill-box";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { errorMessage } from "@/shared/lib/api-error";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDate, formatDateTime } from "@/shared/lib/format";
+import { useOpeningBalance } from "@/shared/hooks/use-opening-balance";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -22,7 +26,9 @@ import { Checkbox } from "@/shared/ui/checkbox";
 
 import { BATCHES_KEY, download } from "./download";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { DataTablePagination } from "@/shared/components/data-table/data-table-pagination";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { usePersistentState } from "@/shared/hooks/use-persistent-state";
 
 function fileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} byte`;
@@ -72,10 +78,18 @@ function useKinds(): ImportKind[] {
   return ["school_data", ...(canSchools ? ["schools" as const] : []), ...(canWards ? ["wards" as const] : [])];
 }
 
-function templateOf(kind: ImportKind) {
-  return kind === "school_data"
-    ? download("data_imports/template", "Mẫu dữ liệu đầu vào.xlsx")
-    : download(`data_imports/template?kind=${kind}`, `Mẫu ${KIND_SHORT[kind].toLowerCase()}.xlsx`);
+/**
+ * Tệp mẫu. Dữ liệu của trường: có {@code school} thì tệp ĐIỀN SẴN của trường đó (danh mục thiết bị tối thiểu, số phải có,
+ * dữ liệu đã có); không có thì máy chủ lấy trường của tài khoản, tài khoản không gắn trường được mẫu chung (vẫn đủ
+ * danh mục thiết bị tối thiểu, chưa có số phải có).
+ */
+function templateOf(kind: ImportKind, school?: { id: number; name: string } | null) {
+  if (kind !== "school_data") {
+    return download(`data_imports/template?kind=${kind}`, `Mẫu ${KIND_SHORT[kind].toLowerCase()}.xlsx`);
+  }
+  return school
+    ? download(`data_imports/template?schoolId=${school.id}`, `Mẫu dữ liệu đầu vào - ${school.name}.xlsx`)
+    : download("data_imports/template", "Mẫu dữ liệu đầu vào.xlsx");
 }
 
 const DEACTIVATE_LABEL: Partial<Record<ImportKind, string>> = {
@@ -201,9 +215,9 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
                 </Label>
               ) : <span />}
               <button type="button" className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
-                onClick={() => void templateOf(kind)}>
+                onClick={() => void templateOf(kind, picked)}>
                 <Download className="size-3.5" />
-                Tệp mẫu
+                {picked && kind === "school_data" ? "Tệp mẫu điền sẵn của trường" : "Tệp mẫu"}
               </button>
             </div>
           </div>
@@ -226,20 +240,60 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
 export const DataImports = () => {
   const go = useGo();
   const mayWrite = useCan({ resource: "data_imports", action: "create" }).data?.can ?? false;
+  const mayDelete = useCan({ resource: "data_imports", action: "delete" }).data?.can ?? false;
+  const { open: notify } = useNotification();
+  const queryClient = useQueryClient();
+  // Lô đang chờ ghi muốn xoá (hộp xác nhận); lô đã ghi thì hoàn tác trong lô, không xoá ở đây.
+  const [removing, setRemoving] = useState<ImportBatch | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const kinds = useKinds();
   // Tab loại dữ liệu: lọc bảng, và là loại của "Tải tệp mẫu" / "Tải tệp lên" — không chọn lại trong menu nút.
   const [tab, setTab] = useState<ImportKind>("school_data");
   const kind = kinds.includes(tab) ? tab : "school_data";
   const [upload, setUpload] = useState<{ seq: number; open: boolean }>({ seq: 0, open: false });
-  const { data, isLoading } = useQuery({
-    queryKey: BATCHES_KEY,
-    queryFn: ({ signal }) => kyInstance.get("data_imports", { signal }).json<ImportBatch[]>(),
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState<number>("dataImports.pageSize", 20, "local");
+  useEffect(() => setPage(1), [kind, pageSize]);
+  const { data, isLoading } = useQuery<{ rows: ImportBatch[]; total: number }>({
+    queryKey: [...BATCHES_KEY, kind, page, pageSize],
+    // Lật trang thì trang cũ đứng yên tới khi trang mới về; đổi loại dữ liệu thì không giữ dòng của loại kia.
+    placeholderData: (previous, query) => (query?.queryKey[BATCHES_KEY.length] === kind ? previous : undefined),
+    queryFn: async ({ signal }) => {
+      const res = await kyInstance.get("data_imports", { signal,
+        searchParams: { kind, _start: String((page - 1) * pageSize), _end: String(page * pageSize) } });
+      return { rows: await res.json<ImportBatch[]>(), total: Number(res.headers.get("X-Total-Count") ?? 0) };
+    },
   });
-  const all = Array.isArray(data) ? data : [];
-  const kindOf = (b: ImportBatch): ImportKind => b.kind ?? "school_data";
-  const batches = all.filter((b) => kindOf(b) === kind);
+  const { data: counts } = useQuery({
+    queryKey: [...BATCHES_KEY, "counts"],
+    enabled: kinds.length > 1,
+    queryFn: ({ signal }) => kyInstance.get("data_imports/counts", { signal }).json<Partial<Record<ImportKind, number>>>(),
+  });
+  const batches = data?.rows ?? [];
+  // Trường đã khoá khai thiết bị ban đầu: trang Thiết bị của tệp không ghi nữa (máy chủ đánh dấu bỏ qua từng dòng).
+  const lockedAt = useOpeningBalance().data?.closedAt ?? null;
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  // Xoá lô cuối của trang cuối: lùi về trang còn dòng.
+  useEffect(() => {
+    if (data && page > pageCount) setPage(pageCount);
+  }, [data, page, pageCount]);
   const schoolCol = kind === "school_data";
-  const cols = schoolCol ? 6 : 5;
+  const cols = (schoolCol ? 6 : 5) + (mayDelete ? 1 : 0);
+  const remove = async () => {
+    if (!removing) return;
+    setRemoveBusy(true);
+    try {
+      await kyInstance.delete(`data_imports/${removing.id}`);
+      notify?.({ type: "success", message: `Đã xoá lô ${removing.fileName}` });
+      await queryClient.invalidateQueries({ queryKey: BATCHES_KEY });
+      setRemoving(null);
+    } catch (error) {
+      notify?.({ type: "error", message: await errorMessage(error) });
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
 
   return (
     <ListView>
@@ -256,11 +310,24 @@ export const DataImports = () => {
         </>
       } />
       <FillBox>
+      {lockedAt && kind === "school_data" ? (
+        <div className="bg-info-subtle text-info-text mb-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+          <LockKeyhole className="size-4 shrink-0" />
+          <span>
+            Trường đã khoá khai thiết bị ban đầu từ {formatDate(lockedAt)}. Hệ thống không nhận trang Thiết bị của tệp tải
+            lên, chỉ ghi cơ sở, cán bộ, khối nhà, phòng, lớp. Thiết bị mới lập{" "}
+            <CrossLink to="/equipment-intakes/create" resource="equipment_intakes" action="create" plain
+              className="font-medium underline">
+              phiếu ghi tăng
+            </CrossLink>.
+          </span>
+        </div>
+      ) : null}
       {kinds.length > 1 ? (
         <Tabs value={kind} onValueChange={(v) => setTab(v as ImportKind)} className="pb-3">
           <TabsList aria-label="Loại dữ liệu">
             {kinds.map((k) => {
-              const n = all.filter((b) => kindOf(b) === k).length;
+              const n = counts?.[k] ?? 0;
               return (
                 <TabsTrigger key={k} value={k} title={KIND_HINT[k]}>
                   {KIND_SHORT[k]}
@@ -271,7 +338,14 @@ export const DataImports = () => {
           </TabsList>
         </Tabs>
       ) : null}
-      <Card className="min-h-0 flex-1 py-0">
+      <AlertDialog open={!!removing} onOpenChange={(o) => !o && !removeBusy && setRemoving(null)}>
+        {removing ? (
+          <ConfirmContent tone="danger" title={`Xoá lô ${removing.fileName}?`}
+            description="Chỉ xoá dữ liệu đang chờ của lô này, hệ thống không có gì thay đổi. Xoá rồi không lấy lại được."
+            cancelLabel="Không xoá" confirmLabel="Xoá" busy={removeBusy} keepOpen onConfirm={() => void remove()} />
+        ) : null}
+      </AlertDialog>
+      <Card className="min-h-0 flex-1 gap-0 py-0">
         <CardContent className="flex min-h-0 flex-1 flex-col overflow-auto [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b px-0">
           <Table>
             <TableHeader sticky>
@@ -282,6 +356,7 @@ export const DataImports = () => {
                 <TableHead>Thời gian</TableHead>
                 <TableHead>Kết quả</TableHead>
                 <TableHead>Trạng thái</TableHead>
+                {mayDelete ? <TableHead className="w-12"><span className="sr-only">Xoá</span></TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,7 +368,10 @@ export const DataImports = () => {
                   <TableRow key={b.id} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => go({ to: `/data-imports/${b.id}` })}>
                     {schoolCol ? <TableCell className="font-medium">{b.school?.name ?? "—"}</TableCell> : null}
                     <TableCell className="max-w-56 truncate">{b.fileName}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-56 truncate text-sm" title={b.createdBy ?? undefined}>{b.createdBy ?? "—"}</TableCell>
+                    {/* Vai trò người tải lên; họ tên khi rê chuột. */}
+                    <TableCell className="text-muted-foreground max-w-56 truncate text-sm" title={b.createdBy ?? undefined}>
+                      {b.createdByRole ?? b.createdBy ?? "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{formatDateTime(b.createdAt)}</TableCell>
                     <TableCell className="max-w-72 text-sm whitespace-normal">
                       {b.status === "COMMITTED"
@@ -305,6 +383,18 @@ export const DataImports = () => {
                     <TableCell>
                       <Badge variant={b.status === "COMMITTED" ? "success" : "info"}>{IMPORT_BATCH_STATUS[b.status]}</Badge>
                     </TableCell>
+                    {mayDelete ? (
+                      <TableCell className="w-12 text-right">
+                        {/* Chỉ lô đang chờ ghi xoá được; lô đã ghi thì vào lô bấm Hoàn tác. */}
+                        {b.status === "DRAFT" ? (
+                          <Button type="button" variant="ghost" size="icon-sm" title="Xoá lô" aria-label={`Xoá lô ${b.fileName}`}
+                            className="text-muted-foreground hover:text-destructive-text"
+                            onClick={(e) => { e.stopPropagation(); setRemoving(b); }}>
+                            <Trash2 />
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}
@@ -321,6 +411,12 @@ export const DataImports = () => {
             </div>
           ) : null}
         </CardContent>
+        {total > 10 ? (
+          <div className="shrink-0 border-t px-3 py-1.5">
+            <DataTablePagination currentPage={page} pageCount={pageCount} setCurrentPage={setPage} pageSize={pageSize}
+              setPageSize={setPageSize} total={total} />
+          </div>
+        ) : null}
       </Card>
       </FillBox>
     </ListView>

@@ -56,13 +56,13 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   rooms: "Phòng học, phòng bộ môn, kho của trường",
   subject_teams: "Tổ bộ môn và thành viên",
   school_classes: "Lớp học theo năm học",
+  students: "Học sinh theo lớp — sĩ số lớp tự đếm",
 
   // Báo cáo — tài sản
   report_equipment_by_school: "Số thiết bị theo từng trường",
   report_equipment_by_catalog: "Số lượng theo từng thiết bị trong danh mục",
   report_equipment_by_status: "Đang dùng, trong kho",
   report_equipment_by_condition: "Tốt, trung bình, kém",
-  report_equipment_list: "Danh sách thiết bị lọc theo trạng thái",
   report_equipment_ledger: "Bảng theo dõi thiết bị để in",
   report_inventory: "Kết quả các đợt kiểm kê",
   // Cơ sở vật chất
@@ -76,7 +76,7 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   report_vouchers: "Phiếu đang chờ duyệt, đã duyệt, bị trả lại",
   report_supply_expiry: "Vật tư, hoá chất sắp và đã hết hạn",
   // Mua sắm & định mức
-  report_purchase: "Thiết bị cần mua theo đề xuất",
+  report_purchase: "Đề xuất, đã vào kế hoạch, đã nhập về",
   report_adequacy: "Mức đáp ứng danh mục tối thiểu",
   // Dữ liệu & lưu trữ
   report_data_quality: "Thiết bị thiếu thông tin hồ sơ",
@@ -96,7 +96,6 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   code_rules: "Cách sinh mã tự động cho danh mục chung",
   school_code_rules: "Cách sinh mã phòng, khối nhà, cán bộ của trường",
   approval_flows: "Ai duyệt từng loại phiếu, theo thứ tự nào",
-  ai_settings: "Kết nối AI dùng khi nhập dữ liệu",
   // Dữ liệu
   data_transfer: "Nhập, xuất dữ liệu bằng tệp",
   // Giám sát

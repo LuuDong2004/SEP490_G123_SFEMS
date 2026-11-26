@@ -74,6 +74,12 @@ export function useLiquid<B extends HTMLElement = HTMLElement>(key: unknown, { s
     placeRef.current(true);
   }, [key]);
 
+  // Nội dung tab đổi mà khung không đổi cỡ (số đếm, số lỗi trên tab mất đi khi sửa xong): đo lại sau mỗi lần dựng, không
+  // chạy hiệu ứng — không có dòng này nền giữ bề rộng cũ, phủ lấn sang tab bên cạnh. Đúng chỗ rồi thì `place` thôi ngay.
+  useLayoutEffect(() => {
+    if (!first.current) placeRef.current(false);
+  });
+
   // Phông chữ tải xong, khung đổi cỡ → đặt lại ngay, không chạy hiệu ứng.
   useEffect(() => {
     const box = boxRef.current;

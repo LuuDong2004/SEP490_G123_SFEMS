@@ -27,11 +27,7 @@ public record EquipmentSummary(
         String unitName,
         Boolean unitAllowsFraction,
         BigDecimal quantity,
-        /** Quy cách bao bì của lô (182): tên bao bì và lượng trong một bao bì theo {@code unitName}. */
-        String packUnitName,
-        BigDecimal packSize,
         BigDecimal originalValue,
-        BigDecimal remainingValue,
         Integer productionYear,
         Integer usageStartYear,
         LocalDate warrantyExpiry,
@@ -47,8 +43,7 @@ public record EquipmentSummary(
                 catalog == null ? null : new RefSummary(catalog.getId(), catalog.getCode(), catalog.getName()),
                 catalog == null ? null : catalog.getTrackingType().name(),
                 unit == null ? null : unit.getName(), unit == null ? null : unit.isAllowsFraction(), item.getQuantity(),
-                item.getPackUnit() == null ? null : item.getPackUnit().getName(), item.getPackSize(),
-                item.getOriginalValue(), item.getRemainingValue(), item.getProductionYear(),
+                item.getOriginalValue(), item.getProductionYear(),
                 item.getUsageStartYear(), item.getWarrantyExpiry(), item.getFundingSource(),
                 item.getOriginSource() == null ? null : item.getOriginSource().getName());
     }

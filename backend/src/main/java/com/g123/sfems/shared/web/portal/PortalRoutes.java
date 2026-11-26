@@ -80,7 +80,7 @@ public final class PortalRoutes {
 
     static {
         // Quản trị hệ thống — chỉ cổng Admin.
-        put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies", "ai_settings",
+        put(ADMIN_ONLY, ADMIN_ONLY, "users", "roles", "permissions", "row_level_policies",
                 "data_changes", "notification_type_settings", "mail_config");
         // Luồng phê duyệt (HT-08): chỉ quản trị viên cấu hình; chưa cấu hình thì dùng luồng mặc định trong code.
         put(ADMIN_ONLY, ADMIN_ONLY, "approval_flows");
@@ -125,6 +125,9 @@ public final class PortalRoutes {
         // Riêng trường — lối của lãnh đạo trường trên CHÍNH trường mình (trường lấy từ người gọi); quản trị không gắn
         // trường nên không mở ở cổng Admin (tài khoản do màn Người dùng quản lý).
         own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "school_code_rules", "school_profile");
+        // Danh sách học sinh (304): dữ liệu cá nhân của trẻ vị thành niên — chỉ cổng trường. Sở xem sĩ số qua lớp, quản trị
+        // viên không xem.
+        own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "students");
         // Nhập dữ liệu đầu vào: trường nhập của mình, Sở nhập danh sách trường; quản trị viên chỉ xem.
         put(EnumSet.of(SO, SCHOOL), EnumSet.of(SO, SCHOOL), "data_imports");
     }

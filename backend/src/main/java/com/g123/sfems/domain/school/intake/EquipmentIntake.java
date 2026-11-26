@@ -1,6 +1,5 @@
 package com.g123.sfems.domain.school.intake;
 
-import java.math.BigDecimal;
 import com.g123.sfems.domain.school.voucher.ApprovalFlowType;
 import com.g123.sfems.domain.school.voucher.ApprovalStep;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
@@ -61,20 +60,10 @@ public class EquipmentIntake extends SchoolVoucher {
         return intakeDate;
     }
 
-    /** Phiếu nhập chỉ duyệt ở cấp trường; UBND, Sở chỉ thấy số liệu trên báo cáo. */
+    /** Phiếu ghi tăng chỉ duyệt ở cấp trường; Sở chỉ thấy số liệu trên báo cáo. */
     @Override
     public List<ApprovalStep> approvalChain() {
         return ApprovalFlowType.EQUIPMENT_INTAKES.defaultSteps();
-    }
-
-
-    /** Tổng tiền của phiếu: đơn giá × số lượng thực nhận, cộng mọi dòng. */
-    @Override
-    public BigDecimal approvalAmount() {
-        return lines.stream()
-                .filter(l -> l.getUnitPrice() != null && l.getReceivedQuantity() != null)
-                .map(l -> l.getUnitPrice().multiply(BigDecimal.valueOf(l.getReceivedQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
 

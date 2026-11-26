@@ -5,6 +5,7 @@
 import type { ResourceProps } from "@refinedev/core";
 import {
   Activity,
+  Archive,
   Bell,
   BellRing,
   BookOpen,
@@ -25,7 +26,6 @@ import {
   Landmark,
   LayoutDashboard,
   LibraryBig,
-  ListFilter,
   Megaphone,
   Network,
   Plug,
@@ -169,11 +169,6 @@ export const resources: ResourceProps[] = withHelp(withModules([
     meta: { icon: <Stethoscope className="h-4 w-4" />, parent: "rpt_assets" },
   },
   {
-    name: "report_equipment_list",
-    list: "/reports/equipment-list",
-    meta: { icon: <ListFilter className="h-4 w-4" />, parent: "rpt_assets" },
-  },
-  {
     name: "report_equipment_ledger",
     list: "/reports/equipment-ledger",
     meta: { icon: <BookOpen className="h-4 w-4" />, parent: "rpt_assets" },
@@ -197,6 +192,13 @@ export const resources: ResourceProps[] = withHelp(withModules([
     name: "report_facility_standard",
     list: "/reports/facility-standard",
     meta: { icon: <ShieldCheck className="h-4 w-4" />, parent: "rpt_facilities" },
+  },
+  // Bản số liệu đã lưu: mở từ menu ⚙ của màn báo cáo, không có dòng menu riêng.
+  {
+    name: "report_snapshots",
+    list: "/report-snapshots",
+    show: "/report-snapshots/show/:id",
+    meta: { icon: <Archive className="h-4 w-4" />, hide: true },
   },
 
   // Section header. A resource with no route acts purely as a grouping node:

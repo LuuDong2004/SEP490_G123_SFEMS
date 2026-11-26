@@ -12,7 +12,6 @@ import {
   Gauge,
   History,
   ListChecks,
-  Lock,
   MapPin,
   Filter,
   Search,
@@ -80,8 +79,8 @@ function Gap({ value }: { value: number | null }) {
 
 /**
  * Chuẩn tối thiểu theo năm học của MỘT trường (màn D): ô chọn năm học và điểm trường; hai cột theo thông tư / theo điều
- * chỉnh, tỷ lệ đáp ứng hai số. Cả trường = cộng các điểm trường. Năm đã chốt đọc bản chốt (dải xanh), năm cũ chưa chốt
- * tính lại (dải vàng). Trường áp dụng điều chỉnh trên từng dòng (khi đã chọn một điểm trường).
+ * chỉnh, tỷ lệ đáp ứng hai số. Cả trường = cộng các điểm trường. Năm đã qua tính lại theo dữ liệu năm đó, thiết bị
+ * sau đợt kiểm kê (dải xanh). Trường áp dụng điều chỉnh trên từng dòng (khi đã chọn một điểm trường).
  */
 /** Cột số của bảng chuẩn: cùng bề rộng, căn phải. */
 const NUM_COL = "w-32 text-right";
@@ -108,6 +107,8 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
   const own = !schoolId;
   const canPropose = (useCan({ resource: "purchase_proposals", action: "create" }).data?.can ?? false) && own;
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Dòng đã tích thuộc bảng đang xem: đổi điểm trường / năm học thì bỏ chọn — không mang dòng của điểm này sang điểm khác.
+  useEffect(() => setSelected(new Set()), [campusId, yearId]);
 
   const rows = useMemo(() => d?.rows ?? [], [d]);
   const subjects = useMemo(() => [...new Set(rows.map((r) => r.subjectName ?? "Dùng chung"))], [rows]);
@@ -133,8 +134,12 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
     if (!d) return;
     setBusy(true);
     try {
+      // Điểm trường của chính dòng được tích (dòng cộng cả trường không có điểm trường = mọi điểm đang thiếu thiết bị đó);
+      // máy chủ gộp các phần cùng thiết bị thành một dòng đề xuất.
+      const byNorm = new Map(rows.map((r) => [r.normId, r]));
+      const lines = normIds.map((normId) => ({ normId, campusId: byNorm.get(normId)?.campusId ?? d.campusId }));
       const r = await kyInstance.post("year_standards/proposal", {
-        json: { schoolYearId: d.schoolYearId, lines: normIds.map((normId) => ({ normId, campusId: d.campusId })) },
+        json: { schoolYearId: d.schoolYearId, lines },
       }).json<{ proposalId: number; lines: number }>();
       notify?.({ type: "success", message: `Đã lập đề xuất mua sắm nháp ${r.lines} dòng` });
       setSelected(new Set());
@@ -213,7 +218,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
 
   if (isError && !d) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
   // Không cột Hỏng / mất (trưởng nhóm 24/11/2026).
-  const cols = 5 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
+  const cols = 6 + (showAdjusted ? 2 : 0) + (showOutside ? 1 : 0) + (canPropose ? 1 : 0);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -258,15 +263,11 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
           Xuất Excel
         </Button>
       </div>
-      {d?.source === "CLOSED" ? (
-        <div className="bg-success-subtle text-success-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
-          <Lock className="size-4" />
-          Đã chốt {d.closedAt} — số liệu theo bản chốt
-        </div>
-      ) : d?.source === "RECOMPUTED" ? (
-        <div className="bg-warning-subtle text-warning-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+      {d?.source === "RECOMPUTED" ? (
+        <div className="bg-info-subtle text-info-text flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
           <TriangleAlert className="size-4" />
-          Chưa chốt — tính lại theo lớp, phân công của năm học và thiết bị tại ngày cuối năm học; phòng theo hiện tại
+          Năm học đã qua — tính theo lớp, phân công của năm học đó và thiết bị sau đợt kiểm kê cuối cùng trong năm (chưa
+          kiểm kê thì tại ngày cuối năm học); phòng theo hiện tại
         </div>
       ) : null}
       {d ? (
@@ -303,6 +304,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                   </TableHead>
                 ) : null}
                 <TableHead className="min-w-[14rem]">Thiết bị</TableHead>
+                <TableHead className="w-24">ĐVT</TableHead>
                 {/* Cột số rộng đều nhau, căn phải; cột Thiết bị lấy phần còn lại (không để cột nào giãn lệch). */}
                 <TableHead className={NUM_COL}>{showAdjusted ? "Cần theo TT" : "Cần có"}</TableHead>
                 {showAdjusted ? <TableHead className={NUM_COL}>Cần sau điều chỉnh</TableHead> : null}
@@ -362,6 +364,7 @@ export function YearStandardView({ schoolId, onBack }: { schoolId?: number | nul
                       </div>
                       ) : null}
                     </TableCell>
+                    <TableCell className="text-muted-foreground truncate" title={r.unitName ?? undefined}>{r.unitName ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.requiredTt == null ? "—" : num.format(r.requiredTt)}</TableCell>
                     {showAdjusted ? (
                       <TableCell className={cn("text-right tabular-nums", r.requiredAdjusted !== r.requiredTt && "text-primary font-semibold")}>

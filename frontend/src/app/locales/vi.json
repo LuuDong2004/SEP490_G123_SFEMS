@@ -541,6 +541,15 @@
       "show": "Chi tiết lớp học"
     }
   },
+  "students": {
+    "students": "Học sinh",
+    "titles": {
+      "list": "Học sinh",
+      "create": "Thêm học sinh",
+      "edit": "Sửa học sinh",
+      "show": "Chi tiết học sinh"
+    }
+  },
   "subject_teams": {
     "subject_teams": "Tổ bộ môn",
     "titles": {
@@ -677,16 +686,16 @@
       "show": "Nhập dữ liệu đầu vào"
     }
   },
-  "ai_settings": {
-    "ai_settings": "Cấu hình AI",
-    "titles": {
-      "list": "Cấu hình AI"
-    }
-  },
   "notification_type_settings": {
     "notification_type_settings": "Cài đặt thông báo",
     "titles": {
       "list": "Cài đặt thông báo"
+    }
+  },
+  "mail_config": {
+    "mail_config": "Cấu hình thư",
+    "titles": {
+      "list": "Cấu hình thư"
     }
   },
   "system_status": {
@@ -726,9 +735,9 @@
     }
   },
   "report_purchase": {
-    "report_purchase": "Nhu cầu mua sắm",
+    "report_purchase": "Nhu cầu và kế hoạch mua sắm",
     "titles": {
-      "list": "Tổng hợp nhu cầu mua sắm"
+      "list": "Nhu cầu và kế hoạch mua sắm"
     }
   },
   "report_facilities": {
@@ -753,12 +762,6 @@
     "report_equipment_by_condition": "Theo tình trạng kỹ thuật",
     "titles": {
       "list": "Thiết bị theo tình trạng kỹ thuật"
-    }
-  },
-  "report_equipment_list": {
-    "report_equipment_list": "Danh sách theo trạng thái",
-    "titles": {
-      "list": "Danh sách thiết bị theo trạng thái"
     }
   },
   "report_data_quality": {

@@ -28,13 +28,15 @@ export type AssignmentCandidate = { id: number; code: string; name: string; camp
 
 export type CopyResult = { fromYearId: number; fromYearName: string; copied: number; skipped: number };
 
-/** Trạng thái hồ sơ năm học của một điểm trường / cả trường. */
-/** Hồ sơ năm học một bước (trưởng nhóm 24/11/2026): Đang khai → Đã chốt. Sở mở lại thì về Đang khai, ghi ở lịch sử. */
-export type ProfileStatus = "DRAFT" | "CLOSED";
+/**
+ * Hồ sơ năm học của cả trường (trưởng nhóm 25/11/2026): Đang khai → Đã xác nhận. Không khoá — xác nhận rồi vẫn sửa được,
+ * hồ sơ ghi lần sửa cuối.
+ */
+export type ProfileStatus = "DRAFT" | "CONFIRMED";
 
 export const PROFILE_STATUS_LABELS: Record<ProfileStatus, string> = {
   DRAFT: "Đang khai",
-  CLOSED: "Đã chốt",
+  CONFIRMED: "Đã xác nhận",
 };
 
 /** Một việc còn thiếu của một điểm trường — phải trống mới xác nhận được. */
@@ -44,9 +46,6 @@ export type CampusProfile = {
   campusId: number | null;
   campusName: string;
   primary: boolean;
-  status: "DRAFT" | "CONFIRMED";
-  confirmedAt: string | null;
-  confirmedBy: string | null;
   classes: number;
   students: number;
   teachers: number;
@@ -58,16 +57,6 @@ export type CampusProfile = {
   todos: ProfileTodo[];
 };
 
-export type ClosingInfo = {
-  id: number;
-  status: "CLOSED" | "REOPENED";
-  closedAt: string;
-  closedBy: string | null;
-  reopenedAt: string | null;
-  reopenedBy: string | null;
-  reopenReason: string | null;
-};
-
 export type YearProfile = {
   schoolId: number;
   schoolName: string;
@@ -75,15 +64,18 @@ export type YearProfile = {
   schoolYearName: string;
   current: boolean;
   status: ProfileStatus;
-  closing: ClosingInfo | null;
-  history: ClosingInfo[];
+  confirmedAt: string | null;
+  confirmedBy: string | null;
+  /** Lần sửa cuối SAU khi xác nhận — trống là chưa sửa gì từ lúc xác nhận. */
+  editedAt: string | null;
   campuses: CampusProfile[];
+  /** Mọi điểm trường hết việc còn thiếu. */
+  ready: boolean;
+  /** Lãnh đạo cả trường, năm chưa xác nhận. */
   canConfirm: boolean;
-  canClose: boolean;
-  canReopen: boolean;
   canWrite: boolean;
-  /** Năm học kế tiếp chưa khởi tạo (chưa có lớp) — nút "Khởi tạo năm học …". */
-  nextYear: { id: number; name: string } | null;
+  /** Năm hiện hành mà trường chưa có lớp — nút "Khai dữ liệu năm học …", chép từ năm `fromName`. */
+  initYear: { id: number; name: string; fromName: string | null } | null;
 };
 
 export type ProgressRow = {
@@ -92,12 +84,9 @@ export type ProgressRow = {
   schoolName: string;
   levelName: string | null;
   wardName: string | null;
-  campuses: number;
-  confirmed: number;
   status: ProfileStatus;
-  closedAt: string | null;
-  reopened: boolean;
-  canReopen: boolean;
+  confirmedAt: string | null;
+  editedAt: string | null;
 };
 
 export type InitClasses = "PROMOTE" | "COPY" | "EMPTY";
@@ -166,9 +155,8 @@ export type YearStandard = {
   schoolYearId: number;
   schoolYearName: string;
   current: boolean;
-  /** LIVE = năm hiện tại tính trực tiếp, CLOSED = đọc bản chốt, RECOMPUTED = năm cũ chưa chốt tính lại. */
-  source: "LIVE" | "CLOSED" | "RECOMPUTED";
-  closedAt: string | null;
+  /** LIVE = năm hiện tại tính trực tiếp, RECOMPUTED = năm đã qua tính theo dữ liệu năm đó (thiết bị sau kiểm kê). */
+  source: "LIVE" | "RECOMPUTED";
   campusId: number | null;
   campuses: { id: number | null; name: string }[];
   counted: number;

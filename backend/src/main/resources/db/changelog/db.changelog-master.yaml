@@ -544,3 +544,33 @@ databaseChangeLog:
       file: db/changelog/changes/292-go-nghiep-vu-ngoai-pham-vi.sql
   - include:
       file: db/changelog/changes/293-bo-tinh-trang-hong.sql
+  - include:
+      file: db/changelog/changes/294-bo-ai-lam-sach-du-lieu.sql
+  - include:
+      file: db/changelog/changes/295-gon-ho-so-thiet-bi.sql
+  - include:
+      file: db/changelog/changes/296-kiem-ke-giu-dong-khi-xoa-thiet-bi.sql
+  - include:
+      file: db/changelog/changes/297-de-xuat-theo-co-so.sql
+  - include:
+      file: db/changelog/changes/298-xac-nhan-khai-nam-hoc.sql
+  - include:
+      file: db/changelog/changes/299-ten-tep-nhap-khong-trung.sql
+  - include:
+      file: db/changelog/changes/300-can-bo-sua-ma-cua-truong.sql
+  - include:
+      file: db/changelog/changes/301-de-xuat-bo-truong-ngoai-nghiep-vu.sql
+  - include:
+      file: db/changelog/changes/302-luong-de-xuat-co-dinh-truong-so.sql
+  - include:
+      file: db/changelog/changes/303-lanh-dao-so-lap-ke-hoach.sql
+  - include:
+      file: db/changelog/changes/304-hoc-sinh.sql
+  - include:
+      file: db/changelog/changes/305-dinh-muc-theo-hoc-sinh-trong-phong.sql
+  - include:
+      file: db/changelog/changes/306-dot-kiem-ke-theo-nam-hoc.sql
+  - include:
+      file: db/changelog/changes/307-so-cong-van-dot-kiem-ke.sql
+  - include:
+      file: db/changelog/changes/308-dot-kiem-ke-lanh-dao-so-duyet.sql

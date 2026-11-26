@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity, useGo, useInvalidate, useListButton, useNavigation, useNotification, useResourceParams, useTranslate } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
-import { Loader2, Lock, Save, Send, X } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, Save, Send } from "lucide-react";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Controller, useWatch, type Control, type UseFormWatch } from "react-hook-form";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
@@ -10,6 +10,7 @@ import { EditView, EditViewHeader } from "@/shared/components/views/edit-view";
 import { kyInstance } from "@/shared/api/data";
 import { useConfirmDiscard } from "@/shared/components/form/unsaved-changes-guard";
 import { errorMessage } from "@/shared/lib/api-error";
+import { lowerLabel } from "@/shared/lib/label";
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { PendingAttachments, usePendingAttachments } from "@/shared/components/voucher/pending-attachments";
 import { CompletionList, SideFact, SideSection, StepTitle, VoucherLinesSlot, VoucherTwoColumn, type ChecklistItem } from "@/shared/components/voucher/voucher-layout";
@@ -52,6 +53,9 @@ function filledValue(v: unknown): boolean {
   return true;
 }
 
+/** Loại lỗi gắn cho ô bắt buộc lúc trình khi người dùng bấm mục đó ở "Cần hoàn thiện" — tự gỡ khi ô đã điền. */
+const MISSING = "submit-required";
+
 type FieldsRender = (props: { control: Control<any>; watch: UseFormWatch<any>; record?: any; setValue: any }) => ReactNode;
 
 /**
@@ -89,13 +93,13 @@ export function VoucherFormPage({
   notice?: (props: { control: Control<any>; record?: any }) => ReactNode;
   mode: "create" | "edit";
   /**
-   * Ô BẮT BUỘC của phần chính (Sự cần thiết…) — vào danh sách "Cần hoàn thiện" như
+   * Ô BẮT BUỘC của phần chính (Lý do đề xuất…) — vào danh sách "Cần hoàn thiện" như
    * dòng và thông tin bổ sung, để nút Trình không sáng khi máy chủ sẽ từ chối. `when` làm bắt buộc
    * CÓ ĐIỀU KIỆN: vắng mặt là luôn bắt buộc.
    */
   required?: { name: string; label: string; when?: (values: Record<string, unknown>) => boolean }[];
-  /** Lỗi số lượng của từng dòng; hiện trong “Cần hoàn thiện” và chặn gửi phiếu. */
-  lineIssue?: (line: any, index: number) => string | null;
+  /** Lỗi của từng dòng (số lượng, trùng dòng khác…); hiện trong “Cần hoàn thiện” và chặn gửi phiếu. `lines`: mọi dòng. */
+  lineIssue?: (line: any, index: number, lines: any[]) => string | null;
   defaults: Record<string, any>;
   toForm?: (record: any) => Record<string, any>;
   toPayload: (values: any) => Record<string, any>;
@@ -144,12 +148,19 @@ export function VoucherFormPage({
   const go = useGo();
   const { to: listUrl } = useListButton({});
   const confirmDiscard = useConfirmDiscard();
-  // "Huỷ" là về danh sách — có hỏi lại nếu đang gõ dở.
+  // "Quay lại" là về danh sách — có hỏi lại nếu đang gõ dở.
   const dismiss = () => confirmDiscard(() => go({ to: listUrl, type: "replace" }));
   useEffect(() => {
     if (mode === "edit" && record && toForm) form.reset({ ...toForm(record), details: record.details ?? {} });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, record?.id, record?.updatedAt]);
+  // Ô bắt buộc lúc trình được đánh dấu lỗi khi bấm mục đó ở "Cần hoàn thiện" (viền đỏ + câu nhắc); điền xong thì tự gỡ.
+  useEffect(() => {
+    required.forEach(({ name }, i) => {
+      if (filledValue(requiredValues?.[i]) && form.getFieldState(name).error?.type === MISSING) form.clearErrors(name);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(requiredValues)]);
 
   const Header = mode === "create" ? CreateViewHeader : EditViewHeader;
   const View = mode === "create" ? CreateView : EditView;
@@ -220,7 +231,7 @@ export function VoucherFormPage({
     input?.focus({ preventScroll: true });
   };
   const items: ChecklistItem[] = [
-    // Tài khoản phải CHỌN trường (quản trị, Sở, UBND) — ô Trường là ô đầu tiên của phiếu.
+    // Tài khoản phải CHỌN trường (quản trị, Sở) — ô Trường là ô đầu tiên của phiếu.
     ...(!record && perspective !== "school"
       ? [{ key: "school", label: "Trường", ok: filledValue(schoolId), onClick: goTo("voucher-head", "Trường") }]
       : []),
@@ -229,11 +240,15 @@ export function VoucherFormPage({
       key: `f:${name}`,
       label,
       ok: filledValue(requiredValues?.[i]),
-      onClick: goTo("voucher-head", label),
+      onClick: () => {
+        // Đánh dấu ô là lỗi (viền đỏ, câu nhắc dưới ô) rồi mới tới ô đó — chỉ nhảy tới thì ô trông như bình thường.
+        form.setError(name, { type: MISSING, message: `Vui lòng ${/^(Ngày|Trường)/.test(label) ? "chọn" : "nhập"} ${lowerLabel(label)}` });
+        goTo("voucher-head", label)();
+      },
     }])),
     ...(hasLines ? [{ key: "lines", label: "Dòng trên phiếu", ok: lineCount > 0, onClick: goTo("voucher-lines") }] : []),
     ...(lineIssue && Array.isArray(formValues.lines) ? formValues.lines : []).flatMap((line: any, index: number) => {
-      const issue = lineIssue?.(line, index);
+      const issue = lineIssue?.(line, index, formValues.lines);
       return issue ? [{ key: `quantity:${index}`, label: `Dòng ${index + 1}: ${issue}`, ok: false, onClick: goToQuantity(index) }] : [];
     }),
     // Trường bắt buộc của DÒNG: máy chủ từ chối lúc trình ("Dòng 1 còn thiếu: …"), nên phải đếm ở đây.
@@ -320,7 +335,7 @@ export function VoucherFormPage({
       {/* Bảng dòng: form của loại phiếu vẽ vào đây qua `VoucherLinesCard`. Loại phiếu không có bảng dòng thì thẻ tự ẩn. */}
       <Card id="voucher-lines" ref={setLinesSlot} className="gap-0 overflow-hidden py-0 empty:hidden" />
 
-      {config?.sections.length ? (
+      {config?.sections.some((s) => !s.inline) ? (
         <Card id="voucher-details" className="@container gap-0 px-4 py-4 empty:hidden">
           <Controller
             control={form.control}
@@ -379,9 +394,11 @@ export function VoucherFormPage({
         </div>
         {/* Nút đủ cỡ có viền như hai nút trên — chữ nhỏ không viền trước đây nhìn như nhãn, không thấy là nút. Về danh
             sách phiếu (không "lùi một trang": mở form từ liên kết dán vào thì lùi là ra chỗ khác), có hỏi lại nếu đang gõ dở. */}
+        {/* Gọi "Quay lại", không gọi "Huỷ": phiếu đã trình rồi bị trả về mà mở màn sửa, chữ "Huỷ" bị hiểu là huỷ phiếu
+            (thực ra chỉ ra khỏi màn sửa). Huỷ phiếu thật nằm ở menu ⚙ màn xem phiếu. */}
         <Button type="button" variant="outline" className="w-full" disabled={busy != null} onClick={dismiss}>
-          <X />
-          Huỷ
+          <ArrowLeft />
+          Quay lại
         </Button>
       </SideSection>
     </Card>

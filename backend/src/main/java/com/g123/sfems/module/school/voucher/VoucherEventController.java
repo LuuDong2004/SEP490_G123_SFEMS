@@ -43,15 +43,28 @@ public class VoucherEventController {
 
     private final VoucherWorkflow workflow;
     private final RecordAccessRegistry records;
+    private final VoucherApprovers approvers;
 
-    public VoucherEventController(VoucherWorkflow workflow, RecordAccessRegistry records) {
+    public VoucherEventController(VoucherWorkflow workflow, RecordAccessRegistry records, VoucherApprovers approvers) {
         this.workflow = workflow;
         this.records = records;
+        this.approvers = approvers;
     }
 
     @GetMapping
     public List<VoucherEventResponse> list(@RequestParam String resource, @RequestParam Long voucherId) {
         records.checkReadable(resource, voucherId);
         return workflow.history(resource, voucherId).stream().map(VoucherEventResponse::from).toList();
+    }
+
+    /**
+     * {@code GET /api/voucher_events/approvers?resource=&voucherId=} — người duyệt của phiếu lúc này: đang chờ thì những
+     * người duyệt được bước đó, đã quyết thì những người đã duyệt / từ chối ở lần trình gần nhất. Cùng quyền đọc với
+     * dòng thời gian.
+     */
+    @GetMapping("/approvers")
+    public VoucherApprovers.Current approvers(@RequestParam String resource, @RequestParam Long voucherId) {
+        records.checkReadable(resource, voucherId);
+        return approvers.current(resource, voucherId);
     }
 }

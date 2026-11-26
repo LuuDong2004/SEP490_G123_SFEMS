@@ -6,6 +6,7 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,6 +24,9 @@ import org.springframework.stereotype.Service;
  *
  * <p><b>Năm đã kết thúc không làm hiện hành được</b> — cả khi bật cờ, lẫn khi lùi
  * ngày kết thúc của năm đang hiện hành về trước hôm nay. Lỗi gắn vào ô {@code current}.
+ *
+ * <p>Một năm vừa thành hiện hành thì phát {@link SchoolYearActivated} — hồ sơ năm học báo các trường khai dữ liệu đầu
+ * năm.
  */
 @Service
 public class SchoolYearService
@@ -32,10 +36,13 @@ public class SchoolYearService
     private static final long NO_ID = -1L;
 
     private final SchoolYearRepository repository;
+    private final ApplicationEventPublisher events;
 
-    public SchoolYearService(SchoolYearRepository repository, RowLevelSecurity rowLevel) {
+    public SchoolYearService(SchoolYearRepository repository, RowLevelSecurity rowLevel,
+            ApplicationEventPublisher events) {
         super(repository, rowLevel, SchoolYear.class, SchoolYear::new, "Năm học");
         this.repository = repository;
+        this.events = events;
     }
 
     @Override
@@ -47,6 +54,7 @@ public class SchoolYearService
             requireNotEnded(request.endDate());
             repository.clearCurrentExcept(NO_ID);
             item.setCurrent(true);
+            events.publishEvent(new SchoolYearActivated(item));
         }
     }
 
@@ -68,6 +76,7 @@ public class SchoolYearService
         if (request.current() != null) {
             if (request.current() && !Boolean.TRUE.equals(item.getCurrent())) {
                 repository.clearCurrentExcept(item.getId());
+                events.publishEvent(new SchoolYearActivated(item));
             }
             item.setCurrent(request.current());
         }

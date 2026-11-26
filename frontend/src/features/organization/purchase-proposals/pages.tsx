@@ -1,8 +1,8 @@
-import { useNotification, useShow } from "@refinedev/core";
+import { useCan, useNotification, useShow } from "@refinedev/core";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PackageCheck, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { ClipboardCheck, Info, PackageCheck, RefreshCw, Trash2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Controller, useFieldArray, useFormContext, useWatch, type Control, type UseFieldArrayReturn } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
@@ -10,26 +10,23 @@ import { Link, useNavigate } from "react-router";
 import { kyInstance } from "@/shared/api/data";
 import { AsyncCombobox } from "@/shared/components/form/async-combobox";
 import { MoneyInput } from "@/shared/components/form/money-input";
-import { DateField, SelectField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
+import { DateField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
 import { VoucherFormPage } from "@/shared/components/voucher/voucher-form-page";
 import { VoucherList } from "@/shared/components/voucher/voucher-list";
 import { VoucherShowShell } from "@/shared/components/voucher/voucher-show-shell";
-import { LineDetailsButton, lineDetailsText } from "@/shared/components/voucher/voucher-details";
 import { StandardTraceBlock, useStandardTraces } from "../school-year/standard-trace";
-import { useVoucherForm } from "@/shared/hooks/use-voucher-form";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatPlainDate, todayLocal } from "@/shared/lib/format";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
 import { FormControl, FormField, FormMessage } from "@/shared/ui/form";
-import { maxLengthOf, numberRules, textRules, type NumberRule, type TextRule } from "@/shared/lib/field-rules";
+import { maxLengthOf, numberMax, numberRules, textRules, type NumberRule, type TextRule } from "@/shared/lib/field-rules";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
-import { FUNDING_LABELS } from "@/domains/equipment/types";
 import {
-  PRIORITY_LABELS,
   PURCHASE_LINE_KIND_LABELS,
   type PurchaseProposal,
   type SchoolAdequacy,
@@ -39,18 +36,15 @@ import { OverlapNote, OverlapSummary, useProposalOverlaps, type OverlapIndex } f
 import { ProposalPickerDialog } from "./picker";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
+import { usePerspective } from "@/shared/hooks/use-perspective";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const RESOURCE = "purchase_proposals";
-/**
- * Nguồn kinh phí dự kiến của một đề xuất MUA SẮM: hàng về sẽ ghi tăng với nguồn hình thành "Mua sắm", nên gồm
- * các nguồn đi được với nó (`OriginRule.MUA_SAM` ở máy chủ) — cả "Tài trợ" (nhà tài trợ cho tiền, trường tự mua)
- *, trừ "Chưa xác định nguồn".
+/*
+ * Đề xuất mua sắm là trường xin Sở cấp kinh phí: thiết bị nào, bao nhiêu, giá tham khảo (nếu có báo giá), vì sao cần. Nguồn kinh phí,
+ * mức ưu tiên, thông số, thương hiệu, thời hạn, báo giá là việc của Sở khi lập kế hoạch mua sắm — phiếu không hỏi (301).
  */
-const PURCHASE_FUNDING = Object.fromEntries(
-  Object.entries(FUNDING_LABELS).filter(([value]) => value !== "UNDETERMINED"),
-);
 
 const money = new Intl.NumberFormat("vi-VN");
 const opts = (m: Record<string, string>) => Object.entries(m).map(([value, label]) => ({ value, label }));
@@ -62,7 +56,6 @@ const DEFAULTS = {
     return todayLocal();
   },
   budgetYear: String(new Date().getFullYear() + 1),
-  fundingSource: "STATE_BUDGET",
   reason: "",
   note: "",
   lines: [] as any[],
@@ -72,21 +65,16 @@ const toForm = (r: PurchaseProposal) => ({
   school: { id: r.school?.id },
   proposalDate: r.proposalDate,
   budgetYear: r.budgetYear == null ? "" : String(r.budgetYear),
-  fundingSource: r.fundingSource,
   reason: r.reason ?? "",
   note: r.note ?? "",
   lines: r.lines.map((l) => ({
     catalogId: String(l.catalog.id),
     catalogLabel: `${l.catalog.code} · ${l.catalog.name}`,
     kind: l.kind,
-    name: l.name,
-    specification: l.specification ?? "",
     unitName: l.unitName ?? "",
     quantity: String(l.quantity),
     unitPrice: l.unitPrice == null ? "" : String(l.unitPrice),
-    priority: String(l.priority),
     note: l.note ?? "",
-    details: l.details ?? {},
   })),
 });
 
@@ -96,37 +84,45 @@ const toPayload = (v: any) => ({
   school: v.school?.id ? { id: v.school.id } : null,
   proposalDate: v.proposalDate,
   budgetYear: num(v.budgetYear),
-  fundingSource: v.fundingSource || null,
   reason: v.reason,
   note: v.note,
   lines: (v.lines ?? []).map((l: any) => ({
     catalog: l.catalogId ? { id: Number(l.catalogId) } : null,
     kind: l.kind,
-    name: l.name,
-    specification: l.specification,
+    // Tên theo danh mục của thiết bị — máy chủ tự lấy khi trống.
+    name: null,
     // Đơn vị tính theo danh mục của thiết bị — máy chủ tự lấy khi trống; gửi giá trị cũ của form thì đổi thiết bị
     // xong vẫn mang đơn vị của thiết bị trước.
     unitName: null,
     quantity: num(l.quantity),
     unitPrice: num(l.unitPrice),
-    priority: num(l.priority),
     note: l.note,
-    details: l.details ?? {},
   })),
 });
 
-const blankLine = (catalogId = "", name = "", quantity = "1", catalogLabel = ""): Record<string, any> => ({
+const blankLine = (catalogId = "", quantity = "1", catalogLabel = ""): Record<string, any> => ({
   catalogId,
   catalogLabel,
   kind: "NEW",
-  name,
-  specification: "",
   unitName: "",
   quantity,
   unitPrice: "",
-  priority: "2",
   note: "",
 });
+
+/** Thiết bị có trong danh mục tối thiểu của trường (theo bảng định mức); `undefined` khi chưa có dữ liệu. */
+function normCatalogSet(adequacy: SchoolAdequacy | undefined): Set<number> | undefined {
+  if (!adequacy?.rows) return undefined;
+  return new Set(adequacy.rows.map((r) => r.catalogId).filter((id): id is number => id != null));
+}
+
+/**
+ * Nhãn của dòng xin thiết bị KHÔNG có trong danh mục tối thiểu (chọn ở tab "Toàn bộ danh mục": thay cái hỏng, thiết bị
+ * dùng chung…) — để lãnh đạo trường và Sở thấy ngay dòng nào ngoài định mức khi xét.
+ */
+function OutsideNormBadge({ outside }: { outside: boolean }) {
+  return outside ? <Badge variant="warning" size="sm" className="mt-1">Ngoài danh mục tối thiểu</Badge> : null;
+}
 
 function useAdequacy(schoolId: number | null | undefined) {
   return useQuery({
@@ -203,15 +199,16 @@ function useCatalogUnits(ids: number[]) {
   return new Map(ids.map((id, i) => [id, results[i]?.data ?? null]));
 }
 
-function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
+function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd, normCatalogs }: {
   control: Control<any>;
   array: UseFieldArrayReturn<any, "lines">;
   schoolId: number | null;
   overlaps: OverlapIndex;
+  /** Thiết bị có trong danh mục tối thiểu của trường; `undefined` khi chưa tải xong (khi đó không gắn nhãn). */
+  normCatalogs?: Set<number>;
   /** Mở hộp "Chọn thiết bị cần mua". */
   onAdd: () => void;
 }) {
-  const config = useVoucherForm(RESOURCE);
   const { setValue } = useFormContext();
   const { fields, remove } = array;
   const lines = useWatch({ control, name: "lines" }) as any[] | undefined;
@@ -221,7 +218,7 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-        <StepTitle title="Thiết bị đề xuất" aside={fields.length ? `${fields.length} dòng · dự toán ${money.format(total)} đ` : undefined} />
+        <StepTitle title="Thiết bị đề xuất" aside={fields.length ? `${fields.length} dòng${total > 0 ? ` · tổng giá tham khảo ${money.format(total)} đ` : ""}` : undefined} />
         {fields.length ? <AddLinesButton label="Thêm thiết bị" onClick={onAdd} disabled={schoolId == null} /> : null}
       </div>
       {fields.length === 0 ? (
@@ -233,20 +230,19 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
               khung hẹp hơn thì CUỘN NGANG (thanh trượt dưới bảng) chứ không ép cột Thiết bị. Ô Thiết bị là CHỮ (mã + tên
               đầy đủ, tự xuống dòng), không phải ô chọn rút gọn — ô chọn chỉ còn "THCS-16-0…" khi cột hẹp, bấm vào lại mở
               cả danh mục mà không cho biết đang chọn gì; đổi thiết bị qua liên kết "Đổi thiết bị" (thiết bị đang chọn
-              ghim đầu danh sách). Tên cụ thể và thông số kỹ thuật (không bắt buộc) nằm trong "Chi tiết thêm" của dòng —
-              cột riêng hai ô trống "Theo tên nhóm / Thông số kỹ thuật" khó hiểu và chiếm chỗ. */}
+              ghim đầu danh sách). */}
           <Table className="min-w-[60rem] table-fixed [&_td]:align-middle">
-            {/* Thiết bị ~36%, năm cột sau chia đều phần còn lại (cột không khai bề rộng); ô nhập trong cột có bề rộng
+            {/* Thiết bị ~40%, các cột sau chia đều phần còn lại (cột không khai bề rộng); ô nhập trong cột có bề rộng
                 riêng theo nội dung — cột rộng ra thì ô không kéo dài theo (trưởng nhóm: ô không dài ngoằng). */}
+            {/* Hai cột tiền rộng đủ số trăm tỷ (trần MONEY) — ô tiền giãn theo cột, không chặn ở bề rộng cố định. */}
             <colgroup>
               <col className="w-10" />
-              <col className="w-[32%]" />
+              <col className="w-[34%]" />
               <col />
-              <col />
-              <col className="w-20" />
-              <col />
-              <col />
-              <col />
+              <col className="w-24" />
+              <col className="w-16" />
+              <col className="w-44" />
+              <col className="w-40" />
               <col className="w-12" />
             </colgroup>
             <TableHeader>
@@ -256,9 +252,8 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                 <TableHead>Mục đích</TableHead>
                 <TableHead>Số lượng</TableHead>
                 <TableHead>Đơn vị</TableHead>
-                <TableHead>Đơn giá (đ)</TableHead>
-                <TableHead>Ưu tiên</TableHead>
-                <TableHead />
+                <TableHead title="Giá MỘT đơn vị theo báo giá, không bắt buộc. Sở chốt giá khi lập kế hoạch">Đơn giá tham khảo (đ)</TableHead>
+                <TableHead className="text-right">Thành tiền (đ)</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -311,6 +306,7 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                               </span>
                             </div>
                           </div>
+                          <OutsideNormBadge outside={normCatalogs != null && !normCatalogs.has(Number(lines[i].catalogId))} />
                           <OverlapNote newTab list={overlaps.get(Number(lines[i].catalogId))}
                             duplicateOf={first != null && first !== i + 1 ? first : undefined} />
                         </div>
@@ -318,46 +314,25 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
                     })()}
                   </TableCell>
                   <TableCell><LineSelect control={control} name={`lines.${i}.kind`} options={opts(PURCHASE_LINE_KIND_LABELS)} className="w-28" /></TableCell>
-                  <TableCell><LineInput control={control} name={`lines.${i}.quantity`} type="number" label="Số lượng" numberRule="QUANTITY" className="w-18" /></TableCell>
+                  <TableCell data-quantity-line={i}><LineInput control={control} name={`lines.${i}.quantity`} type="number" label="Số lượng" numberRule="QUANTITY" className="w-18" /></TableCell>
                   {/* Đơn vị tính theo danh mục, không sửa: Gam (hoá chất), Chiếc (máy chiếu), Tờ (lược đồ)… */}
                   <TableCell className="text-muted-foreground">{units.get(Number(lines?.[i]?.catalogId)) ?? lines?.[i]?.unitName ?? ""}</TableCell>
                   <TableCell>
-                    <FormField control={control} name={`lines.${i}.unitPrice`} rules={numberRules("MONEY", "Đơn giá")} render={({ field }) => (
+                    <FormField control={control} name={`lines.${i}.unitPrice`} rules={numberRules("MONEY", "Đơn giá tham khảo")} render={({ field }) => (
                       <>
                         <FormControl>
-                          <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} placeholder="0" className="w-28" />
+                          <MoneyInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} placeholder="Nếu có"
+                            maxValue={numberMax("MONEY")} className="w-full" />
                         </FormControl>
                         <FormMessage className="text-xs" />
                       </>
                     )} />
                   </TableCell>
-                  <TableCell>
-                    <LineSelect control={control} name={`lines.${i}.priority`} className="w-26"
-                      options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))} />
-                  </TableCell>
-                  <TableCell>
-                    <Controller control={control} name={`lines.${i}.details`} render={({ field }) => (
-                      <LineDetailsButton config={config} value={field.value} onChange={field.onChange} schoolId={schoolId}
-                        title={`Dòng ${i + 1}`} label="Chi tiết thêm" buttonClassName="text-primary hover:text-primary bg-info-subtle hover:bg-info-subtle border-primary/40 shadow-e1 rounded-full border font-semibold hover:brightness-95"
-                        // Tên cụ thể / thông số kỹ thuật của thiết bị cần mua — không bắt buộc; tên trống thì máy chủ lấy tên
-                        // trong danh mục. Bên mua (Sở) đọc ở màn kế hoạch và file Excel kế hoạch.
-                        extras={[
-                          { key: "name", label: "Tên cụ thể", placeholder: "Để trống thì dùng tên trong danh mục", max: maxLengthOf("NAME") },
-                          // "Mô tả, yêu cầu chung" — không gọi "Thông số kỹ thuật": bảng thông số (tên · giá trị · đơn vị)
-                          // ngay bên dưới đã mang tên đó.
-                          { key: "specification", label: "Mô tả, yêu cầu chung", placeholder: "Kích thước, chất liệu, cấu hình… mà trường cần", max: 1000, wide: true },
-                        ]}
-                        // Hàng 1: ba ô ngắn (tên rộng nhất); hàng 2: mô tả cả hàng; dưới: bảng thông số và phụ kiện cạnh nhau.
-                        layout={[
-                          { key: "name", span: 6 }, { key: "brandOrigin", span: 4 }, { key: "gradeLevel", span: 2 },
-                          { key: "specification", span: 12 },
-                        ]}
-                        extraValues={{ name: lines?.[i]?.name, specification: lines?.[i]?.specification }}
-                        onExtraChange={(v) => {
-                          setValue(`lines.${i}.name`, v.name, { shouldDirty: true });
-                          setValue(`lines.${i}.specification`, v.specification, { shouldDirty: true });
-                        }} />
-                    )} />
+                  {/* Thành tiền = số lượng × đơn giá tham khảo; chưa ghi giá thì để trống. */}
+                  <TableCell className="text-right tabular-nums">
+                    {Number(lines?.[i]?.unitPrice) > 0
+                      ? money.format((Number(lines?.[i]?.quantity) || 0) * Number(lines?.[i]?.unitPrice))
+                      : <span className="text-muted-foreground text-xs">Chưa có giá</span>}
                   </TableCell>
                   <TableCell>
                     <Button type="button" variant="ghost" size="icon" title="Bỏ dòng" onClick={() => remove(i)}>
@@ -370,11 +345,11 @@ function PurchaseLinesField({ control, array, schoolId, overlaps, onAdd }: {
           </Table>
         </div>
       )}
-      {/* Đơn giá không bắt buộc: trường đề xuất nhu cầu, giá do cơ quan lập kế hoạch xác định — chỉ nhắc, không chặn trình. */}
+      {/* Giá tham khảo không bắt buộc: trường đề xuất nhu cầu, Sở chốt giá khi lập kế hoạch — chỉ nhắc, không chặn trình. */}
       {unpriced > 0 ? (
-        <p className="text-warning-text flex items-center gap-1.5 border-t px-4 py-2.5 text-xs">
-          <TriangleAlert className="size-3.5 shrink-0" />
-          {unpriced} thiết bị chưa có đơn giá — cơ quan quản lý sẽ xác định khi lập kế hoạch mua sắm.
+        <p className="text-muted-foreground flex items-center gap-1.5 border-t px-4 py-2.5 text-xs">
+          <Info className="size-3.5 shrink-0" />
+          {unpriced} thiết bị chưa có giá tham khảo. Không bắt buộc, có báo giá thì ghi và đính kèm để Sở căn cứ lập kế hoạch.
         </p>
       ) : null}
     </div>
@@ -392,17 +367,20 @@ function ProposalFields({ control, record, setValue }: { control: Control<any>; 
 
   return (
     <div className="space-y-6">
-      {/* Ba cột, thẳng hàng với khối "Thông tin bổ sung" (ba ô) bên dưới: hàng 1 ba ô ngắn; hàng 2 "Sự cần thiết"
-          hai cột (bắt buộc, viết dài) + "Ghi chú" một cột. Ô ngày giãn theo cột (bỏ trần max-w-40). */}
+      {/* Ba cột: hàng 1 ba ô ngắn (ngày, năm ngân sách, số công văn trình); hàng 2 "Lý do đề xuất" hai cột (bắt buộc,
+          viết dài) + "Ghi chú" một cột. Ô ngày giãn theo cột (bỏ trần max-w-40). */}
       <div className="grid grid-cols-1 items-start gap-x-4 gap-y-5 @md:grid-cols-2 @2xl:grid-cols-3 [&_[data-date-input]]:max-w-none">
         <div className="empty:hidden @md:col-span-2 @2xl:col-span-3">
           <VoucherSchoolField control={control} record={record} setValue={setValue} />
         </div>
         <DateField control={control} name="proposalDate" label="Ngày đề xuất" rules={{ required: "Chọn ngày" }} />
-        <TextField control={control} name="budgetYear" label="Năm ngân sách" description="Năm dự kiến mua. Cơ quan quản lý lập kế hoạch mua sắm theo năm này." type="number"
-          rules={{ validate: (v: unknown) => v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1950 && Number(v) <= 2100) || "Năm ngân sách phải từ 1950 đến 2100" }} />
-        <SelectField control={control} name="fundingSource" label="Nguồn kinh phí dự kiến" options={opts(PURCHASE_FUNDING)} />
-        <TextareaField control={control} name="reason" label="Sự cần thiết" rule="LONG_TEXT" max={1000} inGrid
+        <TextField control={control} name="budgetYear" label="Năm ngân sách" description="Năm dự kiến mua. Sở lập kế hoạch mua sắm theo năm này." type="number"
+          rules={{ required: "Vui lòng nhập năm ngân sách", validate: (v: unknown) => (Number.isInteger(Number(v)) && Number(v) >= 2000 && Number(v) <= 2100) || "Năm ngân sách phải từ 2000 đến 2100" }} />
+        {/* Trường chứng từ (`details`, voucher-forms/purchase_proposals.json, mục `inline`) — đặt ở đây thay vì
+            đứng riêng một khối "Thông tin bổ sung" chỉ có một ô. */}
+        <TextField control={control} name="details.submittedDocNo" label="Số công văn trình" rule="SHORT_TEXT" max={100}
+          placeholder="VD: 125/THPT-CSVC" />
+        <TextareaField control={control} name="reason" label="Lý do đề xuất" rule="LONG_TEXT" max={1000} inGrid
           placeholder="Thiếu so với định mức, thay thiết bị hỏng, chương trình mới…"
           description="Vì sao cần mua. Bắt buộc khi trình." />
         <TextareaField control={control} name="note" label="Ghi chú" rule="NOTE" inGrid className="@2xl:col-span-1" />
@@ -410,7 +388,8 @@ function ProposalFields({ control, record, setValue }: { control: Control<any>; 
       {/* Bảng định mức không nằm trong form nữa: nó là hộp chọn mở từ nút "Thêm thiết bị",
           cùng khuôn với phiếu ghi tăng — form chỉ còn các dòng đã chọn. */}
       <VoucherLinesCard>
-        <PurchaseLinesField control={control} array={array} schoolId={schoolId} overlaps={overlaps} onAdd={() => setPicking(true)} />
+        <PurchaseLinesField control={control} array={array} schoolId={schoolId} overlaps={overlaps} onAdd={() => setPicking(true)}
+          normCatalogs={normCatalogSet(adequacy)} />
       </VoucherLinesCard>
       <ProposalPickerDialog
         open={picking}
@@ -422,7 +401,7 @@ function ProposalFields({ control, record, setValue }: { control: Control<any>; 
         onPick={(rows) => {
           for (const r of rows) {
             if (chosen.has(r.catalogId)) continue;
-            array.append(blankLine(String(r.catalogId), "", String(r.quantity), r.label));
+            array.append(blankLine(String(r.catalogId), String(r.quantity), r.label));
           }
         }}
       />
@@ -430,7 +409,38 @@ function ProposalFields({ control, record, setValue }: { control: Control<any>; 
   );
 }
 
+/**
+ * Ô "Kế hoạch" của một đề xuất: mã kế hoạch (rê chuột thấy tên), bấm mở kế hoạch. Cùng luật xem của máy chủ
+ * (`ProcurementPlanService.visible`): tài khoản TRƯỜNG chỉ xem kế hoạch ĐÃ DUYỆT — chưa duyệt thì với trường đề xuất như
+ * chưa có kế hoạch (cùng chữ với đề xuất chưa vào kế hoạch nào). Mọi tài khoản Sở xem mọi kế hoạch của Sở, cả bản nháp.
+ */
+function PlanCell({ proposal, small }: { proposal: PurchaseProposal; small?: boolean }) {
+  const { perspective } = usePerspective();
+  const plan = proposal.plan;
+  const visible = !!plan && (plan.status === "APPROVED" || perspective !== "school");
+  if (!plan || !visible) {
+    const text = proposal.status === "APPROVED" ? "Chờ Sở đưa vào kế hoạch" : "Chưa có kế hoạch";
+    return small ? <span className="text-muted-foreground text-xs">{text}</span> : <>{text}</>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link className={cn("text-primary font-mono font-medium hover:underline", small && "text-xs")} to={`/procurement-plans/show/${plan.id}`}>
+          {plan.code ?? plan.title}
+          {/* Kế hoạch chưa duyệt (chỉ Sở thấy): ghi kèm tình trạng để biết đề xuất đang ở bản nháp hay chờ duyệt. */}
+          {plan.status === "APPROVED" ? null : (
+            <span className="text-muted-foreground font-sans font-normal"> · {plan.status === "PENDING" ? "chờ duyệt" : "nháp"}</span>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>{plan.title}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export const PurchaseProposalList = () => {
+  const { data: canPlan } = useCan({ resource: "procurement_plans", action: "create" });
+  const navigate = useNavigate();
   const columns = useMemo(() => {
     const h = createColumnHelper<PurchaseProposal>();
     return [
@@ -438,15 +448,16 @@ export const PurchaseProposalList = () => {
       h.accessor("budgetYear", { id: "budgetYear", header: "Năm NS", enableSorting: true }),
       h.display({
         id: "amount",
-        header: "Dự toán",
-        cell: ({ row }) => <span className="tabular-nums">{money.format(row.original.totalAmount)} đ</span>,
+        header: "Tổng giá tham khảo",
+        cell: ({ row }) => row.original.totalAmount > 0
+          ? <span className="tabular-nums">{money.format(row.original.totalAmount)} đ</span>
+          : <span className="text-muted-foreground text-xs">Chưa có giá</span>,
       }),
       h.display({
         id: "plan",
         header: "Kế hoạch",
-        cell: ({ row }) => row.original.plan
-          ? <Link className="text-primary hover:underline" to={`/procurement-plans/show/${row.original.plan.id}`}>{row.original.plan.title}</Link>
-          : <span className="text-muted-foreground">—</span>,
+        // Mã kế hoạch (gọn, không bị cắt như tên dài); tên kế hoạch hiện khi rê chuột.
+        cell: ({ row }) => <PlanCell proposal={row.original} small />,
       }),
     ];
   }, []);
@@ -454,6 +465,30 @@ export const PurchaseProposalList = () => {
     <VoucherList<PurchaseProposal>
       resource={RESOURCE}
       columns={columns}
+      // Luồng đề xuất cố định: lãnh đạo trường → lãnh đạo Sở.
+      approvalChain={["SCHOOL", "MANAGING_BODY"]}
+      // Chuyên viên Sở chọn các đề xuất đã duyệt, chưa vào kế hoạch rồi lập kế hoạch từ chúng — màn lập kế hoạch nhận
+      // sẵn các đề xuất đó (`?proposals=`).
+      selection={{
+        enabled: !!canPlan?.can,
+        selectable: (r) => r.status === "APPROVED" && !r.plan,
+        action: (ids) => {
+          const button = (
+            <Button type="button" size="sm" className="h-9 rounded-full" disabled={!ids.length}
+              onClick={() => navigate(`/procurement-plans/create?proposals=${ids.join(",")}`)}>
+              <ClipboardCheck />
+              Lập kế hoạch{ids.length ? ` từ ${ids.length} đề xuất` : ""}
+            </Button>
+          );
+          // Chưa chọn thì nút khoá — bọc một lớp để khung gợi ý của hệ thống vẫn hiện khi rê chuột.
+          return ids.length ? button : (
+            <Tooltip>
+              <TooltipTrigger asChild><span tabIndex={0} className="inline-flex">{button}</span></TooltipTrigger>
+              <TooltipContent>Tích chọn các đề xuất đã duyệt, chưa vào kế hoạch</TooltipContent>
+            </Tooltip>
+          );
+        },
+      }}
     />
   );
 };
@@ -469,14 +504,33 @@ function ProposalOverlapNotice({ control, record }: { control: Control<any>; rec
 
 const overlapNotice = (p: { control: Control<any>; record?: any }) => <ProposalOverlapNotice {...p} />;
 
+/**
+ * "Kiểm tra trước khi trình" — cùng luật máy chủ kiểm lúc trình (`PurchaseProposalService.validateSubmit`): có ngày, năm
+ * ngân sách (kế hoạch của Sở chỉ nhận đề xuất cùng năm ngân sách), lý do đề xuất, ít nhất một dòng, từng dòng có thiết bị,
+ * số lượng lớn hơn 0 và không trùng thiết bị với dòng khác.
+ */
+const REQUIRED = [
+  { name: "proposalDate", label: "Ngày đề xuất" },
+  { name: "budgetYear", label: "Năm ngân sách" },
+  { name: "reason", label: "Lý do đề xuất" },
+];
+
+function proposalLineIssue(line: any, index: number, lines: any[]): string | null {
+  if (!line?.catalogId) return "chưa chọn thiết bị";
+  const quantity = Number(line.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) return "số lượng phải lớn hơn 0";
+  const first = lines.findIndex((l) => l?.catalogId && String(l.catalogId) === String(line.catalogId));
+  return first >= 0 && first < index ? `trùng thiết bị với dòng ${first + 1}, gộp thành một dòng` : null;
+}
+
 export const PurchaseProposalCreate = () => (
-  <VoucherFormPage mode="create" required={[{ name: "reason", label: "Sự cần thiết" }]} defaults={DEFAULTS} toPayload={toPayload} notice={overlapNotice}>
+  <VoucherFormPage mode="create" required={REQUIRED} lineIssue={proposalLineIssue} defaults={DEFAULTS} toPayload={toPayload} notice={overlapNotice}>
     {(p) => <ProposalFields {...p} />}
   </VoucherFormPage>
 );
 
 export const PurchaseProposalEdit = () => (
-  <VoucherFormPage mode="edit" required={[{ name: "reason", label: "Sự cần thiết" }]} defaults={DEFAULTS} toForm={toForm} toPayload={toPayload} notice={overlapNotice}>
+  <VoucherFormPage mode="edit" required={REQUIRED} lineIssue={proposalLineIssue} defaults={DEFAULTS} toForm={toForm} toPayload={toPayload} notice={overlapNotice}>
     {(p) => <ProposalFields {...p} />}
   </VoucherFormPage>
 );
@@ -508,25 +562,41 @@ function CreateIntakeButton({ record }: { record: PurchaseProposal }) {
 
 export const PurchaseProposalShow = () => {
   const { result: record, query } = useShow<PurchaseProposal>({});
-  const config = useVoucherForm(RESOURCE);
   // Người duyệt thấy thiết bị nào đang được xin ở đề xuất khác — chỉ khi phiếu còn chờ quyết định.
   const deciding = record?.status === "DRAFT" || record?.status === "PENDING";
   const overlaps = useProposalOverlaps(record?.school?.id, record?.id, !!record && deciding);
-  // Lập từ chuẩn tối thiểu của một năm học CHƯA CHỐT: trình vẫn được (bỏ luật chặn 20/11 — trưởng nhóm 23/11/2026),
+  // Lập từ chuẩn tối thiểu của một năm học trường CHƯA XÁC NHẬN đã khai: trình vẫn được (bỏ luật chặn 20/11 — trưởng nhóm 23/11/2026),
   // nhưng hộp trình nói trước để người trình biết số thiếu còn có thể đổi.
   const { data: traces } = useStandardTraces({ proposalId: record?.id });
-  const openYear = traces?.find((t) => !t.yearClosed)?.schoolYearName;
+  const openYear = traces?.find((t) => !t.yearConfirmed)?.schoolYearName;
+  const { data: adequacy } = useAdequacy(record?.school?.id);
+  const normCatalogs = normCatalogSet(adequacy);
+  const outsideCount = normCatalogs ? (record?.lines ?? []).filter((l) => !normCatalogs.has(l.catalog.id)).length : 0;
+  const replaceCount = (record?.lines ?? []).filter((l) => l.kind === "REPLACE").length;
   return (
     <VoucherShowShell
+      sideFacts={record ? [
+        { label: "Thiết bị", value: `${record.lineCount} loại · ${money.format(record.totalQuantity)} đơn vị` },
+        ...(replaceCount ? [{ label: "Thay thế", value: `${replaceCount} loại` }] : []),
+        ...(outsideCount ? [{ label: "Ngoài danh mục tối thiểu", value: `${outsideCount} loại` }] : []),
+        { label: "Tổng giá tham khảo", value: record.totalAmount > 0 ? `${money.format(record.totalAmount)} đ` : "Chưa có giá" },
+        {
+          label: "Kế hoạch mua sắm",
+          value: <PlanCell proposal={record} />,
+        },
+        ...(record.intakeId
+          ? [{ label: "Phiếu ghi tăng", value: <Link className="text-primary hover:underline" to={`/equipment-intakes/show/${record.intakeId}`}>Xem phiếu ghi tăng</Link> }]
+          : []),
+      ] : undefined}
       resource={RESOURCE}
       print={{
         title: "Tờ trình đề xuất mua sắm thiết bị",
         table: {
-          headers: ["STT", "Tên thiết bị, quy cách", "ĐVT", "SL", "Đơn giá (đ)", "Thành tiền (đ)", "Đang có / định mức"],
+          headers: ["STT", "Tên thiết bị", "ĐVT", "SL", "Đơn giá tham khảo (đ)", "Thành tiền (đ)", "Đang có / định mức"],
           alignRight: [3, 4, 5],
           rows: (record?.lines ?? []).map((l) => [
             l.lineNo,
-            l.specification ? `${l.name} — ${l.specification}` : l.name,
+            l.name,
             l.unitName ?? "",
             l.quantity,
             l.unitPrice != null ? money.format(l.unitPrice) : "",
@@ -542,18 +612,9 @@ export const PurchaseProposalShow = () => {
       facts={[
         { label: "Ngày đề xuất", value: formatPlainDate(record?.proposalDate) },
         { label: "Năm ngân sách", value: record?.budgetYear ?? "—" },
-        { label: "Nguồn kinh phí dự kiến", value: record?.fundingSource ? FUNDING_LABELS[record.fundingSource] : "—" },
-        { label: "Dự toán", value: record ? `${money.format(record.totalAmount)} đ (${record.totalQuantity} đơn vị)` : "—" },
-        {
-          label: "Kế hoạch mua sắm",
-          value: record?.plan
-            ? <Link className="text-primary hover:underline" to={`/procurement-plans/show/${record.plan.id}`}>{record.plan.title}</Link>
-            : record?.status === "APPROVED" ? "Chờ cơ quan quản lý đưa vào kế hoạch" : "—",
-        },
-        ...(record?.intakeId
-          ? [{ label: "Phiếu ghi tăng", value: <Link className="text-primary hover:underline" to={`/equipment-intakes/show/${record.intakeId}`}>Xem phiếu ghi tăng</Link> }]
-          : []),
-        { label: "Sự cần thiết", value: record?.reason ?? "—" },
+        { label: "Số công văn trình", value: typeof record?.details?.submittedDocNo === "string" ? record.details.submittedDocNo : "—" },
+        // Tổng giá, kế hoạch, phiếu ghi tăng nằm ở thẻ tóm tắt bên phải (sideFacts) — không lặp ở đây.
+        { label: "Lý do đề xuất", value: record?.reason ?? "—" },
       ]}
       actions={{
         text: {
@@ -563,19 +624,19 @@ export const PurchaseProposalShow = () => {
                 <div className="grid gap-1.5">
                   <div>Phiếu được chuyển tới người duyệt. Trong lúc chờ duyệt thì không sửa được.</div>
                   <div className="text-warning-text">
-                    {openYear} trường chưa chốt, nên số thiếu trong đề xuất có thể còn đổi. Phiếu sẽ mang nhãn
-                    "Năm học chưa chốt" để người duyệt biết.
+                    Trường chưa xác nhận đã khai {openYear?.toLowerCase()}, nên số thiếu trong đề xuất có thể còn đổi.
+                    Phiếu sẽ mang nhãn "Chưa xác nhận năm học" để người duyệt biết.
                   </div>
                 </div>
               ),
             },
           } : {}),
-          approve: { description: "Lãnh đạo trường xác nhận nhu cầu. Cơ quan quản lý đồng ý đưa vào kế hoạch mua sắm." },
+          approve: { description: "Lãnh đạo trường xác nhận nhu cầu. Lãnh đạo Sở đồng ý để chuyên viên Sở đưa vào kế hoạch mua sắm." },
           reject: { description: "Đề xuất dừng hẳn. Còn nhu cầu thì trường lập đề xuất mới." },
         },
       }}
       extraActions={record?._actions?.includes("intake") ? <CreateIntakeButton record={record} /> : null}
-      attachmentsHint="Báo giá, thông số kỹ thuật, biên bản khảo sát nhu cầu."
+      attachmentsHint="Báo giá, công văn đề nghị, biên bản rà soát nhu cầu thiết bị."
     >
       <div className="overflow-x-auto rounded-md border">
         <Table>
@@ -585,9 +646,8 @@ export const PurchaseProposalShow = () => {
               <TableHead>Thiết bị</TableHead>
               <TableHead>Mục đích</TableHead>
               <TableHead className="text-right">SL</TableHead>
-              <TableHead className="text-right">Đơn giá</TableHead>
+              <TableHead className="text-right">Đơn giá tham khảo</TableHead>
               <TableHead className="text-right">Thành tiền</TableHead>
-              <TableHead>Ưu tiên</TableHead>
               <TableHead className="text-right">Đang có / định mức</TableHead>
             </TableRow>
           </TableHeader>
@@ -597,27 +657,14 @@ export const PurchaseProposalShow = () => {
                 <TableCell className="text-muted-foreground tabular-nums">{l.lineNo}</TableCell>
                 <TableCell>
                   <div>{l.name}</div>
-                  <div className="text-muted-foreground text-xs">{l.catalog.name}{l.specification ? ` · ${l.specification}` : ""}</div>
+                  <div className="text-muted-foreground font-mono text-xs">{l.catalog.code}</div>
+                  <OutsideNormBadge outside={normCatalogs != null && !normCatalogs.has(l.catalog.id)} />
                   {deciding ? <OverlapNote className="mt-1" list={overlaps.get(l.catalog.id)} /> : null}
-                  {lineDetailsText(config, l.details) ? <div className="text-muted-foreground text-xs">{lineDetailsText(config, l.details)}</div> : null}
-                  {Array.isArray(l.details?.specs) && l.details.specs.length ? (
-                    <div className="text-muted-foreground text-xs">
-                      Thông số: {(l.details.specs as Record<string, unknown>[]).map((s) => `${s.attrName ?? ""} ${s.attrValue ?? ""}${s.unit ? " " + String(s.unit) : ""}`).join("; ")}
-                    </div>
-                  ) : null}
-                  {Array.isArray(l.details?.accessoryLines) && l.details.accessoryLines.length ? (
-                    <div className="text-muted-foreground text-xs">
-                      Phụ kiện: {(l.details.accessoryLines as Record<string, unknown>[]).map((a) => `${a.name ?? ""}${a.quantity ? " × " + String(a.quantity) : ""}`).join("; ")}
-                    </div>
-                  ) : null}
                 </TableCell>
                 <TableCell>{PURCHASE_LINE_KIND_LABELS[l.kind]}</TableCell>
                 <TableCell className="text-right tabular-nums">{l.quantity} {l.unitName ?? ""}</TableCell>
-                <TableCell className="text-right tabular-nums">{l.unitPrice != null ? money.format(l.unitPrice) : "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{l.amount != null ? money.format(l.amount) : "—"}</TableCell>
-                <TableCell>
-                  <Badge variant={l.priority === 1 ? "destructive" : l.priority === 2 ? "warning" : "neutral"}>{PRIORITY_LABELS[l.priority]}</Badge>
-                </TableCell>
+                <TableCell className="text-right tabular-nums">{l.unitPrice != null ? money.format(l.unitPrice) : <span className="text-muted-foreground text-xs">Chưa có giá</span>}</TableCell>
+                <TableCell className="text-right tabular-nums">{l.amount != null ? money.format(l.amount) : <span className="text-muted-foreground text-xs">Chưa có giá</span>}</TableCell>
                 <TableCell className="text-right tabular-nums">{l.currentQuantity ?? "—"} / {l.requiredQuantity ?? "—"}</TableCell>
               </TableRow>
             ))}
@@ -625,8 +672,10 @@ export const PurchaseProposalShow = () => {
           <TableFooter>
             <TableRow>
               <TableCell colSpan={5} className="text-right font-medium">Tổng</TableCell>
-              <TableCell className="text-right font-semibold tabular-nums">{money.format(record?.totalAmount ?? 0)}</TableCell>
-              <TableCell colSpan={2} />
+              <TableCell className="text-right font-semibold tabular-nums">
+                {record?.totalAmount ? money.format(record.totalAmount) : <span className="text-muted-foreground text-xs font-normal">Chưa có giá</span>}
+              </TableCell>
+              <TableCell />
             </TableRow>
           </TableFooter>
         </Table>

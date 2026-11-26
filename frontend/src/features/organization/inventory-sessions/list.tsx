@@ -1,3 +1,4 @@
+import { AwaitingMeTag } from "@/shared/components/voucher/awaiting-me-tag";
 import { useNavigation } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -59,20 +60,24 @@ export const InventorySessionList = () => {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Số phiếu", size: 150, enableSorting: true,
-        cell: ({ getValue }) =>
-          getValue() ? (
-            <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
-          ) : (
-            <span className="text-muted-foreground text-xs italic">chưa cấp số</span>
-          ),
+        id: "code", header: "Số phiếu", size: 210, enableSorting: true,
+        cell: ({ getValue, row }) => (
+          <span className="flex items-center gap-2">
+            {getValue() ? (
+              <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
+            ) : (
+              <span className="text-muted-foreground text-xs italic">chưa cấp số</span>
+            )}
+            <AwaitingMeTag voucher={row.original} />
+          </span>
+        ),
       }),
       h.accessor("inventoryDate", {
         id: "inventoryDate", header: "Ngày kiểm kê", size: 140, enableSorting: true,
         cell: ({ getValue }) => <span className="tabular-nums">{formatPlainDate(getValue())}</span>,
       }),
       h.accessor("title", {
-        id: "title", header: "Tên đợt", size: 220, meta: { fill: true },
+        id: "title", header: "Tên phiếu", size: 220, meta: { fill: true },
         cell: ({ getValue }) => <span className="block truncate font-medium">{getValue()}</span>,
       }),
       h.display({
@@ -90,9 +95,11 @@ export const InventorySessionList = () => {
           const parts = [
             s.missing ? `Thiếu ${s.missing}` : null,
             s.wrongRoom ? `Sai vị trí ${s.wrongRoom}` : null,
+            s.wrongCondition ? `Sai tình trạng ${s.wrongCondition}` : null,
             s.surplus ? `Thừa ${s.surplus}` : null,
           ].filter(Boolean);
-          const n = s.missing + s.wrongRoom + s.surplus;
+          // Đếm số dòng chênh lệch theo từng loại (một dòng vừa sai vị trí vừa sai tình trạng tính ở cả hai).
+          const n = s.missing + s.wrongRoom + s.wrongCondition + s.surplus;
           return n > 0 ? (
             <Badge variant="warning" title={parts.join(" · ")}>{n}</Badge>
           ) : (

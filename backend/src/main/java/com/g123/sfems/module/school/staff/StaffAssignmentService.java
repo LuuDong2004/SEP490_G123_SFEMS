@@ -35,7 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
  * thì ghi phân công năm hiện tại ({@link #syncFromStaff}) — giai đoạn chuyển, các chỗ đang đọc hồ sơ không vỡ.
  *
  * <p>SQL thuần như đề nghị điều chỉnh (154): đọc trong phạm vi {@link VisibleSchools}, ghi chỉ trường của người gọi
- * (cơ sở của người gọi nếu tài khoản bị giới hạn một cơ sở). Năm học đã chốt thì không ghi được ({@link YearGuard}).
+ * (cơ sở của người gọi nếu tài khoản bị giới hạn một cơ sở). Sửa sau khi trường đã xác nhận khai năm học thì ghi lại lần
+ * sửa cuối ({@link YearGuard}) — không khoá.
  */
 @Service
 @Transactional(readOnly = true)
@@ -63,12 +64,10 @@ public class StaffAssignmentService {
     }
 
     /**
-     * Chặn ghi khi năm học đã chốt, và báo dữ liệu của một điểm trường vừa đổi (điểm đã xác nhận tự về "Đang khai").
-     * Hồ sơ năm học (yearprofile) cài nó; không có bean nào thì không chặn gì.
+     * Báo dữ liệu năm học của trường vừa đổi — hồ sơ năm học đã xác nhận ghi lại lần sửa cuối. Hồ sơ năm học
+     * (yearprofile) cài nó; không có bean nào thì thôi.
      */
     public interface YearGuard {
-        void requireOpen(Long schoolId, Long schoolYearId);
-
         void touched(Long schoolId, Long schoolYearId, Long campusId);
     }
 
@@ -340,7 +339,7 @@ public class StaffAssignmentService {
 
     /**
      * Hồ sơ cán bộ vừa lưu (thêm / sửa / nhập): phân công của năm học hiện tại theo hồ sơ. Giáo viên đang làm việc thì
-     * có phân công; không còn là giáo viên thì bỏ. Năm hiện tại đã chốt mà hồ sơ đổi môn / điểm trường thì từ chối.
+     * có phân công; không còn là giáo viên thì bỏ.
      */
     @Transactional
     public void syncFromStaff(Staff staff) {
@@ -496,7 +495,6 @@ public class StaffAssignmentService {
 
     private void guard(Long school, Long year, Long campus) {
         for (YearGuard g : guards) {
-            g.requireOpen(school, year);
             g.touched(school, year, campus);
         }
     }

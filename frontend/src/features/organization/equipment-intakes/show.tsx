@@ -1,10 +1,10 @@
+import { ReturnedNotice } from "@/shared/components/voucher/returned-notice";
 import { useOne, useShow } from "@refinedev/core";
 import {
   AlertCircle,
   Ban,
   CheckCircle2,
   Clock,
-  CornerUpLeft,
   FilePen,
   History,
   PackageCheck,
@@ -415,6 +415,8 @@ export const EquipmentIntakeShow = () => {
   const grid = showCodes ? COMPLETED_GRID : SHOW_GRID;
   const issuesOf = (l: IntakeLine) => (draft ? lineIssues(l, catalogOf(l), config, record?.fundingSource, rule) : []);
   const canWrite = record?._can?.write === true;
+  // Tệp đính kèm (của phiếu, hoá đơn, dòng) chỉ thêm / xoá khi phiếu còn nháp — kể cả nháp bị trả lại; máy chủ chặn cùng luật.
+  const canAttach = draft && canWrite;
   // Hai dạng xem của cùng một phiếu: "Làm việc" (bảng, thẻ, nút) và "Văn bản" (tờ phiếu như bản in).
   // Nhớ theo người dùng — ai quen đọc phiếu như tờ giấy thì lần sau mở ra vẫn là tờ giấy.
   const [view, setView] = useVoucherView("intake");
@@ -425,11 +427,7 @@ export const EquipmentIntakeShow = () => {
   const alerts = (
     <>
       {draft && record?.returnNote ? (
-        <Alert>
-          <CornerUpLeft className="text-warning-text" />
-          <AlertTitle>Phiếu bị trả lại, cần sửa</AlertTitle>
-          <AlertDescription>{record.returnNote}</AlertDescription>
-        </Alert>
+        <ReturnedNotice resource="equipment_intakes" id={record.id} note={record.returnNote} />
       ) : null}
       {record?.status === "REJECTED" && record.rejectReason ? (
         <Alert variant="destructive">
@@ -580,7 +578,7 @@ export const EquipmentIntakeShow = () => {
           {(record.documents ?? []).map((d, i) => {
             const n = documentNoun(record?.originSource?.code) ?? "chứng từ";
             return (
-              <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={draft} compact
+              <AttachmentsPanel key={d.id} resource="equipment_intake_documents" recordId={d.id} canWrite={canAttach} compact
                 title={`Tệp ${n} ${(record.documents ?? []).length > 1 ? i + 1 : ""}`.trim()}
                 description={[d.supplier, d.documentNo ? `số ${d.documentNo}` : null].filter(Boolean).join(" · ") || undefined} />
             );
@@ -595,7 +593,7 @@ export const EquipmentIntakeShow = () => {
       <AttachmentsPanel
         resource="equipment_intakes"
         recordId={record?.id}
-        canWrite={canWrite}
+        canWrite={canAttach}
         compact
         description="Biên bản giao nhận và giấy tờ chung của phiếu. Hoá đơn của dòng nào thì bấm vào dòng đó để xem."
       />
@@ -606,7 +604,7 @@ export const EquipmentIntakeShow = () => {
           head={record}
           config={config}
           issues={issuesOf(lines[opened])}
-          canWrite={canWrite}
+          canWrite={canAttach}
           assets={showCodes && lines[opened].id != null ? assets.byLine.get(lines[opened].id!) : undefined}
           onClose={() => setOpened(null)}
         />
@@ -657,6 +655,36 @@ export const EquipmentIntakeShow = () => {
           </p>
         ) : null}
       </SideSection>
+      {/* Nút việc của phiếu ngay dưới thông tin phiếu — cùng chỗ với đề xuất mua sắm, biên bản kiểm kê. */}
+      <VoucherActions
+        resource="equipment_intakes"
+        record={record}
+        invalidates={["equipment", "equipment_items"]}
+        tucked={tucked}
+        layout="side"
+        text={{
+          approve: {
+            label: "Duyệt và ghi tăng",
+            title: "Duyệt phiếu và ghi tăng thiết bị?",
+            description: (
+              <div className="space-y-2">
+                <p>
+                  Mỗi thiết bị quản lý từng cái sẽ có một mã riêng. Vật tư tiêu hao thì mỗi dòng một mã chung cho cả lô.
+                </p>
+                <p>
+                  {record?.totalReceived != null ? (
+                    <>Tổng <span className="text-foreground font-medium">{record.totalReceived}</span> đơn vị trên{" "}</>
+                  ) : "Gồm "}
+                  <span className="text-foreground font-medium">{record?.lineCount ?? 0}</span> dòng. Sau khi duyệt,
+                  phiếu KHÔNG sửa được nữa.
+                </p>
+              </div>
+            ),
+            confirm: "Duyệt và ghi tăng",
+            done: "Đã duyệt, thiết bị đã được ghi tăng",
+          },
+        }}
+      />
 
       <SideSection title="Số lượng thiết bị">
         {/* Các dòng khác đơn vị tính (cái và gam) thì không có tổng số lượng: số lớn là số loại thiết bị. */}
@@ -719,34 +747,7 @@ export const EquipmentIntakeShow = () => {
             {record ? (
               <VoucherViewSwitch view={view} onChange={setView} />
             ) : null}
-          <VoucherActions
-            resource="equipment_intakes"
-            record={record}
-            invalidates={["equipment", "equipment_items"]}
-            tucked={tucked}
-            text={{
-              approve: {
-                label: "Duyệt và ghi tăng",
-                title: "Duyệt phiếu và ghi tăng thiết bị?",
-                description: (
-                  <div className="space-y-2">
-                    <p>
-                      Mỗi thiết bị quản lý từng cái sẽ có một mã riêng. Vật tư tiêu hao thì mỗi dòng một mã chung cho cả lô.
-                    </p>
-                    <p>
-                      {record?.totalReceived != null ? (
-                        <>Tổng <span className="text-foreground font-medium">{record.totalReceived}</span> đơn vị trên{" "}</>
-                      ) : "Gồm "}
-                      <span className="text-foreground font-medium">{record?.lineCount ?? 0}</span> dòng. Sau khi duyệt,
-                      phiếu KHÔNG sửa được nữa.
-                    </p>
-                  </div>
-                ),
-                confirm: "Duyệt và ghi tăng",
-                done: "Đã duyệt, thiết bị đã được ghi tăng",
-              },
-            }}
-          />          </>
+          </>
         }
       />
 

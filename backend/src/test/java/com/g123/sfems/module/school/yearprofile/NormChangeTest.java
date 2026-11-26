@@ -45,7 +45,7 @@ class NormChangeTest {
         Long school = jdbc.queryForObject("SELECT us.school_id FROM user_schools us JOIN users u ON u.id = us.id"
                 + " WHERE u.username = 'thcs.canbo'", Long.class);
         Long year = jdbc.queryForObject("SELECT id FROM school_years WHERE is_current", Long.class);
-        jdbc.update("DELETE FROM school_year_closings WHERE school_id = ? AND school_year_id = ?", school, year);
+        jdbc.update("DELETE FROM school_year_profiles WHERE school_id = ? AND school_year_id = ?", school, year);
         jdbc.update("DELETE FROM school_norm_adjustments WHERE norm_id = ?", norm);
         Long adjustment = jdbc.queryForObject("""
                 INSERT INTO school_norm_adjustments (school_id, school_year_id, norm_id, norm_code, kind, outside_need,

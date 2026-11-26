@@ -103,7 +103,7 @@ public class AttachmentController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String note) throws IOException {
         // Kiểm trước khi đẩy: người không có quyền không được đẩy được byte nào lên kho.
-        readTx.executeWithoutResult(status -> records.checkWritable(resource, recordId));
+        readTx.executeWithoutResult(status -> records.checkAttachmentsEditable(resource, recordId));
         if (file.isEmpty()) {
             throw new FieldValidationException("file", "Tệp rỗng");
         }
@@ -158,7 +158,7 @@ public class AttachmentController {
         try {
             return tx.execute(status -> {
                 // Lần nữa, trong giao dịch ghi: quyền có thể đã đổi trong lúc tệp đang truyền.
-                records.checkWritable(resource, recordId);
+                records.checkAttachmentsEditable(resource, recordId);
                 Attachment saved = repository.save(attachment);
                 return repository.info(saved.getId()).orElseThrow();
             });
@@ -219,7 +219,7 @@ public class AttachmentController {
     @Transactional
     public AttachmentInfo delete(@PathVariable Long id) {
         AttachmentInfo info = repository.info(id).orElseThrow(() -> new ResourceNotFoundException("Attachment", id));
-        records.checkWritable(info.resource(), info.recordId());
+        records.checkAttachmentsEditable(info.resource(), info.recordId());
         String key = repository.storageKeyOf(id);
         repository.deleteById(id);
         // Xoá đối tượng SAU khi dòng đã chắc chắn mất; lùi lại thì tệp còn nguyên.

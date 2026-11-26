@@ -19,14 +19,14 @@ test("K1 chuyên viên Sở phát động đợt kiểm kê, kiểm validate for
   await uiLogin(page, "soChuyenVien");
   await page.goto("/inventory-campaigns/create");
   const dlg = page.locator('[role="dialog"]').last();
-  await dlg.getByRole("button", { name: "Phát động" }).click();
+  await dlg.getByRole("button", { name: "Lưu nháp" }).click();
   const empty = await dlg.locator("[data-slot=form-message]").allInnerTexts();
   rec.check("K1:required", "Validate", "Để trống tên đợt / hạn nộp thì báo dưới ô", empty.length >= 2, "medium", "≥ 2 lỗi dưới ô", empty.join(" · ") || "không báo", { role: "soChuyenVien" });
   await dlg.locator("input[name=title]").fill(ctx.title);
   await dlg.locator("input[name=cutoffDate]").fill("20/11/2026");
   await dlg.locator("input[name=deadline]").fill("10/11/2026");
   await page.keyboard.press("Tab");
-  await dlg.getByRole("button", { name: "Phát động" }).click();
+  await dlg.getByRole("button", { name: "Lưu nháp" }).click();
   const order = await dlg.innerText();
   rec.check("K1:date-order", "Validate", "Hạn nộp trước ngày chốt số liệu thì chặn", /không được trước ngày chốt/i.test(order), "medium", "chặn, nói rõ lý do", /không được trước ngày chốt/i.test(order) ? "chặn: Hạn nộp không được trước ngày chốt số liệu" : "không chặn", { role: "soChuyenVien" });
   const posts: number[] = [];
@@ -34,7 +34,7 @@ test("K1 chuyên viên Sở phát động đợt kiểm kê, kiểm validate for
   await dlg.locator("input[name=title]").fill("     ");
   await dlg.locator("input[name=deadline]").fill("30/11/2026");
   await page.keyboard.press("Tab");
-  await dlg.getByRole("button", { name: "Phát động" }).click();
+  await dlg.getByRole("button", { name: "Lưu nháp" }).click();
   await page.waitForTimeout(1200);
   const blankToast = await page.locator("[data-sonner-toast]").allInnerTexts();
   rec.check("K1:blank-title-client", "Validate", "Tên chỉ toàn dấu cách bị chặn ngay ở form (không cần gọi máy chủ)", posts.length === 0, "low", "chặn ở form", posts.length ? `form cho gửi, máy chủ trả ${posts[0]}: ${blankToast.join(" / ").replace(/\s+/g, " ")}` : "chặn ở form", { role: "soChuyenVien" });
@@ -42,14 +42,14 @@ test("K1 chuyên viên Sở phát động đợt kiểm kê, kiểm validate for
   // Luật: mỗi cơ quan một đợt đang mở cho cùng ngày chốt (đợt 20/11/2026 đã mở ở lần chạy tay).
   const dupResp = page.waitForResponse((r) => r.request().method() === "POST" && /inventory_campaigns$/.test(r.url()));
   await dlg.locator("input[name=title]").fill(ctx.title);
-  await dlg.getByRole("button", { name: "Phát động" }).click();
+  await dlg.getByRole("button", { name: "Lưu nháp" }).click();
   const dup = await (await dupResp).text();
   rec.check("K1:one-open", "Validate", "Không mở hai đợt trùng ngày chốt số liệu", /đã có một đợt kiểm kê đang mở/.test(dup) || !/20\/11/.test(dup), "medium", "chặn", dup.match(/"message":"([^"]+)/)?.[1] ?? dup.slice(0, 120), { role: "soChuyenVien" });
   const okResp = page.waitForResponse((r) => r.request().method() === "POST" && /inventory_campaigns$/.test(r.url()));
   await dlg.locator("input[name=cutoffDate]").fill(ctx.cutoff);
   await dlg.locator("input[name=deadline]").fill("31/12/2027");
   await page.keyboard.press("Tab");
-  await dlg.getByRole("button", { name: "Phát động" }).click();
+  await dlg.getByRole("button", { name: "Lưu nháp" }).click();
   const created = (await okResp).status();
   const t = await toastText(page);
   rec.check("K1:launch", "Luồng kiểm kê", "Phát động đợt kiểm kê", created === 201, "critical", "Đã thêm đợt kiểm kê", t, { role: "soChuyenVien", evidence: await shot(page, "K1-campaign") });

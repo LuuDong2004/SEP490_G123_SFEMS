@@ -109,7 +109,13 @@ export type StandardItem = {
   shortfalls: string[];
   requirements: string[];
   hasRules: boolean;
+  /** Điều kiện RIÊNG từng mức chưa đạt (`FacilityStandardService.Gap`); mức chỉ hỏng vì mức dưới thì không có. */
+  gaps: Partial<Record<StandardTier, StandardGap>>;
+  /** Thiếu dữ liệu để đánh giá: số lớp, số học sinh, diện tích phòng. */
+  missing: ("classes" | "students" | "area")[];
 };
+
+export type StandardGap = { needCount: number | null; needRoomArea: number | null; needTotalArea: number | null };
 
 export type StandardGroup = {
   code: string | null;

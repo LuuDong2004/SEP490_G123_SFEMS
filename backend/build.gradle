@@ -51,8 +51,6 @@ dependencies {
     implementation 'io.minio:minio:8.5.17'
     // Tài liệu API: /v3/api-docs và /swagger-ui.html; tắt bằng APP_API_DOCS=false.
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
-    // AI gợi ý sửa dòng lỗi ở vùng chờ nhập dữ liệu (OnboardingAiService). Tắt mặc định: APP_AI_ENABLED.
-    implementation 'com.anthropic:anthropic-java:3.2.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-liquibase-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.security:spring-security-test'

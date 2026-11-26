@@ -92,25 +92,9 @@ public class Equipment extends SchoolOwnedEntity {
     @Column(length = 255)
     private String manufacturer;
 
-    /** Thông tin khác của cái này — cấu hình, công suất, xuất xứ…: chữ tự do, không tách trường. */
-    @Column(name = "other_info", length = 500)
-    private String otherInfo;
-
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "unit_id")
     private Unit unit;
-
-    /**
-     * Quy cách bao bì của LÔ vật tư / hoá chất (182): đơn vị bao bì (Lọ, Chai…) và lượng trong một bao bì theo đơn vị
-     * của lô (10 ml). Số lượng của lô vẫn đếm theo đơn vị của lô; quy cách để nhập "3 lọ" thay cho "30 ml". Cùng
-     * trống hoặc cùng có. EAGER như {@code unit}: phản hồi đọc nó sau khi giao dịch đóng.
-     */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "pack_unit_id")
-    private Unit packUnit;
-
-    @Column(name = "pack_size", precision = 14, scale = 3)
-    private BigDecimal packSize;
 
     @Column(nullable = false)
     private BigDecimal quantity = BigDecimal.ONE;
@@ -154,9 +138,6 @@ public class Equipment extends SchoolOwnedEntity {
 
     @Column(name = "original_value", precision = 18, scale = 2)
     private BigDecimal originalValue;
-
-    @Column(name = "remaining_value", precision = 18, scale = 2)
-    private BigDecimal remainingValue;
 
     @Column(name = "warranty_expiry")
     private LocalDate warrantyExpiry;
@@ -258,35 +239,12 @@ public class Equipment extends SchoolOwnedEntity {
         this.manufacturer = manufacturer;
     }
 
-    public String getOtherInfo() {
-        return otherInfo;
-    }
-
-    public void setOtherInfo(String otherInfo) {
-        this.otherInfo = otherInfo;
-    }
-
     public Unit getUnit() {
         return unit;
     }
 
     public void setUnit(Unit unit) {
         this.unit = unit;
-    }
-
-    public Unit getPackUnit() {
-        return packUnit;
-    }
-
-    public BigDecimal getPackSize() {
-        return packSize;
-    }
-
-    /** Đặt quy cách (cả hai cùng có hoặc cùng trống — ràng buộc {@code ck_equipment_pack}). */
-    public void setPack(Unit packUnit, BigDecimal packSize) {
-        boolean has = packUnit != null && packSize != null && packSize.signum() > 0;
-        this.packUnit = has ? packUnit : null;
-        this.packSize = has ? packSize : null;
     }
 
     public BigDecimal getQuantity() {
@@ -383,14 +341,6 @@ public class Equipment extends SchoolOwnedEntity {
 
     public void setOriginalValue(BigDecimal originalValue) {
         this.originalValue = originalValue;
-    }
-
-    public BigDecimal getRemainingValue() {
-        return remainingValue;
-    }
-
-    public void setRemainingValue(BigDecimal remainingValue) {
-        this.remainingValue = remainingValue;
     }
 
     public LocalDate getWarrantyExpiry() {

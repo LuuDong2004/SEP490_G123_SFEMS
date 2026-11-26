@@ -28,6 +28,7 @@ final class AdequacyExcel {
                 new Column("code", "Mã DM thiết bị", "text"),
                 new Column("name", "Thiết bị", "text"),
                 new Column("type", "Loại", "text"),
+                new Column("unit", "ĐVT", "text"),
                 new Column("norm", "Định mức", "text"),
                 new Column("grades", "Lớp áp dụng", "text"),
                 new Column("required", "Phải có", "number"),
@@ -43,6 +44,7 @@ final class AdequacyExcel {
             row.put("code", r.catalogCode());
             row.put("name", r.normName());
             row.put("type", r.typeName());
+            row.put("unit", r.unit());
             row.put("norm", r.quantityText() != null ? r.quantityText()
                     : r.minQuantity() == null ? "Không ghi" : r.minQuantity().stripTrailingZeros().toPlainString());
             row.put("grades", r.gradeLevels() == null ? "Mọi lớp" : r.gradeLevels().replace(",", ", "));

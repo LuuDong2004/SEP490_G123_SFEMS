@@ -86,7 +86,6 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
                 // Bốn cột bắt buộc dưới đây cùng mã chuẩn và đơn vị tính (hệ thống tự có) là đủ HỒ SƠ CHUẨN
                 // (`Equipment.missingProfile`) — thiếu một cột là tài sản nhập vào không đưa được vào phiếu nào.
                 new Column("originalValue", "Nguyên giá (đ)", true, "Giá của MỘT cái"),
-                new Column("remainingValue", "Giá trị còn lại (đ)", false, "Để trống = bằng nguyên giá"),
                 new Column("receivedDate", "Ngày tiếp nhận", true, "dd/mm/yyyy — ngày thiết bị về trường; không nhớ ngày thì ghi 01/01 của năm"),
                 new Column("usageStartYear", "Năm đưa vào sử dụng", false, ""),
                 new Column("originSource", "Nguồn hình thành", false,
@@ -155,10 +154,6 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
             errors.add("Trường không có cán bộ mã \"" + managerCode + "\"");
         }
         BigDecimal original = v.money("originalValue", "Nguyên giá");
-        BigDecimal remaining = v.money("remainingValue", "Giá trị còn lại");
-        if (original != null && remaining != null && remaining.compareTo(original) > 0) {
-            errors.add("Giá trị còn lại lớn hơn nguyên giá");
-        }
         LocalDate received = v.date("receivedDate", "Ngày tiếp nhận");
         if (received == null && blank(row, "receivedDate")) {
             errors.add("Thiếu ngày tiếp nhận");
@@ -196,11 +191,11 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
         if (!errors.isEmpty()) {
             return new Parsed<>(null, errors, code);
         }
-        // Khai gộp: nguyên giá / giá trị còn lại trên dòng là của MỘT cái (như đơn giá trên hoá đơn).
+        // Khai gộp: nguyên giá trên dòng là của MỘT cái (như đơn giá trên hoá đơn).
         EquipmentRequest request = new EquipmentRequest(code, name, null, true, note, new IdRef(schoolId),
-                new IdRef(catalog), null, null, serial, null, null, null, null, bulk ? quantity : BigDecimal.ONE,
+                new IdRef(catalog), null, null, serial, null, null, null, bulk ? quantity : BigDecimal.ONE,
                 originId == null ? null : new IdRef(originId), null, funding, null,
-                startYear, received, received, original, remaining, null, null, room == null ? null : new IdRef(room),
+                startYear, received, received, original, null, null, room == null ? null : new IdRef(room),
                 manager == null ? null : new IdRef(manager), condition == null ? EquipmentCondition.TOT : condition,
                 status, null, null);
         return new Parsed<>(new Row(request, copies), errors, code);

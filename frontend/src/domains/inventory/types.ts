@@ -7,14 +7,32 @@ type Ref = { id: number; code: string | null; name: string };
 export type InventoryCampaign = {
   id: number;
   managingBody: Ref;
+  /** Năm học của đợt (306); đợt cũ chưa gán thì trống. */
+  schoolYear: Ref | null;
   title: string;
+  /** Số công văn phát động (307), không bắt buộc. */
+  documentNo: string | null;
   cutoffDate: string;
   deadline: string;
   note: string | null;
   closed: boolean;
   overdue: boolean;
   createdAt: string;
-  _can?: { write?: boolean; delete?: boolean };
+  /** Duyệt đợt (308): nháp → chờ Lãnh đạo Sở duyệt → đã duyệt (phát động tới trường). */
+  status: CampaignApproval;
+  /** Lý do trả lại (đợt về nháp) hoặc ý kiến khi duyệt. */
+  approvalNote: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  _can?: { write?: boolean; delete?: boolean; submit?: boolean; approve?: boolean };
+};
+
+export type CampaignApproval = "DRAFT" | "PENDING" | "APPROVED";
+
+export const CAMPAIGN_APPROVAL_LABELS: Record<CampaignApproval, string> = {
+  DRAFT: "Nháp",
+  PENDING: "Chờ duyệt",
+  APPROVED: "Đã duyệt",
 };
 
 export type CampaignProgressRow = {
@@ -37,14 +55,53 @@ export type CampaignProgress = {
   drafting: number;
   pending: number;
   completed: number;
+  /** Phiếu bị từ chối mà trường chưa lập phiếu khác. */
+  rejected: number;
   schools: CampaignProgressRow[];
 };
 
-export type Discrepancy = "MISSING" | "WRONG_ROOM" | "SHORTAGE";
+/** Tình trạng của đợt, tính theo ngày: đợt đã phát động không đóng tay, hết ngày kết thúc là kết thúc. */
+export type CampaignState = "upcoming" | "active" | "ended";
+
+export const CAMPAIGN_STATE_LABELS: Record<CampaignState, string> = {
+  upcoming: "Chưa hiệu lực",
+  active: "Đang diễn ra",
+  ended: "Đã kết thúc",
+};
+
+/** `today` dạng "yyyy-MM-dd" (ngày lịch, so sánh chuỗi được). */
+export function campaignStateOf(c: { cutoffDate: string; deadline: string }, today: string): CampaignState {
+  return today < c.cutoffDate ? "upcoming" : today > c.deadline ? "ended" : "active";
+}
+
+/**
+ * Trường đang ở đâu trong đợt, suy từ phiếu kiểm kê của nó — cùng cách chia với máy chủ
+ * (`InventoryCampaignService.progress`): nháp là đang kiểm, chờ duyệt, đã duyệt (duyệt xong), bị từ chối.
+ */
+export type CampaignStage = "done" | "pending" | "drafting" | "rejected" | "none";
+
+export const CAMPAIGN_STAGE_LABELS: Record<CampaignStage, string> = {
+  done: "Đã duyệt",
+  pending: "Chờ duyệt",
+  drafting: "Đang kiểm",
+  rejected: "Bị từ chối",
+  none: "Chưa bắt đầu",
+};
+
+export const campaignStageOf = (status?: string | null): CampaignStage =>
+  !status ? "none"
+    : status === "APPROVED" || status === "COMPLETED" ? "done"
+      : status === "PENDING" ? "pending"
+        : status === "REJECTED" ? "rejected"
+          : "drafting";
+
+/** `InventoryLine.Discrepancy` ở máy chủ. CONDITION: thấy nhưng tình trạng khác hệ thống. */
+export type Discrepancy = "MISSING" | "WRONG_ROOM" | "CONDITION" | "SHORTAGE";
 
 export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
   MISSING: "Thiếu",
   WRONG_ROOM: "Sai vị trí",
+  CONDITION: "Sai tình trạng",
   SHORTAGE: "Thiếu số lượng",
 };
 
@@ -54,7 +111,8 @@ export const DISCREPANCY_LABELS: Record<Discrepancy, string> = {
  */
 export const DISCREPANCY_OUTCOMES: Record<Exclude<Discrepancy, "SHORTAGE"> | "SURPLUS", string> = {
   MISSING: "ghi trạng thái Mất vào hồ sơ thiết bị",
-  WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy",
+  WRONG_ROOM: "chuyển thiết bị về phòng thực tế thấy (về kho thì Trong kho, về phòng khác thì Đang sử dụng)",
+  CONDITION: "ghi tình trạng thực tế vào hồ sơ thiết bị",
   SURPLUS: "lập phiếu ghi tăng nháp (nguồn Kiểm kê thừa)",
 };
 
@@ -62,7 +120,11 @@ export type InventoryLine = {
   details?: Details;
   id: number;
   lineNo: number;
-  equipment: EquipmentRef;
+  /** Trống khi hồ sơ thiết bị (đã Mất) bị xoá sau khi biên bản duyệt xong — mã, tên đọc từ `equipmentCode` / `equipmentName`. */
+  equipment: EquipmentRef | null;
+  /** Mã, tên thiết bị: của hồ sơ khi còn, không thì bản chụp lúc lập phiếu. Luôn có. */
+  equipmentCode: string;
+  equipmentName: string;
   expectedRoom: Ref | null;
   expectedCondition: string | null;
   found: boolean | null;
@@ -98,6 +160,7 @@ export type InventorySession = VoucherBase & {
     matched: number;
     missing: number;
     wrongRoom: number;
+    wrongCondition: number;
     surplus: number;
   };
   lines: InventoryLine[];
@@ -116,6 +179,7 @@ export type DiscrepancyCounts = {
   matched: number;
   missing: number;
   wrongRoom: number;
+  wrongCondition: number;
 };
 
 /** `GET /inventory_sessions/{id}/breakdown`. */
@@ -134,17 +198,18 @@ export type CampaignDiscrepancyRow = {
 };
 
 /** Tiêu đề các cột số của bảng chênh lệch. */
-export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí"];
+export const COUNT_HEADS = ["Theo hệ thống", "Đã kiểm", "Khớp", "Thiếu", "Sai vị trí", "Sai tình trạng"];
 
 /** Cộng các nhóm thành một hàng tổng. */
 export function sumCounts(rows: DiscrepancyCounts[]): DiscrepancyCounts {
-  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0 };
+  const total: DiscrepancyCounts = { id: null, name: "Cộng", storeroom: false, total: 0, checked: 0, matched: 0, missing: 0, wrongRoom: 0, wrongCondition: 0 };
   for (const r of rows) {
     total.total += r.total;
     total.checked += r.checked;
     total.matched += r.matched;
     total.missing += r.missing;
     total.wrongRoom += r.wrongRoom;
+    total.wrongCondition += r.wrongCondition;
   }
   return total;
 }

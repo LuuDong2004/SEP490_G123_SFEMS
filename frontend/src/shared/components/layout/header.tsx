@@ -27,6 +27,8 @@ import {
 } from "@/shared/ui/dropdown-menu";
 import { SidebarTrigger, useSidebar } from "@/shared/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
+import { getAuthorities } from "@/shared/api/session";
+import { SYSTEM_ROLE_LABELS } from "@/domains/role/types";
 
 type Identity = {
   username?: string;
@@ -123,6 +125,8 @@ function UserMenu() {
   const name =
     user?.fullName ??
     [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  // Vai của tài khoản, tên ngắn ("Lãnh đạo Sở"); vai do quản trị viên tự tạo thì hiện bằng mã.
+  const roles = (getAuthorities()?.roles ?? []).map((r) => SYSTEM_ROLE_LABELS[r] ?? r).join(", ");
 
   const avatar = (size: string, text: string) => (
     <Avatar className={size}>
@@ -146,10 +150,13 @@ function UserMenu() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8} className="w-72 p-0">
-        {/* Đầu thẻ: ai đang đăng nhập — ảnh và tên đủ (xuống dòng, không cắt). Thư, vai xem ở màn Tài khoản. */}
+        {/* Đầu thẻ: ai đang đăng nhập — ảnh, tên đủ (xuống dòng, không cắt) và vai ngay dưới tên. Thư xem ở màn Tài khoản. */}
         <div className="bg-surface-subtle flex items-center gap-3 border-b p-4">
           {avatar("size-10", "text-sm")}
-          <p className="min-w-0 flex-1 text-sm leading-snug font-semibold break-words">{name || user?.username}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm leading-snug font-semibold break-words">{name || user?.username}</p>
+            {roles ? <p className="text-muted-foreground text-xs leading-snug break-words">{roles}</p> : null}
+          </div>
         </div>
         <div className="p-1.5">
           <DropdownMenuItem asChild className="gap-3 px-2.5 py-2">

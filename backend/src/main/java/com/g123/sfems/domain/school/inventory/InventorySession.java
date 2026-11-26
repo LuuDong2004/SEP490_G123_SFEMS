@@ -26,8 +26,9 @@ import org.hibernate.annotations.BatchSize;
  * dòng, ghi sổ nói nó ở đâu và tình trạng gì. Tổ kiểm kê đi đếm và ghi cái thấy
  * thật. Chênh lệch là khoảng cách giữa hai cột đó.
  *
- * <p>Duyệt biên bản là ghi kết quả vào sổ: thiếu → Mất, hỏng → Hỏng, sai vị trí → phòng theo nơi thấy. Thiết bị thừa
- * sinh phiếu ghi tăng nháp, phiếu đó có người duyệt như bình thường.
+ * <p>Duyệt biên bản là ghi kết quả vào sổ: thiếu → Mất, tình trạng khác sổ → tình trạng thấy, sai vị trí → phòng theo
+ * nơi thấy (kèm trạng thái Trong kho / Đang sử dụng theo phòng mới). Thiết bị thừa sinh phiếu ghi tăng nháp, phiếu đó
+ * có người duyệt như bình thường.
  */
 @RowLevelResource("inventory_sessions")
 @Entity

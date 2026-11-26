@@ -195,7 +195,7 @@ test("bước 4: sửa lỗi trên lưới", async ({ page }) => {
 
   // Còn mã phòng "a101": để Sửa nhanh làm.
   await page.getByRole("tab", { name: /^Thiết bị/ }).click();
-  await page.getByRole("button", { name: /AI sửa lỗi|Sửa nhanh/ }).click();
+  await page.getByRole("button", { name: "Sửa nhanh" }).click();
   const dlg = page.getByRole("dialog");
   await dlg.waitFor();
   await page.waitForTimeout(1500);

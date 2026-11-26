@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- bản ghi thiết bị đến từ bộ màn danh mục chung, kiểu `any` như `CatalogExtra.show`. */
 import { useQuery } from "@tanstack/react-query";
 import {
-  BookCheck, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
+  BookCheck, CircleAlert, CircleCheck, FileText, History, LayoutList, MapPin, Paperclip, School, UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -30,12 +30,20 @@ const GROUPS: { title: string; labels: string[] }[] = [
   { title: "Phân loại", labels: ["Thiết bị", "Môn học", "Dạng thiết bị", "Loại", "Phân loại kế toán", "Số lượng", "Mã cũ"] },
   {
     title: "Nguồn gốc và giá trị",
-    labels: ["Nguồn gốc", "Nhà cung cấp", "Số hoá đơn", "Ngày hoá đơn", "Nguồn hình thành", "Hình thức mua sắm",
+    labels: ["Nhà cung cấp", "Số hoá đơn", "Ngày hoá đơn", "Nguồn hình thành", "Hình thức mua sắm",
       "Nguồn kinh phí", "Ngày tiếp nhận", "Ngày mua", "Nguyên giá"],
   },
-  { title: "Kỹ thuật, bảo hành", labels: ["Số serial", "Model", "Hãng sản xuất", "Thông số kỹ thuật", "Năm sản xuất / sử dụng", "Hết hạn bảo hành", "Bảo hành sau sửa chữa"] },
+  {
+    title: "Kỹ thuật, bảo hành",
+    labels: ["Số serial", "Model", "Hãng sản xuất", "Thông số kỹ thuật", "Năm sản xuất", "Năm đưa vào sử dụng", "Hết hạn bảo hành",
+      "Hạn sử dụng"],
+  },
 ];
-const HEAD = ["Trạng thái", "Hồ sơ", "Trường", "Phòng", "Người quản lý", "Tình trạng", "Giá trị còn lại"];
+/**
+ * Đã có ở chỗ khác của màn, không lặp ở Tổng quan: trạng thái, tình trạng, hồ sơ ở thẻ trái; trường, phòng, người quản lý,
+ * phiếu ghi tăng ("Nguồn gốc") ở dải ô trên.
+ */
+const HEAD = ["Trạng thái", "Hồ sơ", "Trường", "Phòng", "Người quản lý", "Tình trạng", "Nguồn gốc"];
 /** "Thiết bị" ở đây là mục trong danh mục, không phải tên của cái đang xem. */
 const SHOWN_AS: Record<string, string> = { "Thiết bị": "DM thiết bị" };
 
@@ -54,6 +62,8 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
   const [tab, setTab] = useState<Tab>("overview");
   const by = new Map(fields.map((f) => [f.label, f]));
   const used = new Set([...HEAD, ...GROUPS.flatMap((g) => g.labels)]);
+  // Tên thiết bị đặt theo danh mục (thường gặp): dòng "DM thiết bị" chỉ lặp lại tên ở thẻ trái.
+  if (r.catalog?.name && r.catalog.name.trim() === String(r.name ?? "").trim()) by.delete("Thiết bị");
   const rest = fields.filter((f) => !used.has(f.label));
   const canWrite = canWriteRecord("equipment", r);
   const gone = OFF_BOOK_STATUSES.includes(r?.status);
@@ -118,24 +128,21 @@ export function EquipmentDetail({ record: r, fields }: { record: any; fields: Fi
                 </div>
                 {r.note ? <p className="mt-4 text-sm"><span className="text-muted-foreground">Ghi chú: </span>{r.note}</p> : null}
 
-                {/* Ba thẻ lấp phần còn lại của khung — không để một khoảng trắng dưới thông tin. */}
+                {/* Ba thẻ lấp phần còn lại của khung: thay đổi gần đây, đủ hay thiếu so với định mức, các tệp đã đính kèm. */}
                 <div className="mt-5 grid min-h-[13rem] flex-1 gap-4 border-t pt-5 lg:grid-cols-3">
                   <MiniCard icon={<History />} title="Hoạt động gần đây"
                     action={<button type="button" onClick={() => setTab("history")} className="text-primary text-sm font-medium hover:underline">Xem tất cả</button>}>
                     <RecentHistory equipmentId={r.id} />
                   </MiniCard>
-                  <MiniCard icon={<BookCheck />} title="Chuẩn tối thiểu">
+                  <MiniCard icon={<BookCheck />} title="Chuẩn tối thiểu"
+                    action={r.catalog?.id ? <button type="button" onClick={() => setTab("standard")} className="text-primary text-sm font-medium hover:underline">Chi tiết</button> : undefined}>
                     {r.catalog?.id ? <EquipmentStandardMini equipmentId={r.id} /> : (
-                      <p className="text-muted-foreground text-sm">Thiết bị ngoài danh mục, không tính đủ hay thiếu.</p>
+                      <p className="text-muted-foreground text-sm">Thiết bị ngoài danh mục (trường tự thêm). Không có định mức, không tính đủ hay thiếu.</p>
                     )}
                   </MiniCard>
-                  <MiniCard icon={<Paperclip />} title="Tệp đính kèm"
-                    action={<button type="button" onClick={() => setTab("files")} className="text-primary text-sm font-medium hover:underline">Mở</button>}>
-                    <p className="text-muted-foreground text-sm">
-                      Ảnh thiết bị, hồ sơ kỹ thuật, phiếu bảo hành{r.intakeDocument?.lineId ? ", hoá đơn của phiếu ghi tăng" : ""}.
-                      {canWrite && !gone ? <> Thêm hoặc xoá khi bấm <Link to={`/equipment/edit/${r.id}`} className="text-primary font-medium hover:underline">Sửa</Link>.</> : null}
-                    </p>
-                  </MiniCard>
+                  {/* Các tệp đã đính kèm, xem và tải được ngay. Thêm, xoá ở trang Sửa. */}
+                  <AttachmentsPanel resource="equipment" recordId={r.id} canWrite={false} compact className="h-full"
+                    description="Ảnh thiết bị, hồ sơ kỹ thuật, phiếu bảo hành." />
                 </div>
               </>
             ) : null}
@@ -193,9 +200,23 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
               Tình trạng: {EQUIPMENT_CONDITION_LABELS[r.condition] ?? "Chưa đánh giá"}
             </Badge>
             {r.profileComplete === false ? (
-              <Badge variant="warning" title={(r.missingProfile ?? []).length ? `Thiếu: ${r.missingProfile.join(", ")}` : undefined}>Hồ sơ chưa chuẩn</Badge>
+              <Badge variant="warning">Hồ sơ chưa chuẩn</Badge>
             ) : <Badge variant="success">Hồ sơ chuẩn</Badge>}
           </div>
+          {/* Hồ sơ chưa chuẩn thì nói luôn thiếu gì, không bắt rê chuột vào nhãn. */}
+          {r.profileComplete === false && (r.missingProfile ?? []).length > 0 ? (
+            <div className="mt-3 text-sm">
+              <p className="text-warning-text font-medium">Hồ sơ còn thiếu</p>
+              <ul className="mt-1.5 space-y-1">
+                {(r.missingProfile as string[]).map((m) => (
+                  <li key={m} className="flex items-start gap-1.5">
+                    <CircleAlert className="text-warning-text mt-0.5 size-3.5 shrink-0" />
+                    <span className="block first-letter:uppercase">{m}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
     </Card>
@@ -256,14 +277,14 @@ function MiniCard({ icon, title, action, children }: { icon: ReactNode; title: s
   );
 }
 
-/** Ba mục lịch sử mới nhất — cùng khoá truy vấn với tab Lịch sử nên không gọi máy chủ hai lần. */
+/** Năm mục lịch sử mới nhất — cùng khoá truy vấn với tab Lịch sử nên không gọi máy chủ hai lần. */
 function RecentHistory({ equipmentId }: { equipmentId: number }) {
   const { data, isLoading } = useQuery({
     queryKey: ["equipment_history", equipmentId],
     queryFn: ({ signal }) => kyInstance.get(`equipment/${equipmentId}/history`, { signal }).json<EquipmentHistoryRow[]>(),
   });
   if (isLoading) return <LoadingText />;
-  const rows = (Array.isArray(data) ? data : []).slice(0, 3);
+  const rows = (Array.isArray(data) ? data : []).slice(0, 5);
   if (!rows.length) return <p className="text-muted-foreground text-sm">Chưa có thay đổi nào được ghi lại.</p>;
   return (
     <ol className="space-y-3">

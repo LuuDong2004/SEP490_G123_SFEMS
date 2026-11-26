@@ -27,8 +27,8 @@ async function as(request: APIRequestContext, role: Role) {
 /** Đề xuất một dòng (Phần mềm toán học — danh mục THCS) đã trình, trả về {id, code}. */
 async function submittedProposal(request: APIRequestContext, s: Session, reason: string) {
   const c = await call(request, s, "POST", "purchase_proposals", {
-    proposalDate: TODAY, budgetYear: 2027, fundingSource: "STATE_BUDGET", reason,
-    lines: [{ catalog: { id: 1046 }, kind: "NEW", name: "Phần mềm toán học", unitName: "Bộ", quantity: 1, unitPrice: 1_000_000, priority: 2 }],
+    proposalDate: TODAY, budgetYear: 2027, reason,
+    lines: [{ catalog: { id: 1046 }, kind: "NEW", name: "Phần mềm toán học", unitName: "Bộ", quantity: 1, unitPrice: 1_000_000 }],
   });
   const p = await call(request, s, "POST", `purchase_proposals/${c.body.id}/submit`);
   return { id: c.body.id as number, code: p.body.code as string, status: p.body.status as string };

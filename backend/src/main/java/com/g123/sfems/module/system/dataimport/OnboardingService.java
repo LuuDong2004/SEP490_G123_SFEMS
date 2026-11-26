@@ -23,6 +23,8 @@ import com.g123.sfems.module.school.schoolclass.SchoolClassRequest;
 import com.g123.sfems.module.school.schoolclass.SchoolClassService;
 import com.g123.sfems.module.school.staff.StaffRequest;
 import com.g123.sfems.module.school.staff.StaffService;
+import com.g123.sfems.module.school.student.StudentRequest;
+import com.g123.sfems.module.school.student.StudentService;
 import com.g123.sfems.module.school.team.SubjectTeamRequest;
 import com.g123.sfems.module.school.team.SubjectTeamService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
@@ -36,6 +38,7 @@ import com.g123.sfems.module.system.dataimport.OnboardingValidator.Result;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.RoomRow;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.Staged;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.StaffRow;
+import com.g123.sfems.module.system.dataimport.OnboardingValidator.StudentRow;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
@@ -52,6 +55,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -61,6 +65,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -95,8 +100,14 @@ public class OnboardingService {
      */
     public record Batch(long id, String kind, String kindTitle, IdName school, String fileName, String status,
             String createdAt, String createdBy, String committedAt, String committedBy, List<SheetCount> sheets,
-            int errors, Map<String, Integer> created, Map<String, Object> preview) {
+            int errors, Map<String, Integer> created, Map<String, Object> preview, String createdByRole) {
     }
+
+    /** Một trang danh sách lô; {@code total} là số lô khớp bộ lọc. */
+    public record BatchPage(List<Batch> rows, long total) {
+    }
+
+    private static final int MAX_PAGE = 100;
 
     public record IdName(Long id, String name) {
     }
@@ -148,13 +159,17 @@ public class OnboardingService {
     private final EquipmentService equipment;
     private final EquipmentCatalogService catalogs;
     private final CatalogImports catalogImports;
+    private final StudentService students;
+    private final OnboardingTemplate template;
 
     public OnboardingService(JdbcTemplate jdbc, ObjectMapper mapper, OnboardingValidator validator,
             VisibleSchools visibleSchools, RowLevelPrincipalResolver principals, CampusService campuses,
             StaffService staff, SubjectTeamService teams, BuildingService buildings, RoomService rooms,
-            SchoolClassService classes, EquipmentService equipment, EquipmentCatalogService catalogs,
-            CatalogImports catalogImports) {
+            SchoolClassService classes, StudentService students, EquipmentService equipment,
+            EquipmentCatalogService catalogs, CatalogImports catalogImports, OnboardingTemplate template) {
+        this.template = template;
         this.catalogImports = catalogImports;
+        this.students = students;
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.validator = validator;
@@ -180,6 +195,17 @@ public class OnboardingService {
     }
 
     /** Tệp mẫu: các trang theo đúng thứ tự ghi, dòng dưới tiêu đề là hướng dẫn. */
+    /**
+     * Tệp mẫu điền sẵn của một trường ({@link OnboardingTemplate}): tài khoản trường lấy trường của mình; Sở, quản trị
+     * viên ghi {@code schoolId} để lấy tệp của trường đó, không ghi thì được mẫu chung (chỉ có ô chọn).
+     */
+    public byte[] template(Long schoolId) {
+        Long target = schoolId != null ? Long.valueOf(resolveSchool(schoolId))
+                : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        return template.build(target);
+    }
+
+    /** Mẫu trống, không điền sẵn — giữ cho bên gọi cũ. */
     public byte[] template() {
         List<XlsxWriter.Tab> tabs = new ArrayList<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
@@ -196,20 +222,45 @@ public class OnboardingService {
     }
 
     @Transactional(readOnly = true)
-    public List<Batch> list(Long schoolId) {
+    public BatchPage list(Long schoolId, String kind, int start, int end) {
+        List<Map<String, Object>> rows = visibleBatches(schoolId).stream()
+                .filter(m -> kind == null || kind.equals(kindKey(m))).toList();
+        int from = Math.min(Math.max(start, 0), rows.size());
+        int to = Math.min(from + Math.min(Math.max(end - start, 1), MAX_PAGE), rows.size());
+        return new BatchPage(rows.subList(from, to).stream().map(m -> summary(((Number) m.get("id")).longValue())).toList(),
+                rows.size());
+    }
+
+    /** Số lô của từng loại dữ liệu người xem thấy được — số cạnh tên các tab. */
+    @Transactional(readOnly = true)
+    public Map<String, Long> countByKind() {
+        return visibleBatches(null).stream().collect(Collectors.groupingBy(OnboardingService::kindKey, Collectors.counting()));
+    }
+
+    private static String kindKey(Map<String, Object> batch) {
+        CatalogImports.Kind kind = CatalogImports.kindOf(batch.get("kind"));
+        return kind == null ? "school_data" : kind.key();
+    }
+
+    /** Mã các lô người xem thấy được, mới nhất trước. Tóm tắt từng lô tốn ba câu truy vấn nên chỉ dựng cho trang đang xem. */
+    private List<Map<String, Object>> visibleBatches(Long schoolId) {
         Set<Long> visible = visibleSchools.current();
-        List<Long> ids = jdbc.queryForList("SELECT id, school_id, kind FROM data_import_batches ORDER BY created_at DESC")
+        Set<CatalogImports.Kind> allowed = EnumSet.noneOf(CatalogImports.Kind.class);
+        for (CatalogImports.Kind k : CatalogImports.Kind.values()) {
+            if (schoolId == null && catalogImports.allowed(k)) {
+                allowed.add(k);
+            }
+        }
+        return jdbc.queryForList("SELECT id, school_id, kind FROM data_import_batches ORDER BY created_at DESC, id DESC")
                 .stream()
                 .filter(m -> {
                     CatalogImports.Kind kind = CatalogImports.kindOf(m.get("kind"));
                     if (kind != null) {
-                        return schoolId == null && catalogImports.allowed(kind);
+                        return allowed.contains(kind);
                     }
                     long school = ((Number) m.get("school_id")).longValue();
                     return (visible == null || visible.contains(school)) && (schoolId == null || schoolId.equals(school));
-                })
-                .map(m -> ((Number) m.get("id")).longValue()).toList();
-        return ids.stream().map(this::summary).toList();
+                }).toList();
     }
 
     @Transactional(readOnly = true)
@@ -222,15 +273,28 @@ public class OnboardingService {
     public List<StagedRow> rows(long id, String sheet) {
         requireVisible(id);
         String sheetName = sheetName(id, sheet);
+        if (hiddenSheet(sheetName)) {
+            return List.of();
+        }
         return jdbc.query("""
-                SELECT id, row_no, data::text AS data, skipped, status, messages::text AS messages,
-                       resolved::text AS resolved, edit_source,
-                       -- Từng ô đã sửa → cách sửa GẦN NHẤT (tay / sửa nhanh / AI): lưới tô đúng ô đó.
-                       (SELECT jsonb_object_agg(x.field, x.source)::text FROM (
-                            SELECT DISTINCT ON (e.field) e.field, e.source FROM data_import_edits e
-                            WHERE e.row_id = r.id AND e.field <> '_skip'
-                            ORDER BY e.field, e.edited_at DESC, e.id DESC) x) AS edited_cells
-                FROM data_import_rows r WHERE batch_id = ? AND sheet = ? ORDER BY row_no, id
+                SELECT r.id, r.row_no, r.data::text AS data, r.skipped, r.status, r.messages::text AS messages,
+                       r.resolved::text AS resolved,
+                       -- Dòng còn ô khác bản gốc hoặc đang bị bỏ qua mới mang nhãn sửa.
+                       CASE WHEN ec.cells IS NOT NULL OR r.skipped THEN r.edit_source END AS edit_source,
+                       ec.cells::text AS edited_cells
+                FROM data_import_rows r
+                -- Từng ô đã sửa → cách sửa GẦN NHẤT (tay / sửa nhanh): lưới tô đúng ô đó. Ô sửa rồi trả về đúng giá trị
+                -- trong tệp (vd. gõ rồi xoá hết) thì không còn là ô đã sửa — so với giá trị trước lần sửa ĐẦU TIÊN.
+                LEFT JOIN LATERAL (
+                    SELECT jsonb_object_agg(x.field, x.source) AS cells FROM (
+                        SELECT DISTINCT ON (e.field) e.field, e.source,
+                               (SELECT f.old_value FROM data_import_edits f WHERE f.row_id = r.id AND f.field = e.field
+                                ORDER BY f.edited_at, f.id LIMIT 1) AS original
+                        FROM data_import_edits e
+                        WHERE e.row_id = r.id AND e.field <> '_skip'
+                        ORDER BY e.field, e.edited_at DESC, e.id DESC) x
+                    WHERE COALESCE(x.original, '') <> COALESCE(r.data ->> x.field, '')) ec ON TRUE
+                WHERE r.batch_id = ? AND r.sheet = ? ORDER BY r.row_no, r.id
                 """, (rs, i) -> new StagedRow(rs.getLong("id"), rs.getInt("row_no"),
                 mapper.readValue(rs.getString("data"), DATA), rs.getBoolean("skipped"), rs.getString("status"),
                 mapper.readValue(rs.getString("messages"), MESSAGES),
@@ -248,11 +312,25 @@ public class OnboardingService {
                        to_char(e.edited_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'DD/MM/YYYY HH24:MI:SS') AS edited_at,
                        u.full_name AS edited_by
                 FROM data_import_edits e LEFT JOIN users u ON u.id = e.edited_by_id
-                WHERE e.batch_id = ? ORDER BY e.edited_at DESC, e.id DESC LIMIT 2000
+                WHERE e.batch_id = ? AND (? OR e.sheet <> ?) ORDER BY e.edited_at DESC, e.id DESC LIMIT 2000
                 """, (rs, i) -> new Edit(rs.getLong("id"), rs.getString("sheet"), rs.getInt("row_no"),
                 rs.getObject("row_id") == null ? null : rs.getLong("row_id"), rs.getString("field"),
                 rs.getString("old_value"), rs.getString("new_value"), rs.getString("source"),
-                rs.getString("edited_at"), rs.getString("edited_by")), id);
+                rs.getString("edited_at"), rs.getString("edited_by")), id, mayReadStudents(),
+                OnboardingSheet.STUDENT.name());
+    }
+
+    /** Quyền xem danh sách học sinh — chỉ vai loại trường (304). Thiếu thì trang Học sinh của lô bị ẩn. */
+    private static boolean mayReadStudents() {
+        return CurrentUser.has("students:read");
+    }
+
+    /**
+     * Trang của lô mà người xem không được thấy: trang Học sinh với người không có quyền xem học sinh (Sở, quản trị
+     * viên xem lô của trường) — họ tên, ngày sinh của học sinh là dữ liệu cá nhân, không lộ qua vùng chờ.
+     */
+    private static boolean hiddenSheet(String sheetName) {
+        return OnboardingSheet.STUDENT.name().equals(sheetName) && !mayReadStudents();
     }
 
     /**
@@ -295,16 +373,23 @@ public class OnboardingService {
                 "year", jdbc.query("SELECT code, name FROM school_years WHERE active ORDER BY start_date DESC NULLS LAST, code DESC",
                         (rs, i) -> OnboardingValidator.schoolYearLabel(rs.getString("code"), rs.getString("name"))),
                 "teacher", staff, "room", rooms));
+        out.put(OnboardingSheet.STUDENT.key(), Map.of(
+                "class", codesOf(id, schoolId, "school_classes", OnboardingSheet.CLASS),
+                "gender", List.of("Nam", "Nữ")));
         List<String> funding = new ArrayList<>(Arrays.stream(FundingSource.values())
                 .filter(FundingSource::selectable).map(FundingSource::label).toList());
         funding.add(FundingSource.UNDETERMINED.label());
-        out.put(OnboardingSheet.EQUIPMENT.key(), Map.of(
+        Map<String, List<String>> equipment = Map.of(
                 "unit", jdbc.queryForList("SELECT name FROM units WHERE active ORDER BY name", String.class),
                 "tracking", List.of("Từng cái", "Theo lô"),
                 "room", rooms, "manager", staff,
                 "origin", Arrays.stream(OriginRule.values()).map(OriginRule::label).toList(),
                 "funding", funding,
-                "condition", List.of("Tốt", "Khá", "Trung bình", "Kém", "Hỏng", "Không sử dụng")));
+                "condition", List.of("Tốt", "Khá", "Trung bình", "Kém", "Hỏng", "Không sử dụng"));
+        out.put(OnboardingSheet.EQUIPMENT.key(), equipment);
+        Map<String, List<String>> outside = new LinkedHashMap<>(equipment);
+        outside.put("subject", subjects);
+        out.put(OnboardingSheet.EQUIPMENT_OUTSIDE.key(), outside);
         return out;
     }
 
@@ -333,6 +418,7 @@ public class OnboardingService {
         }
         List<XlsxWriter.Tab> tabs = new ArrayList<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
+            // `rows` trả rỗng cho trang người xem không được thấy (Học sinh) — trang ấy không vào tệp.
             List<Map<String, Object>> data = rows(id, s.key()).stream().filter(r -> !r.skipped())
                     .map(r -> (Map<String, Object>) new HashMap<String, Object>(r.data())).toList();
             if (data.isEmpty()) {
@@ -388,6 +474,14 @@ public class OnboardingService {
 
     // ------------------------------------------------------------------ tải lên, sửa
 
+    /** Tệp chỉ có trang Thiết bị mà trường đã khoá khai thiết bị ban đầu. */
+    static final String EQUIPMENT_LOCKED_FILE = "Trường đã khoá khai thiết bị ban đầu — trang Thiết bị không nhận nữa, "
+            + "tệp không còn trang nào khác. Thiết bị mới lập phiếu ghi tăng";
+
+    /** Tệp chỉ có trang Học sinh mà người tải không phải tài khoản của trường. */
+    static final String STUDENTS_ONLY_FILE = "Danh sách học sinh chỉ tài khoản của trường nhập được — tệp không còn trang "
+            + "nào khác";
+
     /** Lô chưa có dòng nào (tệp mẫu trống, điền trên lưới chưa xong) thì không ghi. */
     static final String EMPTY_BATCH = "Lô chưa có dòng dữ liệu nào — thêm dòng trên lưới (hoặc tải tệp đã điền) rồi cập nhật";
 
@@ -395,9 +489,14 @@ public class OnboardingService {
     public Batch upload(Long requestedSchool, String filename, byte[] content) {
         long schoolId = resolveSchool(requestedSchool);
         List<NamedSheet> sheets = SpreadsheetReader.readAll(filename, content);
+        // Tệp mẫu của hệ thống (có trang ẩn danh sách ô chọn): dòng điền sẵn chưa ghi gì thêm thì bỏ.
+        boolean template = sheets.stream().anyMatch(s -> TEMPLATE_MARK.equals(s.name()));
         Map<OnboardingSheet, List<Map.Entry<Integer, Map<String, String>>>> found = new LinkedHashMap<>();
         for (NamedSheet sheet : sheets) {
-            Detected d = detect(sheet.rows());
+            if (TEMPLATE_MARK.equals(sheet.name())) {
+                continue;
+            }
+            Detected d = detect(sheet.rows(), template);
             if (d == null) {
                 continue;
             }
@@ -407,6 +506,22 @@ public class OnboardingService {
             }
             found.put(d.sheet(), d.sheet() == OnboardingSheet.ROOM ? fromHcmTemplate(d.rows()) : d.rows());
         }
+        // Trường đã khoá khai thiết bị ban đầu: không nhận trang Thiết bị của tệp (không nạp vào lô) — thiết bị mới vào
+        // sổ qua phiếu ghi tăng. Tệp chỉ có trang Thiết bị thì báo luôn.
+        boolean hadEquipment = found.containsKey(OnboardingSheet.EQUIPMENT) || found.containsKey(OnboardingSheet.EQUIPMENT_OUTSIDE);
+        if (equipmentLocked(schoolId)) {
+            found.remove(OnboardingSheet.EQUIPMENT);
+            found.remove(OnboardingSheet.EQUIPMENT_OUTSIDE);
+        }
+        if (equipmentLocked(schoolId) && hadEquipment && found.isEmpty()) {
+            throw new FieldValidationException("file", EQUIPMENT_LOCKED_FILE);
+        }
+        // Danh sách học sinh chỉ tài khoản của trường nhập được (304): người khác tải tệp có trang Học sinh thì trang ấy
+        // không nạp vào lô — họ tên học sinh không vào vùng chờ của người không được xem.
+        if (!CurrentUser.has(OnboardingValidator.STUDENTS_WRITE) && found.remove(OnboardingSheet.STUDENT) != null
+                && found.isEmpty()) {
+            throw new FieldValidationException("file", STUDENTS_ONLY_FILE);
+        }
         if (found.isEmpty()) {
             throw new FieldValidationException("file", "Không nhận ra trang nào — dòng tiêu đề phải có đủ các cột "
                     + "bắt buộc của mẫu (tải tệp mẫu để xem)");
@@ -415,7 +530,7 @@ public class OnboardingService {
         Long batchId = jdbc.queryForObject("""
                 INSERT INTO data_import_batches (school_id, file_name, created_by_id, created_at)
                 VALUES (?, ?, ?, now()) RETURNING id
-                """, Long.class, schoolId, filename == null ? "tep-nhap.xlsx" : filename, userId);
+                """, Long.class, schoolId, uniqueFileName(schoolId, filename), userId);
         List<Object[]> inserts = new ArrayList<>();
         found.forEach((s, rows) -> rows.forEach(r -> inserts.add(
                 new Object[] {batchId, s.name(), r.getKey(), mapper.writeValueAsString(r.getValue())})));
@@ -437,7 +552,7 @@ public class OnboardingService {
 
     /**
      * Một ô / một dòng sửa trong lần sửa nhiều dòng. {@code source}: sửa tay (vắng / {@code manual}), sửa nhanh theo
-     * luật ({@code rule}) hay AI ({@code ai}) — ghi vào lịch sử và tô lên dòng.
+     * luật ({@code rule}) — ghi vào lịch sử và tô lên dòng.
      */
     public record RowEdit(long rowId, Map<String, String> data, Boolean skipped,
             @Size(max = 40, message = "Nguồn sửa không hợp lệ") String source) {
@@ -464,7 +579,7 @@ public class OnboardingService {
     }
 
     private void applyEdit(long id, long rowId, Map<String, String> data, Boolean skipped, String source) {
-        String src = "rule".equals(source) || "ai".equals(source) ? source : "manual";
+        String src = "rule".equals(source) ? source : "manual";
         record Current(Map<String, String> data, boolean skipped, String sheet, int rowNo) {
         }
         Current cur = jdbc.query(
@@ -533,12 +648,19 @@ public class OnboardingService {
 
     /**
      * Thêm một dòng ngay trên hệ thống (thiếu một phòng, một cán bộ… thì khỏi sửa tệp gửi lại). Từng ô ghi vào lịch sử
-     * sửa như một lần sửa ({@code source}: tay, sửa nhanh, AI) — lưới gắn nhãn cho dòng vừa thêm, tab Lịch sử có nó.
+     * sửa như một lần sửa ({@code source}: tay, sửa nhanh) — lưới gắn nhãn cho dòng vừa thêm, tab Lịch sử có nó.
      */
     @Transactional
     public Batch addRow(long id, String sheet, Map<String, String> data, String source) {
         requireDraft(id);
         String sheetName = sheetName(id, sheet);
+        if (OnboardingSheet.valueOf(sheetName).equipment() && equipmentLocked(schoolOfBatch(id))) {
+            throw new FieldValidationException("sheet", "Trường đã khoá khai thiết bị ban đầu — không thêm dòng Thiết bị."
+                    + " Thiết bị mới lập phiếu ghi tăng");
+        }
+        if (OnboardingSheet.STUDENT.name().equals(sheetName) && !CurrentUser.has(OnboardingValidator.STUDENTS_WRITE)) {
+            throw new FieldValidationException("sheet", "Danh sách học sinh chỉ tài khoản của trường nhập được");
+        }
         Integer next = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(row_no), 0) + 1 FROM data_import_rows WHERE batch_id = ? AND sheet = ?",
                 Integer.class, id, sheetName);
@@ -552,7 +674,7 @@ public class OnboardingService {
         }
         Long rowId = jdbc.queryForObject("INSERT INTO data_import_rows (batch_id, sheet, row_no, data)"
                 + " VALUES (?, ?, ?, ?::jsonb) RETURNING id", Long.class, id, sheetName, next, mapper.writeValueAsString(clean));
-        String src = "rule".equals(source) || "ai".equals(source) ? source : "manual";
+        String src = "rule".equals(source) ? source : "manual";
         Long user = CurrentUser.id().orElse(null);
         clean.forEach((k, v) -> logEdit(id, rowId, sheetName, next, k, null, v, src, user));
         touch(id);
@@ -652,9 +774,22 @@ public class OnboardingService {
                 if (s == OnboardingSheet.STAFF) {
                     w.teams();
                 }
+                if (s == OnboardingSheet.STUDENT) {
+                    // Sĩ số các lớp vừa có học sinh: đếm lại một lần sau cả trang, không sau từng em.
+                    entityManager.flush();
+                    students.recount(w.studentClasses, false);
+                }
             }
         } finally {
             progress.remove(id);
+        }
+        if (!w.priorCounts.isEmpty()) {
+            // Lô dữ liệu trường không dùng cột `preview` (của lô danh mục): giữ ở đó sĩ số nhập tay của các lớp vừa có
+            // danh sách học sinh, để hoàn tác.
+            Map<String, Object> prior = new HashMap<>();
+            w.priorCounts.forEach((k, v) -> prior.put(String.valueOf(k), v));
+            jdbc.update("UPDATE data_import_batches SET preview = ?::jsonb WHERE id = ?",
+                    mapper.writeValueAsString(Map.of(PRIOR_COUNTS, prior)), id);
         }
         Integer history = w.equipmentIds.isEmpty() ? 0 : jdbc.queryForObject(
                 "SELECT COUNT(*) FROM equipment_history WHERE equipment_id = ANY (?)", Integer.class,
@@ -712,6 +847,14 @@ public class OnboardingService {
             delete("equipment", equipmentIds);
             delete("equipment_catalogs", ids(created, "equipment_catalogs"));
             delete("subject_teams", ids(created, "subject_teams"));
+            // Học sinh trước lớp (khoá ngoại). Lớp đã có từ trước mà lô thêm học sinh vào: đếm lại sĩ số theo phần học
+            // sinh còn lại; không còn ai thì giữ sĩ số đang có — lớp trở lại như chưa có danh sách.
+            Long[] studentIds = ids(created, "students");
+            List<Long> studentClasses = studentIds.length == 0 ? List.of() : jdbc.queryForList(
+                    "SELECT DISTINCT class_id FROM students WHERE id = ANY (?)", Long.class, (Object) studentIds);
+            delete("students", studentIds);
+            students.recount(studentClasses, false);
+            restorePriorCounts(id);
             delete("school_classes", ids(created, "school_classes"));
             Long[] roomIds = ids(created, "rooms");
             refuseIf("SELECT EXISTS (SELECT 1 FROM equipment WHERE room_id = ANY (?))", roomIds,
@@ -736,10 +879,29 @@ public class OnboardingService {
         jdbc.update("DELETE FROM data_import_records WHERE batch_id = ?", id);
         jdbc.update("""
                 UPDATE data_import_batches SET status = ?, committed_at = NULL, committed_by_id = NULL,
-                       history_count = NULL, updated_at = now() WHERE id = ?
+                       history_count = NULL, preview = NULL, updated_at = now() WHERE id = ?
                 """, DRAFT, id);
         revalidate(id);
         return summary(id);
+    }
+
+    /** Khoá trong {@code preview} của lô dữ liệu trường: id lớp → sĩ số nhập tay trước khi lô thêm học sinh. */
+    private static final String PRIOR_COUNTS = "priorClassCounts";
+
+    private static final TypeReference<Map<String, Map<String, Integer>>> PRIOR = new TypeReference<>() {
+    };
+
+    /** Hoàn tác: lớp không còn học sinh nào thì về lại sĩ số nhập tay trước khi ghi lô. */
+    private void restorePriorCounts(long id) {
+        String text = jdbc.queryForObject("SELECT preview::text FROM data_import_batches WHERE id = ?", String.class, id);
+        if (text == null || !text.contains(PRIOR_COUNTS)) {
+            return;
+        }
+        Map<String, Integer> prior = mapper.readValue(text, PRIOR).getOrDefault(PRIOR_COUNTS, Map.of());
+        prior.forEach((classId, count) -> jdbc.update("""
+                UPDATE school_classes k SET student_count = ?, updated_at = now()
+                WHERE k.id = ? AND NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = k.id)
+                """, count, Long.parseLong(classId)));
     }
 
     // ------------------------------------------------------------------ ghi từng loại
@@ -754,6 +916,12 @@ public class OnboardingService {
         final Map<String, Long> teamLeaders = new HashMap<>();
         final Map<String, Long> newItems = new HashMap<>();
         final List<Long> equipmentIds = new ArrayList<>();
+        /** Tên lớp (chữ hoa)|id năm học → id lớp: lớp đã có của trường cộng lớp vừa ghi ở trang Lớp học. */
+        final Map<String, Long> classIds = new HashMap<>();
+        /** Lớp vừa có thêm học sinh — đếm lại sĩ số sau trang Học sinh. */
+        final Set<Long> studentClasses = new HashSet<>();
+        /** Lớp trước lô chưa có học sinh nào → sĩ số nhập tay lúc đó (có thể trống). Hoàn tác trả lại số này. */
+        final Map<Long, Integer> priorCounts = new HashMap<>();
         final int total;
         int done;
         String step = "Đang chuẩn bị";
@@ -768,6 +936,10 @@ public class OnboardingService {
             load(OnboardingSheet.STAFF, "staff");
             load(OnboardingSheet.BUILDING, "buildings");
             load(OnboardingSheet.ROOM, "rooms");
+            jdbc.query("SELECT id, code, school_year_id FROM school_classes WHERE school_id = ?", rs -> {
+                classIds.put(OnboardingValidator.upper(rs.getString("code")) + "|" + rs.getLong("school_year_id"),
+                        rs.getLong("id"));
+            }, schoolId);
         }
 
         void load(OnboardingSheet s, String table) {
@@ -854,6 +1026,24 @@ public class OnboardingService {
                             new IdRef(c.grade()), new IdRef(c.year()), ref(OnboardingSheet.STAFF, c.teacher()),
                             ref(OnboardingSheet.ROOM, c.room()), c.students())).getId();
                     record("school_classes", id);
+                    classIds.put(OnboardingValidator.upper(c.code()) + "|" + c.year(), id);
+                }
+                case StudentRow c -> {
+                    Long classId = classIds.get(OnboardingValidator.upper(c.classCode()) + "|" + c.year());
+                    if (classId == null) {
+                        throw new IllegalStateException("Không tìm thấy lớp " + c.classCode());
+                    }
+                    if (studentClasses.add(classId)) {
+                        // Học sinh đầu tiên lô thêm vào lớp này: lớp chưa có danh sách thì giữ sĩ số nhập tay hiện có,
+                        // để hoàn tác trả lại đúng số đó.
+                        jdbc.query("SELECT student_count FROM school_classes k WHERE k.id = ?"
+                                + " AND NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = k.id)", rs -> {
+                            priorCounts.put(classId, (Integer) rs.getObject(1));
+                        }, classId);
+                    }
+                    Long id = students.createUncounted(new StudentRequest(c.code(), c.name(), null, true, c.note(),
+                            school, new IdRef(classId), c.birthDate(), c.gender())).getId();
+                    record("students", id);
                 }
                 case EquipmentRow c -> equipment(c);
                 default -> throw new IllegalStateException("Dòng không đọc được");
@@ -885,9 +1075,9 @@ public class OnboardingService {
                 catalog = newItems.computeIfAbsent(c.newItem().key(), k -> createItem(c));
             }
             EquipmentRequest request = new EquipmentRequest(c.legacy(), c.name(), null, true, c.note(), school,
-                    new IdRef(catalog), null, null, c.serial(), null, null, null, null, c.quantity(),
+                    new IdRef(catalog), null, null, c.serial(), null, null, null, c.quantity(),
                     c.originSource() == null ? null : new IdRef(c.originSource()), null, c.funding(), null, c.year(),
-                    c.receivedDate(), c.receivedDate(), c.originalValue(), c.remainingValue(), null, null,
+                    c.receivedDate(), c.receivedDate(), c.originalValue(), null, null,
                     ref(OnboardingSheet.ROOM, c.room()), ref(OnboardingSheet.STAFF, c.manager()),
                     c.condition(), null, null, null);
             for (int i = 0; i < c.copies(); i++) {
@@ -958,6 +1148,11 @@ public class OnboardingService {
      * "Tổng cộng", dòng tiêu đề nhóm ("I. Thiết bị dùng chung") và phần chữ ký cuối trang thì bỏ.
      */
     static Detected detect(List<List<String>> rows) {
+        return detect(rows, false);
+    }
+
+    /** {@code template}: tệp là tệp mẫu điền sẵn của hệ thống ({@link #TEMPLATE_MARK}). */
+    static Detected detect(List<List<String>> rows, boolean template) {
         OnboardingSheet best = null;
         int bestStart = -1;
         int bestCount = 0;
@@ -990,11 +1185,24 @@ public class OnboardingService {
                 hints.add(c.hint());
             }
         });
+        // Câu hướng dẫn ngắn của tệp mẫu hiện hành (mẫu cũ dùng câu ở OnboardingSheet — vẫn nhận).
+        String prefix = best.name() + ".";
+        OnboardingTemplate.HINTS.forEach((k, v) -> {
+            if (k.startsWith(prefix)) {
+                hints.add(v);
+            }
+        });
+        // Tệp mẫu điền sẵn của hệ thống: dòng điền sẵn mà trường không ghi thêm gì thì bỏ — không
+        // thì 700 dòng danh mục thành 700 thiết bị "số lượng trống = 1". Tệp khác (sổ cũ) giữ cách đọc cũ.
+        Set<String> prefilled = template ? prefilledKeys(best) : Set.of();
         List<Map.Entry<Integer, Map<String, String>>> result = new ArrayList<>();
         for (int i = bestStart; i < rows.size(); i++) {
             List<String> cells = rows.get(i);
             Map<String, String> data = new LinkedHashMap<>();
             for (Map.Entry<Integer, String> k : bestKeys.entrySet()) {
+                if (SKIPPED.equals(k.getValue())) {
+                    continue;
+                }
                 String v = k.getKey() < cells.size() ? cells.get(k.getKey()) : null;
                 if (v != null && !v.isBlank()) {
                     data.put(k.getValue(), v.trim());
@@ -1009,14 +1217,43 @@ public class OnboardingService {
             if (isJunk(cells, data)) {
                 continue;
             }
+            if (!prefilled.isEmpty() && prefilled.containsAll(data.keySet())) {
+                continue;
+            }
             result.add(Map.entry(i + 1, data));
         }
         return new Detected(best, result);
     }
 
+    /**
+     * Tên trang ẩn chứa danh sách ô chọn của tệp mẫu ({@link OnboardingTemplate}) — có trang này là biết tệp do hệ thống
+     * sinh và điền sẵn. Tệp khác (sổ cũ, MISA…) giữ cách đọc cũ: số lượng trống = 1.
+     */
+    static final String TEMPLATE_MARK = "SFEMS - Danh sách";
+
+    /**
+     * Các cột hệ thống điền sẵn của một trang trong tệp mẫu: dòng chỉ có các ô này là dòng trường chưa động tới — dòng
+     * thiết bị chỉ có tên / mã DM / ĐVT, dòng gợi ý phòng chỉ có loại CSVC.
+     */
+    private static Set<String> prefilledKeys(OnboardingSheet sheet) {
+        return sheet == OnboardingSheet.EQUIPMENT ? Set.of("catalog", "name", "unit")
+                : sheet == OnboardingSheet.ROOM ? Set.of("roomType") : Set.of();
+    }
+
+    /** Khoá của cột nhận ra là tiêu đề nhưng không đọc. */
+    private static final String SKIPPED = "_skipped";
+
+    /**
+     * Tiêu đề hay gặp trong sổ cũ mà hệ thống không giữ (giá trị còn lại: không có khấu hao). Vẫn nhận ra là tiêu đề,
+     * để tiêu đề hai tầng "Giá trị" / "Nguyên giá" "Còn lại" không bị đọc thành một dòng dữ liệu.
+     */
+    private static final List<String> SKIPPED_HEADERS = List.of("Giá trị còn lại", "Giá trị còn lại (đ)", "GTCL", "Còn lại",
+            "Giá trị còn lại một cái");
+
     /** Nhãn và các tên khác của mọi cột một trang, theo khoá so ({@link #headerKey}). */
     private static Map<String, String> labels(OnboardingSheet s) {
         Map<String, String> byLabel = new HashMap<>();
+        SKIPPED_HEADERS.forEach(h -> byLabel.put(headerKey(h), SKIPPED));
         for (OnboardingSheet.Column c : s.columns()) {
             byLabel.putIfAbsent(headerKey(c.label()), c.key());
             c.aliases().forEach(a -> byLabel.putIfAbsent(headerKey(a), c.key()));
@@ -1160,7 +1397,12 @@ public class OnboardingService {
             errors = c[3] + catalogImports.batchErrors(b.get("preview"));
             sheets.add(new SheetCount(kind.key(), kind.title(), c[0], c[1], c[2], c[3], c[4], c[5]));
         } else {
+            // Trường đã khoá khai thiết bị ban đầu: lô không có trang Thiết bị (dòng cũ nếu có vẫn "bỏ qua", không ghi).
+            boolean locked = b.get("school_id") != null && equipmentLocked(((Number) b.get("school_id")).longValue());
             for (OnboardingSheet s : OnboardingSheet.values()) {
+                if (locked && s.equipment() || hiddenSheet(s.name())) {
+                    continue;
+                }
                 int[] c = counts.getOrDefault(s.name(), new int[6]);
                 errors += c[3];
                 sheets.add(new SheetCount(s.key(), s.title(), c[0], c[1], c[2], c[3], c[4], c[5]));
@@ -1177,13 +1419,16 @@ public class OnboardingService {
                 kind == null ? "Dữ liệu đầu vào của trường" : kind.title(), school,
                 (String) b.get("file_name"), (String) b.get("status"), iso(b.get("created_at")),
                 (String) b.get("created_by"), iso(b.get("committed_at")), (String) b.get("committed_by"), sheets, errors,
-                created, kind == null ? null : catalogImports.preview(b.get("preview")));
+                created, kind == null ? null : catalogImports.preview(b.get("preview")), (String) b.get("created_by_role"));
     }
 
     private Map<String, Object> batchRow(long id) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT b.*, b.preview::text AS preview, s.name AS school_name,
                        COALESCE(cu.full_name, cu.username) AS created_by,
+                       -- Vai trò của người tải lên — danh sách lô hiện vai trò, họ tên khi rê chuột.
+                       (SELECT string_agg(r.name, ', ' ORDER BY r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = cu.id) AS created_by_role,
                        COALESCE(mu.full_name, mu.username) AS committed_by
                 FROM data_import_batches b
                 LEFT JOIN schools s ON s.id = b.school_id
@@ -1310,6 +1555,36 @@ public class OnboardingService {
     }
 
     /** Tên trang lưu ở {@code data_import_rows.sheet}: lô danh mục chỉ có một trang, mang tên loại. */
+    /**
+     * Tên tệp của lô mới: trùng tên một lô trước của cùng trường (lô danh mục: cùng không trường) thì thêm "(2)", "(3)"…
+     * trước đuôi tệp như Windows — danh sách lô không còn hai dòng tên y hệt.
+     */
+    String uniqueFileName(Long schoolId, String filename) {
+        String name = filename == null || filename.isBlank() ? "tep-nhap.xlsx" : filename.trim();
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        java.util.Set<String> taken = new java.util.HashSet<>(jdbc.queryForList(
+                "SELECT lower(file_name) FROM data_import_batches WHERE school_id IS NOT DISTINCT FROM ?::bigint",
+                String.class, schoolId));
+        String candidate = name;
+        for (int n = 2; taken.contains(candidate.toLowerCase(java.util.Locale.ROOT)); n++) {
+            candidate = stem + " (" + n + ")" + ext;
+        }
+        return candidate;
+    }
+
+    /** Trường đã khoá khai thiết bị ban đầu (chốt số dư đầu kỳ). */
+    private boolean equipmentLocked(Long schoolId) {
+        return schoolId != null && Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM school_opening_balances WHERE school_id = ?)", Boolean.class, schoolId));
+    }
+
+    private Long schoolOfBatch(long id) {
+        return jdbc.queryForList("SELECT school_id FROM data_import_batches WHERE id = ?", Long.class, id).stream()
+                .findFirst().orElse(null);
+    }
+
     private String sheetName(long id, String key) {
         CatalogImports.Kind kind = kindOf(id);
         return kind != null ? kind.name() : sheet(key).name();
@@ -1334,7 +1609,7 @@ public class OnboardingService {
         if (kind == null) {
             throw new FieldValidationException("kind", "Loại dữ liệu không đúng");
         }
-        return summary(catalogImports.upload(kind, filename == null ? "tep-nhap.xlsx" : filename, content,
+        return summary(catalogImports.upload(kind, uniqueFileName(null, filename), content,
                 deactivateMissing));
     }
 

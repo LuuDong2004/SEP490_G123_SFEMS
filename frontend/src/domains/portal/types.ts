@@ -26,7 +26,6 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "roles": { read: ["admin"], write: ["admin"] },
   "permissions": { read: ["admin"], write: ["admin"] },
   "row_level_policies": { read: ["admin"], write: ["admin"] },
-  "ai_settings": { read: ["admin"], write: ["admin"] },
   "data_changes": { read: ["admin"], write: ["admin"] },
   "notification_type_settings": { read: ["admin"], write: ["admin"] },
   "mail_config": { read: ["admin"], write: ["admin"] },
@@ -88,6 +87,7 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "voucher_links": { read: ["admin", "so", "school"], write: [] },
   "school_code_rules": { read: ["school"], write: ["school"] },
   "school_profile": { read: ["school"], write: ["school"] },
+  "students": { read: ["school"], write: ["school"] },
   "data_imports": { read: ["admin", "so", "school"], write: ["so", "school"] },
 };
 

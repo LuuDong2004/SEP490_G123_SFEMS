@@ -1,5 +1,6 @@
 package com.g123.sfems.module.system.dataimport;
 
+import com.g123.sfems.shared.validation.DateRule;
 import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.TextNormalizer;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
@@ -10,6 +11,7 @@ import com.g123.sfems.domain.school.facility.FacilityCondition;
 import com.g123.sfems.domain.school.facility.FacilityStructure;
 import com.g123.sfems.domain.school.facility.RoomUsageStatus;
 import com.g123.sfems.domain.school.staff.StaffType;
+import com.g123.sfems.domain.school.student.StudentGender;
 import com.g123.sfems.module.school.equipment.EquipmentService;
 import com.g123.sfems.shared.security.CurrentUser;
 import java.math.BigDecimal;
@@ -50,6 +52,16 @@ public class OnboardingValidator {
     public static final String WARNING = "WARNING";
     public static final String ERROR = "ERROR";
     public static final String EXISTS = "EXISTS";
+
+    /** Quyền ghi danh sách học sinh — chỉ vai loại trường mang (304). */
+    static final String STUDENTS_WRITE = "students:write";
+
+    /** Lời của dòng học sinh khi người mở lô không phải tài khoản của trường. */
+    static final String STUDENTS_SCHOOL_ONLY = "Danh sách học sinh chỉ tài khoản của trường ghi được — dòng này không ghi";
+
+    /** Lời của dòng thiết bị khi trường đã khoá khai thiết bị ban đầu. */
+    static final String EQUIPMENT_LOCKED = "Trường đã khoá khai thiết bị ban đầu — dòng này không ghi. Thiết bị mới lập "
+            + "phiếu ghi tăng";
     public static final String SKIPPED = "SKIPPED";
 
     /** Thiết bị bền khai gộp tối đa ngần này cái một dòng — quá thì gần như chắc là gõ nhầm. */
@@ -103,13 +115,18 @@ public class OnboardingValidator {
     record ClassRow(String code, Long grade, Long year, Integer students, String teacher, String room, String note) {
     }
 
+    /** Một học sinh: lớp là tên lớp ({@code classCode}) của năm học {@code year} — năm suy ra từ lớp. */
+    record StudentRow(String code, String name, String classCode, Long year, LocalDate birthDate, StudentGender gender,
+            String note) {
+    }
+
     /**
      * Một dòng thiết bị. {@code catalog} là thiết bị trong danh mục đã ghép; {@code null} thì {@code newItem} là
      * thiết bị ngoài danh mục sẽ tạo cho trường (nhiều dòng cùng tên dùng chung một thiết bị).
      */
     record EquipmentRow(String legacy, String name, Long catalog, NewItem newItem, String aliasCode,
             BigDecimal quantity, int copies, String serial, String room, String manager, BigDecimal originalValue,
-            BigDecimal remainingValue, LocalDate receivedDate, Integer year, Long originSource, OriginRule origin,
+            LocalDate receivedDate, Integer year, Long originSource, OriginRule origin,
             FundingSource funding, EquipmentCondition condition, String note) {
     }
 
@@ -289,7 +306,7 @@ public class OnboardingValidator {
 
     /**
      * Năm học như người dùng đọc và ghi trong tệp — cặp năm "2026-2027" lấy từ tên ("Năm học 2026-2027"), không phải mã
-     * do quy tắc sinh mã đặt ("NH006"). Dùng cho danh sách chọn ở ô Năm học và cho gợi ý AI.
+     * do quy tắc sinh mã đặt ("NH006"). Dùng cho danh sách chọn ở ô Năm học.
      */
     static String schoolYearLabel(String code, String name) {
         String key = name == null ? null : schoolYearKey(name);
@@ -367,6 +384,12 @@ public class OnboardingValidator {
 
     public Map<Long, Result> validate(long schoolId, List<Staged> rows) {
         Context ctx = new Context(schoolId);
+        // Danh sách học sinh chỉ tài khoản của trường ghi được (304) — lô do Sở mở thì dòng học sinh không ghi.
+        boolean studentsAllowed = CurrentUser.has(STUDENTS_WRITE);
+        // Trường đã khoá khai thiết bị ban đầu (chốt số dư đầu kỳ): dòng thiết bị không ghi nữa, nhưng không chặn cả lô —
+        // phòng, cán bộ, lớp vẫn ghi được. Thiết bị mới vào sổ qua phiếu ghi tăng.
+        boolean locked = Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM school_opening_balances WHERE school_id = ?)", Boolean.class, schoolId));
         Map<Long, Result> results = new LinkedHashMap<>();
         Map<OnboardingSheet, List<Staged>> bySheet = new LinkedHashMap<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
@@ -376,7 +399,8 @@ public class OnboardingValidator {
 
         // Mã của từng trang trong lô (bỏ dòng đã bỏ qua) — để trang sau tra tới, và để bắt trùng.
         for (OnboardingSheet s : OnboardingSheet.values()) {
-            if (s == OnboardingSheet.EQUIPMENT) {
+            // Thiết bị không có mã do trường đặt; mã học sinh chỉ duy nhất trong một lớp (gom riêng ở dưới).
+            if (s.equipment() || s == OnboardingSheet.STUDENT) {
                 continue;
             }
             for (Staged r : bySheet.get(s)) {
@@ -389,6 +413,27 @@ public class OnboardingValidator {
                 }
             }
         }
+        // Năm học của từng tên lớp trong trang Lớp học — trang Học sinh chỉ ghi tên lớp, năm học suy ra từ đây.
+        for (Staged r : bySheet.get(OnboardingSheet.CLASS)) {
+            String code = text(r.data(), "code");
+            String yearText = text(r.data(), "year");
+            if (r.skipped() || code == null || yearText == null) {
+                continue;
+            }
+            String key = schoolYearKey(yearText);
+            Long year = key != null ? ctx.years.get(key) : ctx.years.get(upper(yearText.replaceAll("\\s", "")));
+            if (year != null) {
+                ctx.batchClassYears.computeIfAbsent(upper(code), k -> new LinkedHashSet<>()).add(year);
+            }
+        }
+        // Mã học sinh trong cùng lớp — trùng là lỗi; hai lớp khác nhau cùng một mã thì không sao.
+        for (Staged r : bySheet.get(OnboardingSheet.STUDENT)) {
+            String code = text(r.data(), "code");
+            String cls = text(r.data(), "class");
+            if (!r.skipped() && code != null && cls != null) {
+                ctx.batchStudents.computeIfAbsent(upper(cls) + "|" + upper(code), k -> new ArrayList<>()).add(r.rowNo());
+            }
+        }
         // Tên phòng trong cùng khối nhà — bước ghi (`RoomService.requireNameFree`) từ chối trùng, nên bắt ngay ở đây.
         for (Staged r : bySheet.get(OnboardingSheet.ROOM)) {
             String name = text(r.data(), "name");
@@ -397,8 +442,8 @@ public class OnboardingValidator {
                         .add(r.rowNo());
             }
         }
-        // Số serial trong trang Thiết bị — trùng giữa hai dòng của lô cũng là lỗi.
-        for (Staged r : bySheet.get(OnboardingSheet.EQUIPMENT)) {
+        // Số serial trong hai trang thiết bị — trùng giữa hai dòng của lô cũng là lỗi.
+        for (Staged r : concat(bySheet.get(OnboardingSheet.EQUIPMENT), bySheet.get(OnboardingSheet.EQUIPMENT_OUTSIDE))) {
             String serial = serialKey(text(r.data(), "serial"));
             if (!r.skipped() && serial != null) {
                 ctx.batchSerials.computeIfAbsent(serial, k -> new ArrayList<>()).add(r.rowNo());
@@ -417,6 +462,16 @@ public class OnboardingValidator {
                     results.put(r.id(), new Result(SKIPPED, List.of(), Map.of(), null));
                     continue;
                 }
+                if (locked && s.equipment()) {
+                    results.put(r.id(), new Result(SKIPPED, List.of(new Message("warning", null, EQUIPMENT_LOCKED)),
+                            Map.of(), null));
+                    continue;
+                }
+                if (s == OnboardingSheet.STUDENT && !studentsAllowed) {
+                    results.put(r.id(), new Result(SKIPPED, List.of(new Message("warning", null, STUDENTS_SCHOOL_ONLY)),
+                            Map.of(), null));
+                    continue;
+                }
                 Row row = new Row(r, ctx);
                 Object payload = switch (s) {
                     case CAMPUS -> campus(row);
@@ -424,11 +479,13 @@ public class OnboardingValidator {
                     case BUILDING -> building(row);
                     case ROOM -> room(row);
                     case CLASS -> schoolClass(row);
-                    case EQUIPMENT -> equipment(row);
+                    case STUDENT -> student(row);
+                    case EQUIPMENT, EQUIPMENT_OUTSIDE -> equipment(row);
                 };
                 results.put(r.id(), row.result(payload));
             }
         }
+        classSizes(bySheet.get(OnboardingSheet.CLASS), results, ctx);
         primaryCampus(bySheet.get(OnboardingSheet.CAMPUS), results, ctx);
         codeCapacity(results, ctx);
         return results;
@@ -579,6 +636,23 @@ public class OnboardingValidator {
         }
         BigDecimal area = r.number("area", "Diện tích");
         Integer capacity = r.integer("capacity", "Sức chứa", 0, 100_000);
+        // Cùng luật với bước ghi (RoomService.requireArea): khu vực, công trình không gắn khối nhà, tầng, sức chứa, môn —
+        // báo ngay ở bước kiểm, không để qua rồi mới đổ lúc ghi.
+        if (roomType != null && r.ctx.areaTypes.contains(roomType)) {
+            List<String> bad = new ArrayList<>();
+            String field = null;
+            for (String[] f : new String[][] {{"building", "khối nhà"}, {"floor", "tầng"}, {"capacity", "sức chứa"},
+                    {"subject", "môn"}}) {
+                if (r.text(f[0], 255) != null) {
+                    bad.add(f[1]);
+                    field = field == null ? f[0] : field;
+                }
+            }
+            if (!bad.isEmpty()) {
+                r.error(field, "Khu vực, công trình (" + typeText + ") không gắn " + String.join(", ", bad)
+                        + " — bỏ trống các ô này");
+            }
+        }
         FacilityCondition condition = r.choice("condition", "Hiện trạng", FacilityCondition.values(), null);
         RoomUsageStatus usage = r.choice("usage", "Tình trạng sử dụng", RoomUsageStatus.values(), null);
         String manager = r.reference("manager", OnboardingSheet.STAFF, r.text("manager", 64), "cán bộ");
@@ -620,7 +694,7 @@ public class OnboardingValidator {
     }
 
     private ClassRow schoolClass(Row r) {
-        String code = r.required("code", "Tên lớp", 64);
+        String code = r.required("code", "Mã lớp", 64);
         if (code != null && !CLASS_CODE.matcher(code).matches()) {
             r.error("code", "Tên lớp chỉ gồm chữ, số, khoảng trắng và . _ - /");
         }
@@ -683,6 +757,115 @@ public class OnboardingValidator {
         return new ClassRow(code, grade, year, students, teacher, room, r.text("note", 500));
     }
 
+    /** Ngày đủ ba phần ngày / tháng / năm bốn chữ số — kiểm ngày có thật (31/02 không được hiểu thành 28/02). */
+    private static final Pattern DAY_MONTH_YEAR = Pattern.compile("(\\d{1,2})[/.-](\\d{1,2})[/.-]((?:19|20)\\d{2})");
+
+    private StudentRow student(Row r) {
+        String code = r.required("code", "Mã học sinh", 64);
+        if (code != null && !CODE.matcher(code).matches()) {
+            r.error("code", "Mã học sinh chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch nối — không dấu cách");
+        }
+        String name = r.required("name", "Họ và tên", FieldRule.PERSON_NAME.max());
+        if (name != null) {
+            r.check("name", "Họ và tên", FieldRule.PERSON_NAME, name);
+        }
+        String classCode = r.required("class", "Lớp", 64);
+        Long year = null;
+        if (classCode != null) {
+            // Lớp trong trang Lớp học của tệp trước, rồi lớp đã có trên hệ thống. Một tên lớp ở nhiều năm học: năm
+            // hiện hành, không có thì năm mới nhất.
+            Set<Long> inBatch = r.ctx.batchClassYears.get(upper(classCode));
+            Set<Long> inDb = r.ctx.dbClassYears().get(upper(classCode));
+            year = inBatch != null ? r.ctx.pickYear(inBatch) : inDb != null ? r.ctx.pickYear(inDb) : null;
+            if (year == null) {
+                r.error("class", "Không có lớp \"" + classCode + "\" ở trang Lớp học hay trên hệ thống");
+            } else {
+                r.resolved.put("class", classCode + " · năm học " + r.ctx.yearLabels.get(year));
+            }
+            if (code != null) {
+                List<Integer> rows = r.ctx.batchStudents.getOrDefault(upper(classCode) + "|" + upper(code), List.of());
+                if (rows.size() > 1) {
+                    r.error("code", "Mã \"" + code + "\" lặp lại trong lớp " + classCode + " ở các dòng " + join(rows));
+                }
+            }
+        }
+        LocalDate birthDate = birthDate(r);
+        StudentGender gender = gender(r);
+        if (year != null && code != null) {
+            Long classId = r.ctx.dbClassIds().get(upper(classCode) + "|" + year);
+            if (classId != null && r.ctx.dbStudents().contains(classId + "|" + upper(code))) {
+                r.exists = true;
+                r.warn("code", "Đã có trên hệ thống — dòng này không tạo lại");
+            }
+            if (r.messages.stream().noneMatch(m -> "error".equals(m.level()))) {
+                r.ctx.studentCounts.merge(upper(classCode) + "|" + year, 1, Integer::sum);
+            }
+        }
+        return new StudentRow(code, name, classCode, year, birthDate, gender, r.text("note", 500));
+    }
+
+    /** Ngày sinh: dd/mm/yyyy (và các cách ghi ngày khác mà trang Thiết bị nhận); ngày không có thật, sau hôm nay là lỗi. */
+    private static LocalDate birthDate(Row r) {
+        String v = r.text("birthDate", 40);
+        if (v == null) {
+            return null;
+        }
+        Matcher dmy = DAY_MONTH_YEAR.matcher(v.contains(":") ? v.split("[ T]")[0] : v);
+        if (dmy.matches()) {
+            try {
+                LocalDate.of(Integer.parseInt(dmy.group(3)), Integer.parseInt(dmy.group(2)), Integer.parseInt(dmy.group(1)));
+            } catch (java.time.DateTimeException e) {
+                r.error("birthDate", "Ngày sinh không có thật: \"" + v + "\" (dd/mm/yyyy)");
+                return null;
+            }
+        }
+        LocalDate d = r.date("birthDate", "Ngày sinh");
+        String problem = d == null ? null : DateRule.PAST_OR_TODAY.violation(d);
+        if (problem != null) {
+            r.error("birthDate", "Ngày sinh " + problem);
+            return null;
+        }
+        return d;
+    }
+
+    private static StudentGender gender(Row r) {
+        String v = r.text("gender", 20);
+        if (v == null) {
+            return null;
+        }
+        String f = fold(v).replaceAll("^_|_$", "");
+        if (Set.of("NAM", "TRAI", "M", "MALE", "BE_TRAI").contains(f)) {
+            return StudentGender.MALE;
+        }
+        if (Set.of("NU", "GAI", "F", "FEMALE", "BE_GAI").contains(f)) {
+            return StudentGender.FEMALE;
+        }
+        r.error("gender", "Giới tính ghi Nam hoặc Nữ: \"" + v + "\"");
+        return null;
+    }
+
+    /**
+     * Lớp có học sinh trong trang Học sinh mà Sĩ số ghi khác số học sinh đó: nhắc (không chặn) — ghi xong sĩ số tự đếm
+     * từ danh sách học sinh.
+     */
+    private static void classSizes(List<Staged> classes, Map<Long, Result> results, Context ctx) {
+        for (Staged s : classes) {
+            Result r = results.get(s.id());
+            if (r == null || !(r.payload() instanceof ClassRow c) || c.code() == null || c.year() == null) {
+                continue;
+            }
+            Integer listed = ctx.studentCounts.get(upper(c.code()) + "|" + c.year());
+            if (listed == null || listed.equals(c.students())) {
+                continue;
+            }
+            List<Message> messages = new ArrayList<>(r.messages());
+            messages.add(new Message("warning", "students", "Trang Học sinh có " + listed + " học sinh của lớp này — "
+                    + "ghi xong sĩ số tự đếm là " + listed));
+            String base = EXISTS.equals(r.status()) ? EXISTS : OK;
+            results.put(s.id(), new Result(statusOf(messages, base), messages, r.resolved(), r.payload()));
+        }
+    }
+
     /** "1- Khảo sát…", "1. Bộ…": tên bắt đầu bằng số thứ tự. */
     private static final Pattern NUMBERED = Pattern.compile("^\\d{1,2}\\s*[-.)]\\s*\\S");
     /** "…rơi tự do2- Chuyển động…", "…không đổi1. Đo…": mục đánh số dính vào giữa tên (mất dấu xuống dòng khi dán). */
@@ -708,12 +891,21 @@ public class OnboardingValidator {
         }
     }
 
+    private static List<Staged> concat(List<Staged> a, List<Staged> b) {
+        List<Staged> out = new ArrayList<>(a);
+        out.addAll(b);
+        return out;
+    }
+
     private EquipmentRow equipment(Row r) {
         Context ctx = r.ctx;
         String name = r.name("name", "Tên thiết bị");
         equipmentNameHints(r, name);
         String cell = r.text("catalog", 64);
         String legacy = r.text("legacy", 64);
+        if (r.staged.sheet() == OnboardingSheet.EQUIPMENT_OUTSIDE && r.text("subject", 255) == null) {
+            r.error("subject", "Ghi môn của thiết bị — dùng cho mọi môn thì ghi Dùng chung");
+        }
         String room = r.reference("room", OnboardingSheet.ROOM, r.text("room", 64), "phòng");
         Long roomSubject = room == null ? null : ctx.roomSubjects.get(room);
 
@@ -846,9 +1038,15 @@ public class OnboardingValidator {
             if (chemical && unit == null) {
                 r.error("unit", "Hoá chất ngoài danh mục: ghi đơn vị tính (g, ml, lọ…)");
             }
-            newItem = new NewItem(norm(name), name, unit == null ? null : unit.id(), bulk, chemical, roomSubject);
+            // Môn: cột Môn (trang Thiết bị ngoài danh mục) trước, không có thì môn của phòng đặt thiết bị.
+            Long subject = r.subject("subject", "Môn");
+            newItem = new NewItem(norm(name), name, unit == null ? null : unit.id(), bulk, chemical,
+                    subject != null ? subject : roomSubject);
             r.resolved.put("match", "new");
-            r.warn("catalog", "Không có trong danh mục — sẽ thành thiết bị ngoài danh mục của trường");
+            // Trang Thiết bị ngoài danh mục: trường đã chủ ý khai ngoài danh mục — không nhắc lại.
+            if (r.staged.sheet() != OnboardingSheet.EQUIPMENT_OUTSIDE) {
+                r.warn("catalog", "Không có trong danh mục — sẽ thành thiết bị ngoài danh mục của trường");
+            }
         } else {
             bulk = false;
         }
@@ -884,10 +1082,6 @@ public class OnboardingValidator {
         String manager = r.reference("manager", OnboardingSheet.STAFF, r.text("manager", 64), "cán bộ");
 
         BigDecimal original = r.number("originalValue", "Nguyên giá");
-        BigDecimal remaining = r.number("remainingValue", "Giá trị còn lại");
-        if (original != null && remaining != null && remaining.compareTo(original) > 0) {
-            r.error("remainingValue", "Giá trị còn lại lớn hơn nguyên giá");
-        }
         Integer year = r.integer("year", "Năm đưa vào sử dụng", 1900, 2100);
         LocalDate received = r.date("receivedDate", "Ngày tiếp nhận");
         if (received == null && year != null && r.text("receivedDate", 40) == null) {
@@ -935,7 +1129,7 @@ public class OnboardingValidator {
                 .put(r.staged.id(), bulk ? 1 : copies);
         return new EquipmentRow(legacy, name, catalog == null ? null : catalog.id(), newItem,
                 catalog != null && catalog.official() && !"code".equals(method) ? aliasCode : null,
-                bulk ? quantity : BigDecimal.ONE, bulk ? 1 : copies, serial, room, manager, original, remaining,
+                bulk ? quantity : BigDecimal.ONE, bulk ? 1 : copies, serial, room, manager, original,
                 received, year, originId, origin, funding, condition, r.text("note", 500));
     }
 
@@ -1272,6 +1466,18 @@ public class OnboardingValidator {
     private final class Context {
         final long schoolId;
         final Map<OnboardingSheet, Map<String, List<Integer>>> batchCodes = new HashMap<>();
+        /** Tên lớp (chữ hoa) trong trang Lớp học của lô → các năm học có lớp tên ấy. */
+        final Map<String, Set<Long>> batchClassYears = new HashMap<>();
+        /** Lớp|mã học sinh (chữ hoa) trong trang Học sinh → các dòng mang nó. */
+        final Map<String, List<Integer>> batchStudents = new HashMap<>();
+        /** Tên lớp|id năm học → số học sinh của lớp đó trong trang Học sinh (dòng không lỗi). */
+        final Map<String, Integer> studentCounts = new HashMap<>();
+        /** Năm học hiện hành, ngày bắt đầu từng năm — chọn năm khi một tên lớp có ở nhiều năm. */
+        Long currentYear;
+        final Map<Long, LocalDate> yearStarts = new HashMap<>();
+        private Map<String, Set<Long>> dbClassYears;
+        private Map<String, Long> dbClassIds;
+        private Set<String> dbStudents;
         final Map<OnboardingSheet, Map<String, Long>> existing = new HashMap<>();
         final Map<String, Integer> floors = new HashMap<>();
         final Map<String, Long> roomSubjects = new HashMap<>();
@@ -1281,6 +1487,8 @@ public class OnboardingValidator {
         /** Id năm học → cặp năm hiện cho người dùng ("2026-2027"). */
         final Map<Long, String> yearLabels = new HashMap<>();
         final Map<String, Long> roomTypes = new HashMap<>();
+        /** Loại CSVC là khu vực, công trình (sân, cổng, khu vệ sinh, khu để xe…) — {@code room_types.kind = 'AREA'}. */
+        final Set<Long> areaTypes = new HashSet<>();
         final Map<String, Unit> units = new HashMap<>();
         final Map<Long, Unit> unitsById = new HashMap<>();
         final Map<String, Long> originIds = new HashMap<>();
@@ -1327,8 +1535,14 @@ public class OnboardingValidator {
             });
             // Ghép theo cặp năm "2026-2027" lấy từ TÊN và từ mã — mã do quy tắc sinh mã đặt (vd "NH006"), không phải
             // lúc nào cũng là cặp năm; tệp của trường thì ghi cặp năm.
-            jdbc.query("SELECT id, code, name FROM school_years", rs -> {
+            jdbc.query("SELECT id, code, name, is_current, start_date FROM school_years", rs -> {
                 long id = rs.getLong("id");
+                if (rs.getBoolean("is_current")) {
+                    currentYear = id;
+                }
+                if (rs.getDate("start_date") != null) {
+                    yearStarts.put(id, rs.getDate("start_date").toLocalDate());
+                }
                 years.put(upper(rs.getString("code").replaceAll("\\s", "")), id);
                 yearLabels.put(id, schoolYearLabel(rs.getString("code"), rs.getString("name")));
                 for (String text : new String[] {rs.getString("name"), rs.getString("code")}) {
@@ -1339,9 +1553,13 @@ public class OnboardingValidator {
                 }
             });
             // Loại của Sở + loại ngoài danh mục của chính trường này (192).
-            jdbc.query("SELECT id, code, name FROM room_types WHERE active AND (school_id IS NULL OR school_id = ?)", rs -> {
+            jdbc.query("SELECT id, code, name, kind FROM room_types WHERE active AND (school_id IS NULL OR school_id = ?)",
+                    rs -> {
                 roomTypes.put(fold(rs.getString("name")), rs.getLong("id"));
                 roomTypes.put(fold(rs.getString("code")), rs.getLong("id"));
+                if ("AREA".equals(rs.getString("kind"))) {
+                    areaTypes.add(rs.getLong("id"));
+                }
             }, schoolId);
             jdbc.query("SELECT id, code, name, allows_fraction FROM units WHERE active", rs -> {
                 Unit u = new Unit(rs.getLong("id"), rs.getString("name"), fold(rs.getString("name")),
@@ -1390,6 +1608,55 @@ public class OnboardingValidator {
             });
         }
 
+        /** Năm hiện hành nếu có trong {@code years}, không thì năm bắt đầu muộn nhất. */
+        Long pickYear(Set<Long> years) {
+            if (years.isEmpty()) {
+                return null;
+            }
+            if (currentYear != null && years.contains(currentYear)) {
+                return currentYear;
+            }
+            return years.stream().max(Comparator.comparing((Long y) -> yearStarts.getOrDefault(y, LocalDate.MIN))
+                    .thenComparing(Comparator.naturalOrder())).orElse(null);
+        }
+
+        /** Lớp đã có của trường: tên lớp (chữ hoa) → các năm học. Nạp khi cần. */
+        Map<String, Set<Long>> dbClassYears() {
+            loadClasses();
+            return dbClassYears;
+        }
+
+        /** Lớp đã có: tên lớp (chữ hoa)|id năm học → id lớp. */
+        Map<String, Long> dbClassIds() {
+            loadClasses();
+            return dbClassIds;
+        }
+
+        private void loadClasses() {
+            if (dbClassIds != null) {
+                return;
+            }
+            dbClassYears = new HashMap<>();
+            dbClassIds = new HashMap<>();
+            jdbc.query("SELECT id, code, school_year_id FROM school_classes WHERE school_id = ?", rs -> {
+                String code = upper(rs.getString("code"));
+                long year = rs.getLong("school_year_id");
+                dbClassYears.computeIfAbsent(code, k -> new LinkedHashSet<>()).add(year);
+                dbClassIds.put(code + "|" + year, rs.getLong("id"));
+            }, schoolId);
+        }
+
+        /** Học sinh đã có của trường: id lớp|mã (chữ hoa). Nạp khi cần. */
+        Set<String> dbStudents() {
+            if (dbStudents == null) {
+                dbStudents = new HashSet<>();
+                jdbc.query("SELECT class_id, code FROM students WHERE school_id = ?", rs -> {
+                    dbStudents.add(rs.getLong("class_id") + "|" + upper(rs.getString("code")));
+                }, schoolId);
+            }
+            return dbStudents;
+        }
+
         Map<String, String> serials() {
             if (serials == null) {
                 serials = new HashMap<>();
@@ -1427,7 +1694,7 @@ public class OnboardingValidator {
                     case STAFF -> "staff";
                     case BUILDING -> "buildings";
                     case ROOM -> "rooms";
-                    case CLASS, EQUIPMENT -> null;
+                    case CLASS, STUDENT, EQUIPMENT, EQUIPMENT_OUTSIDE -> null;
                 };
                 if (s == OnboardingSheet.EQUIPMENT) {
                     // Thiết bị không có mã do trường đặt: nhận ra bằng mã cũ (tem, phần mềm cũ) đã lưu khi nhập.

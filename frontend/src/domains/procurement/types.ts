@@ -18,18 +18,12 @@ export type ProposalOverlap = {
 
 type Ref = { id: number; code?: string; name: string };
 
-/** Đề xuất mua sắm: trường → lãnh đạo trường → cơ quan quản lý → vào kế hoạch. */
+/** Đề xuất mua sắm: cán bộ lập → lãnh đạo trường → lãnh đạo Sở → vào kế hoạch của Sở. */
 export type PurchaseLineKind = "NEW" | "REPLACE";
 
 export const PURCHASE_LINE_KIND_LABELS: Record<PurchaseLineKind, string> = {
   NEW: "Mua mới",
   REPLACE: "Thay thế",
-};
-
-export const PRIORITY_LABELS: Record<number, string> = {
-  1: "Cấp thiết",
-  2: "Cần",
-  3: "Nên có",
 };
 
 export type PurchaseLine = {
@@ -40,12 +34,10 @@ export type PurchaseLine = {
   catalog: Ref;
   trackingType: string;
   name: string;
-  specification: string | null;
   unitName: string | null;
   quantity: number;
   unitPrice: number | null;
   amount: number | null;
-  priority: number;
   currentQuantity: number | null;
   requiredQuantity: number | null;
   note: string | null;
@@ -54,9 +46,8 @@ export type PurchaseLine = {
 export type PurchaseProposal = VoucherBase & {
   proposalDate: string;
   budgetYear: number | null;
-  fundingSource: string | null;
   reason: string | null;
-  plan: { id: number; title: string; status: ProcurementPlanStatus } | null;
+  plan: { id: number; code: string | null; title: string; status: ProcurementPlanStatus } | null;
   intakeId: number | null;
   totalAmount: number;
   totalQuantity: number;
@@ -64,7 +55,7 @@ export type PurchaseProposal = VoucherBase & {
   lineCount: number;
 };
 
-/** Kế hoạch mua sắm của UBND / Sở. */
+/** Kế hoạch mua sắm của Sở. */
 export type ProcurementPlanStatus = "DRAFT" | "PENDING" | "APPROVED";
 
 export const PLAN_STATUS_LABELS: Record<ProcurementPlanStatus, string> = {
@@ -104,16 +95,14 @@ export type PlanLine = {
   lineNo: number;
   catalog: { id: number; code: string; name: string };
   name: string;
-  specification: string | null;
   unitName: string | null;
   requestedQuantity: number;
   plannedQuantity: number;
-  /** Đơn giá kế hoạch: cơ quan đặt trên kế hoạch, không thì giá trường ghi. */
+  /** Đơn giá kế hoạch: Sở đặt trên kế hoạch, không thì giá trường ghi. */
   unitPrice: number | null;
   /** Đơn giá trường ghi trên đề xuất — không bắt buộc, có thể trống. */
   proposedUnitPrice: number | null;
   amount: number;
-  priority: number;
 };
 
 /** Đề xuất chờ vào kế hoạch, kèm các dòng thiết bị của nó. */
@@ -158,6 +147,16 @@ export type ProcurementSummary = {
     planned: number;
     amount: number;
     approvedAmount: number;
+  }[];
+  /** Theo trường: số đề xuất theo tình trạng và dự toán. */
+  schools: {
+    schoolId: number;
+    schoolName: string;
+    proposals: number;
+    pending: number;
+    approved: number;
+    planned: number;
+    amount: number;
   }[];
   catalogs: CatalogTotal[];
   amount: number;

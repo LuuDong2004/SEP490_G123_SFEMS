@@ -1,10 +1,10 @@
+import { ReturnedNotice } from "@/shared/components/voucher/returned-notice";
 import { useInvalidate, useList, useNotification, useShow } from "@refinedev/core";
 import {
   AlertCircle,
   CheckCheck,
   CheckCircle2,
   Clock,
-  CornerUpLeft,
   DoorOpen,
   FilePen,
   Lock,
@@ -75,7 +75,8 @@ const PAGE = 50;
 
 type Draft = { found: string; room: string; condition: string; qty: string; note: string; details: Details };
 
-type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM";
+type Filter = "all" | "unchecked" | "matched" | "diff" | "MISSING" | "WRONG_ROOM" | "CONDITION";
+const KIND_FILTERS: readonly Filter[] = ["MISSING", "WRONG_ROOM", "CONDITION"];
 
 function draftOf(line: InventoryLine): Draft {
   return {
@@ -212,7 +213,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
   const roomKey = (l: InventoryLine) => l.expectedRoom?.name ?? "Kho (chưa xếp phòng)";
   const { visible, roomTotals } = useMemo(() => {
     const visible = record.lines.filter((l) => {
-      if (needle && !fold(`${l.equipment.code} ${l.equipment.name}`).includes(needle)) return false;
+      if (needle && !fold(`${l.equipmentCode} ${l.equipmentName}`).includes(needle)) return false;
       if (roomFilter && (l.expectedRoom ? String(l.expectedRoom.id) : "none") !== roomFilter) return false;
       switch (filter) {
         case "unchecked":
@@ -301,10 +302,11 @@ function CountingPanel({ record, editable, filter, setFilter }: {
   const uncheckedVisible = visible.filter((l) => drafts[l.id]?.found === UNSET).length;
   const diffCount = record.lines.filter((l) => l.discrepancies.length > 0).length;
   const unchecked = record.summary.total - record.summary.checked;
-  const inDiff = filter === "diff" || filter === "MISSING" || filter === "WRONG_ROOM";
+  const inDiff = filter === "diff" || KIND_FILTERS.includes(filter);
   const kinds = ([
     ["MISSING", record.summary.missing],
     ["WRONG_ROOM", record.summary.wrongRoom],
+    ["CONDITION", record.summary.wrongCondition],
   ] as const).filter(([, n]) => n > 0);
   // Tiêu đề phòng chỉ có nghĩa khi bảng trải qua nhiều phòng.
   const grouped = roomTotals.size > 1;
@@ -317,6 +319,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
     diff: "Có chênh lệch",
     MISSING: "Thiếu",
     WRONG_ROOM: "Sai vị trí",
+    CONDITION: "Sai tình trạng",
   };
 
   return (
@@ -336,7 +339,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
           {kinds.length > 1 ? (
             <IconFilter icon={<TriangleAlert />} label="loại chênh lệch" allLabel="Mọi chênh lệch" total={diffCount}
               groups={[{ items: kinds.map(([k, n]) => ({ key: k, label: DISCREPANCY_LABELS[k], count: n })) }]}
-              value={filter === "MISSING" || filter === "WRONG_ROOM" ? filter : null}
+              value={KIND_FILTERS.includes(filter) ? filter : null}
               onChange={(v) => setFilter((v as Filter | null) ?? "diff")} />
           ) : null}
           {/* Nút chọn chung (`Segmented`): viên màu chính trượt sang ô mới — cùng kiểu với thanh tab, Làm việc / Văn bản. */}
@@ -413,8 +416,8 @@ function CountingPanel({ record, editable, filter, setFilter }: {
                   ) : null}
                   <TableRow className={cn(ROW_EDGE, !editable && cn("group/row", LIFT_ROW), changed && "bg-primary/5")}>
                     {editable ? <TableCell align="center" className={cn(edit, "text-muted-foreground font-normal")}>{l.lineNo}</TableCell> : null}
-                    <TableCell className={cn(edit, "text-muted-foreground truncate font-mono text-xs font-normal")}>{l.equipment.code}</TableCell>
-                    <TableCell className={cn(edit, "truncate")} title={l.equipment.name}>{l.equipment.name}</TableCell>
+                    <TableCell className={cn(edit, "text-muted-foreground truncate font-mono text-xs font-normal")}>{l.equipmentCode}</TableCell>
+                    <TableCell className={cn(edit, "truncate")} title={l.equipmentName}>{l.equipmentName}</TableCell>
                     <TableCell className={cn(edit, "text-muted-foreground truncate font-normal")} title={expected}>{expected}</TableCell>
                     {editable ? (
                       <>
@@ -502,7 +505,7 @@ function CountingPanel({ record, editable, filter, setFilter }: {
                       <TableCell className={edit}>
                         <span className="flex justify-end">
                           <LineDetailsButton compact config={config} value={d.details} schoolId={record.school.id}
-                            onChange={(v) => set(l.id, { details: v })} title={`${l.equipment.code} — ${l.equipment.name}`} />
+                            onChange={(v) => set(l.id, { details: v })} title={`${l.equipmentCode} — ${l.equipmentName}`} />
                         </span>
                       </TableCell>
                     ) : null}
@@ -608,66 +611,97 @@ function SurplusPanel({ record, editable }: { record: InventorySession; editable
             </div>
           ) : null}
         </div>
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm">
-            Chưa ghi thiết bị thừa nào.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <div className="bg-table-head text-overline text-table-head-text grid grid-cols-[2rem_minmax(12rem,2fr)_minmax(10rem,2fr)_6rem_minmax(10rem,2fr)_2.5rem] gap-x-2 border-b px-3 py-2">
-              <span className="text-center">#</span>
-              <span>Thiết bị (danh mục)</span>
-              <span>Tên thực tế</span>
-              <span className="pe-4 text-right">Số lượng</span>
-              <span>Ghi chú</span>
-              <span />
-            </div>
-            {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-[2rem_minmax(12rem,2fr)_minmax(10rem,2fr)_6rem_minmax(10rem,2fr)_2.5rem] items-center gap-x-2 border-b px-3 py-2 text-sm last:border-b-0">
-                <span className="text-muted-foreground text-center tabular-nums">{i + 1}</span>
-                {editable ? (
-                  // Danh mục hơn một nghìn thiết bị: tìm ở máy chủ, không đổ sẵn 200 dòng đầu.
-                  <AsyncCombobox<{ id: number; code: string; name: string }>
-                    resource="equipment_catalogs"
-                    value={r.catalog ? Number(r.catalog) : null}
-                    onChange={(id) => update(i, { catalog: id == null ? "" : String(id), catalogName: undefined })}
-                    labelOf={(c) => `${c.code} · ${c.name}`}
-                    fallbackLabel={r.catalogName ?? record.surplus[i]?.catalog.name ?? null}
-                    placeholder="Vui lòng chọn thiết bị"
-                    searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
-                  />
-                ) : (
-                  <span className="truncate">{record.surplus[i]?.catalog.name}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8" value={r.name} placeholder="= tên trong danh mục" maxLength={maxLengthOf("NAME")} onChange={(e) => update(i, { name: e.target.value })} />
-                ) : (
-                  <span className="truncate">{r.name || "—"}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8 text-right tabular-nums" type="number" min={1} value={r.quantity}
-                    onChange={(e) => update(i, { quantity: Number(e.target.value) })} />
-                ) : (
-                  <span className="pe-4 text-right tabular-nums">{r.quantity}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8" value={r.note} placeholder="Ghi chú" maxLength={maxLengthOf("NOTE", 255)} onChange={(e) => update(i, { note: e.target.value })} />
-                ) : (
-                  <span className="text-muted-foreground truncate">{r.note || "—"}</span>
-                )}
-                {editable ? (
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá dòng"
-                    className="text-muted-foreground hover:text-destructive" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
-                    <Trash2 />
-                  </Button>
-                ) : <span />}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Bảng chung của hệ thống (khung, dòng nổi, dòng trống), không tự vẽ lưới bằng div. */}
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10 text-center">#</TableHead>
+                <TableHead className="min-w-48">Thiết bị (danh mục)</TableHead>
+                <TableHead className="min-w-40">Tên thực tế</TableHead>
+                <TableHead className="w-28 text-right">Số lượng</TableHead>
+                <TableHead className="min-w-40">Ghi chú</TableHead>
+                <TableHead className="w-12"><span className="sr-only">Thao tác</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableEmpty colSpan={6} title="Chưa ghi thiết bị thừa nào." />
+              ) : rows.map((r, i) => (
+                <TableRow key={i} className={cn("group/row", LIFT_ROW)}>
+                  <TableCell className="text-muted-foreground text-center tabular-nums">{i + 1}</TableCell>
+                  <TableCell>
+                    {editable ? (
+                      // Danh mục hơn một nghìn thiết bị: tìm ở máy chủ, không đổ sẵn 200 dòng đầu.
+                      <AsyncCombobox<{ id: number; code: string; name: string }>
+                        resource="equipment_catalogs"
+                        value={r.catalog ? Number(r.catalog) : null}
+                        onChange={(id) => update(i, { catalog: id == null ? "" : String(id), catalogName: undefined })}
+                        labelOf={(c) => `${c.code} · ${c.name}`}
+                        fallbackLabel={r.catalogName ?? record.surplus[i]?.catalog.name ?? null}
+                        placeholder="Vui lòng chọn thiết bị"
+                        searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
+                      />
+                    ) : (
+                      <span className="truncate">{record.surplus[i]?.catalog.name}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editable ? (
+                      <Input className="h-8" value={r.name} placeholder="= tên trong danh mục" maxLength={maxLengthOf("NAME")} onChange={(e) => update(i, { name: e.target.value })} />
+                    ) : (
+                      <span className="truncate">{r.name || "—"}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {editable ? (
+                      <Input className="h-8 text-right tabular-nums" type="number" min={1} value={r.quantity}
+                        onChange={(e) => update(i, { quantity: Number(e.target.value) })} />
+                    ) : r.quantity}
+                  </TableCell>
+                  <TableCell>
+                    {editable ? (
+                      <Input className="h-8" value={r.note} placeholder="Ghi chú" maxLength={maxLengthOf("NOTE", 255)} onChange={(e) => update(i, { note: e.target.value })} />
+                    ) : (
+                      <span className="text-muted-foreground truncate">{r.note || "—"}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-1">
+                    {editable ? (
+                      <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá dòng"
+                        className="text-muted-foreground hover:text-destructive" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
+                        <Trash2 />
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Một khuôn bảng cho biên bản kiểm kê (KK-07) — cả dạng văn bản trên màn lẫn bản in: số lượng sổ ghi / đếm được với
+ * hoá chất, vật tư theo lô, kết quả đối chiếu và ghi chú của từng dòng.
+ */
+const REPORT_HEADERS = ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Kết quả", "Ghi chú"];
+
+function reportRows(record: InventorySession): (string | number)[][] {
+  return record.lines.map((l, i) => [
+    i + 1,
+    l.equipmentCode,
+    l.equipmentName,
+    `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
+    l.found == null ? "Chưa kiểm" : l.found
+      ? `${l.foundRoom?.name ?? "Như hệ thống"}${l.expectedQuantity != null ? ` · SL ${number.format(l.countedQuantity ?? l.expectedQuantity)}` : ""}`
+      : "Không thấy",
+    l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
+    l.note ?? "",
+  ]);
 }
 
 /** Phiếu kiểm kê ở các trạng thái này khoá số liệu (máy chủ: `InventoryFreeze.COUNTING`). */
@@ -703,7 +737,7 @@ export const InventorySessionShow = () => {
   const stage = record ? STAGE[record.status] : null;
   // Biên bản đã chốt (không còn kiểm đếm) mà có chênh lệch: mở sẵn nhóm "Có chênh lệch" — người duyệt cần
   // thấy vài dòng lệch, không phải cuộn qua hai trăm dòng khớp. Chỉ đặt một lần cho mỗi phiếu.
-  const lineDiffs = s ? s.missing + s.wrongRoom : 0;
+  const lineDiffs = s ? s.missing + s.wrongRoom + s.wrongCondition : 0;
   const preset = useRef<number | null>(null);
   useEffect(() => {
     if (!record || preset.current === record.id) return;
@@ -733,6 +767,39 @@ export const InventorySessionShow = () => {
     );
   }
 
+  // Dạng làm việc: nút nằm trong thẻ tóm tắt bên phải. Dạng chứng từ ẩn cột đó nên nút về hàng đầu trang — chỉ gắn
+  // MỘT cụm mỗi lúc (hai cụm cùng nghe menu ⚙ thì hộp hỏi lại mở hai lần).
+  const voucherActions = (layout: "bar" | "side") => (
+    <VoucherActions
+      resource={RESOURCE}
+      record={record}
+      tucked={tucked}
+      layout={layout}
+      invalidates={["equipment", "equipment_intakes"]}
+      text={{
+        submit: {
+          label: "Trình biên bản",
+          title: "Trình biên bản kiểm kê?",
+          description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử thiết bị.",
+          confirm: "Trình biên bản",
+        },
+        approve: {
+          label: "Duyệt biên bản",
+          title: "Duyệt biên bản kiểm kê?",
+          description: (
+            <ul className="list-disc space-y-1 ps-5">
+              {Object.entries(DISCREPANCY_OUTCOMES).map(([k, v]) => (
+                <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]}: {v}</li>
+              ))}
+            </ul>
+          ),
+          confirm: "Duyệt biên bản",
+          done: "Đã duyệt biên bản",
+        },
+      }}
+    />
+  );
+
   return (
     <ShowView>
       <ShowViewHeader
@@ -741,33 +808,7 @@ export const InventorySessionShow = () => {
         actions={
           <>
             {record ? <VoucherViewSwitch view={view} onChange={setView} /> : null}
-            <VoucherActions
-              resource={RESOURCE}
-              record={record}
-              tucked={tucked}
-              invalidates={["equipment", "equipment_intakes"]}
-              text={{
-                submit: {
-                  label: "Trình biên bản",
-                  title: "Trình biên bản kiểm kê?",
-                  description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử thiết bị.",
-                  confirm: "Trình biên bản",
-                },
-                approve: {
-                  label: "Duyệt biên bản",
-                  title: "Duyệt biên bản kiểm kê?",
-                  description: (
-                    <ul className="list-disc space-y-1 ps-5">
-                      {Object.entries(DISCREPANCY_OUTCOMES).map(([k, v]) => (
-                        <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]}: {v}</li>
-                      ))}
-                    </ul>
-                  ),
-                  confirm: "Duyệt biên bản",
-                  done: "Đã duyệt biên bản",
-                },
-              }}
-            />
+            {record && view === "document" ? voucherActions("bar") : null}
           </>
         }
       />
@@ -788,22 +829,7 @@ export const InventorySessionShow = () => {
               ...detailFacts(config, record.details, null),
               { label: "Kết luận", value: record.conclusion, wide: true },
             ]}
-            table={{
-              headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Kết quả"],
-              rows: record.lines.map((l, i) => [
-                i + 1,
-                l.equipment.code,
-                l.equipment.name,
-                // Hoá chất, vật tư theo lô: thêm số lượng sổ ghi / đếm được.
-                `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
-                l.found == null ? "Chưa kiểm" : l.found
-                  ? `${l.foundRoom?.name ?? "Như hệ thống"}${l.expectedQuantity != null ? ` · SL ${number.format(l.countedQuantity ?? l.expectedQuantity)}` : ""}`
-                  : "Không thấy",
-                l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
-              ]),
-              alignCenter: [0],
-              grow: 2,
-            }}
+            table={{ headers: REPORT_HEADERS, rows: reportRows(record), alignCenter: [0], grow: 2 }}
             signers={[{ title: "Người kiểm kê" }, { title: "Kế toán" }, { title: "Thủ trưởng đơn vị" }]}
           />
         </>
@@ -815,25 +841,15 @@ export const InventorySessionShow = () => {
           title="Biên bản kiểm kê thiết bị"
           subtitle={record.code ? `Số: ${record.code}` : "Phiếu nháp, chưa cấp số"}
           facts={[
-            { label: "Tên đợt", value: record.title },
+            { label: "Tên phiếu", value: record.title },
             { label: "Ngày kiểm kê", value: formatPlainDate(record.inventoryDate) },
             { label: "Phạm vi", value: record.room?.name ?? "Cả trường" },
+            ...(record.campaign?.name ? [{ label: "Đợt kiểm kê", value: record.campaign.name }] : []),
             ...(record.council ? [{ label: "Tổ kiểm kê", value: record.council }] : []),
             ...(record.conclusion ? [{ label: "Kết luận", value: record.conclusion }] : []),
             ...detailFacts(config, record.details, null),
           ]}
-          table={{
-            headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Chênh lệch", "Ghi chú"],
-            rows: record.lines.map((l) => [
-              l.lineNo,
-              l.equipment.code,
-              l.equipment.name,
-              l.expectedRoom?.name ?? "Kho",
-              l.found == null ? "Chưa kiểm" : l.found ? (l.foundRoom?.name ?? "Đúng như hệ thống") : "Không thấy",
-              l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
-              l.note ?? "",
-            ]),
-          }}
+          table={{ headers: REPORT_HEADERS, rows: reportRows(record) }}
           signers={["Người kiểm kê", "Kế toán", "Thủ trưởng đơn vị"]}
         />
       ) : null}
@@ -844,11 +860,7 @@ export const InventorySessionShow = () => {
             main={
               <>
                 {record?.status === "DRAFT" && record.returnNote ? (
-                  <Alert>
-                    <CornerUpLeft className="text-warning-text" />
-                    <AlertTitle>Biên bản bị trả lại, cần sửa</AlertTitle>
-                    <AlertDescription>{record.returnNote}</AlertDescription>
-                  </Alert>
+                  <ReturnedNotice resource={RESOURCE} id={record.id} note={record.returnNote} noun="Biên bản" />
                 ) : null}
                 {record?.status === "REJECTED" && record.rejectReason ? (
                   <Alert variant="destructive">
@@ -873,7 +885,8 @@ export const InventorySessionShow = () => {
                   compact
                   resource={RESOURCE}
                   recordId={record?.id}
-                  canWrite={record?._can?.write === true}
+                  // Đã trình duyệt: tệp khoá, không thêm, không xoá (cùng luật máy chủ).
+                  canWrite={record?._can?.write === true && record?.status === "DRAFT"}
                   description="Biên bản kiểm kê có chữ ký tổ kiểm kê, ảnh hiện trường."
                 />
                 <VoucherTimelineDialog resource={RESOURCE} id={record?.id} open={timelineOpen} onOpenChange={setTimelineOpen} />
@@ -885,7 +898,7 @@ export const InventorySessionShow = () => {
                   <SideFact label="Số phiếu">
                     {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi trình</span>}
                   </SideFact>
-                  <SideFact label="Tên đợt">{record?.title}</SideFact>
+                  <SideFact label="Tên phiếu">{record?.title}</SideFact>
                   {perspective === "school" ? null : <SideFact label="Trường">{record?.school?.name}</SideFact>}
                   <SideFact label="Ngày kiểm kê">{formatPlainDate(record?.inventoryDate)}</SideFact>
                   <SideFact label="Phạm vi">{record?.room?.name ?? "Cả trường"}</SideFact>
@@ -908,6 +921,8 @@ export const InventorySessionShow = () => {
                     </div>
                   ) : null}
                 </SideSection>
+                {/* Nút việc của phiếu ngay dưới thông tin phiếu — cùng chỗ với đề xuất mua sắm, phiếu ghi tăng. */}
+              {view === "document" ? null : voucherActions("side")}
 
                 {s ? (
                   <SideSection title="Kiểm đếm">

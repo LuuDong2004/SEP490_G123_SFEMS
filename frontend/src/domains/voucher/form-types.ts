@@ -49,6 +49,11 @@ export type DetailSection = {
   fields: DetailField[];
   /** Chỉ hiện khi trường `field` của phiếu thuộc `in` (vd. `centralized`: cấp trên mua tập trung). */
   when?: { field: string; in: string[] };
+  /**
+   * Trang của loại phiếu tự đặt các ô này vào khối "Thông tin phiếu" (ô `details.<key>`) và tự đưa vào `facts` khi
+   * xem — khối "Thông tin bổ sung" chung bỏ qua chúng. Dùng khi chỉ còn một hai ô, đứng riêng một khối thì lạc lõng.
+   */
+  inline?: boolean;
 };
 
 export type VoucherFormConfig = {

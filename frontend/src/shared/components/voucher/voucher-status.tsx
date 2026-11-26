@@ -19,12 +19,12 @@ export function VoucherStatusBadge({
   status: VoucherStatus;
   step?: ApprovalStep | null;
   short?: boolean;
-  /** Phiếu đang nháp vì bị người duyệt TRẢ LẠI (có `returnNote`) — hiện "Bị trả về", màu cảnh báo. */
+  /** Phiếu đang nháp vì bị người duyệt TRẢ LẠI (có `returnNote`) — hiện "Bị trả về", màu tím (khác cam "chờ duyệt"). */
   returned?: boolean;
 }) {
   const full = voucherStatusText(status, step ?? null, returned);
   const text = short ? voucherStatusText(status, null, returned) : full;
-  const variant = status === "DRAFT" && returned ? "warning" : (VOUCHER_STATUS_VARIANTS[status] ?? "neutral");
+  const variant = status === "DRAFT" && returned ? "returned" : (VOUCHER_STATUS_VARIANTS[status] ?? "neutral");
   return (
     <Badge variant={variant} title={text === full ? undefined : full}>
       {text}

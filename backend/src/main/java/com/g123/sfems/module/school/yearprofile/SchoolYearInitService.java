@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Khởi tạo năm học mới (docs/du-lieu-theo-nam-hoc.md §4, màn C) từ năm học liền trước: lớp (lên lớp tự động / chép nguyên / để
  * trống), phân công giáo viên (bỏ người đã nghỉ), điều chỉnh chuẩn của trường (chờ xác nhận lại, bỏ dòng danh mục đã đổi /
  * ngừng). CSVC, thiết bị liên tục nên không chép. Việc của TỪNG TRƯỜNG: lãnh đạo trường chạy cho trường mình. Sở và quản trị
- * không khởi tạo thay — Sở chỉ xem tiến độ và mở lại năm đã chốt.
+ * không khởi tạo thay — Sở chỉ xem tiến độ, nhận báo khi trường xác nhận đã khai.
  */
 @Service
 public class SchoolYearInitService {
@@ -42,15 +42,13 @@ public class SchoolYearInitService {
     private final JdbcTemplate jdbc;
     private final RowLevelPrincipalResolver principals;
     private final StaffAssignmentService assignments;
-    private final SchoolYearLock lock;
     private final List<AdjustmentCopier> copiers;
 
     public SchoolYearInitService(JdbcTemplate jdbc, RowLevelPrincipalResolver principals,
-            StaffAssignmentService assignments, SchoolYearLock lock, List<AdjustmentCopier> copiers) {
+            StaffAssignmentService assignments, List<AdjustmentCopier> copiers) {
         this.jdbc = jdbc;
         this.principals = principals;
         this.assignments = assignments;
-        this.lock = lock;
         this.copiers = copiers;
     }
 
@@ -71,7 +69,6 @@ public class SchoolYearInitService {
         int adjusted = 0;
         int skipped = 0;
         for (Long school : schools) {
-            lock.requireOpen(school, year);
             if (mode != Classes.EMPTY) {
                 classes += copyClasses(school, from, year, mode);
             }

@@ -18,7 +18,7 @@ const CLASS_OPTIONS: { value: InitClasses; label: string; hint: string }[] = [
 ];
 
 /**
- * Khởi tạo năm học mới (màn C) cho trường của người dùng: lớp, phân công giáo viên, điều chỉnh chuẩn chép từ năm liền trước.
+ * Khai dữ liệu năm học mới (năm vừa thành hiện hành) cho trường của người dùng: lớp, phân công giáo viên, điều chỉnh chuẩn chép từ năm liền trước.
  * Việc của từng trường — Sở không khởi tạo thay.
  */
 export function InitYearDialog({ fromYear, target, onClose, onDone }: {
@@ -45,7 +45,7 @@ export function InitYearDialog({ fromYear, target, onClose, onDone }: {
       }).json<InitResult>();
       notify?.({
         type: "success",
-        message: `Đã khởi tạo ${target.name.toLowerCase()}`,
+        message: `Đã khai dữ liệu ${target.name.toLowerCase()}, rà soát rồi xác nhận đã khai`,
         description: `${r.classes} lớp · ${r.assignments} phân công · ${r.adjustments} điều chỉnh`,
       });
       await qc.invalidateQueries();
@@ -61,7 +61,7 @@ export function InitYearDialog({ fromYear, target, onClose, onDone }: {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle>Khởi tạo {target.name.toLowerCase()}</DialogTitle>
+          <DialogTitle>Khai dữ liệu {target.name.toLowerCase()}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <fieldset className="space-y-2">
@@ -92,7 +92,7 @@ export function InitYearDialog({ fromYear, target, onClose, onDone }: {
           <Button type="button" variant="outline" onClick={onClose}>Huỷ</Button>
           <Button type="button" disabled={busy} onClick={() => void run()}>
             {busy ? <Loader2 className="animate-spin" /> : null}
-            Khởi tạo
+            Khai dữ liệu
           </Button>
         </DialogFooter>
       </DialogContent>

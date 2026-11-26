@@ -50,7 +50,7 @@ import { EDIT_SOURCE } from "./edit-history";
 import type { SortState } from "./view";
 
 /** Một lần sửa gửi lên máy chủ: các ô đổi của một dòng, hoặc bỏ / dùng lại dòng. */
-export type RowEdit = { rowId: number; data?: Record<string, string>; skipped?: boolean; source?: "rule" | "ai" };
+export type RowEdit = { rowId: number; data?: Record<string, string>; skipped?: boolean; source?: "rule" };
 
 /**
  * Lưới kiểu Excel của vùng chờ (Glide Data Grid, vẽ bằng canvas): gõ thẳng vào ô, dán cả khối từ Excel,
@@ -190,8 +190,8 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
     if (!r || !c) return readonlyText("");
     switch (c.id) {
       case "_row":
-        // Dòng đã được sửa (tay, sửa nhanh hay AI): ô số dòng tô xanh chủ đạo để nhận ra ngay.
-        return readonlyText(String(r.rowNo), r.editSource ? theme.editAi : undefined);
+        // Dòng đã được sửa (tay hay sửa nhanh): ô số dòng tô xanh chủ đạo để nhận ra ngay.
+        return readonlyText(String(r.rowNo), r.editSource ? theme.edited : undefined);
       case "_status":
         return readonlyText(IMPORT_ROW_STATUS[r.status], theme.statusCell[r.status]);
       case "_messages":
@@ -208,8 +208,8 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
     const key = c.key!;
     const value = valueOf(r, key);
     const level = levelOf(r.messages, key);
-    // Ô đã sửa: nền xanh nhạt + nhãn nói ai sửa (Sửa tay / Sửa nhanh / AI) ở góc (`drawCell`);
-    // lỗi vẫn ưu tiên đỏ. Nguồn chi tiết (AI / sửa nhanh) xem ở tab Lịch sử.
+    // Ô đã sửa: nền xanh nhạt + nhãn nói sửa tay hay sửa nhanh ở góc (`drawCell`);
+    // lỗi vẫn ưu tiên đỏ. Chi tiết từng lần sửa xem ở tab Lịch sử.
     const edited = r.editedCells?.[key];
     return {
       kind: GridCellKind.Text,
@@ -219,7 +219,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
       readonly: !editable,
       themeOverride: level === "error" ? { bgCell: theme.errorBg, textDark: theme.errorText }
         : level === "warning" ? { bgCell: theme.warningBg }
-          : edited ? { bgCell: theme.editAi.bgCell, textDark: theme.editAi.textDark } : undefined,
+          : edited ? { bgCell: theme.edited.bgCell, textDark: theme.edited.textDark } : undefined,
     };
   }, [rows, columns, editable, theme, valueOf]);
 
@@ -228,7 +228,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
     drawContent();
     const c = columns[args.col];
     const r = rows[args.row];
-    // Ô đã sửa: nhãn nhỏ ở góc trên phải nói ai sửa. Chỉ nhãn AI mang màu chủ đạo, để nhận ra ô máy đổi.
+    // Ô đã sửa: nhãn nhỏ ở góc trên phải nói sửa tay hay sửa nhanh.
     const editedBy = c?.key ? r?.editedCells?.[c.key] : undefined;
     if (editedBy) {
       const { ctx, rect } = args;
@@ -238,7 +238,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
       const w = ctx.measureText(label).width + 6;
       const x = rect.x + rect.width - w - 2;
       const y = rect.y + 2;
-      ctx.fillStyle = (editedBy === "ai" ? theme.editAi.textDark : theme.textLight) as string;
+      ctx.fillStyle = theme.textLight as string;
       ctx.beginPath();
       ctx.roundRect(x, y, w, 12, 3);
       ctx.fill();
@@ -261,7 +261,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
     ctx.lineTo(x + width, y);
     ctx.stroke();
     ctx.restore();
-  }, [columns, rows, theme.link, theme.editAi, theme.textLight]);
+  }, [columns, rows, theme.link, theme.edited, theme.textLight]);
 
   /** Tiêu đề cột bắt buộc: dấu * màu đỏ ngay sau tên cột. */
   const drawHeader = useCallback<DrawHeaderCallback>((args, drawContent) => {
@@ -363,7 +363,7 @@ export function ImportGrid({ sheet, rows, editable, isEquipment, toolbar, filter
   return (
     <div className="grid gap-0">
       <div className="flex flex-wrap items-center gap-2 border-b p-3">
-        {/* Ô tìm bên trái; bộ lọc; bên phải: Thêm dòng, AI sửa lỗi, Lịch sử, Cột. */}
+        {/* Ô tìm bên trái; bộ lọc; bên phải: Thêm dòng, Sửa nhanh, Lịch sử, Cột. */}
         <div className="relative w-full sm:w-84">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Tìm trong trang này"
@@ -670,7 +670,7 @@ function useGridTheme() {
       grid,
       statusCell,
       // Ô đã sửa = xanh chủ đạo của hệ thống (nền pha nhạt từ --primary).
-      editAi: { bgCell: mixHex(t.primary, bg, 0.14), textDark: t.primary, baseFontStyle: "700 13px" },
+      edited: { bgCell: mixHex(t.primary, bg, 0.14), textDark: t.primary, baseFontStyle: "700 13px" },
       errorText,
       warningText,
       errorBg: token("--destructive-subtle", "#fef2f2"),

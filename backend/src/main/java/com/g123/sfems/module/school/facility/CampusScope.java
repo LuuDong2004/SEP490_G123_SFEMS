@@ -108,6 +108,17 @@ public class CampusScope {
                 null);
     }
 
+    /**
+     * Như {@link #byRoom} nhưng phòng nằm cách một bước ({@code path}, vd. {@code schoolClass.room}: học sinh theo
+     * phòng học của lớp). {@code field} là ô báo lỗi khi ghi ngoài cơ sở.
+     */
+    public <T> CampusRule<T> byRoomAt(String field, String path, Function<T, Room> room, Function<T, School> school) {
+        return new Rule<>(field, List.of(new Step(path, Kind.ROOM)), null,
+                item -> room.apply(item) != null ? campusOf(room.apply(item), school.apply(item))
+                        : mainCampusId(school.apply(item)),
+                null);
+    }
+
     // ------------------------------------------------------------------ cho phiếu (VoucherCampus)
 
     /** Một cơ sở còn dùng của trường — nhãn Cơ sở trên danh sách phiếu. */
@@ -142,6 +153,16 @@ public class CampusScope {
             return null;
         }
         return item.getRoom() != null ? campusOf(item.getRoom(), item.getSchool()) : mainCampusId(item.getSchool());
+    }
+
+    /** Cơ sở chính của trường ({@code null} khi trường chưa có cơ sở chính). */
+    public Long mainCampusOf(School school) {
+        return mainCampusId(school);
+    }
+
+    /** Cơ sở thực của bản ghi mang cơ sở của chính nó: cơ sở đó nếu còn dùng và cùng trường, không thì cơ sở chính. */
+    public Long effectiveCampus(Campus own, School school) {
+        return effective(own, school);
     }
 
     /** Cơ sở mà người gọi bị giới hạn trong, nếu cơ sở đó thuộc trường {@code schoolId}; không thì {@code null}. */

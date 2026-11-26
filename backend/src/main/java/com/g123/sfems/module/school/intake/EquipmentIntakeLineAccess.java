@@ -41,6 +41,7 @@ public class EquipmentIntakeLineAccess implements RecordAccess {
 
     @Override
     public void checkWritable(Long id) {
+        // Theo phiếu: tệp chỉ thêm / xoá được khi phiếu còn nháp (EquipmentIntakeService.checkWritable).
         intakes.checkWritable(intakeOf(id));
     }
 

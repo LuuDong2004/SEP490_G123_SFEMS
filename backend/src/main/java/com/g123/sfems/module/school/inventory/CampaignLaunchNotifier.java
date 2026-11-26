@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Sở / UBND phát động đợt kiểm kê thì báo cán bộ lập biên bản kiểm kê của từng trường trong phạm vi (người có
+ * Sở phát động đợt kiểm kê thì báo cán bộ lập biên bản kiểm kê của từng trường trong phạm vi (người có
  * {@code inventory_sessions:write}, tài khoản đang hoạt động). Trước đây trường chỉ biết khi tình cờ mở màn kiểm kê
  * (E2E-05).
  *
@@ -32,8 +32,7 @@ class CampaignLaunchNotifier {
 
     @EventListener
     void on(CampaignLaunched event) {
-        // Cùng phạm vi với màn tiến độ đợt (InventoryCampaignService.progress): đợt của SỞ áp cho mọi trường của
-        // thành phố, đợt của UBND áp cho trường thuộc UBND đó.
+        // Cùng phạm vi với màn tiến độ đợt (InventoryCampaignService.progress): đợt của Sở áp cho mọi trường Sở quản lý.
         List<Long> recipients = jdbc.queryForList("""
                 SELECT DISTINCT u.id FROM users u
                 JOIN user_roles ur ON ur.user_id = u.id

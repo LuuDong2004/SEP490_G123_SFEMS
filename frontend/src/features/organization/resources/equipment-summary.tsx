@@ -416,11 +416,11 @@ export function EquipmentSummary({ by, filters, drill }: {
                           </div>
                         </td>
                         {showSubject ? (
-                          <td className="px-3 py-2" title={r.subject ?? undefined}>
+                          <td className="px-3 py-2" title={r.subject ?? "Thiết bị chưa gắn môn học (thường là thiết bị ngoài danh mục trường tự thêm)"}>
                             {r.subject ? (
                               <span className="inline-block max-w-full truncate rounded-full px-2.5 py-0.5 text-xs font-medium align-middle"
                                 style={hueChip(hueOf(r.subject))}>{r.subject}</span>
-                            ) : <span className="text-muted-foreground">—</span>}
+                            ) : <span className="text-muted-foreground text-xs italic">Chưa gắn môn</span>}
                           </td>
                         ) : null}
                         <td className="text-muted-foreground px-3 py-2.5 whitespace-nowrap">{readableUnit(n(r.total as number), r.unit).unit ?? "—"}</td>

@@ -41,4 +41,12 @@ public interface RecordAccess {
 
     /** Ném {@code ResourceNotFoundException} nếu bản ghi không nằm trong phạm vi GHI. */
     void checkWritable(Long id);
+
+    /**
+     * Thêm / xoá được tệp đính kèm của bản ghi không — mặc định như ghi. Phiếu đã trình duyệt thì không: tệp là căn cứ
+     * người duyệt đang xét, muốn đổi thì người duyệt trả lại phiếu.
+     */
+    default void checkAttachmentsEditable(Long id) {
+        checkWritable(id);
+    }
 }

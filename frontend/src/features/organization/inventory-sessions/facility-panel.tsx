@@ -77,7 +77,7 @@ function NoteInput({ value, onSave }: { value: string | null; onSave: (v: string
 /**
  * Hạng mục CSVC của biên bản kiểm kê: khối nhà và phòng / hạng mục trong phạm vi phiếu, kết cấu và
  * hiện trạng trên sổ → thấy thực tế. Phiếu còn nháp thì ghi ngay từng ô; biên bản đã duyệt thì "Áp dụng vào hồ sơ CSVC"
- * ghi phần khác sổ vào hồ sơ (cán bộ áp → chờ lãnh đạo xác nhận).
+ * ghi phần khác sổ thẳng vào hồ sơ CSVC (InventoryFacilityService — bước chờ lãnh đạo xác nhận đã bỏ ở 240).
  */
 export function InventoryFacilityPanel({ record }: { record: InventorySession }) {
   const queryClient = useQueryClient();
@@ -230,7 +230,7 @@ export function InventoryFacilityPanel({ record }: { record: InventorySession })
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <ConfirmContent
           title="Áp dụng kết quả vào hồ sơ CSVC?"
-          description="Kết cấu, hiện trạng thấy thực tế được ghi vào hồ sơ khối nhà, phòng, hạng mục. Cán bộ áp dụng thì chờ lãnh đạo xác nhận."
+          description="Kết cấu, hiện trạng thấy thực tế được ghi ngay vào hồ sơ khối nhà, phòng, hạng mục."
           cancelLabel="Chưa áp dụng"
           confirmLabel="Áp dụng"
           busy={busy}

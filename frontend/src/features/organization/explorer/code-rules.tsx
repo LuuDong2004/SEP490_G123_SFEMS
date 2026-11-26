@@ -1,6 +1,6 @@
 import { useCan, useNotification, useOne } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { getAuthorities } from "@/shared/api/session";
@@ -125,14 +125,62 @@ function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | nu
   );
 }
 
+/** Hộp thoại XEM một quy tắc (bấm dòng): các giá trị và ví dụ mã; người sửa được thì có nút "Sửa". */
+function ViewRuleDialog({ rule, canWrite, onEdit, onClose }: {
+  rule: SchoolCodeRule | null;
+  canWrite: boolean;
+  onEdit: (rule: SchoolCodeRule) => void;
+  onClose: () => void;
+}) {
+  const n = rule?.startNumber ?? 0;
+  const len = rule?.numberLength ?? 1;
+  const prefix = rule?.prefix ?? "";
+  const item = (label: string, value: React.ReactNode) => (
+    <div className="grid grid-cols-[9rem_1fr] gap-3 py-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{value}</dd>
+    </div>
+  );
+  return (
+    <Dialog open={!!rule} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>Quy tắc mã — {rule?.label}</DialogTitle>
+          <DialogDescription>Mã gồm ký hiệu và số thứ tự, tiếp theo mã lớn nhất đang có.</DialogDescription>
+        </DialogHeader>
+        {rule ? (
+          <dl className="divide-y text-sm">
+            {item("Ký hiệu đầu mã", rule.prefix ? <span className="font-mono">{rule.prefix}</span> : <span className="text-muted-foreground">Không có ký hiệu</span>)}
+            {item("Độ dài phần số", `${rule.numberLength} chữ số`)}
+            {item("Bắt đầu từ số", <span className="tabular-nums">{rule.startNumber}</span>)}
+            {item("Mã kế tiếp", <span className="font-mono font-semibold">{rule.next ?? "—"}</span>)}
+            {item("Cách đặt", rule.custom ? <Badge variant="info">Riêng của trường</Badge> : <Badge variant="success">Mặc định</Badge>)}
+            {item("Ví dụ", <span className="font-mono">{prefix}{pad(n, len)}, {prefix}{pad(n + 1, len)}, {prefix}{pad(n + 2, len)}…</span>)}
+          </dl>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>
+          {canWrite && rule ? (
+            <Button type="button" onClick={() => onEdit(rule)}>
+              <Pencil />
+              Sửa
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
  * Các loại mã của MỘT trường — bảng cùng khuôn với mọi danh sách khác của hệ thống (khung thẻ, dải tiêu đề cột,
- * menu "⋯" ở cuối dòng); bấm dòng hoặc "Sửa" mở hộp thoại.
+ * menu "⋯" ở cuối dòng). Bấm dòng là XEM; sửa qua nút "Sửa" của hộp xem hoặc menu "⋯".
  */
 function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.ReactNode }) {
   const { rules, isLoading } = useSchoolCodeRules(schoolId);
   const canWrite = useCan({ resource: "school_code_rules", action: "edit" }).data?.can ?? false;
   const [editing, setEditing] = useState<SchoolCodeRule | null>(null);
+  const [viewing, setViewing] = useState<SchoolCodeRule | null>(null);
   return (
     <>
       <FillBox>
@@ -149,19 +197,18 @@ function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.Re
               <TableHead>Bắt đầu từ</TableHead>
               <TableHead>Mã kế tiếp</TableHead>
               <TableHead>Cách đặt</TableHead>
-              {canWrite ? <TableHead className="w-14" /> : null}
+              <TableHead className="w-14" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading
               ? Array.from({ length: 6 }, (_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={canWrite ? 8 : 7}><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
                   </TableRow>
                 ))
               : rules.map((r, i) => (
-                  <TableRow key={r.target} className={cn("group/row", LIFT_ROW, canWrite ? "cursor-pointer" : "cursor-default")}
-                    onClick={canWrite ? () => setEditing(r) : undefined}>
+                  <TableRow key={r.target} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => setViewing(r)}>
                     <TableCell className="text-muted-foreground text-center tabular-nums">{i + 1}</TableCell>
                     <TableCell className="font-medium">{r.label}</TableCell>
                     <TableCell className="font-mono">{r.prefix || <span className="text-muted-foreground">—</span>}</TableCell>
@@ -169,18 +216,22 @@ function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.Re
                     <TableCell className="tabular-nums">{r.startNumber}</TableCell>
                     <TableCell className="font-mono font-semibold">{r.next ?? "—"}</TableCell>
                     <TableCell>
-                      {r.custom ? <Badge variant="info">Riêng của trường</Badge> : <Badge variant="neutral">Mặc định</Badge>}
+                      {r.custom ? <Badge variant="info">Riêng của trường</Badge> : <Badge variant="success">Mặc định</Badge>}
                     </TableCell>
-                    {canWrite ? (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <RowActions>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <RowActions>
+                        <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM} onClick={() => setViewing(r)}>
+                          <Eye />
+                          Xem
+                        </Button>
+                        {canWrite ? (
                           <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM} onClick={() => setEditing(r)}>
                             <Pencil />
                             Sửa
                           </Button>
-                        </RowActions>
-                      </TableCell>
-                    ) : null}
+                        ) : null}
+                      </RowActions>
+                    </TableCell>
                   </TableRow>
                 ))}
           </TableBody>
@@ -188,22 +239,18 @@ function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.Re
         </div>
       </div>
       </FillBox>
+      <ViewRuleDialog rule={viewing} canWrite={canWrite} onClose={() => setViewing(null)}
+        onEdit={(r) => { setViewing(null); setEditing(r); }} />
       <EditRuleDialog rule={editing} schoolId={schoolId} onClose={() => setEditing(null)} />
     </>
   );
 }
 
-/** Trường đang xem — một dòng chữ cạnh ô chọn trường, không phải một khối riêng. */
+/** Trường đang xem — chỉ tên trường, một dòng chữ cạnh ô chọn trường, không phải một khối riêng. */
 function SchoolLine({ schoolId }: { schoolId: number }) {
   const { result: school } = useOne<School>({ resource: "schools", id: schoolId });
   if (!school) return <Skeleton className="h-5 w-56" />;
-  const meta = [school.code, school.educationLevel?.name, school.departmentOfEducation?.name].filter(Boolean);
-  return (
-    <p className="min-w-0 truncate text-sm">
-      <span className="font-medium">{school.name}</span>
-      {meta.length ? <span className="text-muted-foreground"> · {meta.join(" · ")}</span> : null}
-    </p>
-  );
+  return <p className="min-w-0 truncate text-sm font-medium">{school.name}</p>;
 }
 
 /**

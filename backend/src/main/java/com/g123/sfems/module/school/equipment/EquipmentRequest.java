@@ -43,8 +43,6 @@ public record EquipmentRequest(
         String model,
         @Text(value = FieldRule.SHORT_TEXT, label = "Hãng sản xuất", max = 100)
         String manufacturer,
-        @Text(value = FieldRule.NOTE, label = "Thông tin khác")
-        String otherInfo,
         IdRef unit,
         @Positive(message = "Số lượng phải lớn hơn 0")
         @Num(value = NumberRule.DECIMAL_QUANTITY, label = "Số lượng")
@@ -62,8 +60,6 @@ public record EquipmentRequest(
         LocalDate purchaseDate,
         @Num(value = NumberRule.MONEY, label = "Nguyên giá")
         BigDecimal originalValue,
-        @Num(value = NumberRule.MONEY, label = "Giá trị còn lại")
-        BigDecimal remainingValue,
         @DateValue(value = DateRule.ANY, label = "Hạn bảo hành")
         LocalDate warrantyExpiry,
         // Hạn sử dụng — chỉ vật tư tiêu hao, hoá chất.

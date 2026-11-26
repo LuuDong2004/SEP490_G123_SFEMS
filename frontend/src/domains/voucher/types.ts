@@ -22,7 +22,7 @@ export type ApprovalStep = "SCHOOL" | "MANAGING_BODY";
 /** Bước chờ duyệt, nói theo người đọc: "chờ ... duyệt". */
 export const APPROVAL_STEP_LABELS: Record<ApprovalStep, string> = {
   SCHOOL: "lãnh đạo trường",
-  MANAGING_BODY: "cơ quan quản lý",
+  MANAGING_BODY: "lãnh đạo Sở",
 };
 
 /** Các hành động server cho phép người đang xem làm trên phiếu (`_actions`). */
@@ -65,6 +65,18 @@ export type VoucherBase = {
   lineCount?: number;
   /** Chỉ có ở DANH SÁCH, với tài khoản cả trường của trường nhiều cơ sở: các cơ sở phiếu chạm tới. */
   campuses?: { id: number; name: string; primary?: boolean; branch?: boolean }[];
+};
+
+/**
+ * Người duyệt của phiếu lúc này (`GET /voucher_events/approvers`): đang chờ (`pending`) thì những người duyệt được bước
+ * `step`; đã quyết thì những người đã duyệt / từ chối ở lần trình gần nhất, theo thứ tự bước.
+ */
+export type VoucherApprovers = {
+  step: ApprovalStep | null;
+  pending: boolean;
+  /** Phiếu nháp: `people` là những người sẽ duyệt bước đầu khi trình. */
+  upcoming: boolean;
+  people: { step: ApprovalStep | null; name: string }[];
 };
 
 export type VoucherEventAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT" | "CANCEL" | "COMPLETE" | "DISPUTE";
@@ -134,10 +146,7 @@ export type EquipmentRef = {
   unit?: { id: number; code?: string; name: string } | null;
   quantity?: number | null;
   /** Quy cách bao bì của lô (182): "Lọ" và lượng trong một lọ theo `unitName`. */
-  packUnitName?: string | null;
-  packSize?: number | null;
   originalValue?: number | null;
-  remainingValue?: number | null;
   productionYear?: number | null;
   usageStartYear?: number | null;
   warrantyExpiry?: string | null;

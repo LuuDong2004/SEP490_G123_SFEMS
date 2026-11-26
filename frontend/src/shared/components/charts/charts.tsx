@@ -150,7 +150,7 @@ const sharePercent = (part: number, total: number) => {
 /**
  * Vòng tròn cơ cấu + bảng chú giải (số lượng, %). Tổng nằm giữa vòng. Mỗi phần một
  * màu theo thứ tự cố định; chú giải luôn có nên không bao giờ đọc bằng màu một mình.
- * Tối đa 5 phần — người gọi gộp "Khác" trước ({@code foldOther}).
+ * Tối đa 5 phần — nhiều hơn thì người gọi gộp trước.
  */
 export function DonutBreakdown({
   items,
@@ -332,7 +332,7 @@ export function GroupedBars({
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} fontSize={11}
           tickFormatter={xFormatter} interval="preserveStartEnd" minTickGap={8} />
-        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} fontSize={11} />
+        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={52} fontSize={11} />
         <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }}
           content={<ChartTooltipContent labelFormatter={(v) => (xFormatter ? xFormatter(String(v)) : String(v))} />} />
         {legend && series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
@@ -466,7 +466,7 @@ export function ColumnChart({
           {seriesGradients({ id: gid, keys: series.map((s) => s.key), dir: "down" })}
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
           <XAxis dataKey="__label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} interval={0}
-            tickFormatter={(v: string) => shorten(v, tilt ? 16 : 22)} angle={tilt ? -32 : 0} textAnchor={tilt ? "end" : "middle"}
+            tickFormatter={(v: string) => shorten(v, tilt ? 16 : data.length === 5 ? 18 : 22)} angle={tilt ? -32 : 0} textAnchor={tilt ? "end" : "middle"}
             height={tilt ? 72 : 28} />
           <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} tickFormatter={axisNumber} />
           <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<ChartTooltipContent />} />

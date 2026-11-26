@@ -249,6 +249,11 @@
   --warning-subtle: oklch(0.972 0.028 70);
   --warning-text: oklch(0.525 0.146 49);
 
+  /* Phiếu bị trả về: tím — khác cam "chờ duyệt", đỏ "từ chối". Việc nằm lại ở người lập, không phải lỗi. */
+  --returned: oklch(0.52 0.17 300);
+  --returned-subtle: oklch(0.965 0.03 300);
+  --returned-text: oklch(0.48 0.16 300);
+
   --info: oklch(0.5 0.119 242.7);
   --info-foreground: oklch(0.99 0.005 242.7);
   --info-subtle: oklch(0.968 0.022 242.7);
@@ -259,8 +264,9 @@
      `secondary` and stops being distinguishable from a button. */
   --neutral: oklch(0.554 0.041 var(--preset-h));
   --neutral-foreground: oklch(0.99 0.003 var(--preset-h));
-  --neutral-subtle: oklch(0.962 0.009 var(--preset-h));
-  --neutral-text: oklch(0.446 0.037 var(--preset-h));
+  /* Đậm hơn nền thẻ / hộp thoại (0.968 – 1) đủ để nhãn xám vẫn thấy rõ. */
+  --neutral-subtle: oklch(0.915 0.018 var(--preset-h));
+  --neutral-text: oklch(0.4 0.04 var(--preset-h));
 
   /* `--input` sits a step darker than `--border`: a divider only has to be
      seen, a field edge has to say where the control ends. It is also the
@@ -396,6 +402,10 @@
   --warning-foreground: oklch(0.16 0.03 75);
   --warning-subtle: oklch(0.31 0.06 60);
   --warning-text: oklch(0.85 0.13 75);
+
+  --returned: oklch(0.75 0.13 300);
+  --returned-subtle: oklch(0.3 0.07 300);
+  --returned-text: oklch(0.84 0.1 300);
 
   --info: oklch(0.73 0.14 242.7);
   --info-foreground: oklch(0.14 0.02 242.7);

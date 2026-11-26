@@ -159,7 +159,7 @@ public class NotificationMailer {
             jdbc.update("""
                     UPDATE notification_emails SET status = ?, attempts = attempts + 1, error = ?,
                         sent_at = CASE WHEN ? THEN now() ELSE sent_at END WHERE id = ?""",
-                    sent ? "SENT" : "SKIPPED", sent ? null : "Chưa cấu hình máy chủ thư", sent, emailId);
+                    sent ? "SENT" : "SKIPPED", sent ? null : "Gửi thư đang tắt hoặc chưa cấu hình máy chủ thư", sent, emailId);
         } catch (RuntimeException e) {
             // Lỗi gốc từ máy chủ thư (sai mật khẩu, từ chối người nhận…) có ích hơn câu chung của MailService.
             Throwable cause = e.getCause() != null ? e.getCause() : e;

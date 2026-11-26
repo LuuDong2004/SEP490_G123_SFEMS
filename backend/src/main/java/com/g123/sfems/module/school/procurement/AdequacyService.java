@@ -1,5 +1,6 @@
 package com.g123.sfems.module.school.procurement;
 
+import com.g123.sfems.domain.catalog.standard.NormBasis;
 import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.school.facility.CampusScope;
 import com.g123.sfems.module.school.facility.FacilityCounting;
@@ -55,7 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>theo trường: đúng số lượng.</li>
  * </ul>
  * Có nhiều hơn số phải có thì phần dư là THỪA ({@code surplus}) — cùng một con số, nhìn từ phía kia;
- * cơ quan quản lý dùng nó để cân đối: thiết bị trường này thừa là thứ trường khác đang thiếu.
+ * Sở dùng nó để cân đối: thiết bị trường này thừa là thứ trường khác đang thiếu.
  * Số lớp / học sinh CHỈ lấy từ lớp năm học hiện hành ({@code FacilityCounting}); trường chưa có lớp
  * năm nay thì định mức theo lớp / học sinh không tính được. Không tính được thì trả
  * {@code required = null} kèm lý do, không đoán 0.
@@ -116,7 +117,7 @@ public class AdequacyService {
             Long subjectId, String subjectName, Long typeId, String typeName, String basis,
             BigDecimal minQuantity, Integer basisSize, String quantityText, String gradeLevels, boolean optional,
             Integer required, int current, int proposed, Integer shortage, Integer surplus, String warning,
-            Integer baseRequired, int baseCurrent, boolean adjustable, Adjustment adjustment) {
+            Integer baseRequired, int baseCurrent, boolean adjustable, Adjustment adjustment, String unit) {
 
         /** Có vào thống kê đủ / thiếu không: dòng không ghi số hoặc dòng tự chọn thì không. */
         boolean counted() {
@@ -701,11 +702,9 @@ public class AdequacyService {
             }
         });
         Map<Long, Map<Long, Integer>> proposedByCatalog = new HashMap<>();
-        jdbc.query("""
-                SELECT p.school_id, l.catalog_id, SUM(l.quantity)::int AS n
-                FROM purchase_proposals p JOIN purchase_proposal_lines l ON l.proposal_id = p.id
-                WHERE p.status IN ('PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL%s%s
-                GROUP BY 1, 2""".formatted(ids == null ? "" : " AND p.school_id IN (" + ids + ")", proposalCampus),
+        // Số đang đề xuất: số kế hoạch khi đã vào kế hoạch được duyệt, trừ phần đã nhập về — xem ProposedQuantity.
+        jdbc.query(ProposedQuantity.sql("'PENDING', 'APPROVED', 'COMPLETED'",
+                        (ids == null ? "" : " AND p.school_id IN (" + ids + ")") + proposalCampus),
                 rs -> {
             proposedByCatalog.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>())
                     .merge(rs.getLong("catalog_id"), rs.getInt("n"), Integer::sum);
@@ -755,7 +754,7 @@ public class AdequacyService {
                     subjectNames.put(subjectId, (String) n.get("subject_name"));
                     if ("PER_TEACHER".equals(n.get("norm_basis"))) {
                         use[0]++;
-                    } else if ("PER_ROOM".equals(n.get("norm_basis"))) {
+                    } else if ("PER_ROOM".equals(n.get("norm_basis")) || "PER_ROOM_STUDENT".equals(n.get("norm_basis"))) {
                         use[1]++;
                     }
                 }
@@ -767,7 +766,8 @@ public class AdequacyService {
                         (String) n.get("grade_levels"), optional, required, have, prop, shortage, surplus,
                         optional ? "Tự chọn — chỉ trang bị phương án / môn trường đã chọn"
                                 : required != null && req.value() == null ? null : req.warning(),
-                        req.value(), current, catalogId != null && adjustable.contains(catalogId), adj);
+                        req.value(), current, catalogId != null && adjustable.contains(catalogId), adj,
+                        (String) n.get("unit_name"));
                 String key = catalogId != null ? "c" + catalogId : "n" + row.normId();
                 NormRow existing = rows.get(key);
                 if (existing == null || stronger(row, existing)) {
@@ -870,11 +870,15 @@ public class AdequacyService {
                 SELECT lv.code AS level_code, n.id, n.code, n.name, n.catalog_id, c.code AS catalog_code,
                        COALESCE(c.name, n.name) AS catalog_name, n.subject_id, sj.name AS subject_name,
                        sj.code AS subject_code, n.equipment_type_id, t.name AS type_name, n.norm_basis,
-                       n.min_quantity, n.basis_size, n.quantity_text, n.grade_levels, n.optional
+                       n.min_quantity, n.basis_size, n.quantity_text, n.grade_levels, n.optional,
+                       -- Đơn vị tính: của dòng phụ lục, không có thì của thiết bị chuẩn.
+                       COALESCE(nu.name, NULLIF(TRIM(n.unit_text), ''), cu.name) AS unit_name
                 FROM equipment_norms n
                 JOIN equipment_standards sd ON sd.id = n.standard_id AND sd.active
                 JOIN education_levels lv ON lv.id = sd.education_level_id
                 LEFT JOIN equipment_catalogs c ON c.id = n.catalog_id
+                LEFT JOIN units nu ON nu.id = n.unit_id
+                LEFT JOIN units cu ON cu.id = c.unit_id
                 LEFT JOIN subjects sj ON sj.id = n.subject_id
                 LEFT JOIN equipment_types t ON t.id = n.equipment_type_id
                 WHERE n.active AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE)
@@ -955,6 +959,15 @@ public class AdequacyService {
                     // Chưa khai phòng của môn: vẫn đòi đủ cho MỘT phòng — danh mục là thứ trường phải có.
                     yield rooms > 0 ? new Requirement(times(qty, rooms), null)
                             : new Requirement(times(qty, 1), "Chưa khai phòng bộ môn của môn — tính một phòng");
+                }
+                case "PER_ROOM_STUDENT" -> {
+                    // "01/HS" của thiết bị phòng bộ môn: mỗi em trong MỘT phòng (một lớp 45 HS theo phụ lục), nhân số
+                    // phòng của môn — không phải mỗi em của cả trường (305).
+                    Long subject = n.get("subject_id") == null ? null : ((Number) n.get("subject_id")).longValue();
+                    int rooms = subject == null ? 0 : subjectRooms.getOrDefault(subject, 0);
+                    int perRoom = ceil(NormBasis.ROOM_STUDENTS, size);
+                    yield rooms > 0 ? new Requirement(times(qty, perRoom * rooms), null)
+                            : new Requirement(times(qty, perRoom), "Chưa khai phòng bộ môn của môn — tính một phòng");
                 }
                 default -> new Requirement(times(qty, 1), null);
             };

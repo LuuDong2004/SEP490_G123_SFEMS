@@ -343,7 +343,8 @@ export function SchoolExplorer() {
                 trường không ai biết là số gì. */}
             {!single ? (
               <div
-                className="border-border bg-table-head text-table-head-text [&_span]:text-table-head-text sticky z-10 hidden h-12 items-center gap-1 border-b sm:flex"
+                // shrink-0: nằm trong khung xếp dọc, thiếu nó thì hàng tiêu đề bị co còn ~20px, dòng đầu lọt xuống dưới.
+                className="border-border bg-table-head text-table-head-text [&_span]:text-table-head-text sticky z-10 hidden h-12 shrink-0 items-center gap-1 border-b sm:flex"
                 style={{ top: toolbarHeight, paddingLeft: TREE_NAME_OFFSET + 8, paddingRight: 16 }}
               >
                 {/* Tiêu đề cột tên đặt TUYỆT ĐỐI để nằm sát mép trái mà không

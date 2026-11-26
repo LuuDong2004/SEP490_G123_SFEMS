@@ -100,10 +100,10 @@ export const NORM_VALIDITY_VARIANTS: Record<"active" | "stopped" | "expired", Ba
   expired: "destructive",
 };
 
-/** Hồ sơ năm học: Đang khai · Đã chốt (một bước, trưởng nhóm 24/11/2026). */
-export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CLOSED", BadgeVariant> = {
+/** Hồ sơ năm học: Đang khai · Đã xác nhận (không khoá, trưởng nhóm 25/11/2026). */
+export const PROFILE_STATUS_VARIANTS: Record<"DRAFT" | "CONFIRMED", BadgeVariant> = {
   DRAFT: "neutral",
-  CLOSED: "success",
+  CONFIRMED: "success",
 };
 
 /** Kiểu điều chỉnh trường áp dụng (279) — cùng họ màu với mockup danh mục điều chỉnh. */
@@ -113,4 +113,17 @@ export const ADJUST_KIND_VARIANTS: Record<"REDUCE" | "SUBSTITUTE" | "SHARED" | "
   SHARED: "success",
   CHOOSE_IN_GROUP: "secondary",
   OUTSIDE: "neutral",
+};
+
+/** Giới tính học sinh (`StudentGender`): nam xanh dương, nữ tím — hai tông tách nhau, không mang nghĩa tốt / xấu. */
+export const GENDER_VARIANTS: Record<"MALE" | "FEMALE", BadgeVariant> = {
+  MALE: "info",
+  FEMALE: "returned",
+};
+
+/** Đợt kiểm kê: đang diễn ra là việc đang chạy (xanh dương), chưa hiệu lực / đã kết thúc trung tính. */
+export const CAMPAIGN_STATE_VARIANTS: Record<"upcoming" | "active" | "ended", BadgeVariant> = {
+  upcoming: "neutral",
+  active: "info",
+  ended: "neutral",
 };

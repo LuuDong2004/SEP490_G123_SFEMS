@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -81,7 +82,7 @@ public class SchoolClassService
 
     @Override
     protected void applyUpdateOwned(SchoolClass item, SchoolClassPatchRequest request) {
-        // Năm học đã chốt khoá lớp của năm đó (docs/du-lieu-theo-nam-hoc.md §3) — kiểm cả năm cũ lẫn năm chuyển sang.
+        // Ghi lần sửa cuối vào hồ sơ năm học đã xác nhận — cả năm cũ lẫn năm chuyển sang.
         guardYear(item);
         if (request.grade() != null && request.grade().id() != null) {
             item.setGrade(grades.get(request.grade().id()));
@@ -90,7 +91,12 @@ public class SchoolClassService
         if (request.schoolYear() != null && request.schoolYear().id() != null) {
             item.setSchoolYear(schoolYears.get(request.schoolYear().id()));
         }
-        if (request.studentCount() != null) {
+        if (request.studentCount() != null && !request.studentCount().equals(item.getStudentCount())) {
+            // Lớp đã có danh sách học sinh: sĩ số tự đếm từ danh sách (304), không sửa tay.
+            if (hasStudents(item)) {
+                throw new FieldValidationException("studentCount",
+                        "Lớp đã có danh sách học sinh — sĩ số tự đếm từ danh sách, không sửa tay");
+            }
             item.setStudentCount(request.studentCount());
         }
         if (request.homeroomTeacher() != null) {
@@ -108,17 +114,36 @@ public class SchoolClassService
     @Override
     protected void beforeDelete(SchoolClass item) {
         super.beforeDelete(item);
+        Integer pupils = jdbc == null ? null
+                : jdbc.queryForObject("SELECT count(*)::int FROM students WHERE class_id = ?", Integer.class, item.getId());
+        if (pupils != null && pupils > 0) {
+            throw new ConflictException("Lớp còn %d học sinh — chuyển học sinh sang lớp khác hoặc xoá khỏi danh sách trước"
+                    .formatted(pupils));
+        }
         guardYear(item);
     }
 
-    /** Lớp là dữ liệu loại A: năm đã chốt thì không ghi; điểm trường đã xác nhận của lớp về "Đang khai". */
+    /** Lớp đã có ít nhất một học sinh trong danh sách (kể cả học sinh ngừng) — sĩ số khi đó tự đếm. */
+    private boolean hasStudents(SchoolClass item) {
+        return item.getId() != null && jdbc != null && Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM students WHERE class_id = ?)", Boolean.class, item.getId()));
+    }
+
+    private JdbcTemplate jdbc;
+
+    /** Tiêm qua setter như {@link SchoolYearLock}: hỏi danh sách học sinh của lớp mà không phụ thuộc lát học sinh. */
+    @Autowired
+    void setJdbc(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    /** Lớp là dữ liệu của năm học: không khoá, hồ sơ năm học đã xác nhận ghi lần sửa cuối. */
     private void guardYear(SchoolClass item) {
         if (yearLock == null || item.getSchool() == null || item.getSchoolYear() == null) {
             return;
         }
         Long school = item.getSchool().getId();
         Long year = item.getSchoolYear().getId();
-        yearLock.requireOpen(school, year);
         yearLock.touched(school, year, yearLock.campusOfRoom(item.getRoom() == null ? null : item.getRoom().getId(),
                 school));
     }

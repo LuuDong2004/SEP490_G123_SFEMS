@@ -72,6 +72,13 @@ type AsyncComboboxProps<T> = {
    * chính và có chấm ở góc.
    */
   icon?: ReactNode;
+  /** Cùng `icon`: hiện thêm chữ cạnh biểu tượng ("Mọi trường ▾") thay cho nút tròn, như `IconFilter labeled`. */
+  labeled?: boolean;
+  /**
+   * Mặc định khoá phần ngoài khi đang mở (cần khi nằm trong hộp thoại). Hàng công cụ của trang thì để `false`: đang mở
+   * mà bấm sang nút khác là nút đó ăn ngay, không mất một lần bấm để đóng.
+   */
+  modal?: boolean;
   /** Lọc sẵn danh sách, vd. chỉ mục còn dùng (`active = true`). */
   filters?: CrudFilter[];
   /**
@@ -102,6 +109,8 @@ export function AsyncCombobox<T extends { id: number }>({
   pageSize = 25,
   onPick,
   icon,
+  labeled,
+  modal = true,
   filters: baseFilters,
   trigger,
   pinCurrent,
@@ -173,19 +182,28 @@ export function AsyncCombobox<T extends { id: number }>({
   return (
     // `modal`: nằm trong hộp thoại thì popover phải tự giữ cuộn, không thì lớp
     // khoá cuộn của hộp thoại nuốt mất bánh xe chuột trên danh sách.
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       {trigger ? (
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       ) : icon ? (
         <Tooltip delayDuration={200}>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="icon" role="combobox" aria-expanded={open} disabled={disabled}
-                aria-label={label ?? placeholder}
-                className={cn("relative shrink-0", value != null && "border-primary/50 text-primary bg-primary/5")}>
-                {icon}
-                {value != null ? <span aria-hidden className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2" /> : null}
-              </Button>
+              {labeled ? (
+                <Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-label={placeholder} disabled={disabled}
+                  className={cn("max-w-56 min-w-0 shrink-0 justify-start font-normal", value != null && "border-primary/50 text-primary bg-primary/5")}>
+                  {icon}
+                  <span className="min-w-0 truncate">{label ?? placeholder}</span>
+                  <ChevronDown className="ms-auto size-4 opacity-60" />
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" size="icon" role="combobox" aria-expanded={open} disabled={disabled}
+                  aria-label={label ?? placeholder}
+                  className={cn("relative shrink-0", value != null && "border-primary/50 text-primary bg-primary/5")}>
+                  {icon}
+                  {value != null ? <span aria-hidden className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2" /> : null}
+                </Button>
+              )}
             </PopoverTrigger>
           </TooltipTrigger>
           {open ? null : (

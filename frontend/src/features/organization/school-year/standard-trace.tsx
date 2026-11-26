@@ -13,8 +13,8 @@ type Trace = {
   catalogCode: string; catalogName: string; campusName: string | null; normCode: string | null; quantity: number;
   requiredTt: number | null; requiredAdjusted: number | null; current: number | null; adjustKind: string | null;
   adjustReason: string | null; basisText: string | null; outsideStandard: boolean;
-  /** Năm học của dòng đã chốt chưa — chưa chốt thì số thiếu còn đổi được (không chặn trình, chỉ gắn nhãn). */
-  yearClosed: boolean;
+  /** Trường đã xác nhận khai năm học của dòng chưa — chưa thì số thiếu còn đổi (không chặn trình, chỉ gắn nhãn). */
+  yearConfirmed: boolean;
 };
 
 /** Căn cứ chuẩn tối thiểu của một đề xuất / mọi đề xuất trong một kế hoạch — một truy vấn, dùng chung cho khối và hộp trình. */
@@ -28,19 +28,19 @@ export function useStandardTraces({ proposalId, planId }: { proposalId?: number;
   });
 }
 
-const OPEN_YEAR_HINT = "Trường chưa chốt năm học này: lớp, phân công, điều chỉnh còn sửa được nên số thiếu có thể đổi.";
+const OPEN_YEAR_HINT = "Trường chưa xác nhận đã khai năm học này: lớp, sĩ số, phân công còn đang khai nên số thiếu có thể đổi.";
 
 /**
  * Căn cứ chuẩn tối thiểu của các dòng (bước 7): mỗi dòng đề xuất / kế hoạch truy ngược về trường, điểm trường, chuẩn
- * thông tư, theo điều chỉnh, điều chỉnh + lý do, câu căn cứ; dòng ngoài thông tư gắn nhãn riêng; năm học chưa chốt gắn
- * nhãn "Năm học chưa chốt" (không chặn trình). Khối mở ra ở trạng thái đóng, bấm mũi tên mới hiện (trưởng nhóm 24/11/2026). Không có căn cứ (đề xuất lập tay) thì không vẽ gì.
+ * thông tư, theo điều chỉnh, điều chỉnh + lý do, câu căn cứ; dòng ngoài thông tư gắn nhãn riêng; trường chưa xác nhận
+ * khai năm học gắn nhãn "Chưa xác nhận năm học" (không chặn trình). Khối mở ra ở trạng thái đóng, bấm mũi tên mới hiện (trưởng nhóm 24/11/2026). Không có căn cứ (đề xuất lập tay) thì không vẽ gì.
  */
 export function StandardTraceBlock({ proposalId, planId }: { proposalId?: number; planId?: number }) {
   const { data } = useStandardTraces({ proposalId, planId });
   const [expanded, setExpanded] = useState(false);
   if (!data?.length) return null;
   const many = planId != null;
-  const open = data.some((t) => !t.yearClosed);
+  const open = data.some((t) => !t.yearConfirmed);
   return (
     <section className="space-y-2">
       <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
@@ -51,7 +51,7 @@ export function StandardTraceBlock({ proposalId, planId }: { proposalId?: number
           Căn cứ chuẩn tối thiểu · {data[0].schoolYearName}
         </button>
         {expanded ? null : <span className="text-muted-foreground font-normal">{data.length} dòng thiết bị</span>}
-        {open && !many ? <Badge variant="warning" title={OPEN_YEAR_HINT}>Năm học chưa chốt</Badge> : null}
+        {open && !many ? <Badge variant="warning" title={OPEN_YEAR_HINT}>Chưa xác nhận năm học</Badge> : null}
       </h3>
       {expanded && open && !many ? <p className="text-muted-foreground text-xs">{OPEN_YEAR_HINT}</p> : null}
       {expanded ? (
@@ -76,8 +76,8 @@ export function StandardTraceBlock({ proposalId, planId }: { proposalId?: number
                     {many ? (
                       <TableCell className="max-w-[14rem]">
                         <div className="truncate" title={t.schoolName}>{t.schoolName}</div>
-                        {/* Kế hoạch gom nhiều trường: nhãn theo từng trường — trường nào chưa chốt năm thì số còn đổi được. */}
-                        {!t.yearClosed ? <Badge variant="warning" className="mt-0.5" title={OPEN_YEAR_HINT}>Năm học chưa chốt</Badge> : null}
+                        {/* Kế hoạch gom nhiều trường: nhãn theo từng trường — trường nào chưa xác nhận năm thì số còn đổi được. */}
+                        {!t.yearConfirmed ? <Badge variant="warning" className="mt-0.5" title={OPEN_YEAR_HINT}>Chưa xác nhận năm học</Badge> : null}
                       </TableCell>
                     ) : null}
                     <TableCell className="max-w-[18rem]">

@@ -11,35 +11,38 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Các loại phiếu mà quản trị viên CẤU HÌNH ĐƯỢC luồng phê duyệt (HT-08), cùng luồng MẶC ĐỊNH của từng loại — luồng dùng
- * khi chưa cấu hình gì ({@code approval_flows} không có dòng cho loại đó).
+ * Các loại phiếu có luồng phê duyệt (HT-08), cùng luồng MẶC ĐỊNH của từng loại — luồng dùng khi chưa cấu hình gì
+ * ({@code approval_flows} không có dòng cho loại đó). Quản trị viên đổi được luồng của loại {@link #configurable()}.
+ *
+ * <p>Đề xuất mua sắm là trường xin Sở cấp kinh phí, nên luồng CỐ ĐỊNH lãnh đạo trường rồi lãnh đạo Sở (BF-01): không
+ * cấu hình bỏ bước Sở được, không có ngưỡng tiền (302).
  *
  * <p>Đây là chỗ DUY NHẤT ghi luồng mặc định: {@code approvalChain()} của từng phiếu đọc lại từ đây, màn cấu hình cũng
  * vậy. Kế hoạch mua sắm (NC-06) do Sở lập, không nằm trong danh sách này.
  */
 public enum ApprovalFlowType {
     EQUIPMENT_INTAKES("equipment_intakes", "Phiếu ghi tăng", "Thiết bị", EquipmentIntake.class,
-            List.of(SCHOOL), null),
+            List.of(SCHOOL), true),
     INVENTORY_SESSIONS("inventory_sessions", "Biên bản kiểm kê", "Thiết bị", InventorySession.class,
-            List.of(SCHOOL), null),
+            List.of(SCHOOL), true),
     PURCHASE_PROPOSALS("purchase_proposals", "Đề xuất mua sắm", "Mua sắm", PurchaseProposal.class,
-            List.of(SCHOOL, MANAGING_BODY), "Tổng tiền đề xuất");
+            List.of(SCHOOL, MANAGING_BODY), false);
 
     private final String resource;
     private final String label;
     private final String module;
     private final Class<? extends SchoolVoucher> entity;
     private final List<ApprovalStep> defaultSteps;
-    private final String amountLabel;
+    private final boolean configurable;
 
     ApprovalFlowType(String resource, String label, String module, Class<? extends SchoolVoucher> entity,
-            List<ApprovalStep> defaultSteps, String amountLabel) {
+            List<ApprovalStep> defaultSteps, boolean configurable) {
         this.resource = resource;
         this.label = label;
         this.module = module;
         this.entity = entity;
         this.defaultSteps = defaultSteps;
-        this.amountLabel = amountLabel;
+        this.configurable = configurable;
     }
 
     /** Tên resource — cũng là khoá của dòng cấu hình. */
@@ -56,13 +59,18 @@ public enum ApprovalFlowType {
         return module;
     }
 
+    /** Lớp entity của loại phiếu. */
+    public Class<? extends SchoolVoucher> entity() {
+        return entity;
+    }
+
     public List<ApprovalStep> defaultSteps() {
         return defaultSteps;
     }
 
-    /** Tên của số tiền mà ngưỡng so với; {@code null} = loại phiếu này không đặt ngưỡng tiền được. */
-    public String amountLabel() {
-        return amountLabel;
+    /** Quản trị viên đổi được luồng; {@code false} = luôn chạy {@link #defaultSteps()}. */
+    public boolean configurable() {
+        return configurable;
     }
 
     public static Optional<ApprovalFlowType> of(String resource) {

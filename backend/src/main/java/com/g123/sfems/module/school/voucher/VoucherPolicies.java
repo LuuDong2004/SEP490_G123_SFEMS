@@ -35,7 +35,7 @@ public abstract class VoucherPolicies<V extends SchoolVoucher> implements RowLev
                 // Lời nhắn lúc TRẢ LẠI: có giá trị nghĩa là phiếu đã từng được trình. Phiếu trả lại quay về
                 // DRAFT, nên chỉ `status` thì không tách được nó khỏi phiếu nháp chưa ai thấy (117).
                 FieldDescriptor.column("returnNote", String.class, true),
-                // Cấp cao nhất phiếu từng lên tới: Sở / UBND chỉ thấy phiếu đã trình tới bàn mình (125).
+                // Cấp cao nhất phiếu từng lên tới: Sở chỉ thấy phiếu đã trình tới bàn mình (125).
                 FieldDescriptor.column("reachedStep", ApprovalStep.class, true),
                 // Người lập: để một vai vừa bị ẩn phiếu nháp của người khác vừa tự lập phiếu
                 // vẫn thấy phiếu nháp của CHÍNH MÌNH.

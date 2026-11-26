@@ -235,6 +235,7 @@ class StandardChanges {
                 : r.minQuantity().stripTrailingZeros().toPlainString();
         String b = r.normBasis() == null ? "" : switch (r.normBasis()) {
             case "PER_ROOM" -> " × phòng";
+            case "PER_ROOM_STUDENT" -> " × HS/phòng";
             case "PER_TEACHER" -> " × GV";
             case "PER_CLASS" -> " × lớp";
             case "PER_STUDENT" -> " × HS";

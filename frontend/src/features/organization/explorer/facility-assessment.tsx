@@ -6,7 +6,6 @@ import { useSearchParams } from "react-router";
 
 import { DOWNLOAD_TIMEOUT, kyInstance } from "@/shared/api/data";
 import { QueryError } from "@/shared/components/query-error";
-import { Segmented } from "@/shared/components/segmented";
 import { TableEmpty, TableSkeletonRows } from "@/shared/components/data-table/table-empty";
 import { errorMessage } from "@/shared/lib/api-error";
 import { safeDownloadName } from "@/shared/lib/download-filename";
@@ -16,6 +15,7 @@ import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { STANDARD_TIERS, type StandardEvaluation, type StandardItem, type StandardStatus, type StandardTier } from "@/domains/facility/standard";
 import type { FacilityTodoFilter } from "@/domains/facility/todo";
 import { CsvcStatisticsPanel, GROUP_ICONS } from "@/features/organization/explorer/facility-nav";
@@ -26,39 +26,48 @@ const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1, useGroupi
 /** Tiền tố của từng mức trong `requirements` máy chủ ghi ("tối thiểu: ≥ 15 phòng (0,6 phòng/lớp × 24 lớp)"). */
 const TIER_PREFIX: Record<StandardTier, string> = { MIN: "tối thiểu", LEVEL1: "mức độ 1", LEVEL2: "mức độ 2" };
 
-/** Yêu cầu gọn của một mức — bỏ phần giải thích trong ngoặc, lấy điều kiện đầu ("≥ 15 phòng", "tổng ≥ 605,4 m²"). */
-function tierRequirement(item: StandardItem, tier: StandardTier): string | null {
-  const prefix = `${TIER_PREFIX[tier]}:`;
-  const line = item.requirements.find((r) => r.startsWith(prefix));
-  if (!line) return null;
-  return line.slice(prefix.length).replace(/\s*\([^)]*\)/g, "").split(";")[0].trim() || null;
+const unitOf = (item: StandardItem) => (item.kind === "AREA" ? "khu" : "phòng");
+
+/**
+ * Điều kiện chưa đạt của một mức, đọc thành chữ ngắn — đúng cái đang thiếu (máy chủ tách sẵn từng điều kiện, `gaps`):
+ * thiếu mấy phòng / khu, phòng nhỏ hơn mức đòi, thiếu bao nhiêu m² tổng. Trước đây đọc vế đầu của chuỗi quy tắc nên
+ * phòng y tế đủ số mà thiếu diện tích vẫn ghi "Cần 1 phòng", cổng / khu vệ sinh bị gọi là "phòng".
+ */
+type Need = { kind: "count" | "room" | "total"; text: string; action: "Thêm" | "Sửa" };
+function needsOf(item: StandardItem, tier: StandardTier): Need[] {
+  const gap = item.gaps?.[tier];
+  if (!gap) return [];
+  const out: Need[] = [];
+  if (gap.needCount != null && gap.needCount > item.count) {
+    out.push({ kind: "count", text: `${num.format(gap.needCount - item.count)} ${unitOf(item)}`, action: "Thêm" });
+  }
+  if (gap.needRoomArea != null) {
+    out.push({ kind: "room", text: `Mỗi ${unitOf(item)} ≥ ${num.format(gap.needRoomArea)} m²`, action: "Sửa" });
+  }
+  if (gap.needTotalArea != null && gap.needTotalArea > Number(item.totalArea ?? 0)) {
+    out.push({ kind: "total", text: `${num.format(gap.needTotalArea - Number(item.totalArea ?? 0))} m²`, action: "Sửa" });
+  }
+  return out;
 }
 
-const parseVn = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
+const MISSING_TEXT: Record<StandardItem["missing"][number], string> = {
+  area: "Chưa khai diện tích",
+  students: "Chưa có số học sinh",
+  classes: "Chưa có số lớp",
+};
 
-/** Còn thiếu ở mức THẤP NHẤT chưa đạt có điều kiện riêng: số phòng, số m², hoặc chưa khai diện tích. */
-function shortfall(item: StandardItem): { text: string; action: string } | null {
+/** Còn thiếu ở mức THẤP NHẤT có điều kiện riêng chưa đạt; thiếu dữ liệu để đánh giá thì nói thiếu dữ liệu gì. */
+function shortfall(item: StandardItem): { text: string; action: string | null } | null {
   for (const t of STANDARD_TIERS) {
     if (item.status[t.key] !== "FAIL") continue;
-    const req = tierRequirement(item, t.key);
-    if (!req) continue;
-    const rooms = /^≥ ([\d.]+) phòng/.exec(req);
-    if (rooms) {
-      const missing = parseVn(rooms[1]) - item.count;
-      if (missing > 0) return { text: `${num.format(missing)} ${item.kind === "AREA" ? "khu" : "phòng"}`, action: "Thêm" };
-    }
-    if (item.shortfalls.some((s) => s.includes("chưa có diện tích"))) return { text: "Chưa khai diện tích", action: "Nhập" };
-    const area = /([\d.,]+) m²/.exec(req);
-    if (area) {
-      const missing = parseVn(area[1]) - Number(item.totalArea ?? 0);
-      if (missing > 0) return { text: `${num.format(missing)} m²`, action: "Nhập" };
-    }
-    return { text: req, action: "Xem" };
+    const needs = needsOf(item, t.key);
+    if (needs.length) return { text: needs.map((n) => n.text).join(" · "), action: needs[0].action };
+  }
+  if (item.missing?.length && Object.values(item.status).includes("FAIL")) {
+    return { text: MISSING_TEXT[item.missing[0]], action: item.missing[0] === "area" ? "Nhập" : null };
   }
   return null;
 }
-
-const failing = (item: StandardItem) => Object.values(item.status).includes("FAIL");
 
 function GroupIcon({ code }: { code: string | null }) {
   const spec = GROUP_ICONS[code ?? ""];
@@ -70,28 +79,29 @@ function GroupIcon({ code }: { code: string | null }) {
 function tierExplain(item: StandardItem, tier: StandardTier): string | undefined {
   const prefix = `${TIER_PREFIX[tier]}:`;
   const line = item.requirements.find((r) => r.startsWith(prefix));
-  return line ? `Cần ${line.slice(prefix.length).trim().replace(/≥/g, "ít nhất")}` : undefined;
+  return line ? `Chuẩn ${TIER_PREFIX[tier]}: ${line.slice(prefix.length).trim().replace(/≥/g, "ít nhất")}` : undefined;
+}
+
+/** Chữ của một ô, kèm khung gợi ý của hệ thống (không dùng `title` của trình duyệt). */
+function Hint({ tip, children }: { tip?: string; children: React.ReactNode }) {
+  if (!tip) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><span className="cursor-default">{children}</span></TooltipTrigger>
+      <TooltipContent className="max-w-80">{tip}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 /**
- * Kết quả một mức. Chưa đạt thì ghi điều kiện bằng chữ — "Cần 15 phòng", "Cần tổng 605,4 m²" (trưởng nhóm 12/11/2026:
- * "✕ ≥" khó hiểu); rê chuột thấy cách tính. Chưa đạt vì mức dưới chưa đạt (không có điều kiện riêng) thì "Chưa đạt".
+ * Kết quả một mức, cùng chữ với Excel "Đánh giá mức độ đạt chuẩn": ĐẠT (xanh), CHƯA ĐẠT (đỏ); mức không đặt điều kiện
+ * cho loại này thì để trống như Excel.
  */
-function TierCell({ item, tier }: { item: StandardItem; tier: StandardTier }) {
-  const status: StandardStatus = item.status[tier];
-  // Mức này không đặt điều kiện cho loại này (phòng nghỉ GV chỉ có ở mức độ 2) — ghi chữ, không để "—" khó hiểu.
-  // Ít màu (trưởng nhóm 12/11/2026): chữ thường, không nền; chỉ ô có điều kiện riêng chưa đạt mới đỏ, "Đạt" xanh,
-  // còn lại xám — mắt đi thẳng tới chỗ phải làm.
-  if (status === "NONE") return <span className="text-muted-foreground text-xs">Không yêu cầu</span>;
-  if (status === "PASS") return <span className="text-success-text text-xs font-medium">Đạt</span>;
-  const req = tierRequirement(item, tier);
-  return req ? (
-    <span className="text-destructive-text text-xs font-medium whitespace-nowrap" title={tierExplain(item, tier)}>
-      Cần {req.replace(/≥\s*/g, "")}
-    </span>
-  ) : (
-    <span className="text-muted-foreground text-xs" title="Chưa đạt vì mức dưới chưa đạt">Chưa đạt</span>
-  );
+function StatusText({ status, strong }: { status: StandardStatus; strong?: boolean }) {
+  if (status === "NONE") return null;
+  return status === "PASS"
+    ? <span className={cn("text-success-text text-xs", strong ? "font-bold" : "font-medium")}>ĐẠT</span>
+    : <span className={cn("text-destructive-text text-xs", strong ? "font-bold" : "font-medium")}>CHƯA ĐẠT</span>;
 }
 
 /**
@@ -119,7 +129,6 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
     queryFn: ({ signal }) => kyInstance.get(`facility-standard/schools/${schoolId}`, { signal }).json<StandardEvaluation>(),
   });
   const data = query.data;
-  const [filter, setFilter] = useState<"fail" | "pass" | "all">("fail");
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState(false);
 
@@ -145,10 +154,14 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
 
   if (query.isError) return <QueryError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />;
 
-  const ruled = (data?.groups ?? []).flatMap((g) => g.items.filter((i) => i.hasRules));
-  const failCount = ruled.filter(failing).length;
-  const keep = (i: StandardItem) => i.hasRules && (filter === "all" || (filter === "fail" ? failing(i) : !failing(i)));
-  const groups = (data?.groups ?? []).map((g) => ({ ...g, items: g.items.filter(keep) })).filter((g) => g.items.length > 0);
+  const groups = (data?.groups ?? []).map((g) => ({ ...g, items: g.items.filter((i) => i.hasRules) })).filter((g) => g.items.length > 0);
+  // STT như Excel: đánh trên mọi loại có chuẩn — khớp số 2.3, 3.1… của bản xuất.
+  const numbers = new Map<string, { no: number; items: Map<number, string> }>();
+  (data?.groups ?? []).filter((g) => g.items.some((i) => i.hasRules)).forEach((g, gi) => {
+    const items = new Map<number, string>();
+    g.items.filter((i) => i.hasRules).forEach((i, ii) => items.set(i.roomTypeId, `${gi + 1}.${ii + 1}`));
+    numbers.set(g.code ?? g.name, { no: gi + 1, items });
+  });
   // Mức đang hướng tới: mức thấp nhất có chuẩn mà chưa đạt.
   const target = data?.tiers.find((t) => t.total > 0 && !t.reached)?.tier;
 
@@ -186,11 +199,11 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
           })}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Button type="button" size="sm" disabled={!data || busy} onClick={() => void download()} title="Tải bảng đánh giá mức độ chuẩn (Excel mẫu Sở)">
+          <Button type="button" size="sm" disabled={!data || busy} onClick={() => void download()}>
             {busy ? <Loader2 className="animate-spin" /> : <Download />}
             Xuất đánh giá
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setStats(true)} title="Xem biểu số liệu CSVC (mẫu Sở), tải Excel trong hộp">
+          <Button type="button" size="sm" variant="outline" onClick={() => setStats(true)}>
             <FileSpreadsheet />
             Biểu số liệu
           </Button>
@@ -198,64 +211,70 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
       </section>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <Segmented label="Lọc loại CSVC" value={filter} onChange={setFilter}
-          options={[
-            { value: "fail", label: `Chưa đạt · ${failCount}` },
-            { value: "pass", label: `Đã đạt · ${ruled.length - failCount}` },
-            { value: "all", label: `Tất cả · ${ruled.length}` },
-          ]} />
         <FacilityTodo strip schoolId={schoolId} onNavigate={(tab, todo) => { onTodo?.(todo ?? null); goTab(tab); }} />
       </div>
 
       {/* Bảng cao kín phần còn lại của tab; dòng gọn để thường vừa màn, dài hơn thì lăn chuột — không vẽ thanh cuộn. */}
-      <div className="bg-card shadow-e1 no-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border">
+      {/* Khung tự lăn, khung ngang của Table để tràn (overflow-visible) — nếu không, tiêu đề dính vào khung ngang không
+          lăn dọc nên không đứng lại khi lướt. */}
+      <div className="bg-card shadow-e1 no-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
+        {/* Cùng bố cục bảng Excel "Đánh giá mức độ đạt chuẩn" (FacilityStandardExcel): STT theo khối, ba mức ĐẠT /
+            CHƯA ĐẠT, cột điều kiện cảnh báo thiếu ghi đủ các dòng — xem trên màn là thấy đúng thứ sẽ xuất. Tiêu đề hai
+            tầng: một ô "Tiêu chuẩn" chia ba cột mức. */}
         <Table>
-          <TableHeader className="bg-surface-subtle sticky top-0 z-10">
+          <TableHeader sticky className="bg-surface-subtle [&_th]:h-9">
+            <TableRow className="border-b-0">
+              <TableHead rowSpan={2} className="w-14 text-center">STT</TableHead>
+              <TableHead rowSpan={2}>Các hạng mục công trình</TableHead>
+              <TableHead colSpan={STANDARD_TIERS.length} className="border-border border-x border-b text-center">Tiêu chuẩn</TableHead>
+              <TableHead rowSpan={2} className="w-80">Điều kiện cảnh báo thiếu</TableHead>
+              <TableHead rowSpan={2} className="w-20"><span className="sr-only">Thao tác</span></TableHead>
+            </TableRow>
             <TableRow>
-              <TableHead>Loại CSVC</TableHead>
-              <TableHead className="w-28 text-right">Hiện có</TableHead>
-              {STANDARD_TIERS.map((t) => <TableHead key={t.key} className="w-36 text-center">{t.short}</TableHead>)}
-              <TableHead className="w-44">Còn thiếu</TableHead>
-              <TableHead className="w-24"><span className="sr-only">Thao tác</span></TableHead>
+              {STANDARD_TIERS.map((t) => (
+                // Kẻ dọc giữa ba mức và hai mép khối "Tiêu chuẩn" — đọc thẳng cột xuống không lẫn mức.
+                <TableHead key={t.key} className="border-border w-28 border-x text-center">{t.short}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {!data ? <TableSkeletonRows rows={8} cols={7} /> : groups.length === 0 ? (
-              <TableEmpty colSpan={7} title={ruled.length === 0 ? "Chưa có chuẩn CSVC cho cấp học của trường" : filter === "fail" ? "Mọi loại đều đạt" : "Chưa loại nào đạt"} />
+              <TableEmpty colSpan={7} title="Chưa có chuẩn CSVC cho cấp học của trường" />
             ) : groups.map((g, gi) => (
               <Fragment key={g.code ?? gi}>
-                {/* Dòng khối nổi nhẹ: biểu tượng màu cùng bộ với cột trái tab Cơ sở vật chất, nền tint rất nhạt. */}
                 <TableRow className="bg-primary/[0.04] hover:bg-primary/[0.04] border-t [&>td]:h-10">
-                  <TableCell colSpan={2} className="py-2">
+                  <TableCell className="py-2 text-center font-semibold tabular-nums">{numbers.get(g.code ?? g.name)?.no}</TableCell>
+                  <TableCell className="py-2">
                     <span className="flex items-center gap-2 font-semibold">
                       <GroupIcon code={g.code} />
-                      {g.name}
+                      {numbers.get(g.code ?? g.name)?.no}. {g.name}
                     </span>
                   </TableCell>
                   {STANDARD_TIERS.map((t) => (
-                    <TableCell key={t.key} className={cn("py-2 text-center text-xs font-semibold",
-                      g.status[t.key] === "PASS" ? "text-success-text" : "text-muted-foreground")}>
-                      {g.status[t.key] === "PASS" ? "Đạt" : g.status[t.key] === "FAIL" ? "Chưa đạt" : "—"}
-                    </TableCell>
+                    <TableCell key={t.key} className="py-2 text-center"><StatusText status={g.status[t.key]} strong /></TableCell>
                   ))}
                   <TableCell colSpan={2} />
                 </TableRow>
                 {g.items.map((item) => {
                   const miss = shortfall(item);
                   return (
-                    <TableRow key={item.roomTypeId} className={cn("group/row [&>td]:h-10 [&>td]:py-1", LIFT_ROW)}>
-                      <TableCell className="pl-8 whitespace-normal">{item.name}</TableCell>
-                      <TableCell className={cn("text-right tabular-nums", item.count === 0 && "text-muted-foreground")}>
-                        {item.count}
-                        {item.count > 0 && Number(item.totalArea) > 0 ? <span className="text-muted-foreground"> · {num.format(Number(item.totalArea))} m²</span> : null}
+                    <TableRow key={item.roomTypeId} className={cn("group/row align-top [&>td]:py-2", LIFT_ROW)}>
+                      <TableCell className="text-center tabular-nums">{numbers.get(g.code ?? g.name)?.items.get(item.roomTypeId)}</TableCell>
+                      <TableCell className="whitespace-normal">- {item.name}</TableCell>
+                      {STANDARD_TIERS.map((t) => (
+                        <TableCell key={t.key} className="text-center">
+                          <Hint tip={tierExplain(item, t.key)}><StatusText status={item.status[t.key]} /></Hint>
+                        </TableCell>
+                      ))}
+                      <TableCell className="whitespace-normal">
+                        {item.shortfalls.length ? (
+                          <ul className="text-xs leading-relaxed">
+                            {item.shortfalls.map((line, i) => <li key={i}>{line}</li>)}
+                          </ul>
+                        ) : null}
                       </TableCell>
-                      {STANDARD_TIERS.map((t) => <TableCell key={t.key} className="text-center"><TierCell item={item} tier={t.key} /></TableCell>)}
-                      <TableCell>
-                        {miss ? <span className="font-semibold">{miss.text}</span> : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      {/* Nút làm tiếp ở cột riêng, thẳng hàng một cột. */}
                       <TableCell className="text-right">
-                        {miss ? (
+                        {miss?.action ? (
                           <button type="button" className="text-primary hover:text-primary/80 text-sm font-semibold"
                             onClick={() => (miss.action === "Thêm" && onAdd
                               ? onAdd({ id: item.roomTypeId, code: item.code, name: item.name, kind: item.kind })
@@ -276,7 +295,7 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
       <Dialog open={stats} onOpenChange={setStats}>
         <DialogContent size="wide" className="flex flex-col">
           <DialogHeader>
-            <DialogTitle>Biểu số liệu CSVC (mẫu Sở)</DialogTitle>
+            <DialogTitle>Biểu số liệu CSVC theo từng phòng</DialogTitle>
             <DialogDescription className="sr-only">Lấy từ hồ sơ CSVC đang khai của trường.</DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col">

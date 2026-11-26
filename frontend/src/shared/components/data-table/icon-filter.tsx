@@ -20,7 +20,7 @@ export type IconFilterGroup = { heading?: string; items: { key: string; label: s
  * tên, đang lọc thì viền màu + chấm ở góc, bấm mở menu chọn một mục. Dùng khi danh sách lựa chọn đã có sẵn trong trình duyệt;
  * danh sách lấy từ API thì dùng `AsyncCombobox icon`.
  */
-export function IconFilter({ icon, label, allLabel, total, groups, value, onChange, fallback, alwaysSearch, baseline, disabled, labeled, prefix, actions }: {
+export function IconFilter({ icon, label, allLabel, total, groups, value, onChange, fallback, alwaysSearch, baseline, disabled, labeled, prefix, actions, modal = true }: {
   icon: ReactNode;
   /** Tên điều kiện, viết thường — "lớp", "môn học". */
   label: string;
@@ -44,6 +44,8 @@ export function IconFilter({ icon, label, allLabel, total, groups, value, onChan
    * vài bộ lọc): người dùng thấy ngay đang lọc theo gì. Hàng đã chật (có dải chế độ xem, nhiều nút) thì để nút tròn.
    */
   labeled?: boolean;
+  /** Hàng công cụ của trang thì để `false`: đang mở mà bấm sang nút khác là nút đó ăn ngay (xem `AsyncCombobox`). */
+  modal?: boolean;
   /** Chữ trước giá trị trên nút có chữ ("Nhóm: Khối nhà"). */
   prefix?: string;
   /** Việc làm ở cuối menu, chữ trơn không biểu tượng (vd. "Thu gọn tất cả") — bấm là làm, không đổi giá trị đang chọn. */
@@ -70,7 +72,7 @@ export function IconFilter({ icon, label, allLabel, total, groups, value, onChan
   );
   return (
     // `modal`: nằm trong hộp thoại thì menu phải tự giữ cuộn, không thì lớp khoá cuộn của hộp thoại nuốt bánh xe chuột.
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       <Tooltip delayDuration={200}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>

@@ -182,7 +182,7 @@ export const ShowViewHeader = ({
 };
 
 /** Dòng "Tải lại" trong menu ⚙: đọc lại bản ghi đang xem, quay biểu tượng tới khi xong rồi đóng menu. */
-function RefreshItem({ resource, id }: { resource?: string; id?: string | number }) {
+export function RefreshItem({ resource, id }: { resource?: string; id?: string | number }) {
   const invalidate = useInvalidate();
   const menu = useRowActionsMenu();
   const [busy, setBusy] = useState(false);

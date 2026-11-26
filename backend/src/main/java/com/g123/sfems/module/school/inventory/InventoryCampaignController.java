@@ -37,19 +37,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/inventory_campaigns")
 public class InventoryCampaignController {
 
-    @DateRange(from = "cutoffDate", to = "deadline", message = "Hạn nộp không được trước ngày chốt số liệu")
-    public record Request(IdRef managingBody,
+    @DateRange(from = "cutoffDate", to = "deadline", message = "Ngày kết thúc không được trước ngày hiệu lực")
+    public record Request(IdRef managingBody, IdRef schoolYear,
             @Text(value = FieldRule.NAME, label = "Tên đợt kiểm kê") String title,
-            @DateValue(value = DateRule.ANY, label = "Ngày chốt số liệu") LocalDate cutoffDate,
-            @DateValue(value = DateRule.ANY, label = "Hạn nộp") LocalDate deadline,
-            @Text(value = FieldRule.LONG_TEXT, label = "Ghi chú", max = 1000) String note,
+            @Text(value = FieldRule.SHORT_TEXT, label = "Số công văn", max = 100) String documentNo,
+            @DateValue(value = DateRule.ANY, label = "Ngày hiệu lực") LocalDate cutoffDate,
+            @DateValue(value = DateRule.ANY, label = "Ngày kết thúc") LocalDate deadline,
+            @Text(value = FieldRule.LONG_TEXT, label = "Nội dung", max = 1000) String note,
             Boolean closed) {
     }
 
     /** {@code name} lặp lại {@code title} để ô chọn tham chiếu dùng chung (hiển thị theo "name") đọc được. */
-    public record Response(Long id, RefSummary managingBody, String title, String name, LocalDate cutoffDate,
+    public record Response(Long id, RefSummary managingBody, RefSummary schoolYear, String title, String name,
+            String documentNo, LocalDate cutoffDate,
             LocalDate deadline,
             String note, boolean closed, boolean overdue, Instant createdAt,
+            String status, String approvalNote, Instant submittedAt, Instant approvedAt,
             @JsonProperty("_can") Map<String, Boolean> can) {
     }
 
@@ -100,6 +103,28 @@ public class InventoryCampaignController {
         return respond(service.update(id, input(request)));
     }
 
+    /** Ý kiến khi duyệt (không bắt buộc) hoặc lý do trả lại (bắt buộc). */
+    public record NoteRequest(@Text(value = FieldRule.NOTE, label = "Ý kiến", max = 500) String note) {
+    }
+
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasAuthority('inventory_campaigns:write')")
+    public Response submit(@PathVariable Long id) {
+        return respond(service.submit(id));
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('inventory_campaigns:approve')")
+    public Response approve(@PathVariable Long id, @Valid @RequestBody(required = false) NoteRequest request) {
+        return respond(service.approve(id, request == null ? null : request.note()));
+    }
+
+    @PostMapping("/{id}/return")
+    @PreAuthorize("hasAuthority('inventory_campaigns:approve')")
+    public Response returnToDraft(@PathVariable Long id, @Valid @RequestBody(required = false) NoteRequest request) {
+        return respond(service.returnToDraft(id, request == null ? null : request.note()));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('inventory_campaigns:delete')")
     public Response delete(@PathVariable Long id) {
@@ -107,16 +132,22 @@ public class InventoryCampaignController {
     }
 
     private static InventoryCampaignService.Input input(Request r) {
-        return new InventoryCampaignService.Input(r.managingBody() == null ? null : r.managingBody().id(), r.title(),
-                r.cutoffDate(), r.deadline(), r.note(), r.closed());
+        return new InventoryCampaignService.Input(r.managingBody() == null ? null : r.managingBody().id(),
+                r.schoolYear() == null ? null : r.schoolYear().id(), r.title(), r.documentNo(), r.cutoffDate(), r.deadline(), r.note(),
+                r.closed());
     }
 
     private Response respond(InventoryCampaign c) {
         var body = c.getManagingBody();
-        boolean manage = service.canManage(c);
-        return new Response(c.getId(), new RefSummary(body.getId(), body.getCode(), body.getName()), c.getTitle(),
-                c.getTitle(), c.getCutoffDate(), c.getDeadline(), c.getNote(), c.isClosed(),
+        // Nút theo trạng thái duyệt (308): nháp thì sửa / xoá / trình; chờ duyệt thì lãnh đạo duyệt / trả lại.
+        var actions = service.actions(c);
+        var year = c.getSchoolYear();
+        return new Response(c.getId(), new RefSummary(body.getId(), body.getCode(), body.getName()),
+                year == null ? null : new RefSummary(year.getId(), year.getCode(), year.getName()), c.getTitle(),
+                c.getTitle(), c.getDocumentNo(), c.getCutoffDate(), c.getDeadline(), c.getNote(), c.isClosed(),
                 !c.isClosed() && c.getDeadline().isBefore(LocalDate.now()), c.getCreatedAt(),
-                Map.of("write", manage, "delete", manage));
+                c.getStatus().name(), c.getApprovalNote(), c.getSubmittedAt(), c.getApprovedAt(),
+                Map.of("write", actions.contains("write"), "delete", actions.contains("delete"),
+                        "submit", actions.contains("submit"), "approve", actions.contains("approve")));
     }
 }

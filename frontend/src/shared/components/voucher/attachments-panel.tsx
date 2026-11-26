@@ -7,6 +7,8 @@ import { kyInstance, DOWNLOAD_TIMEOUT } from "@/shared/api/data";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatDateTime } from "@/shared/lib/format";
 import { Button } from "@/shared/ui/button";
+import { AlertDialog } from "@/shared/ui/alert-dialog";
+import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { FilePreviewDialog, previewable, type PreviewSource } from "@/shared/components/voucher/file-preview";
@@ -98,6 +100,8 @@ export function AttachmentsPanel({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<PreviewSource | null>(null);
+  // Tệp đang chờ người dùng xác nhận xoá — bấm thùng rác chỉ mở hộp hỏi lại, xoá là không lấy lại được.
+  const [removing, setRemoving] = useState<AttachmentInfo | null>(null);
   const key = ["attachments", resource, recordId];
 
   const { data, isLoading } = useQuery({
@@ -158,11 +162,30 @@ export function AttachmentsPanel({
     }
   }
 
+  const confirmRemove = (
+    <AlertDialog open={removing !== null} onOpenChange={(o) => !o && !busy && setRemoving(null)}>
+      <ConfirmContent
+        tone="danger"
+        title="Xoá tệp này?"
+        description={removing ? <>Tệp <span className="text-foreground font-medium break-all">{removing.fileName}</span> sẽ bị xoá hẳn, không lấy lại được.</> : null}
+        cancelLabel="Giữ tệp"
+        confirmLabel="Xoá tệp"
+        destructive
+        busy={busy}
+        keepOpen
+        onConfirm={() => {
+          if (removing) void remove(removing);
+        }}
+      />
+    </AlertDialog>
+  );
+
   async function remove(file: AttachmentInfo) {
     setBusy(true);
     try {
       await kyInstance.delete(`attachments/${file.id}`);
       await queryClient.invalidateQueries({ queryKey: key });
+      setRemoving(null);
     } catch (error) {
       open?.({ type: "error", message: await errorMessage(error) });
     } finally {
@@ -188,7 +211,7 @@ export function AttachmentsPanel({
                     <Download />
                   </Button>
                   {canWrite ? (
-                    <Button type="button" variant="ghost" size="icon" className="size-8" title="Xoá tệp" disabled={busy} onClick={() => void remove(file)}>
+                    <Button type="button" variant="ghost" size="icon" className="size-8" title="Xoá tệp" disabled={busy} onClick={() => setRemoving(file)}>
                       <Trash2 className="text-destructive" />
                     </Button>
                   ) : null}
@@ -197,6 +220,7 @@ export function AttachmentsPanel({
             }))} />
         )}
         <FilePreviewDialog source={preview} onClose={() => setPreview(null)} />
+        {confirmRemove}
       </>
     );
   }
@@ -284,7 +308,7 @@ export function AttachmentsPanel({
                       className="size-8"
                       title="Xoá tệp"
                       disabled={busy}
-                      onClick={() => void remove(file)}
+                      onClick={() => setRemoving(file)}
                     >
                       <Trash2 className="text-destructive" />
                     </Button>
@@ -296,6 +320,7 @@ export function AttachmentsPanel({
         )}
       </CardContent>
       <FilePreviewDialog source={preview} onClose={() => setPreview(null)} />
+      {confirmRemove}
     </Card>
   );
 }

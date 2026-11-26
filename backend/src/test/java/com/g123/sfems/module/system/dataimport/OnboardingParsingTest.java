@@ -55,6 +55,74 @@ class OnboardingParsingTest {
     }
 
     @Test
+    void prefilledTemplateSkipsUntouchedEquipmentRows() {
+        // Trang Thiết bị của tệp mẫu điền sẵn (cột như mẫu cũ): dòng chỉ có tên / mã DM / ĐVT là trường chưa động tới.
+        List<List<String>> rows = List.of(
+                row("Mẫu nhập: Thiết bị"),
+                row(""),
+                row(""),
+                row("Mã cũ", "Tên thiết bị (*)", "Mã DM thiết bị (*)", "Số lượng", "Đơn vị tính"),
+                row("", "Bảng nhóm", "THPT-00-001", "", "Cái"),
+                row("", "Tủ đựng thiết bị", "THPT-00-002", "2", "Cái"),
+                row("", "Máy chiếu", "THPT-00-003", "", "Cái"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.EQUIPMENT, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("THPT-00-002", d.rows().get(0).getValue().get("catalog"));
+        assertEquals("2", d.rows().get(0).getValue().get("quantity"));
+    }
+
+    @Test
+    void templateHintRowIsSkipped() {
+        // Dòng hướng dẫn ngắn của tệp mẫu hiện hành (OnboardingTemplate.HINTS) không thành một dòng dữ liệu.
+        List<List<String>> rows = List.of(
+                row("Mã học sinh (*)", "Họ và tên (*)", "Mã lớp (*)", "Ngày sinh", "Giới tính"),
+                row("Vd: HS0001", "Họ và tên đầy đủ", "Mã ở trang Lớp học", "dd/mm/yyyy", "Nam / Nữ"),
+                row("HS01", "Nguyễn Văn An", "10A1", "01/02/2011", "Nam"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.STUDENT, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("10A1", d.rows().get(0).getValue().get("class"));
+    }
+
+    @Test
+    void ordinaryEquipmentSheetKeepsRowsWithoutQuantity() {
+        // Tệp không phải tệp mẫu của hệ thống (sổ cũ): số lượng trống vẫn là 1 như trước.
+        List<List<String>> rows = List.of(
+                row("Tên thiết bị", "Mã DM thiết bị", "Số lượng", "Đơn vị tính"),
+                row("Bảng nhóm", "THPT-00-001", "", "Cái"));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(1, d.rows().size());
+    }
+
+    @Test
+    void detectsOutsideCatalogSheetByItsSubjectColumn() {
+        List<List<String>> rows = List.of(
+                row("Mã cũ", "Tên thiết bị (*)", "Môn (*)", "Số lượng", "Đơn vị tính"),
+                row("", "Bộ mô hình thử nghiệm", "Vật lý", "3", "Bộ"));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.EQUIPMENT_OUTSIDE, d.sheet());
+        assertEquals("Vật lý", d.rows().get(0).getValue().get("subject"));
+    }
+
+    @Test
+    void prefilledRoomSuggestionWithOnlyTypeIsSkipped() {
+        List<List<String>> rows = List.of(
+                row("Mã phòng (*)", "Tên phòng (*)", "Loại CSVC (*)", "Diện tích (m²)"),
+                row("", "", "Nhà kho", ""),
+                row("K1", "Nhà kho 1", "Nhà kho", "30"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.ROOM, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("K1", d.rows().get(0).getValue().get("code"));
+    }
+
+    @Test
     void detectsMisaStyleEquipmentSheet() {
         List<List<String>> rows = List.of(
                 row("SỞ GIÁO DỤC", "", "", "", ""),
@@ -91,18 +159,8 @@ class OnboardingParsingTest {
         assertEquals(1, d.rows().size());
         Map<String, String> r = d.rows().get(0).getValue();
         assertEquals("1.000.000", r.get("originalValue"));
-        assertEquals("500.000", r.get("remainingValue"));
-    }
-
-    @Test
-    void findsCatalogCandidatesForAbbreviatedNames() {
-        List<OnboardingAiService.Catalog> all = List.of(
-                new OnboardingAiService.Catalog("THCS-1", "Bộ thí nghiệm Vật lý 6", null, null, null),
-                new OnboardingAiService.Catalog("THCS-2", "Máy tính để bàn", null, null, null),
-                new OnboardingAiService.Catalog("THCS-3", "Bàn ghế học sinh", null, null, null));
-        assertEquals("THCS-1", OnboardingAiService.candidates(all, "Bộ TN Lý 6", null).get(0).code());
-        assertEquals("THCS-2", OnboardingAiService.candidates(all, "MT để bàn Dell", null).get(0).code());
-        assertEquals(0, OnboardingAiService.candidates(all, "Xe đạp", null).size());
+        // Hệ thống không giữ giá trị còn lại (không có khấu hao): cột đó bỏ qua.
+        assertNull(r.get("remainingValue"));
     }
 
     @Test

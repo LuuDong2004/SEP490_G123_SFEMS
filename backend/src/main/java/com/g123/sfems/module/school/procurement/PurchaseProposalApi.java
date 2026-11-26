@@ -1,7 +1,6 @@
 package com.g123.sfems.module.school.procurement;
 
 import com.g123.sfems.module.school.voucher.VoucherLimits;
-import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.school.procurement.PurchaseProposal;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
 import com.g123.sfems.domain.school.procurement.PurchaseProposalLine.Kind;
@@ -35,12 +34,9 @@ public final class PurchaseProposalApi {
 
     public record LineInput(IdRef catalog, Kind kind,
             @Text(value = FieldRule.NAME, label = "Tên thiết bị") String name,
-            @Text(value = FieldRule.LONG_TEXT, label = "Thông số kỹ thuật", max = 1000) String specification,
             @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị tính", max = 50) String unitName,
             @Num(value = NumberRule.QUANTITY, label = "Số lượng") Integer quantity,
-            @Num(value = NumberRule.MONEY, label = "Đơn giá dự kiến") BigDecimal unitPrice,
-            @Min(value = 1, message = "Mức ưu tiên phải từ 1 đến 3")
-            @Max(value = 3, message = "Mức ưu tiên phải từ 1 đến 3") Integer priority,
+            @Num(value = NumberRule.MONEY, label = "Giá tham khảo") BigDecimal unitPrice,
             @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255) String note,
             Map<String, Object> details) {
     }
@@ -49,9 +45,8 @@ public final class PurchaseProposalApi {
             IdRef school,
             @NotNull(message = "Chọn ngày")
             @DateValue(value = DateRule.ANY, label = "Ngày đề xuất") LocalDate proposalDate,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
-            FundingSource fundingSource,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             @Text(value = FieldRule.LONG_TEXT, label = "Lý do đề xuất", max = 1000) String reason,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
             @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid LineInput> lines,
@@ -61,23 +56,21 @@ public final class PurchaseProposalApi {
     public record Patch(
             IdRef school,
             @DateValue(value = DateRule.ANY, label = "Ngày đề xuất") LocalDate proposalDate,
-            @Min(value = 1950, message = "Năm ngân sách phải từ 1950 đến 2100")
-            @Max(value = 2100, message = "Năm ngân sách phải từ 1950 đến 2100") Integer budgetYear,
-            FundingSource fundingSource,
+            @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
+            @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
             @Text(value = FieldRule.LONG_TEXT, label = "Lý do đề xuất", max = 1000) String reason,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
             @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid LineInput> lines,
             Map<String, Object> details) implements VoucherRequest {
     }
 
-    public record PlanSummary(Long id, String title, String status) {
+    public record PlanSummary(Long id, String code, String title, String status) {
     }
 
     public record Response(
             @JsonUnwrapped VoucherHeader header,
             LocalDate proposalDate,
             Integer budgetYear,
-            FundingSource fundingSource,
             String reason,
             PlanSummary plan,
             Long intakeId,
@@ -87,8 +80,8 @@ public final class PurchaseProposalApi {
             int lineCount) {
 
         public record Line(Long id, Integer lineNo, Kind kind, RefSummary catalog, String trackingType,
-                String name, String specification, String unitName, Integer quantity, BigDecimal unitPrice,
-                BigDecimal amount, Integer priority, Integer currentQuantity, Integer requiredQuantity,
+                String name, String unitName, Integer quantity, BigDecimal unitPrice,
+                BigDecimal amount, Integer currentQuantity, Integer requiredQuantity,
                 String note,
                 java.util.Map<String, Object> details) {
 
@@ -96,8 +89,8 @@ public final class PurchaseProposalApi {
                 var c = l.getCatalog();
                 return new Line(l.getId(), l.getLineNo(), l.getKind(),
                         new RefSummary(c.getId(), c.getCode(), c.getName()), c.getTrackingType().name(),
-                        l.getName(), l.getSpecification(), l.getUnitName(), l.getQuantity(), l.effectiveUnitPrice(),
-                        l.amount(), l.getPriority(), l.getCurrentQuantity(), l.getRequiredQuantity(), l.getNote(),
+                        l.getName(), l.getUnitName(), l.getQuantity(), l.effectiveUnitPrice(),
+                        l.amount(), l.getCurrentQuantity(), l.getRequiredQuantity(), l.getNote(),
                     com.g123.sfems.module.school.voucher.VoucherForms.read(l.getDetails()));
             }
         }
@@ -106,8 +99,8 @@ public final class PurchaseProposalApi {
             List<Line> lines = p.getLines().stream().map(Line::from).toList();
             var plan = p.getPlan();
             return new Response(VoucherHeader.of(p, can, actions), p.getProposalDate(), p.getBudgetYear(),
-                    p.getFundingSource(), p.getReason(),
-                    plan == null ? null : new PlanSummary(plan.getId(), plan.getTitle(), plan.getStatus().name()),
+                    p.getReason(),
+                    plan == null ? null : new PlanSummary(plan.getId(), plan.getCode(), plan.getTitle(), plan.getStatus().name()),
                     p.getIntakeId(), p.totalAmount(),
                     lines.stream().mapToInt(l -> l.quantity() == null ? 0 : l.quantity()).sum(), lines,
                     lines.size());

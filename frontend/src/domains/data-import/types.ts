@@ -1,6 +1,7 @@
 /** Nhập dữ liệu đầu vào qua vùng chờ (`/api/data_imports`). */
 
-export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "equipment" | "schools" | "wards";
+export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "student" | "equipment"
+  | "equipment_outside" | "schools" | "wards";
 
 /**
  * Loại dữ liệu của một lô: dữ liệu đầu vào của MỘT trường (nhiều trang), hoặc một danh mục dùng chung (một trang,
@@ -53,6 +54,8 @@ export type ImportBatch = {
   status: ImportBatchStatus;
   createdAt: string;
   createdBy: string | null;
+  /** Vai trò của người tải lên (Chuyên viên Sở, Cán bộ thiết bị…). */
+  createdByRole: string | null;
   committedAt: string | null;
   committedBy: string | null;
   sheets: ImportSheetCount[];
@@ -79,12 +82,12 @@ export type ImportRow = {
   resolved: Record<string, string | number | null>;
   /** Lần sửa gần nhất của dòng là bằng cách nào; trống = chưa ai sửa. */
   editSource: ImportEditSource | null;
-  /** Từng ô đã sửa → cách sửa gần nhất: lưới tô đúng ô đó (xanh chủ đạo + nhãn AI = AI, xám = sửa nhanh). */
+  /** Từng ô đã sửa → cách sửa gần nhất: lưới tô đúng ô đó (nền xanh nhạt, nhãn nói sửa tay hay sửa nhanh). */
   editedCells: Record<string, ImportEditSource>;
 };
 
-/** Cách một ô được sửa ở vùng chờ: tay, sửa nhanh theo luật, hay AI. */
-export type ImportEditSource = "manual" | "rule" | "ai";
+/** Cách một ô được sửa ở vùng chờ: tay, hay sửa nhanh theo luật. */
+export type ImportEditSource = "manual" | "rule";
 
 /** Một lần sửa ô — tab Lịch sử của lô. `field` = `_skip` là bỏ / dùng lại dòng. */
 export type ImportEdit = {
@@ -100,12 +103,8 @@ export type ImportEdit = {
   editedBy: string | null;
 };
 
-/** `GET /data_imports/ai`: AI gợi ý có bật không, trang nào dùng được, mỗi lần tối đa bao nhiêu dòng. */
-/** `maxRows` dòng mỗi lần gọi; `maxRowsPerClick` dòng tối đa một lần bấm (còn thì bấm lại). */
-export type ImportAiInfo = { enabled: boolean; sheets: ImportSheetKey[]; maxRows: number; maxRowsPerClick: number };
-
-/** Một gợi ý của AI cho một ô: giá trị cũ → mới và lý do. Chỉ là gợi ý — nhận thì gửi qua PATCH như sửa tay. */
-export type ImportAiSuggestion = {
+/** Một gợi ý sửa nhanh (chuẩn hoá theo luật) cho một ô: giá trị cũ → mới và lý do. Nhận thì gửi qua PATCH như sửa tay. */
+export type ImportFixSuggestion = {
   rowId: number;
   field: string;
   from: string;
@@ -157,6 +156,7 @@ export const CREATED_LABELS: Record<string, string> = {
   buildings: "khối nhà",
   rooms: "phòng",
   school_classes: "lớp",
+  students: "học sinh",
   equipment_catalogs: "thiết bị ngoài danh mục",
   equipment: "thiết bị",
 };

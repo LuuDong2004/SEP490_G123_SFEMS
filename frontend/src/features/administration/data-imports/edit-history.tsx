@@ -11,10 +11,9 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import type { ImportEdit, ImportEditSource, ImportRow, ImportSheetInfo } from "@/domains/data-import/types";
 
 /** Nguồn sửa: nhãn và màu — cùng màu với ô "Dòng" trên lưới (`import-grid.tsx`). */
-export const EDIT_SOURCE: Record<ImportEditSource, { label: string; badge: "neutral" | "outline" | "default" }> = {
+export const EDIT_SOURCE: Record<ImportEditSource, { label: string; badge: "neutral" | "outline" }> = {
   manual: { label: "Sửa tay", badge: "outline" },
   rule: { label: "Sửa nhanh", badge: "neutral" },
-  ai: { label: "AI", badge: "default" },
 };
 
 const ALL = "__all";
@@ -48,7 +47,7 @@ function Value({ v, tone }: { v: string | null; tone: "old" | "new" }) {
 /**
  * "So sánh với tệp gốc" của MỘT trang: dữ liệu TỆP GỐC so với dữ liệu HIỆN TẠI của vùng chờ, như xem diff — mỗi
  * dòng đã đổi là một khối, trong đó mỗi ô đổi một hàng "cũ → mới" (đỏ gạch → xanh); dòng bị bỏ tô đỏ cả khối. Ô
- * sửa đi sửa lại chỉ hiện gốc → hiện tại. Lọc theo cách sửa để xem riêng những gì AI hay sửa nhanh đã đổi. Thay chỗ
+ * sửa đi sửa lại chỉ hiện gốc → hiện tại. Lọc theo cách sửa để xem riêng những gì sửa nhanh đã đổi. Thay chỗ
  * bảng của trang đó, nút "Về bảng" quay lại.
  */
 export function EditHistory({ batchId, sheet, rows, onClose }: {
@@ -103,7 +102,7 @@ export function EditHistory({ batchId, sheet, rows, onClose }: {
     const row = rows.find((x) => x.id === r.rowId);
     return row ? [row.data.code, row.data.name].filter(Boolean).join(" · ") : "";
   };
-  const counts = (["manual", "rule", "ai"] as ImportEditSource[]).map((k) => [k, diffs.filter((r) => r.sources.has(k)).length] as const);
+  const counts = (["manual", "rule"] as ImportEditSource[]).map((k) => [k, diffs.filter((r) => r.sources.has(k)).length] as const);
   const cellCount = shown.reduce((n, r) => n + r.cells.length, 0);
   const skipCount = shown.filter((r) => r.skipped === true).length;
 

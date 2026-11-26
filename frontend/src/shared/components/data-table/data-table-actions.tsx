@@ -397,7 +397,7 @@ export function DataTableExport<TData extends BaseRecord>({
  * triển khai.
  */
 /** Dữ liệu nhập được qua màn Nhập dữ liệu đầu vào (dữ liệu của trường, danh sách trường, phường/xã). */
-const IMPORTABLE = new Set(["equipment", "rooms", "buildings", "campuses", "staff", "school_classes", "schools", "wards"]);
+const IMPORTABLE = new Set(["equipment", "rooms", "buildings", "campuses", "staff", "school_classes", "students", "schools", "wards"]);
 
 export function DataTableMoreActions<TData extends BaseRecord>({
   table,

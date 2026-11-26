@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.dataimport;
 
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.web.ListResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class OnboardingController {
     public record RowPatch(Map<String, String> data, Boolean skipped) {
     }
 
-    /** {@code source}: tay (mặc định), {@code rule} — sửa nhanh, {@code ai}. */
+    /** {@code source}: tay (mặc định), {@code rule} — sửa nhanh. */
     public record NewRow(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, Map<String, String> data,
             String source) {
     }
@@ -59,52 +60,38 @@ public class OnboardingController {
     public record RowIds(List<Long> rowIds) {
     }
 
-    public record AiRequest(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet, List<Long> rowIds) {
-    }
-
-    /** Màn hình hỏi trước khi vẽ nút "AI gợi ý": có bật không, trang nào dùng được, mỗi lần bao nhiêu dòng. */
-    public record AiInfo(boolean enabled, List<String> sheets, int maxRows, int maxRowsPerClick) {
-    }
-
     public record SheetRequest(@Size(max = 100, message = "Tên trang không hợp lệ") String sheet) {
     }
 
     private final OnboardingService service;
-    private final OnboardingAiService ai;
     private final OnboardingQuickFix quickFix;
 
-    public OnboardingController(OnboardingService service, OnboardingAiService ai, OnboardingQuickFix quickFix) {
+    public OnboardingController(OnboardingService service, OnboardingQuickFix quickFix) {
         this.service = service;
-        this.ai = ai;
         this.quickFix = quickFix;
     }
 
-    /** Sửa nhanh theo luật (mã trùng / sai dạng, phòng viết khác / còn thiếu, năm, số lượng 0) — không cần AI. */
+    /** Sửa nhanh theo luật (mã trùng / sai dạng, phòng viết khác / còn thiếu, năm, số lượng 0). */
     @PostMapping("/{id}/quick-fixes")
     @PreAuthorize("hasAuthority('data_imports:write')")
     public OnboardingQuickFix.Result quickFixes(@PathVariable long id, @Valid @RequestBody SheetRequest body) {
         return quickFix.fixes(id, body.sheet());
     }
 
-    @GetMapping("/ai")
-    @PreAuthorize("hasAuthority('data_imports:write')")
-    public AiInfo aiInfo() {
-        return new AiInfo(ai.available(), OnboardingAiService.SHEETS.stream().map(OnboardingSheet::key).toList(),
-                OnboardingAiService.MAX_ROWS, OnboardingAiService.MAX_ROWS_PER_CLICK);
-    }
-
-    /** AI gợi ý sửa các dòng đã chọn — chỉ gợi ý, nhận thì đi qua PATCH /{id}/rows như sửa tay. */
-    @PostMapping("/{id}/ai-suggest")
-    @PreAuthorize("hasAuthority('data_imports:write')")
-    public List<OnboardingAiService.Suggestion> aiSuggest(@PathVariable long id, @Valid @RequestBody AiRequest body) {
-        return ai.suggest(id, body.sheet(), body.rowIds());
-    }
-
     @GetMapping
     @PreAuthorize("hasAuthority('data_imports:read')")
-    public ResponseEntity<List<OnboardingService.Batch>> list(@RequestParam(name = "school.id", required = false) Long schoolId) {
-        List<OnboardingService.Batch> batches = service.list(schoolId);
-        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(batches.size())).body(batches);
+    public ResponseEntity<List<OnboardingService.Batch>> list(@RequestParam(name = "school.id", required = false) Long schoolId,
+            @RequestParam(required = false) String kind, @RequestParam(name = "_start", defaultValue = "0") int start,
+            @RequestParam(name = "_end", defaultValue = "20") int end) {
+        OnboardingService.BatchPage page = service.list(schoolId, kind, start, end);
+        return ListResponse.of(page.rows(), page.total());
+    }
+
+    /** Số lô của từng loại dữ liệu ({@code school_data}, {@code schools}, {@code wards}). */
+    @GetMapping("/counts")
+    @PreAuthorize("hasAuthority('data_imports:read')")
+    public Map<String, Long> counts() {
+        return service.countByKind();
     }
 
     @GetMapping("/sheets")
@@ -116,11 +103,12 @@ public class OnboardingController {
     /** Tệp mẫu; {@code kind} = {@code schools} / {@code wards}: mẫu danh mục, vắng: dữ liệu đầu vào của trường. */
     @GetMapping("/template")
     @PreAuthorize("hasAuthority('data_imports:read')")
-    public ResponseEntity<byte[]> template(@RequestParam(required = false) String kind) {
+    public ResponseEntity<byte[]> template(@RequestParam(required = false) String kind,
+            @RequestParam(required = false) Long schoolId) {
         if (kind != null && !"school_data".equals(kind)) {
             return file(service.catalogTemplate(kind), "Mẫu " + ("wards".equals(kind) ? "phường xã" : "danh sách trường") + ".xlsx");
         }
-        return file(service.template(), "Mẫu dữ liệu đầu vào.xlsx");
+        return file(service.template(schoolId), "Mẫu dữ liệu đầu vào.xlsx");
     }
 
     @PostMapping

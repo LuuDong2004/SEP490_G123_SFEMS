@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.dataimport;
 
 import com.g123.sfems.domain.catalog.enums.FundingSource;
+import com.g123.sfems.domain.catalog.enums.StaffPosition;
 import com.g123.sfems.domain.catalog.originsource.OriginRule;
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -22,12 +23,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * "Sửa nhanh" ở vùng chờ nhập dữ liệu — gợi ý theo LUẬT, không cần AI, cho những lỗi có cách sửa chắc chắn:
+ * "Sửa nhanh" ở vùng chờ nhập dữ liệu — chuẩn hoá dữ liệu bằng LUẬT trong code, cho những lỗi có cách sửa chắc chắn:
  * mã trùng (thêm hậu tố), mã sai dạng (bỏ dấu, dấu cách, ngoặc — kèm đổi luôn ở các dòng đang tham chiếu), tham
  * chiếu phòng viết khác mã thật (hoa thường, dấu cách), phòng còn thiếu (gợi ý thêm vào trang Phòng, khối nhà / tầng
  * / loại phòng chép từ phòng có mã gần nhất), năm ghi "2019-2020", số lượng 0 (bỏ dòng), mã khối nhà lệch giữa hai
- * trang, cách ghi hiện trạng / tình trạng / loại phòng / nguồn kinh phí ngoài danh sách, cán bộ không có. Cùng hình gợi
- * ý với AI ({@link OnboardingAiService.Suggestion}); người dùng xem, sửa tay được, rồi nhận thì đi qua PATCH như sửa
+ * trang, cách ghi hiện trạng / tình trạng / loại phòng / nguồn kinh phí ngoài danh sách, cán bộ không có. Người dùng xem, sửa tay được, rồi nhận thì đi qua PATCH như sửa
  * tay — nên chỗ không chắc vẫn gợi ý, đánh dấu {@code review} để không tích sẵn.
  */
 @Service
@@ -42,14 +42,30 @@ public class OnboardingQuickFix {
     private static final Pattern YEAR = Pattern.compile("(19|20)\\d{2}");
     private static final Pattern NUMBERED = Pattern.compile("^(.*?)(\\d+)$");
     /** Trang có cột "Mã phòng" tham chiếu sang trang Phòng. */
-    private static final Set<OnboardingSheet> ROOM_REFS = Set.of(OnboardingSheet.EQUIPMENT, OnboardingSheet.CLASS);
+    private static final Set<OnboardingSheet> ROOM_REFS = Set.of(OnboardingSheet.EQUIPMENT,
+            OnboardingSheet.EQUIPMENT_OUTSIDE, OnboardingSheet.CLASS);
 
     /** Một phòng nên thêm vào trang Phòng vì có dòng đang dùng mã đó; khối nhà / tầng / loại chép từ {@code basedOn}. */
     public record NewRoom(String code, String building, String floor, String roomType, String basedOn, int usedBy) {
     }
 
-    /** @param covered các dòng của trang đang xem sẽ hết lỗi nhờ gợi ý ở trang khác — không cần hỏi AI nữa. */
-    public record Result(List<OnboardingAiService.Suggestion> suggestions, List<NewRoom> newRooms, List<Long> covered) {
+    /**
+     * Một gợi ý. Người dùng luôn xem và sửa được trước khi áp dụng, nên gợi ý không cần chắc chắn mới được đưa ra.
+     *
+     * @param fieldLabel tên ô khi gợi ý sửa dòng của TRANG KHÁC (đổi mã khối nhà khi đang xem trang Phòng); còn lại null
+     * @param rowNo      số dòng khi gợi ý sửa dòng của trang khác; còn lại null
+     * @param review     phỏng đoán, người dùng phải tự xem: không tích sẵn
+     * @param options    các giá trị hợp lệ của ô, nếu ô chỉ nhận một danh sách — màn hình cho chọn
+     */
+    public record Suggestion(long rowId, String field, String from, String to, String reason, String fieldLabel,
+            Integer rowNo, boolean review, List<String> options) {
+
+        public Suggestion(long rowId, String field, String from, String to, String reason) {
+            this(rowId, field, from, to, reason, null, null, false, List.of());
+        }
+    }
+
+    public record Result(List<Suggestion> suggestions, List<NewRoom> newRooms) {
     }
 
     /** Một mã khối nhà trên trang Phòng khớp một dòng của trang Khối nhà. */
@@ -57,7 +73,7 @@ public class OnboardingQuickFix {
     }
 
     private static final List<String> FACILITY_CONDITIONS = List.of("Tốt", "Bình thường", "Cần sửa chữa", "Xuống cấp", "Hư hỏng nặng");
-    private static final List<String> EQUIPMENT_CONDITIONS = List.of("Tốt", "Khá", "Trung bình", "Kém", "Hỏng", "Không sử dụng");
+    private static final List<String> EQUIPMENT_CONDITIONS = List.of("Tốt", "Trung bình", "Kém");
     private static final Pattern DAMAGE_WORDS = Pattern.compile("THAM|DOT|NUT|BONG|ROP|MOC|XUONG_CAP");
     private static final Pattern BROKEN_WORDS = Pattern.compile("HU_NANG|HU_HONG|HONG_NANG|KHONG_SU_DUNG|NGUY_HIEM|SAP");
     /** Hoá chất thường ở thể lỏng theo tên; còn lại (muối, kim loại, oxit, bột) tính theo gam. */
@@ -77,11 +93,11 @@ public class OnboardingQuickFix {
     public Result fixes(long batchId, String sheetKey) {
         OnboardingSheet sheet = OnboardingSheet.of(sheetKey);
         if (sheet == null) {
-            return new Result(List.of(), List.of(), List.of());
+            return new Result(List.of(), List.of());
         }
         // `rows` kiểm phạm vi người gọi (404 nếu không thấy lô).
         List<OnboardingService.StagedRow> rows = onboarding.rows(batchId, sheet.key()).stream().filter(r -> !r.skipped()).toList();
-        List<OnboardingAiService.Suggestion> out = new ArrayList<>();
+        List<Suggestion> out = new ArrayList<>();
         Set<String> taken = new HashSet<>();
 
         boolean hasCode = sheet.columns().stream().anyMatch(c -> c.key().equals("code"));
@@ -92,12 +108,13 @@ public class OnboardingQuickFix {
                     taken.add(c.trim().toUpperCase());
                 }
             });
-            codeFixes(rows, taken, out);
+            // Mã học sinh chỉ duy nhất trong một lớp: hai lớp cùng một mã không phải trùng.
+            codeFixes(rows, taken, out, sheet == OnboardingSheet.STUDENT
+                    ? r -> Objects.toString(r.data().get("class"), "").trim().toUpperCase() + "|" : r -> "");
         }
 
-        List<Long> covered = new ArrayList<>();
         if (sheet == OnboardingSheet.BUILDING || sheet == OnboardingSheet.ROOM) {
-            buildingFixes(batchId, sheet, out, covered);
+            buildingFixes(batchId, sheet, out);
         }
 
         for (OnboardingService.StagedRow r : rows) {
@@ -115,7 +132,7 @@ public class OnboardingQuickFix {
                     out.add(fundingFix(r));
                 } else if (("manager".equals(m.field()) || "teacher".equals(m.field())) && m.text().startsWith("Không có cán bộ")) {
                     String v = Objects.toString(r.data().get(m.field()), "").trim();
-                    out.add(new OnboardingAiService.Suggestion(r.id(), m.field(), v, "",
+                    out.add(new Suggestion(r.id(), m.field(), v, "",
                             "Không có cán bộ mã \"" + v + "\" — để trống, khai sau"));
                 } else if ("year".equals(m.field()) && sheet == OnboardingSheet.CLASS) {
                     // Năm học: bộ kiểm đã tự đọc mọi cách ghi ("2026/2027", "Năm học 26-27"…); còn lỗi nghĩa là
@@ -125,16 +142,34 @@ public class OnboardingQuickFix {
                     String v = Objects.toString(r.data().get("year"), "");
                     Matcher y = YEAR.matcher(v);
                     if (y.find() && !y.group().equals(v.trim())) {
-                        out.add(new OnboardingAiService.Suggestion(r.id(), "year", v, y.group(), "Lấy năm đầu tiên trong \"" + v + "\""));
+                        out.add(new Suggestion(r.id(), "year", v, y.group(), "Lấy năm đầu tiên trong \"" + v + "\""));
                     }
                 } else if ("phone".equals(m.field())) {
                     String v = Objects.toString(r.data().get("phone"), "");
                     String to = phoneFix(v);
                     if (to != null && !to.equals(v.trim())) {
-                        out.add(new OnboardingAiService.Suggestion(r.id(), "phone", v, to, PHONE_FIX));
+                        out.add(new Suggestion(r.id(), "phone", v, to, PHONE_FIX));
+                    }
+                } else if (sheet == OnboardingSheet.STAFF && "type".equals(m.field())) {
+                    out.add(staffTypeFix(r));
+                } else if (sheet == OnboardingSheet.STAFF && "position".equals(m.field())) {
+                    Suggestion s = staffPositionFix(r, m.text());
+                    if (s != null) {
+                        out.add(s);
+                    }
+                } else if (sheet == OnboardingSheet.STAFF && "subjects".equals(m.field())
+                        && m.text().startsWith("Cán bộ không mang môn")) {
+                    out.add(new Suggestion(r.id(), "type", Objects.toString(r.data().get("type"), ""), TEACHER,
+                            "Có môn giảng dạy nên là Giáo viên (hoặc xoá môn nếu đúng là cán bộ)", null, null, true,
+                            STAFF_TYPES));
+                } else if ("email".equals(m.field())) {
+                    String v = Objects.toString(r.data().get("email"), "");
+                    String to = emailFix(v);
+                    if (to != null && !to.equals(v.trim())) {
+                        out.add(new Suggestion(r.id(), "email", v, to, EMAIL_FIX));
                     }
                 } else if ("quantity".equals(m.field()) && m.text().startsWith("Số lượng phải lớn hơn 0")) {
-                    out.add(new OnboardingAiService.Suggestion(r.id(), SKIP, Objects.toString(r.data().get("quantity"), ""), "Bỏ dòng",
+                    out.add(new Suggestion(r.id(), SKIP, Objects.toString(r.data().get("quantity"), ""), "Bỏ dòng",
                             "Số lượng bằng 0 — không còn thiết bị này"));
                 }
             }
@@ -142,12 +177,103 @@ public class OnboardingQuickFix {
 
         if (sheet == OnboardingSheet.ROOM) {
             followRenames(batchId, rows, out, OnboardingSheet.EQUIPMENT, "room", "Mã phòng ở trang Thiết bị");
+            followRenames(batchId, rows, out, OnboardingSheet.EQUIPMENT_OUTSIDE, "room", "Mã phòng ở trang Thiết bị ngoài danh mục");
             followRenames(batchId, rows, out, OnboardingSheet.CLASS, "room", "Mã phòng ở trang Lớp học");
         } else if (sheet == OnboardingSheet.BUILDING) {
             followRenames(batchId, rows, out, OnboardingSheet.ROOM, "building", "Mã khối nhà ở trang Phòng");
         }
         List<NewRoom> newRooms = ROOM_REFS.contains(sheet) ? roomRefFixes(batchId, rows, out) : List.of();
-        return new Result(out, newRooms, covered);
+        // Một ô chỉ một gợi ý (vd. loại cán bộ bị cả chức vụ lẫn môn dạy gợi đổi): giữ gợi ý đầu.
+        Set<String> seen = new HashSet<>();
+        out.removeIf(s -> !SKIP.equals(s.field()) && !KEEP.equals(s.field()) && s.rowNo() == null
+                && !seen.add(s.rowId() + "|" + s.field()));
+        return new Result(out, newRooms);
+    }
+
+    // ------------------------------------------------------------------ trang Cán bộ – giáo viên
+
+    static final String TEACHER = "Giáo viên";
+    static final String STAFF_MEMBER = "Cán bộ";
+    private static final List<String> STAFF_TYPES = List.of(TEACHER, STAFF_MEMBER);
+    private static final List<String> POSITIONS = Arrays.stream(StaffPosition.values())
+            .map(StaffPosition::label).toList();
+    private static final Pattern TEACHER_WORDS = Pattern.compile("(^|_)(GV|GVBM|GVCN|GIAO_VIEN|GIANG_VIEN|TEACHER)(_|$)");
+    private static final Pattern STAFF_WORDS = Pattern.compile("(^|_)(CB|CBQL|CBNV|NV|CAN_BO|NHAN_VIEN|KE_TOAN|VAN_THU"
+            + "|THU_VIEN|THU_KHO|THIET_BI|Y_TE|BAO_VE|PHUC_VU|LAO_CONG|TAP_VU|QUAN_LY|HIEU_TRUONG|HIEU_PHO|STAFF)(_|$)");
+
+    /**
+     * Loại cán bộ ghi khác "Giáo viên" / "Cán bộ" (GV, nhân viên, kế toán…): đoán theo chữ; không đoán được thì theo cột
+     * môn — có môn là giáo viên — và để người dùng xem lại.
+     */
+    private static Suggestion staffTypeFix(OnboardingService.StagedRow r) {
+        String v = Objects.toString(r.data().get("type"), "");
+        String f = ImportValues.fold(v);
+        String to = TEACHER_WORDS.matcher(f).find() ? TEACHER : STAFF_WORDS.matcher(f).find() ? STAFF_MEMBER : null;
+        boolean guess = to == null;
+        if (guess) {
+            boolean teaches = r.data().get("mainSubject") != null || r.data().get("subjects") != null;
+            to = teaches ? TEACHER : STAFF_MEMBER;
+        }
+        return new Suggestion(r.id(), "type", v, to, guess
+                ? "Loại chỉ nhận Giáo viên hoặc Cán bộ — đoán theo cột môn, xem lại"
+                : "Loại chỉ nhận Giáo viên hoặc Cán bộ — \"" + v + "\" là " + to.toLowerCase(), null, null, guess,
+                STAFF_TYPES);
+    }
+
+    /**
+     * Chức vụ: ghi tắt / khác tên (HT, PHT, TT, "thiết bị"…) → đúng tên trong danh sách; chức vụ không hợp với loại → đổi
+     * loại cho khớp.
+     */
+    private static Suggestion staffPositionFix(OnboardingService.StagedRow r, String error) {
+        String v = Objects.toString(r.data().get("position"), "");
+        String type = Objects.toString(r.data().get("type"), "");
+        if (error.contains("chỉ dành cho Giáo viên")) {
+            return new Suggestion(r.id(), "type", type, TEACHER, "Chức vụ " + v + " là của giáo viên — đổi loại thành "
+                    + "Giáo viên", null, null, true, STAFF_TYPES);
+        }
+        if (error.startsWith("Giáo viên không mang chức vụ")) {
+            return new Suggestion(r.id(), "type", type, STAFF_MEMBER, "Chức vụ " + v + " không phải của giáo viên — đổi "
+                    + "loại thành Cán bộ", null, null, true, STAFF_TYPES);
+        }
+        if (!error.contains("không hợp lệ")) {
+            return null;
+        }
+        String to = staffPosition(v);
+        boolean guess = to == null;
+        return new Suggestion(r.id(), "position", v, guess ? StaffPosition.KHAC.label() : to, guess
+                ? "Chức vụ không có trong danh sách — chọn đúng chức vụ, không rõ thì Khác"
+                : "Chức vụ ghi tắt / khác tên — đưa về tên trong danh sách", null, null, guess, POSITIONS);
+    }
+
+    /** Tên chức vụ trong danh sách theo cách ghi thường gặp; {@code null} khi không đoán được. */
+    static String staffPosition(String text) {
+        String f = "_" + ImportValues.fold(text) + "_";
+        StaffPosition p = f.matches(".*_(PHO_HIEU_TRUONG|PHT|HIEU_PHO)_.*") ? StaffPosition.PHO_HIEU_TRUONG
+                : f.matches(".*_(HIEU_TRUONG|HT)_.*") ? StaffPosition.HIEU_TRUONG
+                : f.matches(".*_(TO_TRUONG|TT|TTCM|TO_PHO)_.*") ? StaffPosition.TO_TRUONG
+                : f.contains("_THIET_BI_") ? StaffPosition.CAN_BO_THIET_BI
+                : f.contains("_THU_VIEN_") ? StaffPosition.NHAN_VIEN_THU_VIEN
+                : f.contains("_KE_TOAN_") ? StaffPosition.KE_TOAN
+                : f.contains("_THU_KHO_") ? StaffPosition.THU_KHO
+                : f.contains("_VAN_THU_") ? StaffPosition.VAN_THU
+                : f.matches(".*_(GV|GVBM|GVCN|GIAO_VIEN)_.*") ? StaffPosition.GIAO_VIEN
+                : f.matches(".*_(NV|NHAN_VIEN|BAO_VE|Y_TE|PHUC_VU|LAO_CONG|TAP_VU)_.*") ? StaffPosition.NHAN_VIEN
+                : null;
+        return p == null ? null : p.label();
+    }
+
+    private static final String EMAIL_FIX = "Email có dấu cách, chữ hoa, chữ có dấu hoặc dấu phẩy — đưa về dạng chuẩn";
+    private static final Pattern EMAIL = Pattern.compile("^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$");
+
+    /** Email gõ lẫn dấu cách / hoa / có dấu / dấu phẩy thay dấu chấm; {@code null} khi chuẩn hoá xong vẫn không hợp lệ. */
+    static String emailFix(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String s = Normalizer.normalize(raw, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .replace('đ', 'd').replace('Đ', 'D').replaceAll("\\s+", "").replace(',', '.')
+                .toLowerCase(java.util.Locale.ROOT).replaceAll("\\.+$", "");
+        return EMAIL.matcher(s).matches() ? s : null;
     }
 
     /**
@@ -155,7 +281,7 @@ public class OnboardingQuickFix {
      * cách, dấu gạch. Sửa ở khối nhà (đổi mã theo cách trang Phòng đang ghi) vì chỉ một dòng là hết lỗi cho cả chục
      * phòng. Ở trang Phòng, gợi ý trỏ sang dòng của trang Khối nhà.
      */
-    private void buildingFixes(long batchId, OnboardingSheet sheet, List<OnboardingAiService.Suggestion> out, List<Long> covered) {
+    private void buildingFixes(long batchId, OnboardingSheet sheet, List<Suggestion> out) {
         List<OnboardingService.StagedRow> buildings = onboarding.rows(batchId, OnboardingSheet.BUILDING.key()).stream()
                 .filter(r -> !r.skipped() && r.data().get("code") != null).toList();
         List<OnboardingService.StagedRow> rooms = onboarding.rows(batchId, OnboardingSheet.ROOM.key()).stream()
@@ -168,12 +294,11 @@ public class OnboardingQuickFix {
             if (sheet == OnboardingSheet.BUILDING) {
                 // Thay gợi ý chuẩn hoá ("Khu A" → "Khu-A"): chuẩn hoá xong thì phòng vẫn không khớp.
                 out.removeIf(s -> s.rowId() == b.id() && "code".equals(s.field()));
-                out.add(new OnboardingAiService.Suggestion(b.id(), "code", from, a.code(), reason));
+                out.add(new Suggestion(b.id(), "code", from, a.code(), reason));
             } else {
-                out.add(new OnboardingAiService.Suggestion(b.id(), "code", from, a.code(),
+                out.add(new Suggestion(b.id(), "code", from, a.code(),
                         "%s (%d phòng hết lỗi)".formatted(reason, aliases.stream().mapToInt(x -> x.rooms().size()).sum()),
                         "Mã khối nhà", b.rowNo(), false, List.of()));
-                covered.addAll(a.rooms());
             }
         }
     }
@@ -183,12 +308,12 @@ public class OnboardingQuickFix {
      * xong lại sinh lỗi "không có phòng". Một mã cũ tách thành nhiều mã (ba phòng cùng ghi "Khu E (tầng 1)"): không biết
      * thiết bị ở phòng nào, nên chọn phòng có chữ "kho" trong tên; không có thì chọn phòng đầu và để người dùng xem lại.
      */
-    private void followRenames(long batchId, List<OnboardingService.StagedRow> rows, List<OnboardingAiService.Suggestion> out,
+    private void followRenames(long batchId, List<OnboardingService.StagedRow> rows, List<Suggestion> out,
             OnboardingSheet other, String field, String fieldLabel) {
         Map<Long, OnboardingService.StagedRow> byId = rows.stream()
                 .collect(Collectors.toMap(OnboardingService.StagedRow::id, r -> r));
-        Map<String, List<OnboardingAiService.Suggestion>> renamed = new LinkedHashMap<>();
-        for (OnboardingAiService.Suggestion s : out) {
+        Map<String, List<Suggestion>> renamed = new LinkedHashMap<>();
+        for (Suggestion s : out) {
             if ("code".equals(s.field()) && byId.containsKey(s.rowId()) && !s.from().equals(s.to())) {
                 renamed.computeIfAbsent(s.from(), k -> new ArrayList<>()).add(s);
             }
@@ -196,34 +321,34 @@ public class OnboardingQuickFix {
         if (renamed.isEmpty()) {
             return;
         }
-        List<OnboardingAiService.Suggestion> follow = new ArrayList<>();
+        List<Suggestion> follow = new ArrayList<>();
         for (OnboardingService.StagedRow r : onboarding.rows(batchId, other.key())) {
             String value = Objects.toString(r.data().get(field), "").trim();
-            List<OnboardingAiService.Suggestion> targets = renamed.get(value);
+            List<Suggestion> targets = renamed.get(value);
             if (r.skipped() || targets == null) {
                 continue;
             }
-            List<OnboardingAiService.Suggestion> stores = targets.stream()
+            List<Suggestion> stores = targets.stream()
                     .filter(t -> OnboardingValidator.norm(Objects.toString(byId.get(t.rowId()).data().get("name"), ""))
                             .matches("(^|.*_)KHO(_.*|$)"))
                     .toList();
             boolean sure = targets.size() == 1 || stores.size() == 1;
             String to = (stores.size() == 1 ? stores.get(0) : targets.get(0)).to();
-            follow.add(new OnboardingAiService.Suggestion(r.id(), field, value, to,
+            follow.add(new Suggestion(r.id(), field, value, to,
                     "%s: các dòng đang ghi mã cũ \"%s\"".formatted(fieldLabel, value), fieldLabel, r.rowNo(), !sure, List.of()));
         }
         out.addAll(follow);
     }
 
     /** Hoá chất ngoài danh mục thiếu đơn vị: lỏng → Mililít, còn lại → Gam; loại đếm được thì để người dùng chọn. */
-    private OnboardingAiService.Suggestion chemicalUnitFix(OnboardingService.StagedRow r) {
+    private Suggestion chemicalUnitFix(OnboardingService.StagedRow r) {
         List<String> units = jdbc.queryForList("SELECT name FROM units WHERE active ORDER BY name", String.class);
         String kind = chemicalUnit(Objects.toString(r.data().get("name"), ""));
         if (kind == null) {
-            return new OnboardingAiService.Suggestion(r.id(), "unit", "", "", "Chưa có đơn vị tính — chọn đơn vị", null, null, true, units);
+            return new Suggestion(r.id(), "unit", "", "", "Chưa có đơn vị tính — chọn đơn vị", null, null, true, units);
         }
         String to = units.stream().filter(u -> OnboardingValidator.fold(u).equals(OnboardingValidator.fold(kind))).findFirst().orElse("");
-        return new OnboardingAiService.Suggestion(r.id(), "unit", "", to,
+        return new Suggestion(r.id(), "unit", "", to,
                 "Hoá chất chưa có đơn vị tính — theo tên gợi ý " + kind + ", xem lại số lượng có đúng đơn vị này không",
                 null, null, to.isEmpty(), units);
     }
@@ -275,19 +400,19 @@ public class OnboardingQuickFix {
     }
 
     /** Hiện trạng / tình trạng ghi theo mô tả: đưa về giá trị của danh sách; mô tả chép sang ghi chú để không mất. */
-    private static void conditionFix(OnboardingSheet sheet, OnboardingService.StagedRow r, List<OnboardingAiService.Suggestion> out) {
+    private static void conditionFix(OnboardingSheet sheet, OnboardingService.StagedRow r, List<Suggestion> out) {
         String v = Objects.toString(r.data().get("condition"), "").trim();
-        boolean equipment = sheet == OnboardingSheet.EQUIPMENT;
+        boolean equipment = sheet.equipment();
         String to = equipment ? equipmentCondition(v) : facilityCondition(v);
         if (to == null) {
             return;
         }
         String label = equipment ? "Tình trạng" : "Hiện trạng";
-        out.add(new OnboardingAiService.Suggestion(r.id(), "condition", v, to, label + " ghi ngoài danh sách — đưa về giá trị của hệ thống",
+        out.add(new Suggestion(r.id(), "condition", v, to, label + " ghi ngoài danh sách — đưa về giá trị của hệ thống",
                 null, null, false, equipment ? EQUIPMENT_CONDITIONS : FACILITY_CONDITIONS));
         if (!equipment && Objects.toString(r.data().get("note"), "").isBlank()) {
             String note = v.matches(".*\\(.+\\).*") ? v.replaceAll(".*\\((.+)\\).*", "$1").trim() : v;
-            out.add(new OnboardingAiService.Suggestion(r.id(), "note", "", note, "Giữ mô tả " + label.toLowerCase() + " vào ghi chú"));
+            out.add(new Suggestion(r.id(), "note", "", note, "Giữ mô tả " + label.toLowerCase() + " vào ghi chú"));
         }
     }
 
@@ -304,14 +429,11 @@ public class OnboardingQuickFix {
 
     static String equipmentCondition(String text) {
         String f = OnboardingValidator.fold(text);
-        if (BROKEN_WORDS.matcher(f).find()) {
-            return "Hỏng";
-        }
-        return f.startsWith("HU") || f.startsWith("HONG") ? "Kém" : f.startsWith("TOT") ? "Tốt" : null;
+        return BROKEN_WORDS.matcher(f).find() || f.startsWith("HU") || f.startsWith("HONG") ? "Kém" : f.startsWith("TOT") ? "Tốt" : null;
     }
 
     /** Loại phòng: danh mục có đúng một loại chung từ khoá (bỏ chữ "phòng") với chữ đã ghi — "Phòng Kho" → "Nhà kho". */
-    private void roomTypeFix(OnboardingService.StagedRow r, List<OnboardingAiService.Suggestion> out) {
+    private void roomTypeFix(OnboardingService.StagedRow r, List<Suggestion> out) {
         String v = Objects.toString(r.data().get("roomType"), "").trim();
         List<String> types = jdbc.queryForList("SELECT name FROM room_types WHERE active AND school_id IS NULL ORDER BY name",
                 String.class);
@@ -319,7 +441,7 @@ public class OnboardingQuickFix {
                 .filter(w -> w.length() > 1 && !"PHONG".equals(w)).collect(Collectors.toSet());
         List<String> hits = types.stream()
                 .filter(t -> Arrays.stream(OnboardingValidator.fold(t).split("_+")).anyMatch(words::contains)).toList();
-        out.add(new OnboardingAiService.Suggestion(r.id(), "roomType", v, hits.size() == 1 ? hits.get(0) : "",
+        out.add(new Suggestion(r.id(), "roomType", v, hits.size() == 1 ? hits.get(0) : "",
                 "Loại phòng ghi ngoài danh mục — chọn loại đúng", null, null, hits.size() != 1, types));
     }
 
@@ -327,7 +449,7 @@ public class OnboardingQuickFix {
      * Nguồn kinh phí không dùng được. Nguồn hình thành cho phép thì "Chưa xác định nguồn" là đúng sự thật. Không cho
      * phép (Mua sắm bắt buộc có nguồn) thì đây là PHỎNG ĐOÁN: không tích sẵn, người dùng chọn lại cho đúng.
      */
-    private static OnboardingAiService.Suggestion fundingFix(OnboardingService.StagedRow r) {
+    private static Suggestion fundingFix(OnboardingService.StagedRow r) {
         String v = Objects.toString(r.data().get("funding"), "").trim();
         String originText = OnboardingValidator.fold(Objects.toString(r.data().get("origin"), ""));
         OriginRule origin = Arrays.stream(OriginRule.values())
@@ -337,12 +459,12 @@ public class OnboardingQuickFix {
         List<String> options = (origin == null ? Arrays.asList(FundingSource.values()) : origin.fundingSources()).stream()
                 .map(FundingSource::label).toList();
         if (origin == null || origin.allows(FundingSource.UNDETERMINED)) {
-            return new OnboardingAiService.Suggestion(r.id(), "funding", v, FundingSource.UNDETERMINED.label(),
+            return new Suggestion(r.id(), "funding", v, FundingSource.UNDETERMINED.label(),
                     "Nguồn kinh phí \"" + v + "\" không có trong danh sách — ghi chưa xác định", null, null, false,
                     origin == null ? options : append(options, FundingSource.UNDETERMINED.label()));
         }
         String guess = options.contains(FundingSource.REVENUE.label()) ? FundingSource.REVENUE.label() : options.get(0);
-        return new OnboardingAiService.Suggestion(r.id(), "funding", v, guess,
+        return new Suggestion(r.id(), "funding", v, guess,
                 "Nguồn kinh phí \"" + v + "\" không có trong danh sách — chọn nguồn đúng cho " + origin.label(), null, null, true, options);
     }
 
@@ -364,7 +486,8 @@ public class OnboardingQuickFix {
      * Mọi dòng của nhóm đều có một gợi ý — kể cả dòng giữ nguyên ({@link #KEEP}) — để hộp gợi ý liệt kê đủ cả nhóm:
      * bộ kiểm báo lỗi trùng cho mọi dòng, dòng nào không hiện thì người sửa không biết nó được giữ.
      */
-    private static void codeFixes(List<OnboardingService.StagedRow> rows, Set<String> taken, List<OnboardingAiService.Suggestion> out) {
+    private static void codeFixes(List<OnboardingService.StagedRow> rows, Set<String> taken, List<Suggestion> out,
+            java.util.function.Function<OnboardingService.StagedRow, String> scope) {
         Map<String, List<OnboardingService.StagedRow>> groups = new LinkedHashMap<>();
         Map<Long, String> target = new HashMap<>();
         for (OnboardingService.StagedRow r : rows) {
@@ -379,7 +502,7 @@ public class OnboardingQuickFix {
                 continue;
             }
             target.put(r.id(), fixed);
-            groups.computeIfAbsent(fixed.toUpperCase(), k -> new ArrayList<>()).add(r);
+            groups.computeIfAbsent(scope.apply(r) + fixed.toUpperCase(), k -> new ArrayList<>()).add(r);
         }
         for (List<OnboardingService.StagedRow> group : groups.values()) {
             OnboardingService.StagedRow head = group.get(0);
@@ -387,7 +510,7 @@ public class OnboardingQuickFix {
             if (group.size() == 1) {
                 String to = target.get(head.id());
                 if (!to.equals(code)) {
-                    out.add(new OnboardingAiService.Suggestion(head.id(), "code", code, to, BAD_FORMAT));
+                    out.add(new Suggestion(head.id(), "code", code, to, BAD_FORMAT));
                 }
                 continue;
             }
@@ -415,11 +538,11 @@ public class OnboardingQuickFix {
                     } while (taken.contains(to.toUpperCase()));
                     taken.add(to.toUpperCase());
                 }
-                out.add(new OnboardingAiService.Suggestion(r.id(), to.equals(from) ? KEEP : "code", from, to, reason));
+                out.add(new Suggestion(r.id(), to.equals(from) ? KEEP : "code", from, to, reason));
             }
             for (OnboardingService.StagedRow r : extras) {
                 OnboardingService.StagedRow same = firstOf.get(sameness(r));
-                out.add(new OnboardingAiService.Suggestion(r.id(), SKIP, r.data().get("code").trim(),
+                out.add(new Suggestion(r.id(), SKIP, r.data().get("code").trim(),
                         "Giống hệt dòng " + same.rowNo(), reason));
             }
         }
@@ -431,7 +554,7 @@ public class OnboardingQuickFix {
     /**
      * Số điện thoại sửa được chắc chắn: Excel lưu số dạng số nên mất số 0 đầu ("2838398506" → "02838398506",
      * "912345678" → "0912345678"); ghi "84…" không có dấu + → "0…". Bỏ dấu cách, chấm, ngoặc, gạch. Không ra số hợp lệ
-     * thì trả null — để người dùng / AI xử lý.
+     * thì trả null — để người dùng xử lý.
      */
     static String phoneFix(String raw) {
         String d = raw.replaceAll("[^0-9+]", "");
@@ -460,7 +583,7 @@ public class OnboardingQuickFix {
      * thì gợi ý mã đó; còn không thì đề xuất THÊM phòng vào trang Phòng, chép khối nhà / tầng / loại từ phòng có mã
      * gần nhất cùng tiền tố (A.014 theo A.013 / A.015).
      */
-    private List<NewRoom> roomRefFixes(long batchId, List<OnboardingService.StagedRow> rows, List<OnboardingAiService.Suggestion> out) {
+    private List<NewRoom> roomRefFixes(long batchId, List<OnboardingService.StagedRow> rows, List<Suggestion> out) {
         List<OnboardingService.StagedRow> roomRows = onboarding.rows(batchId, OnboardingSheet.ROOM.key()).stream()
                 .filter(r -> !r.skipped() && r.data().get("code") != null).toList();
         long schoolId = onboarding.get(batchId).school().id();
@@ -478,7 +601,7 @@ public class OnboardingQuickFix {
             }
             String match = known.get(key(room));
             if (match != null && !match.equals(room.trim())) {
-                out.add(new OnboardingAiService.Suggestion(r.id(), "room", room, match, "Trang Phòng có mã \"" + match + "\""));
+                out.add(new Suggestion(r.id(), "room", room, match, "Trang Phòng có mã \"" + match + "\""));
                 continue;
             }
             if (match != null) {
@@ -499,7 +622,7 @@ public class OnboardingQuickFix {
                     : typedStores.size() == 1 ? typedStores.get(0) : null;
             if (pick != null) {
                 String code = pick.data().get("code").trim();
-                out.add(new OnboardingAiService.Suggestion(r.id(), "room", room, code, byName.size() == 1
+                out.add(new Suggestion(r.id(), "room", room, code, byName.size() == 1
                         ? "Phòng \"" + pick.data().get("name") + "\" mang mã " + code
                         : "\"" + room.trim() + "\" có " + byName.size() + " phòng — chọn phòng kho \"" + pick.data().get("name") + "\""));
             } else {

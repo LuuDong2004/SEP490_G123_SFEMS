@@ -34,9 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Khác {@link AdequacyService} (số "dùng được" của hôm nay, cả trường) ở ba chỗ:
  * <ul>
- *   <li><b>Năm học:</b> lớp, sĩ số của năm đó; giáo viên theo PHÂN CÔNG của năm đó (277); thiết bị TẠI NGÀY CẮT
- *       ({@code school_years.end_date}, năm hiện tại là lúc này) dựng lại từ {@code equipment_history}. Phòng theo hiện
- *       trạng (loại B, không có lịch sử theo năm).</li>
+ *   <li><b>Năm học:</b> lớp, sĩ số của năm đó; giáo viên theo PHÂN CÔNG của năm đó (277); thiết bị TẠI NGÀY CẮT dựng
+ *       lại từ {@code equipment_history}. Năm hiện tại cắt lúc này; năm đã qua cắt ở lần hoàn tất kiểm kê cuối cùng
+ *       của trường trong năm đó (số đã qua kiểm đếm), trường chưa kiểm kê năm đó thì cuối ngày kết thúc năm học
+ *       (trưởng nhóm 25/11/2026, thay bản chốt). Phòng theo hiện trạng (loại B, không có lịch sử theo năm).</li>
  *   <li><b>Đang có:</b> mọi thiết bị đã ghi tăng, còn trên sổ tại ngày cắt. Mất (kiểm kê kết
  *       luận) đã ra khỏi sổ nên không tính vào số đang có, chỉ hiện ở cột riêng.</li>
  *   <li><b>Điểm trường:</b> mỗi điểm tính đủ / thiếu riêng; tổng trường là CỘNG các điểm — thừa điểm này không bù thiếu
@@ -229,11 +230,9 @@ public class YearAdequacyService {
 
         Map<Long, Map<Long, Map<Long, int[]>>> stock = equipmentAt(ids, year, cut);
         Map<Long, Map<Long, Integer>> proposed = new HashMap<>();
-        jdbc.query("""
-                SELECT p.school_id, l.catalog_id, SUM(l.quantity)::int FROM purchase_proposals p
-                JOIN purchase_proposal_lines l ON l.proposal_id = p.id
-                WHERE p.status IN ('DRAFT', 'PENDING', 'APPROVED', 'COMPLETED') AND p.intake_id IS NULL AND p.school_id IN (%s)
-                GROUP BY 1, 2""".formatted(ids), rs -> {
+        // Số đang đề xuất: số kế hoạch khi đã vào kế hoạch được duyệt, trừ phần đã nhập về — xem ProposedQuantity.
+        jdbc.query(ProposedQuantity.sql("'DRAFT', 'PENDING', 'APPROVED', 'COMPLETED'",
+                " AND p.school_id IN (" + ids + ")"), rs -> {
             proposed.computeIfAbsent(rs.getLong(1), k -> new HashMap<>()).put(rs.getLong(2), rs.getInt(3));
         });
 
@@ -370,7 +369,7 @@ public class YearAdequacyService {
     }
 
     private static final Map<String, String> BASIS = Map.of("PER_CLASS", "lớp", "PER_STUDENT", "HS",
-            "PER_TEACHER", "GV", "PER_ROOM", "phòng", "PER_SCHOOL", "trường");
+            "PER_TEACHER", "GV", "PER_ROOM", "phòng", "PER_ROOM_STUDENT", "HS trong phòng", "PER_SCHOOL", "trường");
 
     /** Điều chỉnh Sở cho, nói bằng một câu ngắn: "Giảm 1/2 HS", "Thay bằng …", "Dùng chung với …", "Chọn 1 trong nhóm …". */
     static String allowedText(Map<String, Object> n) {
@@ -490,9 +489,10 @@ public class YearAdequacyService {
     // ------------------------------------------------------------------ dữ liệu nguồn
 
     /**
-     * Thiết bị tại ngày cắt: (trường → (cơ sở → (thiết bị → [dùng được, hỏng, mất]))). Trạng thái tại
-     * ngày cắt = {@code from_value} của lần đổi trạng thái ĐẦU TIÊN sau ngày cắt (nhãn → mã), không có thì trạng thái
-     * hiện tại. Thiết bị chỉ tính khi đã ghi tăng trước ngày cắt.
+     * Thiết bị tại ngày cắt: (trường → (cơ sở → (thiết bị → [dùng được, mất]))). Ngày cắt theo từng trường: năm hiện
+     * tại là {@code cut} (lúc này); năm đã qua là lần hoàn tất biên bản kiểm kê cuối cùng của trường trong năm đó, không
+     * có thì {@code cut} (cuối năm học). Trạng thái tại ngày cắt = {@code from_value} của lần đổi trạng thái ĐẦU TIÊN
+     * sau ngày cắt (nhãn → mã), không có thì trạng thái hiện tại. Thiết bị chỉ tính khi đã ghi tăng trước ngày cắt.
      */
     private Map<Long, Map<Long, Map<Long, int[]>>> equipmentAt(String ids, Year year, Timestamp cut) {
         StringBuilder labels = new StringBuilder();
@@ -502,12 +502,14 @@ public class YearAdequacyService {
         }
         boolean past = !year.current();
         String sql = """
-                WITH base AS (
+                WITH cut AS (
+                  SELECT s.id AS school_id, %s AS at FROM schools s WHERE s.id IN (%s)),
+                base AS (
                   SELECT e.id, e.catalog_id, COALESCE(e.quantity, 1) AS qty, e.room_id, e.status,
-                         e.school_id AS school_at,
+                         e.school_id AS school_at, c.at AS cut_at,
                          %s AS status_before,
                          %s AS since
-                  FROM equipment e
+                  FROM equipment e JOIN cut c ON c.school_id = e.school_id
                   WHERE e.school_id IN (%s)),
                 st AS (
                   SELECT b.*, COALESCE(lb.code, b.status) AS status_at FROM base b
@@ -515,11 +517,16 @@ public class YearAdequacyService {
                 SELECT st.school_at, %s AS campus_id, st.catalog_id, st.status_at,
                        SUM(st.qty)::int AS n
                 FROM st
-                WHERE st.school_at IN (%s) AND st.since <= ?
+                WHERE st.school_at IN (%s) AND st.since <= st.cut_at
                 GROUP BY 1, 2, 3, 4""".formatted(
                 past ? """
+                        COALESCE((SELECT max(i.completed_at) FROM inventory_sessions i WHERE i.school_id = s.id
+                                    AND i.status = 'COMPLETED' AND i.completed_at >= ? AND i.completed_at < ?), ?)"""
+                        : "?::timestamptz",
+                ids,
+                past ? """
                         (SELECT h.from_value FROM equipment_history h WHERE h.equipment_id = e.id AND h.field = 'status'
-                           AND h.created_at > ? ORDER BY h.created_at, h.id LIMIT 1)""" : "NULL::varchar",
+                           AND h.created_at > c.at ORDER BY h.created_at, h.id LIMIT 1)""" : "NULL::varchar",
                 """
                         LEAST(COALESCE((SELECT min(h.created_at) FROM equipment_history h WHERE h.equipment_id = e.id
                                         AND h.action = 'GHI_TANG'), e.created_at),
@@ -530,6 +537,7 @@ public class YearAdequacyService {
                 ids);
         List<Object> args = new ArrayList<>();
         if (past) {
+            args.add(Timestamp.from(year.start().atStartOfDay(VN).toInstant()));
             args.add(cut);
         }
         args.add(cut);

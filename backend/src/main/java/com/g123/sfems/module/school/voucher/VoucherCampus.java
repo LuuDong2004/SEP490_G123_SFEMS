@@ -2,6 +2,7 @@ package com.g123.sfems.module.school.voucher;
 
 import com.g123.sfems.domain.organization.School;
 import com.g123.sfems.domain.school.equipment.Equipment;
+import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.domain.school.facility.Room;
 import com.g123.sfems.domain.school.voucher.SchoolVoucher;
 import com.g123.sfems.module.school.facility.CampusScope;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.hibernate.Hibernate;
 import org.springframework.data.jpa.domain.Specification;
@@ -38,7 +40,8 @@ import org.springframework.util.ReflectionUtils;
  * Phạm vi CƠ SỞ của phiếu (267, giai đoạn 2) — MỘT luật cho mọi loại phiếu và phiếu ghi tăng. Phiếu "chạm" một cơ sở
  * khi phòng ở đầu phiếu, thiết bị ở đầu phiếu, hoặc BẤT KỲ dòng nào (phòng của dòng, thiết bị của dòng theo phòng hiện
  * tại) thuộc cơ sở đó — phiếu có thiết bị của hai cơ sở thì cán bộ cả hai cơ sở cùng thấy. Phiếu không phòng, không
- * thiết bị (đề xuất mua sắm) thuộc cơ sở chính. Thiết bị chưa có phòng thuộc cơ sở chính.
+ * thiết bị thuộc cơ sở chính. Thiết bị chưa có phòng thuộc cơ sở chính. Phiếu mang cơ sở ở đầu phiếu (đề xuất mua sắm,
+ * 297) thuộc cơ sở đó.
  *
  * <p>Mỗi loại phiếu chỉ khai HÌNH DẠNG ({@link Shape}: thuộc tính phòng / thiết bị ở đầu phiếu, các tập dòng và
  * phòng / thiết bị trên dòng); từ đó dựng cả vế lọc (EXISTS tương quan — không join nhân dòng, {@code X-Total-Count}
@@ -51,8 +54,15 @@ public class VoucherCampus {
     public record Line(String collection, List<String> rooms, List<String> equipment) {
     }
 
-    /** Hình dạng của một loại phiếu. */
-    public record Shape(List<String> rooms, List<String> equipment, List<Line> lines) {
+    /**
+     * Hình dạng của một loại phiếu. {@code campuses}: thuộc tính CƠ SỞ ghi thẳng ở đầu phiếu (đề xuất mua sắm ghi cơ
+     * sở của người lập), trống = cơ sở chính.
+     */
+    public record Shape(List<String> rooms, List<String> equipment, List<Line> lines, List<String> campuses) {
+
+        public Shape(List<String> rooms, List<String> equipment, List<Line> lines) {
+            this(rooms, equipment, lines, List.of());
+        }
 
         /** Mặc định: dòng {@code lines} trỏ tới thiết bị ({@code VoucherEquipmentLine}). */
         public static final Shape LINES = new Shape(List.of(), List.of(),
@@ -73,6 +83,9 @@ public class VoucherCampus {
     private final CampusScope campus;
     private final RowLevelPrincipalResolver principals;
 
+    /** Hình dạng theo loại phiếu — để luồng duyệt biết phiếu chạm những cơ sở nào ({@link #touchedCampuses}). */
+    private final Map<Class<?>, Shape> shapes = new ConcurrentHashMap<>();
+
     public VoucherCampus(CampusScope campus, RowLevelPrincipalResolver principals) {
         this.campus = campus;
         this.principals = principals;
@@ -81,6 +94,54 @@ public class VoucherCampus {
     /** Cơ sở mà người gọi bị giới hạn trong ({@code null} = không giới hạn). */
     public Long pinnedCampus() {
         return campus.pinnedCampusId();
+    }
+
+    /** Service của mỗi loại phiếu khai hình dạng của nó một lần lúc khởi động. */
+    public void register(Class<? extends SchoolVoucher> type, Shape shape) {
+        shapes.put(type, shape);
+    }
+
+    /**
+     * Các cơ sở của trường lập phiếu mà phiếu chạm tới, theo cùng luật với bộ lọc: phòng, thiết bị, cơ sở ghi trên phiếu;
+     * không trỏ tới gì thì cơ sở chính. Trường chưa khai cơ sở nào thì rỗng.
+     */
+    public Set<Long> touchedCampuses(SchoolVoucher voucher) {
+        Shape shape = shapes.getOrDefault(Hibernate.getClass(voucher), Shape.LINES);
+        Long school = voucher.getSchool() == null ? null : voucher.getSchool().getId();
+        Set<Long> out = new HashSet<>();
+        for (Anchor a : anchors(shape, voucher)) {
+            if (Objects.equals(a.schoolId(), school) && a.campusId() != null) {
+                out.add(a.campusId());
+            }
+        }
+        if (out.isEmpty()) {
+            Long main = campus.mainCampusOf(voucher.getSchool());
+            if (main != null) {
+                out.add(main);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Phiếu CHỈ chạm cơ sở của người gọi (không chạm cơ sở nào khác của trường) — danh sách "chờ tôi duyệt" của lãnh đạo
+     * một cơ sở; phiếu chạm nhiều cơ sở do lãnh đạo cả trường duyệt. Người gọi không bị giới hạn: không lọc.
+     */
+    public <V> Specification<V> solelyPinned(Shape shape) {
+        return (root, query, cb) -> {
+            Long pinned = campus.pinnedCampusId();
+            if (pinned == null) {
+                return null;
+            }
+            List<Predicate> all = new ArrayList<>();
+            all.add(touches(shape, root, query, cb, pinned));
+            for (CampusLabel other : campus.activeCampuses(campus.schoolOfCampus(pinned))) {
+                if (!Objects.equals(other.id(), pinned)) {
+                    all.add(cb.not(touches(shape, root, query, cb, other.id())));
+                }
+            }
+            return cb.and(all.toArray(Predicate[]::new));
+        };
     }
 
     // ------------------------------------------------------------------ đọc
@@ -201,6 +262,9 @@ public class VoucherCampus {
         Long school = campus.schoolOfCampus(campusId);
         boolean main = campus.isMainCampus(campusId);
         List<Predicate> any = new ArrayList<>();
+        for (String attr : shape.campuses()) {
+            any.add(cb.equal(root.get(attr).get("id"), campusId));
+        }
         for (String attr : shape.rooms()) {
             any.add(roomIn(root.get(attr), rooms, cb));
         }
@@ -240,6 +304,9 @@ public class VoucherCampus {
             Long school) {
         List<Predicate> none = new ArrayList<>();
         none.add(cb.equal(root.get("school").get("id"), school));
+        for (String attr : shape.campuses()) {
+            none.add(cb.isNull(root.get(attr)));
+        }
         for (String attr : shape.rooms()) {
             none.add(cb.isNull(root.get(attr)));
         }
@@ -289,6 +356,13 @@ public class VoucherCampus {
     private List<Anchor> anchors(Shape shape, SchoolVoucher voucher) {
         List<Anchor> out = new ArrayList<>();
         Object self = Hibernate.unproxy(voucher);
+        for (String attr : shape.campuses()) {
+            if (read(self, attr) instanceof Campus c) {
+                School school = voucher.getSchool();
+                out.add(new Anchor("C" + c.getId(), attr, "Cơ sở khác", school == null ? null : school.getId(),
+                        campus.effectiveCampus(c, school)));
+            }
+        }
         for (String attr : shape.rooms()) {
             room(out, read(self, attr), attr, OTHER_ROOM);
         }
@@ -344,7 +418,7 @@ public class VoucherCampus {
         }
         ReflectionUtils.makeAccessible(field);
         Object value = ReflectionUtils.getField(field, target);
-        return value instanceof Room || value instanceof Equipment || value instanceof School
+        return value instanceof Room || value instanceof Equipment || value instanceof School || value instanceof Campus
                 ? Hibernate.unproxy(value) : value;
     }
 }

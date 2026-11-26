@@ -34,6 +34,7 @@ import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
 import jakarta.persistence.LockModeType;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,11 +145,12 @@ public class EquipmentIntakeService implements RecordAccess {
         this.forms = forms;
         this.schoolYears = schoolYears;
         this.campus = campus;
+        campus.register(EquipmentIntake.class, CAMPUS);
     }
 
     public Page<EquipmentIntake> list(ListParams params) {
         Specification<EquipmentIntake> awaiting = VoucherSpecs.awaitingMe(params)
-                ? workflow.awaitingMe() : Specification.unrestricted();
+                ? workflow.<EquipmentIntake>awaitingMe().and(campus.solelyPinned(CAMPUS)) : Specification.unrestricted();
         Page<EquipmentIntake> page = repository.findAll(
                 rowLevel.<EquipmentIntake>scope(EquipmentIntake.class, Action.READ)
                         .and(campus.pinned(CAMPUS))
@@ -333,6 +335,7 @@ public class EquipmentIntakeService implements RecordAccess {
                     intake.getSchool().getId()));
         }
         checkLines(intake);
+        checkSource(intake, false);
         fitSources(intake);
         checkDocuments(intake);
         checkSerials(intake);
@@ -356,13 +359,16 @@ public class EquipmentIntakeService implements RecordAccess {
             throw new FieldValidationException("lines", "Phiếu chưa có dòng nào để ghi tăng");
         }
         checkLines(intake);
+        // Phiếu nguồn trước các ô còn thiếu: phiếu "Kế hoạch mua sắm" / "Kiểm kê thừa" không có phiếu nguồn hợp lệ thì
+        // hoàn thiện các ô khác cũng không trình được.
+        requirePlanLink(intake);
+        checkSource(intake, true);
         forms.requireComplete(RESOURCE, intake.getDetails());
         for (EquipmentIntakeLine line : intake.getLines()) {
             forms.requireLineComplete(RESOURCE, line.getDetails(), line.getLineNo());
         }
         requireDocumentLines(intake);
         requireSources(intake);
-        requirePlanLink(intake);
         requirePurchaseDocuments(intake);
         requireSchoolYear(intake);
         requireAssetProfileData(intake);
@@ -388,6 +394,10 @@ public class EquipmentIntakeService implements RecordAccess {
         lockAndReread(intake);
         if (workflow.approve(intake, RESOURCE, note)) {
             checkLines(intake);
+            // Phiếu nguồn và số còn lại của nó cũng kiểm lại: giữa trình và duyệt, phiếu ghi tăng khác của cùng kế hoạch
+            // (hay cùng biên bản kiểm kê) có thể đã được duyệt và ăn vào số còn lại.
+            requirePlanLink(intake);
+            checkSource(intake, true);
             // Kiểm lại ở đây chứ không tin lần kiểm lúc trình: giữa trình và
             // duyệt có thể có phiếu khác của cùng trường đã ăn hết số thứ tự.
             requireSources(intake);
@@ -624,9 +634,19 @@ public class EquipmentIntakeService implements RecordAccess {
         readable(id);
     }
 
+    /**
+     * Ghi được phiếu — và cùng với nó tệp đính kèm của phiếu, của từng hoá đơn, từng dòng
+     * ({@link EquipmentIntakeDocumentAccess}, {@link EquipmentIntakeLineAccess} hỏi qua đây). Tệp chỉ thêm / xoá được
+     * khi phiếu còn NHÁP (gồm phiếu bị trả lại — trả lại là về nháp): phiếu đã trình thì người duyệt đang duyệt đúng bộ
+     * hồ sơ ấy, phiếu đã ghi tăng thì tệp là căn cứ của các thiết bị đã sinh; phiếu bị từ chối, đã huỷ là chứng từ đã đóng.
+     */
     @Override
     public void checkWritable(Long id) {
-        writable(id);
+        EquipmentIntake intake = writable(id);
+        if (intake.getStatus() != VoucherStatus.DRAFT) {
+            throw new FieldValidationException("attachments",
+                    "Chỉ thêm, xoá tệp đính kèm khi phiếu còn nháp — phiếu đã trình thì phải được trả lại mới sửa");
+        }
     }
 
     /**
@@ -1215,12 +1235,141 @@ public class EquipmentIntakeService implements RecordAccess {
      * 13/11/2026) — kiểm lúc TRÌNH, nháp vẫn lưu được. Trường tự mua ngoài kế hoạch thì chọn nguồn "Trường tự mua sắm".
      */
     static void requirePlanLink(EquipmentIntake intake) {
+        OriginRule rule = OriginRule.of(intake.getOriginSource()).orElse(null);
         // Chỉ "Kế hoạch mua sắm" phải đi từ kế hoạch; "Trường tự mua sắm" thì không.
-        if (OriginRule.of(intake.getOriginSource()).orElse(null) == OriginRule.MUA_SAM
-                && !"purchase_proposals".equals(intake.getSourceResource())) {
+        if (rule == OriginRule.MUA_SAM && !PROPOSALS.equals(intake.getSourceResource())) {
             throw new FieldValidationException("originSource",
                     "Nguồn Kế hoạch mua sắm: chọn kế hoạch mua sắm. Hàng tự mua ngoài kế hoạch thì chọn nguồn Trường tự mua sắm");
         }
+        // "Kiểm kê thừa" cũng vậy: thiết bị thừa chỉ có khi một biên bản kiểm kê đã duyệt ghi nhận nó — phiếu lập tay với
+        // nguồn này là ghi tăng không căn cứ.
+        if (rule == OriginRule.KIEM_KE_THUA && !SESSIONS.equals(intake.getSourceResource())) {
+            throw new FieldValidationException("originSource",
+                    "Nguồn Kiểm kê thừa: chọn biên bản kiểm kê đã duyệt có thiết bị thừa. Thiết bị có nguồn khác thì chọn đúng nguồn hình thành của nó");
+        }
+        // Chiều ngược lại: phiếu lập từ phiếu nguồn mang đúng nguồn hình thành của phiếu nguồn đó.
+        OriginRule expected = PROPOSALS.equals(intake.getSourceResource()) ? OriginRule.MUA_SAM
+                : SESSIONS.equals(intake.getSourceResource()) ? OriginRule.KIEM_KE_THUA : null;
+        if (expected != null && rule != expected) {
+            throw new FieldValidationException("originSource",
+                    "Phiếu lập từ %s nên nguồn hình thành là \"%s\"".formatted(
+                            intake.getSourceCode() == null ? "phiếu nghiệp vụ khác" : intake.getSourceCode(), expected.label()));
+        }
+    }
+
+    /** Phiếu nguồn của phiếu ghi tăng: đề xuất mua sắm (trong kế hoạch được duyệt), biên bản kiểm kê. */
+    static final String PROPOSALS = "purchase_proposals";
+    static final String SESSIONS = "inventory_sessions";
+
+    /**
+     * Phiếu lập từ một phiếu nguồn chỉ ghi tăng ĐÚNG những gì phiếu nguồn cho: thiết bị có trong phiếu nguồn, và theo
+     * từng thiết bị, số thực nhận không quá phần phiếu nguồn còn lại sau các phiếu ghi tăng khác lập từ nó (nháp, chờ
+     * duyệt, đã ghi tăng — như {@link #receivedBySource}). Phiếu nguồn: đề xuất mua sắm → số ĐƯA VÀO KẾ HOẠCH của các
+     * dòng (cùng cách {@code PurchaseProposalService.intakeLines} tính số còn phải nhập); biên bản kiểm kê → số thiết bị
+     * thừa đã ghi nhận.
+     *
+     * <p>Lúc lập phiếu nháp từ phiếu nguồn số đã được kiểm, nhưng phiếu nháp thì sửa được: không kiểm lại thì phiếu 10
+     * máy chiếu theo kế hoạch sửa thành 50 rồi duyệt là sinh 50 thiết bị, thêm dòng thiết bị ngoài kế hoạch cũng được,
+     * và đổi thiết bị của một dòng là trả lại số còn lại của thiết bị cũ để lập thêm phiếu khác. Nên kiểm ở mọi lần lưu
+     * dòng, lúc trình và lúc duyệt.
+     *
+     * <p>Khoá dòng phiếu nguồn ({@code FOR UPDATE}) trước khi đếm: hai phiếu ghi tăng của cùng một kế hoạch sửa / duyệt
+     * cùng lúc, hay một phiếu đang sửa trong lúc đề xuất lập thêm phiếu ghi tăng (đề xuất cũng khoá chính dòng đó), phải
+     * đợi nhau — không thì mỗi bên đều thấy còn đủ và cộng lại vượt kế hoạch.
+     *
+     * @param submitting lúc trình / duyệt: phiếu nguồn còn phải ở trạng thái cho ghi tăng (đề xuất đã vào kế hoạch được
+     *                   duyệt, biên bản đã duyệt). Lúc lưu nháp không đòi — để người lập vẫn sửa được phiếu.
+     */
+    private void checkSource(EquipmentIntake intake, boolean submitting) {
+        String resource = intake.getSourceResource();
+        if (intake.getSourceId() == null || !(PROPOSALS.equals(resource) || SESSIONS.equals(resource))) {
+            return;
+        }
+        boolean proposal = PROPOSALS.equals(resource);
+        String source = (proposal ? "đề xuất " : "biên bản kiểm kê ")
+                + (intake.getSourceCode() == null ? "" : intake.getSourceCode());
+        // Tên bảng lấy từ hằng ở trên, không từ dữ liệu gửi lên.
+        List<?> head = entityManager.createNativeQuery(
+                        "SELECT school_id, status FROM " + resource + " WHERE id = :id FOR UPDATE")
+                .setParameter("id", intake.getSourceId())
+                .setFlushMode(FlushModeType.COMMIT)
+                .getResultList();
+        if (head.isEmpty()) {
+            throw new FieldValidationException("originSource", "Không còn %s mà phiếu này lập từ đó".formatted(source.strip()));
+        }
+        Object[] row = (Object[]) head.get(0);
+        if (!intake.getSchool().getId().equals(((Number) row[0]).longValue())) {
+            throw new FieldValidationException("originSource",
+                    "%s không thuộc trường của phiếu".formatted(capitalize(source.strip())));
+        }
+        if (submitting && !VoucherStatus.COMPLETED.name().equals(row[1])) {
+            throw new FieldValidationException("originSource", proposal
+                    ? "Đề xuất %s chưa vào kế hoạch mua sắm được duyệt — chưa ghi tăng theo nó được".formatted(nullToDash(intake.getSourceCode()))
+                    : "Biên bản kiểm kê %s chưa được duyệt — chưa ghi tăng thiết bị thừa theo nó được".formatted(nullToDash(intake.getSourceCode())));
+        }
+
+        Map<Long, Integer> allowed = new HashMap<>();
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(proposal
+                        // Số sẽ mua của dòng (PurchaseProposalLine.effectiveQuantity): số đưa vào kế hoạch, chưa có thì số đề nghị.
+                        ? "SELECT catalog_id, SUM(COALESCE(planned_quantity, quantity, 0)) FROM purchase_proposal_lines"
+                                + " WHERE proposal_id = :id AND COALESCE(planned_quantity, quantity, 0) > 0 GROUP BY catalog_id"
+                        : "SELECT catalog_id, SUM(quantity) FROM inventory_surplus WHERE session_id = :id GROUP BY catalog_id")
+                .setParameter("id", intake.getSourceId())
+                .setFlushMode(FlushModeType.COMMIT)
+                .getResultList();
+        for (Object[] r : rows) {
+            allowed.put(((Number) r[0]).longValue(), ((Number) r[1]).intValue());
+        }
+        // Phần đã nằm ở phiếu ghi tăng KHÁC lập từ cùng phiếu nguồn. Không đẩy (flush) các dòng đang sửa của phiếu này
+        // xuống trước — chúng bị loại khỏi phép đếm, và chưa qua hết các bước kiểm.
+        Map<Long, Integer> others = new HashMap<>();
+        for (Object[] r : entityManager.createQuery("""
+                        select l.catalog.id, sum(l.receivedQuantity) from EquipmentIntakeLine l
+                        where l.intake.sourceResource = :resource and l.intake.sourceId = :id
+                          and l.intake.status not in :dead and l.intake.id <> :self
+                        group by l.catalog.id""", Object[].class)
+                .setParameter("resource", resource)
+                .setParameter("id", intake.getSourceId())
+                .setParameter("dead", List.of(VoucherStatus.CANCELLED, VoucherStatus.REJECTED))
+                .setParameter("self", intake.getId() == null ? -1L : intake.getId())
+                .setFlushMode(FlushModeType.COMMIT)
+                .getResultList()) {
+            others.put((Long) r[0], ((Number) r[1]).intValue());
+        }
+
+        Map<Long, Integer> mine = new LinkedHashMap<>();
+        Map<Long, String> names = new HashMap<>();
+        for (EquipmentIntakeLine line : intake.getLines()) {
+            Long catalogId = line.getCatalog().getId();
+            if (!allowed.containsKey(catalogId)) {
+                throw new FieldValidationException("lines", (proposal
+                        ? "Dòng %d (%s): thiết bị không có trong kế hoạch của %s — phiếu lập từ kế hoạch chỉ nhận thiết bị của kế hoạch. Hàng mua thêm ngoài kế hoạch thì lập phiếu khác, nguồn Trường tự mua sắm"
+                        : "Dòng %d (%s): thiết bị không có trong danh sách thiết bị thừa của %s — phiếu chỉ ghi tăng đúng thiết bị thừa biên bản đã ghi nhận")
+                        .formatted(line.getLineNo(), line.getName(), source.strip()));
+            }
+            mine.merge(catalogId, line.getReceivedQuantity() == null ? 0 : line.getReceivedQuantity(), Integer::sum);
+            names.putIfAbsent(catalogId, line.getCatalog().getName());
+        }
+        for (Map.Entry<Long, Integer> e : mine.entrySet()) {
+            int limit = allowed.get(e.getKey());
+            int left = Math.max(0, limit - others.getOrDefault(e.getKey(), 0));
+            if (e.getValue() > left) {
+                String used = left == limit ? "" : " (phiếu ghi tăng khác đã nhận %d)".formatted(limit - left);
+                throw new FieldValidationException("lines", (proposal
+                        ? "\"%s\": kế hoạch theo %s mua %d, còn %d chưa nhập%s — phiếu này ghi nhận %d. Giảm số thực nhận cho khớp kế hoạch"
+                        : "\"%s\": %s ghi nhận %d thiết bị thừa, còn %d chưa ghi tăng%s — phiếu này ghi nhận %d. Giảm số thực nhận cho khớp biên bản")
+                        .formatted(names.get(e.getKey()), source.strip(), limit, left, used, e.getValue()));
+            }
+        }
+    }
+
+    private static String nullToDash(String value) {
+        return value == null ? "—" : value;
+    }
+
+    private static String capitalize(String value) {
+        return value.isEmpty() ? value : Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     /**

@@ -1,6 +1,6 @@
 import { useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, Check, CircleAlert, FileCheck2, History, Lock, MapPinned } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, CircleAlert, CircleCheck, FileCheck2, MapPinned } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 
@@ -78,9 +78,10 @@ export function SchoolYearProfilePage() {
 }
 
 /**
- * Hồ sơ năm học của trường đang đăng nhập (màn A) — nội dung tab "Năm học" của màn Trường học: mỗi điểm trường một dòng
- * với bốn phần dữ liệu và trạng thái Đang khai → Đã xác nhận; lãnh đạo trường xác nhận từng điểm rồi chốt năm học (hộp F).
- * Năm đã chốt chỉ xem, có liên kết tới bản chốt.
+ * Hồ sơ năm học của trường đang đăng nhập — nội dung tab "Năm học" của màn Trường học (trưởng nhóm 25/11/2026). Năm học
+ * mới thành hiện hành thì có nút "Khai dữ liệu năm học …" (lên lớp, chép phân công, điều chỉnh từ năm trước); trường rà
+ * soát, sửa từng điểm trường rồi lãnh đạo trường "Xác nhận đã khai" — Sở được báo. Không khoá: xác nhận rồi vẫn sửa được,
+ * hồ sơ ghi lần sửa cuối.
  */
 export function SchoolYearProfileBody() {
   const { open: notify } = useNotification();
@@ -88,65 +89,61 @@ export function SchoolYearProfileBody() {
   const { id: yearId, setId, year } = useSchoolYear();
   const { data: p, isLoading, isError, error, refetch, isFetching } = useYearProfile(null, yearId);
   const [todos, setTodos] = useState<CampusProfile | null>(null);
-  const [closing, setClosing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [initOpen, setInitOpen] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const post = async (path: string, body: object, key: string, ok?: string) => {
-    setBusy(key);
+  const confirm = async () => {
+    if (!p) return;
+    setBusy(true);
     try {
-      await kyInstance.post(`${RESOURCE}/${path}`, { json: body }).json<YearProfile>();
-      if (ok) notify?.({ type: "success", message: ok });
+      await kyInstance.post(`${RESOURCE}/confirm`, { json: { schoolYearId: p.schoolYearId } }).json<YearProfile>();
+      notify?.({ type: "success", message: `Đã xác nhận khai dữ liệu năm học ${yearLabel(year)}, Sở đã được báo` });
+      setConfirming(false);
       await qc.invalidateQueries({ queryKey: [RESOURCE] });
-      await qc.invalidateQueries({ queryKey: ["year_standards"] });
-      return true;
     } catch (e) {
       notify?.({ type: "error", message: await errorMessage(e) });
-      return false;
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
   if (isError && !p) return <QueryError error={error} onRetry={() => void refetch()} retrying={isFetching} />;
-  const closed = p?.status === "CLOSED";
-  // Một bước chốt (trưởng nhóm 24/11/2026): không xác nhận từng điểm trường; điểm nào hết việc còn thiếu là đủ dữ liệu.
+  const confirmed = p?.status === "CONFIRMED";
   const ready = p?.campuses.filter((c) => c.todos.length === 0).length ?? 0;
-  const reopened = p?.history.find((h) => h.status === "REOPENED");
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {p ? <Badge variant={PROFILE_STATUS_VARIANTS[p.status]}>{PROFILE_STATUS_LABELS[p.status]}</Badge> : null}
         <span className="flex-1" />
-        {p?.canWrite && p.nextYear ? (
-          <Button type="button" variant="outline" onClick={() => setInitOpen(true)}>
-            <CalendarCheck />
-            Khởi tạo {p.nextYear.name.replace("Năm học ", "năm học ")}
+        {p?.initYear ? (
+          <Button type="button" onClick={() => setInitOpen(true)}>
+            <CalendarPlus />
+            Khai dữ liệu {p.initYear.name.replace("Năm học ", "năm học ")}
           </Button>
         ) : null}
       </div>
-      {closed && p?.closing ? (
-        <div className="bg-success-subtle text-success-text flex flex-wrap items-center gap-2 rounded-lg px-4 py-2 text-sm">
-          <Lock className="size-4" />
-          <span>Đã chốt {p.closing.closedAt}{p.closing.closedBy ? ` · ${p.closing.closedBy}` : ""}</span>
-          <Link to="/equipment-minimum" className="ms-auto font-medium hover:underline">Xem bản chốt →</Link>
+      {confirmed ? (
+        <div className="bg-success-subtle text-success-text flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-4 py-2 text-sm">
+          <CircleCheck className="size-4" />
+          <span>Đã xác nhận {p?.confirmedAt}{p?.confirmedBy ? ` · ${p.confirmedBy}` : ""}</span>
+          {p?.editedAt ? <span className="text-muted-foreground">· Sửa lần cuối {p.editedAt}</span> : null}
+          <span className="text-muted-foreground ms-auto text-xs">Vẫn sửa được khi có thay đổi trong năm</span>
         </div>
-      ) : reopened ? (
-        <div className="bg-warning-subtle text-warning-text flex min-w-0 items-center gap-2 rounded-lg px-4 py-2 text-sm">
-          <History className="size-4 shrink-0" />
-          <span className="min-w-0 truncate" title={reopened.reopenReason ?? ""}>
-            Mở lại {reopened.reopenedAt}{reopened.reopenedBy ? ` · ${reopened.reopenedBy}` : ""}: {reopened.reopenReason}
+      ) : p?.initYear ? (
+        <div className="bg-info-subtle text-info-text flex items-start gap-2 rounded-lg px-4 py-2.5 text-sm">
+          <CalendarPlus className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {p.initYear.name} đã là năm học hiện hành. Bấm <b>Khai dữ liệu</b> để lên lớp tự động và chép phân công giáo viên
+            {p.initYear.fromName ? ` từ ${p.initYear.fromName.toLowerCase()}` : ""}, rồi rà soát, sửa và xác nhận đã khai.
           </span>
         </div>
       ) : null}
-      {/* Nói luôn quy trình: màn chỉ có số và nút mờ thì không ai hiểu vì sao không chốt được (góp ý 23/11/2026). */}
-      {p && !closed ? (
+      {/* Nói luôn quy trình: màn chỉ có số và nút mờ thì không ai hiểu vì sao chưa xác nhận được (góp ý 23/11/2026). */}
+      {p && !confirmed ? (
         <ol className="text-muted-foreground grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          <li><span className="text-foreground font-medium">1. Khai đủ dữ liệu</span> của từng điểm trường: lớp và sĩ số,
-            phân công giáo viên, phòng, thiết bị đã xếp phòng. Ô màu cam là còn thiếu, bấm vào để sửa.</li>
-          <li><span className="text-foreground font-medium">2. Hiệu trưởng chốt năm học</span> khi mọi điểm trường đã đủ.
-            Số liệu chuẩn tối thiểu lưu thành bản chốt, dữ liệu năm đó khoá lại. Cần sửa thì Sở mở lại. Đề xuất mua sắm của
-            năm chưa chốt vẫn trình được nhưng mang nhãn "Năm học chưa chốt".</li>
+          <li><span className="text-foreground font-medium">1. Khai đủ dữ liệu</span> từng điểm trường. Ô cam là còn thiếu.</li>
+          <li><span className="text-foreground font-medium">2. Hiệu trưởng xác nhận</span> khi đã đủ.</li>
         </ol>
       ) : null}
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
@@ -178,9 +175,7 @@ export function SchoolYearProfileBody() {
                     <TableCell>{cell("rooms", `${num.format(c.rooms)} phòng`)}</TableCell>
                     <TableCell>{cell("equipment", `${num.format(c.equipment)} thiết bị`)}</TableCell>
                     <TableCell>
-                      {closed ? (
-                        <Badge variant={PROFILE_STATUS_VARIANTS.CLOSED}>{PROFILE_STATUS_LABELS.CLOSED}</Badge>
-                      ) : c.todos.length > 0 ? (
+                      {c.todos.length > 0 ? (
                         // Còn thiếu: nói còn mấy việc, bấm ra danh sách việc.
                         <button type="button" onClick={() => setTodos(c)}
                           className="text-warning-text inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
@@ -202,22 +197,22 @@ export function SchoolYearProfileBody() {
             </TableBody>
           </Table>
         </div>
-        {p && !closed ? (
+        {p && !confirmed ? (
           <div className="flex flex-wrap items-center gap-3 border-t px-4 py-3 text-sm">
             <span className="text-muted-foreground tabular-nums">Đủ dữ liệu {ready}/{p.campuses.length} điểm trường</span>
             <span className="flex-1" />
             {p.canConfirm ? (
               <>
-                {!p.canClose ? (
-                  <span className="text-muted-foreground text-xs">Khai đủ dữ liệu ở {p.campuses.length} điểm trường thì mới chốt được</span>
+                {!p.ready ? (
+                  <span className="text-muted-foreground text-xs">Khai đủ dữ liệu ở {p.campuses.length} điểm trường thì mới xác nhận được</span>
                 ) : null}
-                <Button type="button" disabled={!p.canClose || !!busy} onClick={() => setClosing(true)}>
+                <Button type="button" disabled={!p.ready || busy} onClick={() => setConfirming(true)}>
                   <FileCheck2 />
-                  Chốt năm học
+                  Xác nhận đã khai
                 </Button>
               </>
             ) : (
-              <span className="text-muted-foreground text-xs">Hiệu trưởng chốt năm học</span>
+              <span className="text-muted-foreground text-xs">Hiệu trưởng xác nhận đã khai</span>
             )}
           </div>
         ) : null}
@@ -244,17 +239,16 @@ export function SchoolYearProfileBody() {
           )}
         </DialogContent>
       </Dialog>
-      <AlertDialog open={closing} onOpenChange={setClosing}>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
         {p ? (
-          <ConfirmContent tone="neutral" title={`Chốt ${p.schoolYearName.toLowerCase()} của ${p.schoolName}?`}
-            description="Số liệu chuẩn tối thiểu lưu thành bản chốt; lớp, phân công giáo viên, điều chỉnh của năm này bị khoá."
-            cancelLabel="Chưa chốt" confirmLabel="Chốt năm học" busy={busy === "close"}
-            onConfirm={() => void post("close", { schoolYearId: p.schoolYearId }, "close", `Đã chốt năm học ${yearLabel(year)}`)
-              .then((ok) => ok && setClosing(false))} />
+          <ConfirmContent tone="neutral" title={`Xác nhận đã khai ${p.schoolYearName.toLowerCase()}?`}
+            description="Sở được báo trường đã khai xong dữ liệu đầu năm. Sau đó trường vẫn sửa lớp, phân công, phòng được khi có thay đổi."
+            cancelLabel="Chưa xác nhận" confirmLabel="Xác nhận đã khai" busy={busy}
+            onConfirm={() => void confirm()} />
         ) : null}
       </AlertDialog>
-      {initOpen && p?.nextYear ? (
-        <InitYearDialog fromYear={p.schoolYearName} target={p.nextYear} onClose={() => setInitOpen(false)}
+      {initOpen && p?.initYear ? (
+        <InitYearDialog fromYear={p.initYear.fromName ?? undefined} target={p.initYear} onClose={() => setInitOpen(false)}
           onDone={(id) => { setInitOpen(false); setId(id); }} />
       ) : null}
     </div>
