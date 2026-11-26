@@ -58,6 +58,18 @@ public class StudentService extends SchoolOwnedService<Student, StudentRequest, 
         this.jdbc = jdbc;
     }
 
+    /**
+     * Thêm cột sắp theo LỚP (thứ tự lớp, mã lớp): danh sách học sinh phân trang theo lớp thì học sinh một lớp nằm liền
+     * nhau, dòng tiêu đề lớp không bị rải ra nhiều trang.
+     */
+    private static final Set<String> SORTABLE = Set.of("id", "code", "name", "sortOrder", "active", "createdAt",
+            "updatedAt", "schoolClass.sortOrder", "schoolClass.code");
+
+    @Override
+    protected Set<String> sortable() {
+        return SORTABLE;
+    }
+
     @Override
     @Transactional
     public Student create(StudentRequest request) {

@@ -114,3 +114,9 @@ export const ADJUST_KIND_VARIANTS: Record<"REDUCE" | "SUBSTITUTE" | "SHARED" | "
   CHOOSE_IN_GROUP: "secondary",
   OUTSIDE: "neutral",
 };
+
+/** Giới tính học sinh (`StudentGender`): nam xanh dương, nữ tím — hai tông tách nhau, không mang nghĩa tốt / xấu. */
+export const GENDER_VARIANTS: Record<"MALE" | "FEMALE", BadgeVariant> = {
+  MALE: "info",
+  FEMALE: "returned",
+};

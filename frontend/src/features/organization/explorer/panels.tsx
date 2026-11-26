@@ -4,7 +4,7 @@ import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { errorMessage } from "@/shared/lib/api-error";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarCheck, CircleDashed, BadgeCheck, DoorOpen, Gauge, ListPlus, Hotel, IdCard, School, Warehouse, MapPin, Funnel, UsersRound, X } from "lucide-react";
+import { AlertTriangle, Backpack, CalendarCheck, CircleDashed, BadgeCheck, DoorOpen, Gauge, ListPlus, Hotel, IdCard, School, Warehouse, MapPin, Funnel, UsersRound, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Badge } from "@/shared/ui/badge";
@@ -369,7 +369,8 @@ export type FacilityCounts = Partial<Record<"classes" | "rooms" | "buildings" | 
 
 /**
  * Các tab: Hồ sơ trường (TC-01), Cơ sở vật chất — phòng (TC-02), Đánh giá CSVC theo chuẩn, Nhân sự (cán bộ và
- * tổ bộ môn là cùng một nhóm người — một tab, bên trong có ô chọn nhỏ), và Năm học (hồ sơ năm học: xác nhận từng điểm
+ * tổ bộ môn là cùng một nhóm người — một tab, bên trong có ô chọn nhỏ), Học sinh (304 — chỉ tài khoản được xem học
+ * sinh, tức vai loại trường), và Năm học (hồ sơ năm học: xác nhận từng điểm
  * trường, chốt năm — chỉ khi bên gọi đưa nội dung, tức tài khoản của chính trường).
  */
 const TAB_DEFS = [
@@ -377,6 +378,7 @@ const TAB_DEFS = [
   { value: "facilities", label: "Cơ sở vật chất", icon: DoorOpen, count: "rooms" },
   { value: "assessment", label: "Đánh giá CSVC", icon: BadgeCheck, count: null },
   { value: "people", label: "Nhân sự", icon: IdCard, count: "staff" },
+  { value: "students", label: "Học sinh", icon: Backpack, count: "students" },
   { value: "year", label: "Năm học", icon: CalendarCheck, count: null },
 ] as const;
 
@@ -425,8 +427,11 @@ export function SchoolFacilityTabs({
   /** Nội dung tab Năm học (hồ sơ năm học, chốt năm). Vắng thì không có tab này. */
   year?: ReactNode;
 }) {
-  const tabs = TAB_DEFS.filter((t) => t.value !== "year" || year);
-  const active = groupOf(tab) === "year" && !year ? "profile" : groupOf(tab);
+  // Học sinh (304): chỉ tài khoản được xem danh sách học sinh (vai loại trường) có tab này.
+  const mayStudents = useCan({ resource: "students", action: "list" }).data?.can ?? false;
+  const tabs = TAB_DEFS.filter((t) => (t.value !== "year" || year) && (t.value !== "students" || mayStudents));
+  const group = groupOf(tab);
+  const active = (group === "year" && !year) || (group === "students" && !mayStudents) ? "profile" : group;
   const q = `?school.id=${schoolId}`;
   const campusDialog = useQuickDialog("campuses", { school: { id: schoolId } });
   const buildingDialog = useQuickDialog("buildings", { school: { id: schoolId } });
@@ -438,8 +443,6 @@ export function SchoolFacilityTabs({
   // Lớp học ít trường: thêm / xem / sửa trong hộp thoại, không rời màn trường. Bấm một lớp là
   // xem chi tiết; nút Sửa trong đó mở form sửa (cùng khuôn với thêm mới).
   const classDialog = useQuickDialog("school_classes", { school: { id: schoolId } });
-  // Học sinh (304): cạnh Lớp học, chỉ tài khoản được xem danh sách học sinh (vai loại trường) có mục này.
-  const mayStudents = useCan({ resource: "students", action: "list" }).data?.can ?? false;
   const invalidateClasses = useInvalidate();
   // Thêm, chuyển lớp, xoá học sinh là sĩ số lớp đổi: bảng lớp đọc lại.
   const studentDialog = useQuickDialog("students", { school: { id: schoolId } },
@@ -489,7 +492,8 @@ export function SchoolFacilityTabs({
   const [section, setSection] = usePersistentState<string>("explorer.facilitySection", "rooms");
   const legacy = ["info", "standard", "statistics"];
   const picked = tab === "classes" || FACILITY_PARTS.some((p) => p.value === tab) ? tab : section;
-  const sec = legacy.includes(picked) ? "rooms" : picked;
+  // "students": mục Học sinh cũ ở cột trái — nay là tab riêng.
+  const sec = legacy.includes(picked) || picked === "students" ? "rooms" : picked;
   // Việc đang lọc danh sách hạng mục (từ "Cần hoàn thiện"); chọn mục khác ở cột trái là bỏ lọc.
   const [todo, setTodo] = useState<FacilityTodoFilter | null>(null);
   const pickSection = (v: string) => { setTodo(null); setSection(v); onTab("facilities"); };
@@ -515,6 +519,7 @@ export function SchoolFacilityTabs({
         ...(mayAssign ? [{ key: "assignments", label: "Phân công năm học" }] : []),
       ] }]} />
   );
+  const tabCounts: FacilityCounts & { students?: number } = { ...counts, students: mayStudents ? studentTotal?.total : undefined };
   return (
     <>
       {campusDialog.element}
@@ -538,9 +543,9 @@ export function SchoolFacilityTabs({
             >
               <Icon className="size-4" />
               {label}
-              {count && counts?.[count] != null ? (
+              {count && tabCounts[count] != null ? (
                 <span className="bg-foreground/[0.06] text-muted-foreground group-data-[state=active]:bg-white/20 group-data-[state=active]:text-primary-foreground rounded-full px-1.5 text-[0.6875rem] font-medium tabular-nums transition-colors">
-                  {num.format(counts[count]!)}
+                  {num.format(tabCounts[count]!)}
                 </span>
               ) : null}
             </TabsTrigger>
@@ -565,14 +570,10 @@ export function SchoolFacilityTabs({
         <TabsContent value="facilities" className="flex min-h-0 flex-1 flex-col pt-3">
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-5">
             <FacilityNav schoolId={schoolId} value={sec} onChange={pickSection}
-              counts={{ rooms: counts?.rooms, buildings: counts?.buildings, campuses: counts?.campuses, classes: counts?.classes,
-                students: mayStudents ? studentTotal?.total : null }} showStudents={mayStudents} />
+              counts={{ rooms: counts?.rooms, buildings: counts?.buildings, campuses: counts?.campuses, classes: counts?.classes }} />
             <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto">
               {sec === "classes" ? (
                 <ClassBoard schoolId={schoolId} onCreate={() => classDialog.open()} onOpen={(id) => classDialog.view(id)} onEdit={(id) => classDialog.open(id)} />
-              ) : sec === "students" && mayStudents ? (
-                <StudentBoard schoolId={schoolId} onCreate={() => studentDialog.open()} onOpen={(id) => studentDialog.view(id)}
-                  onEdit={(id) => studentDialog.open(id)} onDelete={studentDialog.remove} />
               ) : groupId ? (
                 <MiniTable key={sec} resource="rooms" path="/rooms"
                   filters={[...bySchool(schoolId), { field: "group.id", operator: "eq", value: groupId }]}
@@ -603,6 +604,12 @@ export function SchoolFacilityTabs({
             </div>
           </div>
         </TabsContent>
+        {mayStudents ? (
+          <TabsContent value="students" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
+            <StudentBoard schoolId={schoolId} onCreate={() => studentDialog.open()} onOpen={(id) => studentDialog.view(id)}
+              onEdit={(id) => studentDialog.open(id)} onDelete={studentDialog.remove} />
+          </TabsContent>
+        ) : null}
         <TabsContent value="people" className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
           {people === "staff" ? (
             <>
