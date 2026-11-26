@@ -16,7 +16,16 @@ public enum NormBasis {
     /** Mỗi giáo viên dạy môn đó. */
     PER_TEACHER("per_teacher"),
     /** Mỗi phòng học bộ môn — phụ lục ghi "danh mục tính cho 01 phòng học bộ môn". */
-    PER_ROOM("per_room");
+    PER_ROOM("per_room"),
+    /**
+     * Mỗi học sinh TRONG MỘT phòng học bộ môn / một lớp — "01/HS", "01/02HS" của thiết bị phòng bộ môn (máy tính phòng
+     * Tin, giá vẽ, bàn ghế phòng ngoại ngữ…). Phụ lục tính cho một lớp {@link #ROOM_STUDENTS} học sinh, nên cần =
+     * số lượng × ⌈{@link #ROOM_STUDENTS} ÷ cỡ nhóm⌉ × số phòng của môn (305).
+     */
+    PER_ROOM_STUDENT("per_room_student");
+
+    /** Số học sinh một phòng học bộ môn / một lớp mà phụ lục tính ("1 lớp với số học sinh là 45"). */
+    public static final int ROOM_STUDENTS = 45;
 
     private final String value;
 

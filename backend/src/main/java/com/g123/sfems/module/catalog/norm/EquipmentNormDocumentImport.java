@@ -158,7 +158,7 @@ public class EquipmentNormDocumentImport {
             firstSection.putIfAbsent(subject, parsed.sections().get(r.section()));
             int[] st = stats.computeIfAbsent(subject, k -> new int[7]);
             st[0]++;
-            if (r.normBasis() == NormBasis.PER_ROOM) {
+            if (r.normBasis() == NormBasis.PER_ROOM || r.normBasis() == NormBasis.PER_ROOM_STUDENT) {
                 st[1]++;
             }
             if (r.minQuantity() == null && !r.optional()) {
@@ -325,6 +325,7 @@ public class EquipmentNormDocumentImport {
         String q = qty == null ? "?" : qty.stripTrailingZeros().toPlainString();
         String b = basis == null ? "?" : switch (basis.toUpperCase()) {
             case "PER_ROOM" -> "phòng";
+            case "PER_ROOM_STUDENT" -> "HS/phòng";
             case "PER_TEACHER" -> "GV";
             case "PER_CLASS" -> "lớp";
             case "PER_STUDENT" -> "HS";

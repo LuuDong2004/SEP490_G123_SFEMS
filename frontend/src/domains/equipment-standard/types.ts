@@ -21,6 +21,7 @@ export const NORM_BASIS_LABELS: Record<string, string> = {
   per_student: "Theo nhóm học sinh",
   per_teacher: "Theo giáo viên",
   per_room: "Theo phòng học bộ môn",
+  per_room_student: "Theo học sinh trong phòng bộ môn",
   per_school: "Theo trường",
 };
 
@@ -89,6 +90,7 @@ export const ADJUST_BASIS_LABELS: Record<string, string> = {
   per_class: "Lớp",
   per_teacher: "Giáo viên",
   per_room: "Phòng bộ môn",
+  per_room_student: "Học sinh trong phòng bộ môn",
   per_school: "Trường",
 };
 
@@ -182,6 +184,7 @@ export function quantityLabel(n: Pick<EquipmentNorm, "quantityText" | "minQuanti
     per_student: "HS",
     per_teacher: "GV",
     per_room: "PHBM",
+    per_room_student: "HS/PHBM",
     per_school: "trường",
   };
   const size = n.basisSize && n.basisSize > 1 ? `${n.basisSize} ` : "";

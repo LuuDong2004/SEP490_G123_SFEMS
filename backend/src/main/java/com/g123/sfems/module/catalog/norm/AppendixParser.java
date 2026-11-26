@@ -365,7 +365,8 @@ final class AppendixParser {
             while (d.find()) {
                 size = Math.max(size, Integer.parseInt(d.group()));
             }
-            return new Quantity(qty, NormBasis.PER_STUDENT, sizeOrNull(size));
+            // Mục "tính cho 01 phòng học bộ môn": "01/HS" là mỗi em TRONG phòng đó (305), không phải cả trường.
+            return new Quantity(qty, perRoom ? NormBasis.PER_ROOM_STUDENT : NormBasis.PER_STUDENT, sizeOrNull(size));
         }
         return new Quantity(null, null, null);
     }

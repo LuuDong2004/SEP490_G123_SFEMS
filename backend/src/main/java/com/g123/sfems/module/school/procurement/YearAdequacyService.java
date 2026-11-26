@@ -369,7 +369,7 @@ public class YearAdequacyService {
     }
 
     private static final Map<String, String> BASIS = Map.of("PER_CLASS", "lớp", "PER_STUDENT", "HS",
-            "PER_TEACHER", "GV", "PER_ROOM", "phòng", "PER_SCHOOL", "trường");
+            "PER_TEACHER", "GV", "PER_ROOM", "phòng", "PER_ROOM_STUDENT", "HS trong phòng", "PER_SCHOOL", "trường");
 
     /** Điều chỉnh Sở cho, nói bằng một câu ngắn: "Giảm 1/2 HS", "Thay bằng …", "Dùng chung với …", "Chọn 1 trong nhóm …". */
     static String allowedText(Map<String, Object> n) {

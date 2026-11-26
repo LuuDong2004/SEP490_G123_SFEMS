@@ -790,6 +790,7 @@ const PER_LABEL: Record<string, string> = {
   per_student: "học sinh",
   per_school: "trường",
   per_room: "phòng bộ môn",
+  per_room_student: "học sinh trong phòng bộ môn",
 };
 
 /** "1 lớp", "6 học sinh" — số lượng cần tính cho bao nhiêu gì. */
@@ -1424,7 +1425,7 @@ function NormFields({ control, record, standard }: { control: Control<any>; reco
   // có" thì ĐVT / Đối tượng / Số đối tượng khoá (dòng chỉ ghi chữ theo phụ lục); có số thì hai ô kia bắt buộc.
   const noBasis = !legalId;
   const hasQty = qty !== null && qty !== undefined && String(qty).trim() !== "";
-  const perGroup = basis === "per_student" || basis === "per_class";
+  const perGroup = basis === "per_student" || basis === "per_room_student" || basis === "per_class";
   return (
     <div className="space-y-4">
       {/* Một màn, không cuộn (trưởng nhóm 17/11/2026): bỏ tiêu đề nhóm, căn cứ đứng cùng hàng với mã và môn. Thêm / sửa

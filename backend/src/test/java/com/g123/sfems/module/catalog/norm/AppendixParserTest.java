@@ -44,7 +44,8 @@ class AppendixParserTest {
         assertThat(hood.description()).isEqualTo("Tủ kín\nCó quạt hút");
 
         assertThat(rows.get(1).normBasis()).isEqualTo(NormBasis.PER_TEACHER);
-        assertThat(rows.get(2).normBasis()).isEqualTo(NormBasis.PER_STUDENT);
+        // Phụ lục "tính cho 01 phòng học bộ môn": "01/6HS" là mỗi nhóm 6 em TRONG phòng đó (305).
+        assertThat(rows.get(2).normBasis()).isEqualTo(NormBasis.PER_ROOM_STUDENT);
         assertThat(rows.get(2).basisSize()).isEqualTo(6);
         assertThat(rows.get(3).normBasis()).isEqualTo(NormBasis.PER_CLASS);
         assertThat(rows.get(3).minQuantity()).isEqualByComparingTo("2");
@@ -70,6 +71,9 @@ class AppendixParserTest {
         assertThat(AppendixParser.parseQty("01 bộ (hoặc chiếc)/5 lớp", false).size()).isEqualTo(5);
         assertThat(AppendixParser.parseQty("02/ trường", true).basis()).isEqualTo(NormBasis.PER_SCHOOL);
         assertThat(AppendixParser.parseQty("01/PHBM", false).basis()).isEqualTo(NormBasis.PER_ROOM);
+        // Mục "tính cho 01 phòng học bộ môn": "01/HS" là mỗi em trong phòng (305), ngoài mục đó vẫn theo học sinh.
+        assertThat(AppendixParser.parseQty("01/HS", true).basis()).isEqualTo(NormBasis.PER_ROOM_STUDENT);
+        assertThat(AppendixParser.parseQty("01/HS", false).basis()).isEqualTo(NormBasis.PER_STUDENT);
         assertThat(AppendixParser.parseQty("Hỗ trợ giáo viên thực hiện dạy học ngoại ngữ.", false).min()).isNull();
     }
 

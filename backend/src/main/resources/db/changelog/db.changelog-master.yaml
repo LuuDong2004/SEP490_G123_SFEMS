@@ -566,3 +566,5 @@ databaseChangeLog:
       file: db/changelog/changes/303-lanh-dao-so-lap-ke-hoach.sql
   - include:
       file: db/changelog/changes/304-hoc-sinh.sql
+  - include:
+      file: db/changelog/changes/305-dinh-muc-theo-hoc-sinh-trong-phong.sql
