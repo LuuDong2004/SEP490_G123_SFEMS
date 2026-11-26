@@ -611,66 +611,97 @@ function SurplusPanel({ record, editable }: { record: InventorySession; editable
             </div>
           ) : null}
         </div>
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm">
-            Chưa ghi thiết bị thừa nào.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <div className="bg-table-head text-overline text-table-head-text grid grid-cols-[2rem_minmax(12rem,2fr)_minmax(10rem,2fr)_6rem_minmax(10rem,2fr)_2.5rem] gap-x-2 border-b px-3 py-2">
-              <span className="text-center">#</span>
-              <span>Thiết bị (danh mục)</span>
-              <span>Tên thực tế</span>
-              <span className="pe-4 text-right">Số lượng</span>
-              <span>Ghi chú</span>
-              <span />
-            </div>
-            {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-[2rem_minmax(12rem,2fr)_minmax(10rem,2fr)_6rem_minmax(10rem,2fr)_2.5rem] items-center gap-x-2 border-b px-3 py-2 text-sm last:border-b-0">
-                <span className="text-muted-foreground text-center tabular-nums">{i + 1}</span>
-                {editable ? (
-                  // Danh mục hơn một nghìn thiết bị: tìm ở máy chủ, không đổ sẵn 200 dòng đầu.
-                  <AsyncCombobox<{ id: number; code: string; name: string }>
-                    resource="equipment_catalogs"
-                    value={r.catalog ? Number(r.catalog) : null}
-                    onChange={(id) => update(i, { catalog: id == null ? "" : String(id), catalogName: undefined })}
-                    labelOf={(c) => `${c.code} · ${c.name}`}
-                    fallbackLabel={r.catalogName ?? record.surplus[i]?.catalog.name ?? null}
-                    placeholder="Vui lòng chọn thiết bị"
-                    searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
-                  />
-                ) : (
-                  <span className="truncate">{record.surplus[i]?.catalog.name}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8" value={r.name} placeholder="= tên trong danh mục" maxLength={maxLengthOf("NAME")} onChange={(e) => update(i, { name: e.target.value })} />
-                ) : (
-                  <span className="truncate">{r.name || "—"}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8 text-right tabular-nums" type="number" min={1} value={r.quantity}
-                    onChange={(e) => update(i, { quantity: Number(e.target.value) })} />
-                ) : (
-                  <span className="pe-4 text-right tabular-nums">{r.quantity}</span>
-                )}
-                {editable ? (
-                  <Input className="h-8" value={r.note} placeholder="Ghi chú" maxLength={maxLengthOf("NOTE", 255)} onChange={(e) => update(i, { note: e.target.value })} />
-                ) : (
-                  <span className="text-muted-foreground truncate">{r.note || "—"}</span>
-                )}
-                {editable ? (
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá dòng"
-                    className="text-muted-foreground hover:text-destructive" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
-                    <Trash2 />
-                  </Button>
-                ) : <span />}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Bảng chung của hệ thống (khung, dòng nổi, dòng trống), không tự vẽ lưới bằng div. */}
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10 text-center">#</TableHead>
+                <TableHead className="min-w-48">Thiết bị (danh mục)</TableHead>
+                <TableHead className="min-w-40">Tên thực tế</TableHead>
+                <TableHead className="w-28 text-right">Số lượng</TableHead>
+                <TableHead className="min-w-40">Ghi chú</TableHead>
+                <TableHead className="w-12"><span className="sr-only">Thao tác</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableEmpty colSpan={6} title="Chưa ghi thiết bị thừa nào." />
+              ) : rows.map((r, i) => (
+                <TableRow key={i} className={cn("group/row", LIFT_ROW)}>
+                  <TableCell className="text-muted-foreground text-center tabular-nums">{i + 1}</TableCell>
+                  <TableCell>
+                    {editable ? (
+                      // Danh mục hơn một nghìn thiết bị: tìm ở máy chủ, không đổ sẵn 200 dòng đầu.
+                      <AsyncCombobox<{ id: number; code: string; name: string }>
+                        resource="equipment_catalogs"
+                        value={r.catalog ? Number(r.catalog) : null}
+                        onChange={(id) => update(i, { catalog: id == null ? "" : String(id), catalogName: undefined })}
+                        labelOf={(c) => `${c.code} · ${c.name}`}
+                        fallbackLabel={r.catalogName ?? record.surplus[i]?.catalog.name ?? null}
+                        placeholder="Vui lòng chọn thiết bị"
+                        searchPlaceholder="Tìm theo tên hoặc mã DM thiết bị…"
+                      />
+                    ) : (
+                      <span className="truncate">{record.surplus[i]?.catalog.name}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editable ? (
+                      <Input className="h-8" value={r.name} placeholder="= tên trong danh mục" maxLength={maxLengthOf("NAME")} onChange={(e) => update(i, { name: e.target.value })} />
+                    ) : (
+                      <span className="truncate">{r.name || "—"}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {editable ? (
+                      <Input className="h-8 text-right tabular-nums" type="number" min={1} value={r.quantity}
+                        onChange={(e) => update(i, { quantity: Number(e.target.value) })} />
+                    ) : r.quantity}
+                  </TableCell>
+                  <TableCell>
+                    {editable ? (
+                      <Input className="h-8" value={r.note} placeholder="Ghi chú" maxLength={maxLengthOf("NOTE", 255)} onChange={(e) => update(i, { note: e.target.value })} />
+                    ) : (
+                      <span className="text-muted-foreground truncate">{r.note || "—"}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-1">
+                    {editable ? (
+                      <Button type="button" variant="ghost" size="icon-sm" aria-label="Xoá dòng"
+                        className="text-muted-foreground hover:text-destructive" onClick={() => setRows((all) => all.filter((_, j) => j !== i))}>
+                        <Trash2 />
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Một khuôn bảng cho biên bản kiểm kê (KK-07) — cả dạng văn bản trên màn lẫn bản in: số lượng sổ ghi / đếm được với
+ * hoá chất, vật tư theo lô, kết quả đối chiếu và ghi chú của từng dòng.
+ */
+const REPORT_HEADERS = ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Kết quả", "Ghi chú"];
+
+function reportRows(record: InventorySession): (string | number)[][] {
+  return record.lines.map((l, i) => [
+    i + 1,
+    l.equipmentCode,
+    l.equipmentName,
+    `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
+    l.found == null ? "Chưa kiểm" : l.found
+      ? `${l.foundRoom?.name ?? "Như hệ thống"}${l.expectedQuantity != null ? ` · SL ${number.format(l.countedQuantity ?? l.expectedQuantity)}` : ""}`
+      : "Không thấy",
+    l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
+    l.note ?? "",
+  ]);
 }
 
 /** Phiếu kiểm kê ở các trạng thái này khoá số liệu (máy chủ: `InventoryFreeze.COUNTING`). */
@@ -798,22 +829,7 @@ export const InventorySessionShow = () => {
               ...detailFacts(config, record.details, null),
               { label: "Kết luận", value: record.conclusion, wide: true },
             ]}
-            table={{
-              headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Kết quả"],
-              rows: record.lines.map((l, i) => [
-                i + 1,
-                l.equipmentCode,
-                l.equipmentName,
-                // Hoá chất, vật tư theo lô: thêm số lượng sổ ghi / đếm được.
-                `${l.expectedRoom?.name ?? "Kho"}${l.expectedQuantity != null ? ` · SL ${number.format(l.expectedQuantity)}` : ""}`,
-                l.found == null ? "Chưa kiểm" : l.found
-                  ? `${l.foundRoom?.name ?? "Như hệ thống"}${l.expectedQuantity != null ? ` · SL ${number.format(l.countedQuantity ?? l.expectedQuantity)}` : ""}`
-                  : "Không thấy",
-                l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
-              ]),
-              alignCenter: [0],
-              grow: 2,
-            }}
+            table={{ headers: REPORT_HEADERS, rows: reportRows(record), alignCenter: [0], grow: 2 }}
             signers={[{ title: "Người kiểm kê" }, { title: "Kế toán" }, { title: "Thủ trưởng đơn vị" }]}
           />
         </>
@@ -825,25 +841,15 @@ export const InventorySessionShow = () => {
           title="Biên bản kiểm kê thiết bị"
           subtitle={record.code ? `Số: ${record.code}` : "Phiếu nháp, chưa cấp số"}
           facts={[
-            { label: "Tên đợt", value: record.title },
+            { label: "Tên phiếu", value: record.title },
             { label: "Ngày kiểm kê", value: formatPlainDate(record.inventoryDate) },
             { label: "Phạm vi", value: record.room?.name ?? "Cả trường" },
+            ...(record.campaign?.name ? [{ label: "Đợt kiểm kê", value: record.campaign.name }] : []),
             ...(record.council ? [{ label: "Tổ kiểm kê", value: record.council }] : []),
             ...(record.conclusion ? [{ label: "Kết luận", value: record.conclusion }] : []),
             ...detailFacts(config, record.details, null),
           ]}
-          table={{
-            headers: ["STT", "Mã thiết bị", "Tên thiết bị", "Hệ thống ghi", "Thực tế", "Chênh lệch", "Ghi chú"],
-            rows: record.lines.map((l) => [
-              l.lineNo,
-              l.equipmentCode,
-              l.equipmentName,
-              l.expectedRoom?.name ?? "Kho",
-              l.found == null ? "Chưa kiểm" : l.found ? (l.foundRoom?.name ?? "Đúng như hệ thống") : "Không thấy",
-              l.discrepancies.map((x) => DISCREPANCY_LABELS[x]).join(", ") || (l.found != null ? "Khớp" : ""),
-              l.note ?? "",
-            ]),
-          }}
+          table={{ headers: REPORT_HEADERS, rows: reportRows(record) }}
           signers={["Người kiểm kê", "Kế toán", "Thủ trưởng đơn vị"]}
         />
       ) : null}
@@ -892,7 +898,7 @@ export const InventorySessionShow = () => {
                   <SideFact label="Số phiếu">
                     {record?.code ? <span className="font-mono">{record.code}</span> : <span className="text-muted-foreground font-normal">Cấp khi trình</span>}
                   </SideFact>
-                  <SideFact label="Tên đợt">{record?.title}</SideFact>
+                  <SideFact label="Tên phiếu">{record?.title}</SideFact>
                   {perspective === "school" ? null : <SideFact label="Trường">{record?.school?.name}</SideFact>}
                   <SideFact label="Ngày kiểm kê">{formatPlainDate(record?.inventoryDate)}</SideFact>
                   <SideFact label="Phạm vi">{record?.room?.name ?? "Cả trường"}</SideFact>

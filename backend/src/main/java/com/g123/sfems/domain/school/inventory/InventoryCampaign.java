@@ -1,13 +1,18 @@
 package com.g123.sfems.domain.school.inventory;
 
+import com.g123.sfems.domain.catalog.schoolyear.SchoolYear;
+
 import com.g123.sfems.domain.base.BaseEntity;
 import com.g123.sfems.domain.organization.DepartmentOfEducation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.time.LocalDate;
 
 /**
@@ -21,6 +26,66 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "inventory_campaigns")
 public class InventoryCampaign extends BaseEntity {
+
+    /** Duyệt đợt (308): chuyên viên lập nháp rồi trình, Lãnh đạo Sở duyệt thì đợt mới tới các trường. */
+    public enum Status { DRAFT, PENDING, APPROVED }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private Status status = Status.DRAFT;
+
+    /** Lý do trả lại (về nháp) hoặc ý kiến khi duyệt. */
+    @Column(name = "approval_note", length = 500)
+    private String approvalNote;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
+
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    @Column(name = "approved_by_id")
+    private Long approvedById;
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public String getApprovalNote() {
+        return approvalNote;
+    }
+
+    public void setApprovalNote(String approvalNote) {
+        this.approvalNote = approvalNote;
+    }
+
+    public Instant getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(Instant submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public Instant getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(Instant approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public Long getApprovedById() {
+        return approvedById;
+    }
+
+    public void setApprovedById(Long approvedById) {
+        this.approvedById = approvedById;
+    }
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "managing_body_id", nullable = false)
@@ -40,8 +105,25 @@ public class InventoryCampaign extends BaseEntity {
     @Column(length = 1000)
     private String note;
 
+    /** Số công văn phát động (vd. 1234/SGDĐT-KHTC) — không bắt buộc. */
+    @Column(name = "document_no", length = 100)
+    private String documentNo;
+
     @Column(nullable = false)
     private boolean closed;
+
+    /** Năm học của đợt (306) — đợt cũ chưa gán thì trống. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "school_year_id")
+    private SchoolYear schoolYear;
+
+    public SchoolYear getSchoolYear() {
+        return schoolYear;
+    }
+
+    public void setSchoolYear(SchoolYear schoolYear) {
+        this.schoolYear = schoolYear;
+    }
 
     public DepartmentOfEducation getManagingBody() {
         return managingBody;
@@ -73,6 +155,14 @@ public class InventoryCampaign extends BaseEntity {
 
     public void setDeadline(LocalDate deadline) {
         this.deadline = deadline;
+    }
+
+    public String getDocumentNo() {
+        return documentNo;
+    }
+
+    public void setDocumentNo(String documentNo) {
+        this.documentNo = documentNo;
     }
 
     public String getNote() {

@@ -71,8 +71,10 @@ export function FileDrop({ label, required, limit = "Tối đa 10 MB mỗi tệp
     disabled ? "cursor-default" : "hover:border-primary/50 hover:bg-primary/5 cursor-pointer",
     over && "border-primary bg-primary/5", busy && "pointer-events-none opacity-60");
 
+  // Gọn: chia cột theo bề rộng THẬT của khung (hộp hẹp một cột, thẻ rộng nhiều cột), không theo khổ màn — trong hộp
+  // thoại hẹp, `xl:grid-cols-3` bóp mỗi ô còn vài chữ.
   const list = (
-    <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className={compact ? "grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] gap-2" : "grid gap-2 sm:grid-cols-2 xl:grid-cols-3"}>
       {items.map((f) => (
         <li key={f.key} className="bg-card hover:border-primary/40 flex min-w-0 items-center gap-2.5 rounded-lg border py-2 ps-2.5 pe-1.5 transition-colors">
           <span className="bg-surface-subtle flex size-9 shrink-0 items-center justify-center rounded-md border">{f.icon}</span>

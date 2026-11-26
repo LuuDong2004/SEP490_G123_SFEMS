@@ -39,6 +39,8 @@ export function CampaignPickerField({ control, name, label, hint, current, onPic
     resource: "inventory_campaigns",
     pagination: { currentPage: 1, pageSize: 50 },
     sorters: [{ field: "deadline", order: "asc" }],
+    // Chỉ đợt đang mở, lọc ở máy chủ — lấy một trang rồi lọc ở đây là mất đợt mới khi có nhiều đợt cũ.
+    filters: [{ field: "closed", operator: "eq", value: false }],
   });
   const rows = (result?.data ?? []).filter((c) => !c.closed);
 
@@ -90,8 +92,8 @@ export function CampaignPickerField({ control, name, label, hint, current, onPic
                       <TableRow>
                         <TableHead className="px-4">Tên đợt</TableHead>
                         <TableHead className="px-4">Cơ quan phát động</TableHead>
-                        <TableHead className="px-4">Chốt số liệu</TableHead>
-                        <TableHead className="px-4">Hạn nộp</TableHead>
+                        <TableHead className="px-4">Ngày hiệu lực</TableHead>
+                        <TableHead className="px-4">Ngày kết thúc</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

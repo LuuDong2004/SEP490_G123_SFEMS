@@ -63,7 +63,8 @@ export function FormDialog({
   state: FormDialogState;
   onOpenChange: (open: boolean) => void;
   defaultValues: Record<string, unknown>;
-  size?: "form" | "formFit" | "formWide" | "wide";
+  /** `sm`: hộp vài ô (đợt kiểm kê) — hẹp, cao vừa nội dung. */
+  size?: "sm" | "form" | "formFit" | "formWide" | "wide";
   onSaved?: (record: any) => void | Promise<void>;
   children: (control: Control<any>, record: any) => ReactNode;
 }) {

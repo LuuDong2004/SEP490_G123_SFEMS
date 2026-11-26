@@ -34,6 +34,8 @@ export function CampaignStrip() {
     resource: "inventory_campaigns",
     pagination: { currentPage: 1, pageSize: 20 },
     sorters: [{ field: "deadline", order: "asc" }],
+    // Chỉ đợt đang mở, lọc ở máy chủ — lấy một trang rồi lọc ở đây là mất đợt mới khi có nhiều đợt cũ.
+    filters: [{ field: "closed", operator: "eq", value: false }],
   });
   const open = (result?.data ?? []).filter((c) => !c.closed);
   const progress = useQueries({
@@ -69,9 +71,9 @@ export function CampaignStrip() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{c.title}</div>
                 <div className="text-muted-foreground text-xs">
-                  {c.managingBody.name} · chốt số liệu {formatPlainDate(c.cutoffDate)} ·{" "}
+                  {c.managingBody.name}{c.documentNo ? ` · CV số ${c.documentNo}` : ""} · hiệu lực {formatPlainDate(c.cutoffDate)} ·{" "}
                   <span className={cn(c.overdue && "text-destructive font-medium")}>
-                    hạn nộp {formatPlainDate(c.deadline)}
+                    kết thúc {formatPlainDate(c.deadline)}
                     {c.overdue ? " (đã quá hạn)" : ""}
                   </span>
                 </div>

@@ -568,3 +568,9 @@ databaseChangeLog:
       file: db/changelog/changes/304-hoc-sinh.sql
   - include:
       file: db/changelog/changes/305-dinh-muc-theo-hoc-sinh-trong-phong.sql
+  - include:
+      file: db/changelog/changes/306-dot-kiem-ke-theo-nam-hoc.sql
+  - include:
+      file: db/changelog/changes/307-so-cong-van-dot-kiem-ke.sql
+  - include:
+      file: db/changelog/changes/308-dot-kiem-ke-lanh-dao-so-duyet.sql

@@ -29,6 +29,8 @@ export function useAwaitingCounts(): Record<string, number> {
     equipment_intakes: useWaiting("equipment_intakes", AWAITING_ME),
     inventory_sessions: useWaiting("inventory_sessions", AWAITING_ME),
     procurement_plans: useWaiting("procurement_plans", { field: "status", operator: "eq", value: "PENDING" }),
+    // Đợt kiểm kê chuyên viên Sở trình (308): Lãnh đạo Sở thấy số đợt đang chờ mình duyệt.
+    inventory_campaigns: useWaiting("inventory_campaigns", { field: "status", operator: "eq", value: "PENDING" }),
   };
 }
 

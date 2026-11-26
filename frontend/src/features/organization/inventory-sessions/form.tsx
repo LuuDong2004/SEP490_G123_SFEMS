@@ -111,7 +111,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
               <div className="flex flex-col gap-1.5">
                 <ReadOnlyCell label="Đợt của Sở" value={null} placeholder="Trường tự kiểm kê" />
                 <p className="text-muted-foreground text-xs">
-                  Phiếu theo đợt của Sở kiểm kê mọi cơ sở của trường nên do tài khoản quản lý cả trường lập.
+                  Phiếu theo đợt của Sở kiểm kê toàn trường nên do tài khoản quản lý cả trường lập.
                 </p>
               </div>
             ) : creating ? (
@@ -213,6 +213,8 @@ export const InventorySessionCreate = () => {
   const { result: openCampaigns } = useList<any>({
     resource: "inventory_campaigns",
     pagination: { currentPage: 1, pageSize: 50 },
+    // Chỉ đợt đang mở, lọc ở máy chủ — lấy một trang rồi lọc ở đây là mất đợt mới khi có nhiều đợt cũ.
+    filters: [{ field: "closed", operator: "eq", value: false }],
     queryOptions: { enabled: campaignId == null && !pinned },
   });
   const onlyOpen = pinned ? [] : (openCampaigns?.data ?? []).filter((c: any) => !c.closed);

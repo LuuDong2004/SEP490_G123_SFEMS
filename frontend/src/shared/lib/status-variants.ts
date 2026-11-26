@@ -120,3 +120,10 @@ export const GENDER_VARIANTS: Record<"MALE" | "FEMALE", BadgeVariant> = {
   MALE: "info",
   FEMALE: "returned",
 };
+
+/** Đợt kiểm kê: đang diễn ra là việc đang chạy (xanh dương), chưa hiệu lực / đã kết thúc trung tính. */
+export const CAMPAIGN_STATE_VARIANTS: Record<"upcoming" | "active" | "ended", BadgeVariant> = {
+  upcoming: "neutral",
+  active: "info",
+  ended: "neutral",
+};

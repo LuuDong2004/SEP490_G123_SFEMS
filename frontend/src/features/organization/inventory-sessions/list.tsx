@@ -77,7 +77,7 @@ export const InventorySessionList = () => {
         cell: ({ getValue }) => <span className="tabular-nums">{formatPlainDate(getValue())}</span>,
       }),
       h.accessor("title", {
-        id: "title", header: "Tên đợt", size: 220, meta: { fill: true },
+        id: "title", header: "Tên phiếu", size: 220, meta: { fill: true },
         cell: ({ getValue }) => <span className="block truncate font-medium">{getValue()}</span>,
       }),
       h.display({

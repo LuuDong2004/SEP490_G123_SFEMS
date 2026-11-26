@@ -230,11 +230,11 @@ class InventoryApprovalTest {
         return room;
     }
 
-    /** Đợt kiểm kê đang mở của Sở — trường nào cũng thấy. */
+    /** Đợt kiểm kê đã duyệt, đang mở của Sở — trường nào cũng thấy. */
     private long campaign() {
         Long id = jdbc.query("""
-                INSERT INTO inventory_campaigns (managing_body_id, title, cutoff_date, deadline, closed, created_at)
-                SELECT id, 'Đợt kiểm kê thử', DATE '2099-12-01', DATE '2099-12-31', FALSE, now()
+                INSERT INTO inventory_campaigns (managing_body_id, title, cutoff_date, deadline, closed, status, created_at)
+                SELECT id, 'Đợt kiểm kê thử', DATE '2099-12-01', DATE '2099-12-31', FALSE, 'APPROVED', now()
                 FROM departments_of_education WHERE type = 'SO' ORDER BY id LIMIT 1
                 RETURNING id""", rs -> rs.next() ? rs.getLong(1) : null);
         Assumptions.assumeTrue(id != null, "Thiếu Sở GD&ĐT trong dữ liệu nền");
