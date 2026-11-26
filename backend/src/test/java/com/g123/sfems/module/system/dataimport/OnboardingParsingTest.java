@@ -56,17 +56,16 @@ class OnboardingParsingTest {
 
     @Test
     void prefilledTemplateSkipsUntouchedEquipmentRows() {
-        // Trang Thiết bị của tệp mẫu điền sẵn: có cột "Phải có". Dòng chỉ có mã DM / tên / ĐVT là trường chưa động tới.
+        // Trang Thiết bị của tệp mẫu điền sẵn (cột như mẫu cũ): dòng chỉ có tên / mã DM / ĐVT là trường chưa động tới.
         List<List<String>> rows = List.of(
                 row("Mẫu nhập: Thiết bị"),
                 row(""),
                 row(""),
-                row("Mã cũ", "Tên thiết bị (*)", "Mã DM thiết bị (*)", "Môn học (danh mục)", "Định mức", "Phải có",
-                        "Số lượng", "Đơn vị tính"),
-                row("", "Bảng nhóm", "THPT-00-001", "Dùng chung", "01/lớp", "12", "", "Cái"),
-                row("", "Tủ đựng thiết bị", "THPT-00-002", "Dùng chung", "01/5 lớp", "3", "2", "Cái"),
-                row("", "Máy chiếu", "THPT-00-003", "Dùng chung", "01", "1", "", "Cái"));
-        OnboardingService.Detected d = OnboardingService.detect(rows);
+                row("Mã cũ", "Tên thiết bị (*)", "Mã DM thiết bị (*)", "Số lượng", "Đơn vị tính"),
+                row("", "Bảng nhóm", "THPT-00-001", "", "Cái"),
+                row("", "Tủ đựng thiết bị", "THPT-00-002", "2", "Cái"),
+                row("", "Máy chiếu", "THPT-00-003", "", "Cái"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
         assertNotNull(d);
         assertEquals(OnboardingSheet.EQUIPMENT, d.sheet());
         assertEquals(1, d.rows().size());
@@ -75,8 +74,22 @@ class OnboardingParsingTest {
     }
 
     @Test
+    void templateHintRowIsSkipped() {
+        // Dòng hướng dẫn ngắn của tệp mẫu hiện hành (OnboardingTemplate.HINTS) không thành một dòng dữ liệu.
+        List<List<String>> rows = List.of(
+                row("Mã học sinh (*)", "Họ và tên (*)", "Mã lớp (*)", "Ngày sinh", "Giới tính"),
+                row("Vd: HS0001", "Họ và tên đầy đủ", "Mã ở trang Lớp học", "dd/mm/yyyy", "Nam / Nữ"),
+                row("HS01", "Nguyễn Văn An", "10A1", "01/02/2011", "Nam"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.STUDENT, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("10A1", d.rows().get(0).getValue().get("class"));
+    }
+
+    @Test
     void ordinaryEquipmentSheetKeepsRowsWithoutQuantity() {
-        // Sổ cũ (không có cột đánh dấu của mẫu): số lượng trống vẫn là 1 như trước.
+        // Tệp không phải tệp mẫu của hệ thống (sổ cũ): số lượng trống vẫn là 1 như trước.
         List<List<String>> rows = List.of(
                 row("Tên thiết bị", "Mã DM thiết bị", "Số lượng", "Đơn vị tính"),
                 row("Bảng nhóm", "THPT-00-001", "", "Cái"));
@@ -99,10 +112,10 @@ class OnboardingParsingTest {
     @Test
     void prefilledRoomSuggestionWithOnlyTypeIsSkipped() {
         List<List<String>> rows = List.of(
-                row("Mã phòng (*)", "Tên phòng (*)", "Loại CSVC (*)", "Diện tích (m²)", "Chuẩn yêu cầu"),
-                row("", "", "Nhà kho", "", "Ít nhất 1 phòng"),
-                row("K1", "Nhà kho 1", "Nhà kho", "30", ""));
-        OnboardingService.Detected d = OnboardingService.detect(rows);
+                row("Mã phòng (*)", "Tên phòng (*)", "Loại CSVC (*)", "Diện tích (m²)"),
+                row("", "", "Nhà kho", ""),
+                row("K1", "Nhà kho 1", "Nhà kho", "30"));
+        OnboardingService.Detected d = OnboardingService.detect(rows, true);
         assertNotNull(d);
         assertEquals(OnboardingSheet.ROOM, d.sheet());
         assertEquals(1, d.rows().size());

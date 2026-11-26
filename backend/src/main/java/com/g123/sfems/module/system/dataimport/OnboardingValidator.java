@@ -636,6 +636,23 @@ public class OnboardingValidator {
         }
         BigDecimal area = r.number("area", "Diện tích");
         Integer capacity = r.integer("capacity", "Sức chứa", 0, 100_000);
+        // Cùng luật với bước ghi (RoomService.requireArea): khu vực, công trình không gắn khối nhà, tầng, sức chứa, môn —
+        // báo ngay ở bước kiểm, không để qua rồi mới đổ lúc ghi.
+        if (roomType != null && r.ctx.areaTypes.contains(roomType)) {
+            List<String> bad = new ArrayList<>();
+            String field = null;
+            for (String[] f : new String[][] {{"building", "khối nhà"}, {"floor", "tầng"}, {"capacity", "sức chứa"},
+                    {"subject", "môn"}}) {
+                if (r.text(f[0], 255) != null) {
+                    bad.add(f[1]);
+                    field = field == null ? f[0] : field;
+                }
+            }
+            if (!bad.isEmpty()) {
+                r.error(field, "Khu vực, công trình (" + typeText + ") không gắn " + String.join(", ", bad)
+                        + " — bỏ trống các ô này");
+            }
+        }
         FacilityCondition condition = r.choice("condition", "Hiện trạng", FacilityCondition.values(), null);
         RoomUsageStatus usage = r.choice("usage", "Tình trạng sử dụng", RoomUsageStatus.values(), null);
         String manager = r.reference("manager", OnboardingSheet.STAFF, r.text("manager", 64), "cán bộ");
@@ -677,7 +694,7 @@ public class OnboardingValidator {
     }
 
     private ClassRow schoolClass(Row r) {
-        String code = r.required("code", "Tên lớp", 64);
+        String code = r.required("code", "Mã lớp", 64);
         if (code != null && !CLASS_CODE.matcher(code).matches()) {
             r.error("code", "Tên lớp chỉ gồm chữ, số, khoảng trắng và . _ - /");
         }
@@ -1470,6 +1487,8 @@ public class OnboardingValidator {
         /** Id năm học → cặp năm hiện cho người dùng ("2026-2027"). */
         final Map<Long, String> yearLabels = new HashMap<>();
         final Map<String, Long> roomTypes = new HashMap<>();
+        /** Loại CSVC là khu vực, công trình (sân, cổng, khu vệ sinh, khu để xe…) — {@code room_types.kind = 'AREA'}. */
+        final Set<Long> areaTypes = new HashSet<>();
         final Map<String, Unit> units = new HashMap<>();
         final Map<Long, Unit> unitsById = new HashMap<>();
         final Map<String, Long> originIds = new HashMap<>();
@@ -1534,9 +1553,13 @@ public class OnboardingValidator {
                 }
             });
             // Loại của Sở + loại ngoài danh mục của chính trường này (192).
-            jdbc.query("SELECT id, code, name FROM room_types WHERE active AND (school_id IS NULL OR school_id = ?)", rs -> {
+            jdbc.query("SELECT id, code, name, kind FROM room_types WHERE active AND (school_id IS NULL OR school_id = ?)",
+                    rs -> {
                 roomTypes.put(fold(rs.getString("name")), rs.getLong("id"));
                 roomTypes.put(fold(rs.getString("code")), rs.getLong("id"));
+                if ("AREA".equals(rs.getString("kind"))) {
+                    areaTypes.add(rs.getLong("id"));
+                }
             }, schoolId);
             jdbc.query("SELECT id, code, name, allows_fraction FROM units WHERE active", rs -> {
                 Unit u = new Unit(rs.getLong("id"), rs.getString("name"), fold(rs.getString("name")),

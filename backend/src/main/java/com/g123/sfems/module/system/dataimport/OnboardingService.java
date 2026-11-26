@@ -100,7 +100,7 @@ public class OnboardingService {
      */
     public record Batch(long id, String kind, String kindTitle, IdName school, String fileName, String status,
             String createdAt, String createdBy, String committedAt, String committedBy, List<SheetCount> sheets,
-            int errors, Map<String, Integer> created, Map<String, Object> preview) {
+            int errors, Map<String, Integer> created, Map<String, Object> preview, String createdByRole) {
     }
 
     /** Một trang danh sách lô; {@code total} là số lô khớp bộ lọc. */
@@ -489,9 +489,14 @@ public class OnboardingService {
     public Batch upload(Long requestedSchool, String filename, byte[] content) {
         long schoolId = resolveSchool(requestedSchool);
         List<NamedSheet> sheets = SpreadsheetReader.readAll(filename, content);
+        // Tệp mẫu của hệ thống (có trang ẩn danh sách ô chọn): dòng điền sẵn chưa ghi gì thêm thì bỏ.
+        boolean template = sheets.stream().anyMatch(s -> TEMPLATE_MARK.equals(s.name()));
         Map<OnboardingSheet, List<Map.Entry<Integer, Map<String, String>>>> found = new LinkedHashMap<>();
         for (NamedSheet sheet : sheets) {
-            Detected d = detect(sheet.rows());
+            if (TEMPLATE_MARK.equals(sheet.name())) {
+                continue;
+            }
+            Detected d = detect(sheet.rows(), template);
             if (d == null) {
                 continue;
             }
@@ -1143,8 +1148,12 @@ public class OnboardingService {
      * "Tổng cộng", dòng tiêu đề nhóm ("I. Thiết bị dùng chung") và phần chữ ký cuối trang thì bỏ.
      */
     static Detected detect(List<List<String>> rows) {
+        return detect(rows, false);
+    }
+
+    /** {@code template}: tệp là tệp mẫu điền sẵn của hệ thống ({@link #TEMPLATE_MARK}). */
+    static Detected detect(List<List<String>> rows, boolean template) {
         OnboardingSheet best = null;
-        int bestHeader = -1;
         int bestStart = -1;
         int bestCount = 0;
         Map<Integer, String> bestKeys = null;
@@ -1161,7 +1170,6 @@ public class OnboardingService {
                         .allMatch(col -> keys.containsValue(col.key()));
                 if (complete && keys.size() > bestCount) {
                     best = s;
-                    bestHeader = i;
                     bestStart = useTwo ? i + 2 : i + 1;
                     bestCount = keys.size();
                     bestKeys = keys;
@@ -1177,9 +1185,16 @@ public class OnboardingService {
                 hints.add(c.hint());
             }
         });
-        // Tệp mẫu điền sẵn (trang có cột đánh dấu của mẫu): dòng điền sẵn mà trường không ghi thêm gì thì bỏ — không
+        // Câu hướng dẫn ngắn của tệp mẫu hiện hành (mẫu cũ dùng câu ở OnboardingSheet — vẫn nhận).
+        String prefix = best.name() + ".";
+        OnboardingTemplate.HINTS.forEach((k, v) -> {
+            if (k.startsWith(prefix)) {
+                hints.add(v);
+            }
+        });
+        // Tệp mẫu điền sẵn của hệ thống: dòng điền sẵn mà trường không ghi thêm gì thì bỏ — không
         // thì 700 dòng danh mục thành 700 thiết bị "số lượng trống = 1". Tệp khác (sổ cũ) giữ cách đọc cũ.
-        Set<String> prefilled = prefilledKeys(best, rows, bestHeader, bestStart);
+        Set<String> prefilled = template ? prefilledKeys(best) : Set.of();
         List<Map.Entry<Integer, Map<String, String>>> result = new ArrayList<>();
         for (int i = bestStart; i < rows.size(); i++) {
             List<String> cells = rows.get(i);
@@ -1210,27 +1225,19 @@ public class OnboardingService {
         return new Detected(best, result);
     }
 
-    /** Cột chỉ tệp mẫu điền sẵn mới có — thấy trên dòng tiêu đề là biết trang được điền sẵn từ hệ thống. */
-    static final String EQUIPMENT_MARK = "Phải có";
-    static final String ROOM_MARK = "Chuẩn yêu cầu";
+    /**
+     * Tên trang ẩn chứa danh sách ô chọn của tệp mẫu ({@link OnboardingTemplate}) — có trang này là biết tệp do hệ thống
+     * sinh và điền sẵn. Tệp khác (sổ cũ, MISA…) giữ cách đọc cũ: số lượng trống = 1.
+     */
+    static final String TEMPLATE_MARK = "SFEMS - Danh sách";
 
     /**
-     * Các cột hệ thống điền sẵn của một trang trong tệp mẫu: dòng chỉ có các ô này là dòng trường chưa động tới.
-     * Rỗng khi trang không phải của tệp mẫu điền sẵn.
+     * Các cột hệ thống điền sẵn của một trang trong tệp mẫu: dòng chỉ có các ô này là dòng trường chưa động tới — dòng
+     * thiết bị chỉ có tên / mã DM / ĐVT, dòng gợi ý phòng chỉ có loại CSVC.
      */
-    private static Set<String> prefilledKeys(OnboardingSheet sheet, List<List<String>> rows, int header, int start) {
-        String mark = sheet == OnboardingSheet.EQUIPMENT ? EQUIPMENT_MARK : sheet == OnboardingSheet.ROOM ? ROOM_MARK : null;
-        if (mark == null) {
-            return Set.of();
-        }
-        for (int i = header; i < start && i < rows.size(); i++) {
-            for (String cell : rows.get(i)) {
-                if (cell != null && headerKey(cell).equals(headerKey(mark))) {
-                    return sheet == OnboardingSheet.EQUIPMENT ? Set.of("catalog", "name", "unit") : Set.of("roomType");
-                }
-            }
-        }
-        return Set.of();
+    private static Set<String> prefilledKeys(OnboardingSheet sheet) {
+        return sheet == OnboardingSheet.EQUIPMENT ? Set.of("catalog", "name", "unit")
+                : sheet == OnboardingSheet.ROOM ? Set.of("roomType") : Set.of();
     }
 
     /** Khoá của cột nhận ra là tiêu đề nhưng không đọc. */
@@ -1412,13 +1419,16 @@ public class OnboardingService {
                 kind == null ? "Dữ liệu đầu vào của trường" : kind.title(), school,
                 (String) b.get("file_name"), (String) b.get("status"), iso(b.get("created_at")),
                 (String) b.get("created_by"), iso(b.get("committed_at")), (String) b.get("committed_by"), sheets, errors,
-                created, kind == null ? null : catalogImports.preview(b.get("preview")));
+                created, kind == null ? null : catalogImports.preview(b.get("preview")), (String) b.get("created_by_role"));
     }
 
     private Map<String, Object> batchRow(long id) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT b.*, b.preview::text AS preview, s.name AS school_name,
                        COALESCE(cu.full_name, cu.username) AS created_by,
+                       -- Vai trò của người tải lên — danh sách lô hiện vai trò, họ tên khi rê chuột.
+                       (SELECT string_agg(r.name, ', ' ORDER BY r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = cu.id) AS created_by_role,
                        COALESCE(mu.full_name, mu.username) AS committed_by
                 FROM data_import_batches b
                 LEFT JOIN schools s ON s.id = b.school_id

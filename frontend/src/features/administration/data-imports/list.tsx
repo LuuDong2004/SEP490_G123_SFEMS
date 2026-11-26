@@ -78,10 +78,18 @@ function useKinds(): ImportKind[] {
   return ["school_data", ...(canSchools ? ["schools" as const] : []), ...(canWards ? ["wards" as const] : [])];
 }
 
-function templateOf(kind: ImportKind) {
-  return kind === "school_data"
-    ? download("data_imports/template", "Mẫu dữ liệu đầu vào.xlsx")
-    : download(`data_imports/template?kind=${kind}`, `Mẫu ${KIND_SHORT[kind].toLowerCase()}.xlsx`);
+/**
+ * Tệp mẫu. Dữ liệu của trường: có {@code school} thì tệp ĐIỀN SẴN của trường đó (danh mục thiết bị tối thiểu, số phải có,
+ * dữ liệu đã có); không có thì máy chủ lấy trường của tài khoản, tài khoản không gắn trường được mẫu chung (vẫn đủ
+ * danh mục thiết bị tối thiểu, chưa có số phải có).
+ */
+function templateOf(kind: ImportKind, school?: { id: number; name: string } | null) {
+  if (kind !== "school_data") {
+    return download(`data_imports/template?kind=${kind}`, `Mẫu ${KIND_SHORT[kind].toLowerCase()}.xlsx`);
+  }
+  return school
+    ? download(`data_imports/template?schoolId=${school.id}`, `Mẫu dữ liệu đầu vào - ${school.name}.xlsx`)
+    : download("data_imports/template", "Mẫu dữ liệu đầu vào.xlsx");
 }
 
 const DEACTIVATE_LABEL: Partial<Record<ImportKind, string>> = {
@@ -158,14 +166,6 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
                 <Label>Trường</Label>
                 {/* Hơn nghìn trường: chọn trong hộp có ô tìm, lọc cấp học và phân trang, không phải danh sách xổ xuống. */}
                 <SchoolPickerField value={picked} onChange={setPicked} />
-                {/* Tệp mẫu điền sẵn của trường vừa chọn: danh mục thiết bị tối thiểu, dữ liệu trường đã có. */}
-                {picked && kind === "school_data" ? (
-                  <Button type="button" variant="link" size="sm" className="h-auto justify-self-start px-0"
-                    onClick={() => void download(`data_imports/template?schoolId=${picked.id}`, `Mẫu dữ liệu đầu vào - ${picked.name}.xlsx`)}>
-                    <Download />
-                    Tải tệp mẫu điền sẵn của trường này
-                  </Button>
-                ) : null}
               </div>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
@@ -215,9 +215,9 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
                 </Label>
               ) : <span />}
               <button type="button" className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
-                onClick={() => void templateOf(kind)}>
+                onClick={() => void templateOf(kind, picked)}>
                 <Download className="size-3.5" />
-                Tệp mẫu
+                {picked && kind === "school_data" ? "Tệp mẫu điền sẵn của trường" : "Tệp mẫu"}
               </button>
             </div>
           </div>
@@ -368,7 +368,10 @@ export const DataImports = () => {
                   <TableRow key={b.id} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => go({ to: `/data-imports/${b.id}` })}>
                     {schoolCol ? <TableCell className="font-medium">{b.school?.name ?? "—"}</TableCell> : null}
                     <TableCell className="max-w-56 truncate">{b.fileName}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-56 truncate text-sm" title={b.createdBy ?? undefined}>{b.createdBy ?? "—"}</TableCell>
+                    {/* Vai trò người tải lên; họ tên khi rê chuột. */}
+                    <TableCell className="text-muted-foreground max-w-56 truncate text-sm" title={b.createdBy ?? undefined}>
+                      {b.createdByRole ?? b.createdBy ?? "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{formatDateTime(b.createdAt)}</TableCell>
                     <TableCell className="max-w-72 text-sm whitespace-normal">
                       {b.status === "COMMITTED"

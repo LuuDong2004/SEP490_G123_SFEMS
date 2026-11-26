@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 class OnboardingTemplate {
 
-    private static final String LISTS = "Danh sách";
+    private static final String LISTS = OnboardingService.TEMPLATE_MARK;
     private static final String STRICT = "!";
 
     private final JdbcTemplate jdbc;
@@ -64,6 +64,10 @@ class OnboardingTemplate {
             prefillExisting(schoolId, rows);
             prefillEquipment(schoolId, rows.get(OnboardingSheet.EQUIPMENT));
             suggestRooms(schoolId, rows.get(OnboardingSheet.ROOM));
+        } else {
+            // Không biết trường (Sở, quản trị viên tải mẫu chung): vẫn điền sẵn đủ danh mục tối thiểu — trường chỉ ghi
+            // số lượng, nguồn…; chỉ thiếu số "Phải có" (chưa biết lớp, giáo viên của trường nào).
+            prefillCatalog(rows.get(OnboardingSheet.EQUIPMENT));
         }
         Map<OnboardingSheet, Map<String, Choice>> choices = choices(schoolId, lists);
 
@@ -72,48 +76,122 @@ class OnboardingTemplate {
             List<XlsxWriter.Column> columns = new ArrayList<>();
             Map<String, Object> hint = new HashMap<>();
             for (OnboardingSheet.Column c : s.columns()) {
+                if (OMITTED.contains(s.name() + "." + c.key())) {
+                    continue;
+                }
                 columns.add(new XlsxWriter.Column(c.key(), c.label() + (c.required() ? " (*)" : ""), "text"));
-                hint.put(c.key(), c.hint());
+                hint.put(c.key(), HINTS.getOrDefault(s.name() + "." + c.key(), ""));
             }
-            Set<String> shaded = Set.of();
-            if (s == OnboardingSheet.EQUIPMENT && schoolId != null) {
-                // Cột hệ thống điền: đứng ngay sau Mã DM để đọc liền một dòng; chỉ để xem, nhập không đọc.
-                int at = indexOf(columns, "catalog") + 1;
-                columns.add(at, new XlsxWriter.Column("_subject", "Môn học (danh mục)", "text"));
-                columns.add(at + 1, new XlsxWriter.Column("_norm", "Định mức", "text"));
-                columns.add(at + 2, new XlsxWriter.Column("_required", OnboardingService.EQUIPMENT_MARK, "number"));
-                hint.put("_subject", "Hệ thống điền — chỉ để xem");
-                hint.put("_norm", "Theo phụ lục thông tư");
-                hint.put("_required", "Số trường phải có theo lớp, giáo viên, phòng của trường");
-                hint.put("quantity", "Ghi số trường đang có. Dòng điền sẵn không ghi số lượng = trường không có, bỏ qua");
-                shaded = Set.of("catalog", "name", "unit", "_subject", "_norm", "_required");
-            }
-            if (s == OnboardingSheet.ROOM && schoolId != null) {
-                columns.add(new XlsxWriter.Column("_rule", OnboardingService.ROOM_MARK, "text"));
-                hint.put("_rule", "Dòng gợi ý: loại CSVC chuẩn yêu cầu mà trường chưa khai — ghi mã, tên… để thêm; "
-                        + "để nguyên thì bỏ qua");
-                shaded = Set.of("_rule");
-            }
+            // Thiết bị: tên, mã DM, ĐVT của danh mục tối thiểu do hệ thống ghi sẵn (nền xám).
+            Set<String> shaded = s == OnboardingSheet.EQUIPMENT ? Set.of("catalog", "name", "unit") : Set.of();
             List<Map<String, Object>> data = new ArrayList<>();
             data.add(hint);
             data.addAll(rows.get(s));
             String title = "Mẫu nhập: " + s.title() + (schoolName == null ? "" : " — " + schoolName);
-            String subtitle = s == OnboardingSheet.EQUIPMENT && schoolId != null
-                    ? "Đã điền sẵn danh mục thiết bị tối thiểu của cấp học. Ghi số lượng đang có cho thiết bị trường có; "
-                            + "một thiết bị ở nhiều phòng thì chép dòng. Ô nền xám do hệ thống điền."
-                    : s == OnboardingSheet.EQUIPMENT_OUTSIDE
-                            ? "Thiết bị trường có mà danh mục tối thiểu không liệt kê. Ghi đủ Môn để thiết bị gắn đúng môn."
-                            : "Cột có (*) là bắt buộc. Dòng dưới tiêu đề là hướng dẫn, ghi dữ liệu từ dòng kế tiếp.";
-            tabs.add(new XlsxWriter.Tab(s.title(), new XlsxWriter.Sheet(title, subtitle, columns, data,
-                    new Format(shaded, choices.getOrDefault(s, Map.of()), false, true))));
+            tabs.add(new XlsxWriter.Tab(s.title(), new XlsxWriter.Sheet(title, subtitle(s, schoolId != null), columns,
+                    data, new Format(shaded, choices.getOrDefault(s, Map.of()), false, true))));
         }
         tabs.add(lists.tab());
         return XlsxWriter.writeAll(tabs);
     }
 
+    /** Cột không đưa vào tệp mẫu (tệp khác có các cột này vẫn đọc được). */
+    private static final Set<String> OMITTED = Set.of(
+            "EQUIPMENT.legacy", "EQUIPMENT.tracking", "EQUIPMENT_OUTSIDE.legacy", "ROOM.unit");
+
+    /**
+     * Dòng hướng dẫn dưới tiêu đề của tệp mẫu — ngắn, kiểu biểu mẫu. Khi nhập, dòng có các chữ này được nhận ra là dòng
+     * hướng dẫn và bỏ qua ({@link OnboardingService#detect}), cùng với chữ hướng dẫn của mẫu cũ.
+     */
+    static final Map<String, String> HINTS = Map.ofEntries(
+            Map.entry("CAMPUS.code", "Vd: CS1"),
+            Map.entry("CAMPUS.name", "Vd: Cơ sở chính"),
+            Map.entry("CAMPUS.address", "Số nhà, đường, phường/xã"),
+            Map.entry("CAMPUS.primary", "Có / Không"),
+            Map.entry("STAFF.code", "Vd: CB0001"),
+            Map.entry("STAFF.name", "Họ và tên đầy đủ"),
+            Map.entry("STAFF.type", "Giáo viên / Cán bộ"),
+            Map.entry("STAFF.position", "Chọn trong danh sách"),
+            Map.entry("STAFF.team", "Vd: Tổ Toán"),
+            Map.entry("STAFF.mainSubject", "Chọn trong danh sách"),
+            Map.entry("STAFF.subjects", "Các môn, ngăn cách bằng dấu ;"),
+            Map.entry("STAFF.department", "Đối với cán bộ, nhân viên"),
+            Map.entry("BUILDING.code", "Vd: KA"),
+            Map.entry("BUILDING.name", "Vd: Khối A"),
+            Map.entry("BUILDING.campus", "Mã ở trang Cơ sở"),
+            Map.entry("BUILDING.floors", "Số tầng"),
+            Map.entry("BUILDING.year", "Vd: 2015"),
+            Map.entry("BUILDING.area", "Đơn vị: m²"),
+            Map.entry("BUILDING.condition", "Chọn trong danh sách"),
+            Map.entry("BUILDING.manager", "Mã ở trang Cán bộ – giáo viên"),
+            Map.entry("ROOM.code", "Vd: A.101"),
+            Map.entry("ROOM.name", "Vd: Phòng học 101"),
+            Map.entry("ROOM.building", "Mã ở trang Khối nhà"),
+            Map.entry("ROOM.floor", "Vd: 1"),
+            Map.entry("ROOM.roomType", "Chọn trong danh sách"),
+            Map.entry("ROOM.structure", "Chọn trong danh sách"),
+            Map.entry("ROOM.subject", "Đối với phòng học bộ môn"),
+            Map.entry("ROOM.area", "Đơn vị: m²"),
+            Map.entry("ROOM.capacity", "Số chỗ ngồi"),
+            Map.entry("ROOM.condition", "Chọn trong danh sách"),
+            Map.entry("ROOM.usage", "Chọn trong danh sách"),
+            Map.entry("ROOM.manager", "Mã ở trang Cán bộ – giáo viên"),
+            Map.entry("CLASS.code", "Vd: 10A1"),
+            Map.entry("CLASS.grade", "Chọn trong danh sách"),
+            Map.entry("CLASS.year", "Vd: 2026-2027"),
+            Map.entry("CLASS.students", "Số học sinh"),
+            Map.entry("CLASS.teacher", "Mã ở trang Cán bộ – giáo viên"),
+            Map.entry("CLASS.room", "Mã ở trang Phòng"),
+            Map.entry("STUDENT.code", "Vd: HS0001"),
+            Map.entry("STUDENT.name", "Họ và tên đầy đủ"),
+            Map.entry("STUDENT.class", "Mã ở trang Lớp học"),
+            Map.entry("STUDENT.birthDate", "dd/mm/yyyy"),
+            Map.entry("STUDENT.gender", "Nam / Nữ"),
+            Map.entry("EQUIPMENT.name", "Theo danh mục"),
+            Map.entry("EQUIPMENT.catalog", "Theo danh mục"),
+            Map.entry("EQUIPMENT.quantity", "Số đang có; không có thì để trống"),
+            Map.entry("EQUIPMENT.unit", "Theo danh mục"),
+            Map.entry("EQUIPMENT.serial", "Khi số lượng là 1"),
+            Map.entry("EQUIPMENT.room", "Mã ở trang Phòng; để trống là trong kho"),
+            Map.entry("EQUIPMENT.manager", "Mã ở trang Cán bộ – giáo viên"),
+            Map.entry("EQUIPMENT.originalValue", "Đồng / 1 cái"),
+            Map.entry("EQUIPMENT.receivedDate", "dd/mm/yyyy"),
+            Map.entry("EQUIPMENT.year", "Vd: 2020"),
+            Map.entry("EQUIPMENT.origin", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT.funding", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT.condition", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT_OUTSIDE.name", "Tên thiết bị"),
+            Map.entry("EQUIPMENT_OUTSIDE.subject", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT_OUTSIDE.quantity", "Để trống là 1"),
+            Map.entry("EQUIPMENT_OUTSIDE.unit", "Bắt buộc với hóa chất, vật tư"),
+            Map.entry("EQUIPMENT_OUTSIDE.tracking", "Từng cái / Theo lô"),
+            Map.entry("EQUIPMENT_OUTSIDE.serial", "Khi số lượng là 1"),
+            Map.entry("EQUIPMENT_OUTSIDE.room", "Mã ở trang Phòng; để trống là trong kho"),
+            Map.entry("EQUIPMENT_OUTSIDE.manager", "Mã ở trang Cán bộ – giáo viên"),
+            Map.entry("EQUIPMENT_OUTSIDE.originalValue", "Đồng / 1 cái"),
+            Map.entry("EQUIPMENT_OUTSIDE.receivedDate", "dd/mm/yyyy"),
+            Map.entry("EQUIPMENT_OUTSIDE.year", "Vd: 2020"),
+            Map.entry("EQUIPMENT_OUTSIDE.origin", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT_OUTSIDE.funding", "Chọn trong danh sách"),
+            Map.entry("EQUIPMENT_OUTSIDE.condition", "Chọn trong danh sách"));
+
+    /** Dòng 2 của trang — một câu ngắn. */
+    private static String subtitle(OnboardingSheet s, boolean bySchool) {
+        return switch (s) {
+            case EQUIPMENT -> "Danh mục thiết bị tối thiểu đã ghi sẵn. Nhập số lượng thiết bị trường đang có; "
+                    + "thiết bị không có thì để trống. Cột có dấu (*) là bắt buộc.";
+            case EQUIPMENT_OUTSIDE -> "Thiết bị không có trong danh mục tối thiểu. Cột có dấu (*) là bắt buộc.";
+            case ROOM -> bySchool
+                    ? "Dòng chỉ có Loại CSVC là loại theo chuẩn trường chưa khai; nhập mã, tên để thêm, không có thì để "
+                            + "trống. Cột có dấu (*) là bắt buộc."
+                    : "Cột có dấu (*) là bắt buộc.";
+            default -> "Cột có dấu (*) là bắt buộc.";
+        };
+    }
+
     // ------------------------------------------------------------------ điền sẵn
 
-    /** Danh mục tối thiểu của cấp học trường, một dòng một thiết bị, kèm số phải có của trường. */
+    /** Danh mục tối thiểu của cấp học trường, một dòng một thiết bị: tên, mã DM, ĐVT — xếp theo môn. */
     private void prefillEquipment(long schoolId, List<Map<String, Object>> out) {
         List<NormRow> norms = new ArrayList<>(adequacy.forSchool(schoolId).rows());
         norms.sort(Comparator.comparing((NormRow r) -> r.subjectName() == null ? "" : r.subjectName()));
@@ -125,10 +203,34 @@ class OnboardingTemplate {
             row.put("catalog", r.catalogCode());
             row.put("name", r.normName());
             row.put("unit", r.unit());
-            row.put("_subject", r.subjectName() == null ? "Dùng chung" : r.subjectName());
-            row.put("_norm", (r.quantityText() == null ? (r.minQuantity() == null ? "Không ghi" : r.minQuantity()
-                    .stripTrailingZeros().toPlainString()) : r.quantityText()) + (r.optional() ? " · tự chọn" : ""));
-            row.put("_required", r.optional() ? null : r.required());
+            out.add(row);
+        }
+    }
+
+    /**
+     * Mẫu chung: danh mục tối thiểu của mọi bộ chuẩn đang áp dụng, một dòng một thiết bị (dòng của nhiều lớp / nhiều
+     * mục cùng một thiết bị gộp lại): tên, mã DM, ĐVT — xếp theo cấp học rồi môn.
+     */
+    private void prefillCatalog(List<Map<String, Object>> out) {
+        List<Map<String, Object>> norms = jdbc.queryForList("""
+                SELECT DISTINCT ON (lv.code, c.id) lv.code AS level, c.code, c.name, sj.name AS subject,
+                       COALESCE(nu.name, NULLIF(TRIM(n.unit_text), ''), cu.name) AS unit
+                FROM equipment_norms n
+                JOIN equipment_standards sd ON sd.id = n.standard_id AND sd.active
+                JOIN education_levels lv ON lv.id = sd.education_level_id
+                JOIN equipment_catalogs c ON c.id = n.catalog_id
+                LEFT JOIN subjects sj ON sj.id = n.subject_id
+                LEFT JOIN units nu ON nu.id = n.unit_id
+                LEFT JOIN units cu ON cu.id = c.unit_id
+                WHERE n.active AND (n.effective_to IS NULL OR n.effective_to > CURRENT_DATE)
+                ORDER BY lv.code, c.id, n.optional, n.sort_order, n.id""");
+        norms.sort(Comparator.comparing((Map<String, Object> n) -> (String) n.get("level"))
+                .thenComparing(n -> n.get("subject") == null ? "" : (String) n.get("subject")));
+        for (Map<String, Object> n : norms) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("catalog", n.get("code"));
+            row.put("name", n.get("name"));
+            row.put("unit", n.get("unit"));
             out.add(row);
         }
     }
@@ -142,8 +244,6 @@ class OnboardingTemplate {
                 }
                 Map<String, Object> row = new HashMap<>();
                 row.put("roomType", i.name());
-                row.put("_rule", i.requirements().isEmpty() ? "Chuẩn yêu cầu có loại này"
-                        : String.join("; ", i.requirements()));
                 out.add(row);
             }
         }
@@ -254,15 +354,6 @@ class OnboardingTemplate {
         } catch (IllegalArgumentException e) {
             return null;
         }
-    }
-
-    private static int indexOf(List<XlsxWriter.Column> columns, String key) {
-        for (int i = 0; i < columns.size(); i++) {
-            if (columns.get(i).key().equals(key)) {
-                return i;
-            }
-        }
-        return columns.size() - 1;
     }
 
     // ------------------------------------------------------------------ ô chọn

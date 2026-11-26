@@ -89,7 +89,7 @@ public enum OnboardingSheet {
             col("note", "Ghi chú", false, ""))),
 
     CLASS("Lớp học", List.of(
-            col("code", "Tên lớp", true, "Chữ, số, khoảng trắng và . _ - /, vd 6A1, 1/1", "Lớp", "Mã lớp", "Lớp học"),
+            col("code", "Mã lớp", true, "Chữ, số, khoảng trắng và . _ - /, vd 6A1, 1/1", "Lớp", "Tên lớp", "Lớp học"),
             col("grade", "Khối lớp", true, "Vd Lớp 6", "Khối", "Khối học"),
             col("year", "Năm học", true, "Vd 2026-2027", "Niên khóa"),
             col("students", "Sĩ số", true, "Số học sinh của lớp", "Số học sinh", "Số HS", "Tổng số học sinh",
@@ -106,7 +106,7 @@ public enum OnboardingSheet {
                     "Mã HS", "Mã số học sinh", "Mã số HS", "Mã định danh học sinh", "Mã học viên", "MSHS"),
             col("name", "Họ và tên", true, "Họ và tên đầy đủ, có dấu", "Họ tên", "Tên học sinh", "Họ tên học sinh",
                     "Họ và tên học sinh", "Học sinh"),
-            col("class", "Lớp", true, "Tên lớp như trang Lớp học, vd 10A1", "Mã lớp", "Tên lớp", "Lớp học",
+            col("class", "Mã lớp", true, "Tên lớp như trang Lớp học, vd 10A1", "Lớp", "Tên lớp", "Lớp học",
                     "Lớp đang học"),
             col("birthDate", "Ngày sinh", false, "dd/mm/yyyy", "Ngày tháng năm sinh", "Ngày, tháng, năm sinh",
                     "NTNS", "Sinh ngày"),

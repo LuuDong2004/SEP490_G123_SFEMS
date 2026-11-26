@@ -54,6 +54,8 @@ export type ImportBatch = {
   status: ImportBatchStatus;
   createdAt: string;
   createdBy: string | null;
+  /** Vai trò của người tải lên (Chuyên viên Sở, Cán bộ thiết bị…). */
+  createdByRole: string | null;
   committedAt: string | null;
   committedBy: string | null;
   sheets: ImportSheetCount[];
