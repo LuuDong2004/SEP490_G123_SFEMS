@@ -226,13 +226,14 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
             <TableRow className="border-b-0">
               <TableHead rowSpan={2} className="w-14 text-center">STT</TableHead>
               <TableHead rowSpan={2}>Các hạng mục công trình</TableHead>
-              <TableHead colSpan={STANDARD_TIERS.length} className="border-border border-b text-center">Tiêu chuẩn</TableHead>
+              <TableHead colSpan={STANDARD_TIERS.length} className="border-border border-x border-b text-center">Tiêu chuẩn</TableHead>
               <TableHead rowSpan={2} className="w-80">Điều kiện cảnh báo thiếu</TableHead>
               <TableHead rowSpan={2} className="w-20"><span className="sr-only">Thao tác</span></TableHead>
             </TableRow>
             <TableRow>
               {STANDARD_TIERS.map((t) => (
-                <TableHead key={t.key} className="w-28 text-center">{t.short}</TableHead>
+                // Kẻ dọc giữa ba mức và hai mép khối "Tiêu chuẩn" — đọc thẳng cột xuống không lẫn mức.
+                <TableHead key={t.key} className="border-border w-28 border-x text-center">{t.short}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
