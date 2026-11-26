@@ -32,12 +32,13 @@ export function VoucherMoreMenu({ resource, record, onTimeline, onAction, childr
   printLabel?: string | null;
   onPrint?: () => void;
   resource: string;
-  record: { id: number | string; _actions?: string[] } | undefined;
+  record: { id: number | string; _actions?: string[]; returnNote?: string | null } | undefined;
   onTimeline: () => void;
   onAction: (action: TuckedAction) => void;
   children?: ReactNode;
 }) {
-  const actions = record?._actions ?? [];
+  // Phiếu bị trả về: nút Huỷ phiếu đã ở hàng nút ngoài (`VoucherActions`), menu không lặp lại.
+  const actions = (record?._actions ?? []).filter((a) => !(a === "cancel" && record?.returnNote));
   const invalidate = useInvalidate();
   const queryClient = useQueryClient();
   const [spin, setSpin] = useState(0);

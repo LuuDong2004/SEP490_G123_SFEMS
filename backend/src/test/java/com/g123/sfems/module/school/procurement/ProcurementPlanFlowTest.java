@@ -8,6 +8,7 @@ import com.g123.sfems.domain.school.procurement.PurchaseProposalLine;
 import com.g123.sfems.domain.security.user.User;
 import com.g123.sfems.module.security.user.repo.UserRepository;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.JwtService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -171,8 +172,11 @@ class ProcurementPlanFlowTest {
         assertThat(b.proposals()).isEqualTo(3);
         assertThat(b.pending()).isEqualTo(1);
         assertThat(b.approved()).isEqualTo(2);
-        // "Đã vào kế hoạch": cả đề xuất đang ở kế hoạch nháp.
-        assertThat(b.planned()).isEqualTo(2);
+        // "Đã vào kế hoạch": chỉ khi kế hoạch đã duyệt — đề xuất ở kế hoạch nháp chưa tính.
+        assertThat(b.planned()).isEqualTo(1);
+        assertThat(s.schools()).hasSize(1);
+        assertThat(s.schools().get(0).proposals()).isEqualTo(3);
+        assertThat(s.schools().get(0).planned()).isEqualTo(1);
         // Đề nghị × giá: 10×100 + 5×100 (kế hoạch nháp: giá trường) + 4×150 + 6×100.
         assertThat(b.amount()).isEqualByComparingTo(new BigDecimal("2700"));
         // Số vào kế hoạch × giá: 3×100 + 2×150 + 0.
@@ -221,6 +225,19 @@ class ProcurementPlanFlowTest {
         assertThat(proposed).containsEntry(catalog, 5).doesNotContainKey(other);
     }
 
+    // ------------------------------------------------------------------ #3b kế hoạch nháp là việc chung của Sở
+
+    @Test
+    void draftPlanIsSharedWithinTheManagingBody() {
+        // Nháp do người khác ở Sở lập (không ghi người lập là tài khoản của test): vẫn mở được — lãnh đạo, chuyên viên
+        // cùng sửa, rút đề xuất ra hay trình thay, không ai bị kẹt bởi một bản nháp mình không thấy.
+        long others = jdbc.queryForObject("INSERT INTO procurement_plans (managing_body_id, code, plan_date, title,"
+                + " budget_year, status, created_at) VALUES (?, ?, CURRENT_DATE, 'Của người khác', ?, 'DRAFT', now())"
+                + " RETURNING id", Long.class, body, "THU-KHAC-" + System.nanoTime(), YEAR);
+        signIn(soUsername);
+        assertThat(plans.get(others).getId()).isEqualTo(others);
+    }
+
     // ------------------------------------------------------------------ #4 năm ngân sách
 
     @Test
@@ -245,10 +262,12 @@ class ProcurementPlanFlowTest {
 
     // ------------------------------------------------------------------ dữ liệu thử
 
+    /** Kế hoạch thử do chính tài khoản Sở của test lập — nháp chưa trình chỉ người lập xem được. */
     private long plan(String status, int year) {
         return jdbc.queryForObject("INSERT INTO procurement_plans (managing_body_id, code, plan_date, title, budget_year,"
-                + " status, created_at) VALUES (?, ?, CURRENT_DATE, 'Thử', ?, ?, now()) RETURNING id", Long.class, body,
-                "THU-" + year + "-" + (++codes) + "-" + System.nanoTime(), year, status);
+                + " status, created_by_id, created_at) VALUES (?, ?, CURRENT_DATE, 'Thử', ?, ?,"
+                + " (SELECT id FROM users WHERE username = ?), now()) RETURNING id", Long.class, body,
+                "THU-" + year + "-" + (++codes) + "-" + System.nanoTime(), year, status, soUsername);
     }
 
     private long proposal(String status, Long plan, int year) {

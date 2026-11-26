@@ -1,7 +1,7 @@
 import { useInvalidate, useList, useNotification, useOne, type CrudFilter } from "@refinedev/core";
 import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import type { ColumnDef } from "@tanstack/react-table";
-import { GraduationCap, ListPlus, Minus, PenLine, Plus, Users } from "lucide-react";
+import { GraduationCap, ListPlus, Lock, Minus, PenLine, Plus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 
@@ -28,6 +28,7 @@ import { SameSchoolRef, TextField, refCell } from "@/features/organization/resou
 import { SchoolField, schoolColumn } from "@/features/organization/resources/school-field";
 import { SIDE_GROUPS, SideGroup } from "@/features/organization/resources/form-groups";
 import { yearLabel } from "@/shared/hooks/use-school-year";
+import { ClassStudents, useClassStudentTotal } from "@/features/organization/resources/student-extra";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -105,9 +106,27 @@ function SchoolYearField({ control, record, current }: ClassFieldProps & { curre
   );
 }
 
-function StudentCountField({ control }: ClassFieldProps) {
+/**
+ * Sĩ số. Lớp đã có danh sách học sinh: sĩ số tự đếm từ danh sách (máy chủ cũng không cho sửa tay) — ô chỉ xem.
+ * Lớp chưa có học sinh nào: nhập tay như cũ.
+ */
+function StudentCountField({ control, record }: ClassFieldProps) {
+  const listed = useClassStudentTotal(record?.id);
+  if (record && listed != null && listed > 0) {
+    return (
+      <div className="grid gap-2">
+        <Label htmlFor="student-count-readonly">Sĩ số</Label>
+        <div className="relative">
+          <Input id="student-count-readonly" readOnly tabIndex={-1} aria-readonly value={record.studentCount ?? 0}
+            className="bg-muted text-muted-foreground cursor-not-allowed pe-9 tabular-nums focus-visible:bg-muted" />
+          <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" />
+        </div>
+        <p className="text-muted-foreground text-xs">Tự đếm từ danh sách học sinh</p>
+      </div>
+    );
+  }
   return (
-    <TextField control={control} name="studentCount" label="Sĩ số" hint="Dùng để tính định mức theo học sinh." placeholder="VD: 42" number numberRule="COUNT"
+    <TextField control={control} name="studentCount" label="Sĩ số" hint="Dùng để tính định mức theo học sinh. Lớp đã có danh sách học sinh thì sĩ số tự đếm." placeholder="VD: 42" number numberRule="COUNT"
       rules={{ validate: { max: (v: unknown) => v == null || v === "" || Number(v) <= 200 || "Sĩ số tối đa 200" } }} />
   );
 }
@@ -165,7 +184,7 @@ function ClassFields({ control, record }: ClassFieldProps) {
       <div className="contents">
         <GradeField control={control} record={record} filters={gradeFilters} />
         <SchoolYearField control={control} record={record} current={current} />
-        <StudentCountField control={control} />
+        <StudentCountField control={control} record={record} />
         <HomeroomTeacherField control={control} record={record} />
         <RoomField control={control} record={record} />
       </div>
@@ -189,7 +208,7 @@ function ClassFormBody({ control, record, config }: { control: any; record?: any
         <CatalogCodeField control={control} config={config} fill />
         <SchoolYearField control={control} record={record} current={current} />
         <GradeField control={control} record={record} filters={gradeFilters} />
-        <StudentCountField control={control} />
+        <StudentCountField control={control} record={record} />
         {/* Công tắc hoạt động chỉ ở màn sửa, như khuôn chung. */}
         {record ? <CatalogActiveField control={control} className="sm:col-span-2" /> : null}
       </SideGroup>
@@ -523,6 +542,8 @@ export const SCHOOL_CLASS_EXTRA = {
   },
   Fields: ClassFields,
   FormBody: ClassFormBody,
+  // Hộp xem lớp: danh sách học sinh của lớp dưới phần chi tiết — chỉ tài khoản của trường thấy.
+  ShowBelow: ClassStudents,
   dialogSize: "form" as const,
   dialogHeader: true,
   filters: [

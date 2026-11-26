@@ -1,4 +1,3 @@
-import { Landmark } from "lucide-react";
 import { RowActions, ROW_ACTIONS_COLUMN } from "@/shared/components/data-table/row-actions";
 import { useInvalidate, useShow } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
@@ -10,12 +9,11 @@ import { EditButton } from "@/shared/components/buttons/edit";
 import { ShowButton } from "@/shared/components/buttons/show";
 import { DataTable, RESIZABLE_COLUMN_DEFAULTS } from "@/shared/components/data-table/data-table";
 import { DataTableQuickFilter } from "@/shared/components/data-table/data-table-quick-filter";
-import { OptionFilter, RefFilter, SortSelect } from "@/shared/components/data-table/ref-filter";
-import { usePerspective } from "@/shared/hooks/use-perspective";
+import { OptionFilter, SchoolFilter, SortSelect } from "@/shared/components/data-table/ref-filter";
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
 import { CreateView, CreateViewHeader } from "@/shared/components/views/create-view";
 import { ListToolbar, ListView, ListViewHeader } from "@/shared/components/views/list-view";
-import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
+import { RefreshItem, ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { DEFAULT_PAGE_SIZE } from "@/shared/lib/format";
 import { PLAN_STATUS_LABELS, type ProcurementPlan } from "@/domains/procurement/types";
 import { ExportButton, PlanEditor, PlanReviewButton, PlanStatusBadge, PrintButton, RESOURCE } from "./plan-editor";
@@ -51,7 +49,6 @@ export const ProcurementPlanList = () => {
       }),
     ];
   }, []);
-  const { perspective } = usePerspective();
   const table = useTable<ProcurementPlan>({
     columns,
     enableColumnResizing: true,
@@ -70,10 +67,8 @@ export const ProcurementPlanList = () => {
             search={<DataTableQuickFilter table={table} />}
             filters={
               <>
-                {/* Sở: chỉ hiện khi hệ thống có nhiều Sở. */}
-                {perspective === "school" ? null : (
-                  <RefFilter table={table} field="managingBody.id" resource="departments_of_education" all="Mọi Sở" searchPlaceholder="Tìm Sở…" icon={<Landmark />} hint="Lọc theo Sở" />
-                )}
+                {/* Trường: kế hoạch có đề xuất của trường đó (máy chủ lọc qua đề xuất trong kế hoạch). */}
+                <SchoolFilter table={table} />
                 <OptionFilter table={table} field="status" all="Mọi trạng thái" className="w-40"
                   options={Object.entries(PLAN_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
                 <SortSelect table={table} options={PLAN_SORTS} />
@@ -109,11 +104,17 @@ export const ProcurementPlanShow = () => {
   return (
     <ShowView>
       <ShowViewHeader
+        // Hàng nút chỉ giữ việc chính (Trả lại / Duyệt) và Xoá; Tải lại, In, Xuất Excel gập vào menu ⚙.
+        more={
+          <RowActions gear label="Thao tác khác">
+            <RefreshItem resource={RESOURCE} id={plan?.id} />
+            {plan ? <PrintButton /> : null}
+            {plan ? <ExportButton plan={plan} /> : null}
+          </RowActions>
+        }
         actions={
           plan ? (
             <>
-              <PrintButton />
-              <ExportButton plan={plan} />
               {actions.has("return") ? <PlanReviewButton plan={plan} step="return" onDone={refresh} /> : null}
               {actions.has("approve") ? <PlanReviewButton plan={plan} step="approve" onDone={refresh} /> : null}
               {actions.has("delete") ? <DeleteButton recordItemId={plan.id} record={plan} /> : null}

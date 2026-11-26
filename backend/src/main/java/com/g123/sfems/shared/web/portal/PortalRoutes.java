@@ -125,6 +125,9 @@ public final class PortalRoutes {
         // Riêng trường — lối của lãnh đạo trường trên CHÍNH trường mình (trường lấy từ người gọi); quản trị không gắn
         // trường nên không mở ở cổng Admin (tài khoản do màn Người dùng quản lý).
         own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "school_code_rules", "school_profile");
+        // Danh sách học sinh (304): dữ liệu cá nhân của trẻ vị thành niên — chỉ cổng trường. Sở xem sĩ số qua lớp, quản trị
+        // viên không xem.
+        own(EnumSet.of(SCHOOL), EnumSet.of(SCHOOL), "students");
         // Nhập dữ liệu đầu vào: trường nhập của mình, Sở nhập danh sách trường; quản trị viên chỉ xem.
         put(EnumSet.of(SO, SCHOOL), EnumSet.of(SO, SCHOOL), "data_imports");
     }

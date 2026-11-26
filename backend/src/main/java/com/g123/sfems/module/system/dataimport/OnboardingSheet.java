@@ -5,8 +5,8 @@ import java.util.Set;
 
 /**
  * Các trang của tệp dữ liệu đầu vào, theo THỨ TỰ GHI: trang sau tham chiếu mã của trang trước (khối nhà
- * cần cơ sở và cán bộ phụ trách, phòng cần khối nhà, lớp cần phòng và giáo viên, thiết bị cần phòng và người
- * quản lý). Cán bộ đứng trước khối nhà vì khối nhà, phòng đều có cột "Mã cán bộ phụ trách".
+ * cần cơ sở và cán bộ phụ trách, phòng cần khối nhà, lớp cần phòng và giáo viên, học sinh cần lớp, thiết bị cần
+ * phòng và người quản lý). Cán bộ đứng trước khối nhà vì khối nhà, phòng đều có cột "Mã cán bộ phụ trách".
  *
  * <p>Trang được nhận ra theo DÒNG TIÊU ĐỀ (đủ các cột bắt buộc), không theo tên trang: trường đổi tên trang,
  * xếp lại thứ tự hay chèn dòng ghi chú lên đầu đều không sao. Mỗi cột nhận thêm các tên hay gặp ở tệp của
@@ -97,6 +97,20 @@ public enum OnboardingSheet {
             col("teacher", "Mã giáo viên chủ nhiệm", false, "Theo trang Cán bộ – giáo viên", "Giáo viên chủ nhiệm",
                     "GVCN", "Mã GVCN", "Chủ nhiệm"),
             col("room", "Mã phòng học", false, "Theo trang Phòng", "Phòng học", "Mã phòng", "Phòng"),
+            col("note", "Ghi chú", false, ""))),
+
+    // Danh sách học sinh (304): lớp có học sinh thì sĩ số tự đếm từ trang này. Lớp theo trang Lớp học của tệp hoặc
+    // lớp đã có trên hệ thống; năm học suy ra từ lớp.
+    STUDENT("Học sinh", List.of(
+            col("code", "Mã học sinh", true, "Mã do trường đặt (hoặc mã trên phần mềm cũ), duy nhất trong một lớp",
+                    "Mã HS", "Mã số học sinh", "Mã số HS", "Mã định danh học sinh", "Mã học viên", "MSHS"),
+            col("name", "Họ và tên", true, "Họ và tên đầy đủ, có dấu", "Họ tên", "Tên học sinh", "Họ tên học sinh",
+                    "Họ và tên học sinh", "Học sinh"),
+            col("class", "Lớp", true, "Tên lớp như trang Lớp học, vd 10A1", "Mã lớp", "Tên lớp", "Lớp học",
+                    "Lớp đang học"),
+            col("birthDate", "Ngày sinh", false, "dd/mm/yyyy", "Ngày tháng năm sinh", "Ngày, tháng, năm sinh",
+                    "NTNS", "Sinh ngày"),
+            col("gender", "Giới tính", false, "Nam hoặc Nữ", "Phái", "Nam/Nữ", "Nam / Nữ", "GT"),
             col("note", "Ghi chú", false, ""))),
 
     EQUIPMENT("Thiết bị", List.of(

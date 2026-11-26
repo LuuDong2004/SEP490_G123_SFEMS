@@ -1,8 +1,8 @@
-import { useNotification, useShow } from "@refinedev/core";
+import { useCan, useNotification, useShow } from "@refinedev/core";
 import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-lines";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Info, PackageCheck, RefreshCw, Trash2 } from "lucide-react";
+import { ClipboardCheck, Info, PackageCheck, RefreshCw, Trash2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Controller, useFieldArray, useFormContext, useWatch, type Control, type UseFieldArrayReturn } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
@@ -19,6 +19,7 @@ import { errorMessage } from "@/shared/lib/api-error";
 import { formatPlainDate, todayLocal } from "@/shared/lib/format";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { StepTitle, VoucherLinesCard } from "@/shared/components/voucher/voucher-layout";
 import { FormControl, FormField, FormMessage } from "@/shared/ui/form";
 import { maxLengthOf, numberMax, numberRules, textRules, type NumberRule, type TextRule } from "@/shared/lib/field-rules";
@@ -35,6 +36,7 @@ import { OverlapNote, OverlapSummary, useProposalOverlaps, type OverlapIndex } f
 import { ProposalPickerDialog } from "./picker";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
 import { cn } from "@/shared/lib/utils";
+import { usePerspective } from "@/shared/hooks/use-perspective";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -407,7 +409,38 @@ function ProposalFields({ control, record, setValue }: { control: Control<any>; 
   );
 }
 
+/**
+ * Ô "Kế hoạch" của một đề xuất: mã kế hoạch (rê chuột thấy tên), bấm mở kế hoạch. Cùng luật xem của máy chủ
+ * (`ProcurementPlanService.visible`): tài khoản TRƯỜNG chỉ xem kế hoạch ĐÃ DUYỆT — chưa duyệt thì với trường đề xuất như
+ * chưa có kế hoạch (cùng chữ với đề xuất chưa vào kế hoạch nào). Mọi tài khoản Sở xem mọi kế hoạch của Sở, cả bản nháp.
+ */
+function PlanCell({ proposal, small }: { proposal: PurchaseProposal; small?: boolean }) {
+  const { perspective } = usePerspective();
+  const plan = proposal.plan;
+  const visible = !!plan && (plan.status === "APPROVED" || perspective !== "school");
+  if (!plan || !visible) {
+    const text = proposal.status === "APPROVED" ? "Chờ Sở đưa vào kế hoạch" : "Chưa có kế hoạch";
+    return small ? <span className="text-muted-foreground text-xs">{text}</span> : <>{text}</>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link className={cn("text-primary font-mono font-medium hover:underline", small && "text-xs")} to={`/procurement-plans/show/${plan.id}`}>
+          {plan.code ?? plan.title}
+          {/* Kế hoạch chưa duyệt (chỉ Sở thấy): ghi kèm tình trạng để biết đề xuất đang ở bản nháp hay chờ duyệt. */}
+          {plan.status === "APPROVED" ? null : (
+            <span className="text-muted-foreground font-sans font-normal"> · {plan.status === "PENDING" ? "chờ duyệt" : "nháp"}</span>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>{plan.title}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export const PurchaseProposalList = () => {
+  const { data: canPlan } = useCan({ resource: "procurement_plans", action: "create" });
+  const navigate = useNavigate();
   const columns = useMemo(() => {
     const h = createColumnHelper<PurchaseProposal>();
     return [
@@ -418,14 +451,13 @@ export const PurchaseProposalList = () => {
         header: "Tổng giá tham khảo",
         cell: ({ row }) => row.original.totalAmount > 0
           ? <span className="tabular-nums">{money.format(row.original.totalAmount)} đ</span>
-          : <span className="text-muted-foreground">—</span>,
+          : <span className="text-muted-foreground text-xs">Chưa có giá</span>,
       }),
       h.display({
         id: "plan",
         header: "Kế hoạch",
-        cell: ({ row }) => row.original.plan
-          ? <Link className="text-primary hover:underline" to={`/procurement-plans/show/${row.original.plan.id}`}>{row.original.plan.title}</Link>
-          : <span className="text-muted-foreground">—</span>,
+        // Mã kế hoạch (gọn, không bị cắt như tên dài); tên kế hoạch hiện khi rê chuột.
+        cell: ({ row }) => <PlanCell proposal={row.original} small />,
       }),
     ];
   }, []);
@@ -433,6 +465,30 @@ export const PurchaseProposalList = () => {
     <VoucherList<PurchaseProposal>
       resource={RESOURCE}
       columns={columns}
+      // Luồng đề xuất cố định: lãnh đạo trường → lãnh đạo Sở.
+      approvalChain={["SCHOOL", "MANAGING_BODY"]}
+      // Chuyên viên Sở chọn các đề xuất đã duyệt, chưa vào kế hoạch rồi lập kế hoạch từ chúng — màn lập kế hoạch nhận
+      // sẵn các đề xuất đó (`?proposals=`).
+      selection={{
+        enabled: !!canPlan?.can,
+        selectable: (r) => r.status === "APPROVED" && !r.plan,
+        action: (ids) => {
+          const button = (
+            <Button type="button" size="sm" className="h-9 rounded-full" disabled={!ids.length}
+              onClick={() => navigate(`/procurement-plans/create?proposals=${ids.join(",")}`)}>
+              <ClipboardCheck />
+              Lập kế hoạch{ids.length ? ` từ ${ids.length} đề xuất` : ""}
+            </Button>
+          );
+          // Chưa chọn thì nút khoá — bọc một lớp để khung gợi ý của hệ thống vẫn hiện khi rê chuột.
+          return ids.length ? button : (
+            <Tooltip>
+              <TooltipTrigger asChild><span tabIndex={0} className="inline-flex">{button}</span></TooltipTrigger>
+              <TooltipContent>Tích chọn các đề xuất đã duyệt, chưa vào kế hoạch</TooltipContent>
+            </Tooltip>
+          );
+        },
+      }}
     />
   );
 };
@@ -526,9 +582,7 @@ export const PurchaseProposalShow = () => {
         { label: "Tổng giá tham khảo", value: record.totalAmount > 0 ? `${money.format(record.totalAmount)} đ` : "Chưa có giá" },
         {
           label: "Kế hoạch mua sắm",
-          value: record.plan
-            ? <Link className="text-primary hover:underline" to={`/procurement-plans/show/${record.plan.id}`}>{record.plan.title}</Link>
-            : record.status === "APPROVED" ? "Chờ Sở đưa vào kế hoạch" : "Chưa vào kế hoạch",
+          value: <PlanCell proposal={record} />,
         },
         ...(record.intakeId
           ? [{ label: "Phiếu ghi tăng", value: <Link className="text-primary hover:underline" to={`/equipment-intakes/show/${record.intakeId}`}>Xem phiếu ghi tăng</Link> }]

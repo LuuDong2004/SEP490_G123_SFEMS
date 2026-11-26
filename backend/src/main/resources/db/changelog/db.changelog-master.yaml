@@ -562,3 +562,7 @@ databaseChangeLog:
       file: db/changelog/changes/301-de-xuat-bo-truong-ngoai-nghiep-vu.sql
   - include:
       file: db/changelog/changes/302-luong-de-xuat-co-dinh-truong-so.sql
+  - include:
+      file: db/changelog/changes/303-lanh-dao-so-lap-ke-hoach.sql
+  - include:
+      file: db/changelog/changes/304-hoc-sinh.sql

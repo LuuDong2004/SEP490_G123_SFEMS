@@ -41,6 +41,13 @@ public class RecordAccessRegistry {
         access.checkWritable(id);
     }
 
+    /** Như {@link #checkWritable} rồi hỏi bản ghi gốc có cho THÊM / XOÁ tệp không (phiếu đã trình thì không). */
+    public void checkAttachmentsEditable(String resource, Long id) {
+        RecordAccess access = access(resource, id);
+        requireAuthority(access.permission() + ":write");
+        access.checkAttachmentsEditable(id);
+    }
+
     /** Luật tệp riêng của tài nguyên (đuôi nhận, trần dung lượng) — gọi SAU {@link #checkWritable}. */
     public RecordAccess rulesOf(String resource) {
         return access(resource, null);

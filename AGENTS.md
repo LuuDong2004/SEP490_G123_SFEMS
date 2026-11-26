@@ -169,9 +169,10 @@ Chi tiết ở `ARCHITECTURE.md` mục 2, 4. Tóm tắt phần hay sai:
 - **Gửi thư** chỉ qua `shared/mail/MailService` với nội dung `MailContent` (khung HTML chung `MailTemplate`, kèm bản
   chữ thuần) — không tự dựng `JavaMailSender` hay viết HTML thư riêng. Thông báo muốn đi kèm email thì gọi
   `NotificationService.notify(NotificationType.…, …)` với đúng loại; loại mới thêm hằng ở `NotificationType` + một dòng
-  `notification_type_settings` bằng changelog. Máy chủ thư khai trong `application-local.properties` (mẫu trong
-  `.example`): máy dev dùng Mailpit (`docker compose -f backend/compose.yaml up -d mailpit`, xem thư ở
-  http://localhost:8025), khi demo dùng Gmail SMTP + mật khẩu ứng dụng. Không khai thì thư chỉ được ghi ra log.
+  `notification_type_settings` bằng changelog. Máy chủ thư CHỈ khai ở màn Cài đặt máy chủ thư của quản trị viên (bảng
+  `mail_config`), `spring.mail.*` trong tệp cấu hình không được dùng: máy dev dùng Mailpit
+  (`docker compose -f backend/compose.yaml up -d mailpit`, máy chủ `localhost:1025`, xem thư ở http://localhost:8025),
+  khi demo dùng Gmail SMTP + mật khẩu ứng dụng. Công tắc "Gửi thư" tắt hoặc chưa khai thì thư chỉ được ghi ra log.
 
 ---
 

@@ -107,7 +107,9 @@ public class OnboardingQuickFix {
                     taken.add(c.trim().toUpperCase());
                 }
             });
-            codeFixes(rows, taken, out);
+            // Mã học sinh chỉ duy nhất trong một lớp: hai lớp cùng một mã không phải trùng.
+            codeFixes(rows, taken, out, sheet == OnboardingSheet.STUDENT
+                    ? r -> Objects.toString(r.data().get("class"), "").trim().toUpperCase() + "|" : r -> "");
         }
 
         if (sheet == OnboardingSheet.BUILDING || sheet == OnboardingSheet.ROOM) {
@@ -482,7 +484,8 @@ public class OnboardingQuickFix {
      * Mọi dòng của nhóm đều có một gợi ý — kể cả dòng giữ nguyên ({@link #KEEP}) — để hộp gợi ý liệt kê đủ cả nhóm:
      * bộ kiểm báo lỗi trùng cho mọi dòng, dòng nào không hiện thì người sửa không biết nó được giữ.
      */
-    private static void codeFixes(List<OnboardingService.StagedRow> rows, Set<String> taken, List<Suggestion> out) {
+    private static void codeFixes(List<OnboardingService.StagedRow> rows, Set<String> taken, List<Suggestion> out,
+            java.util.function.Function<OnboardingService.StagedRow, String> scope) {
         Map<String, List<OnboardingService.StagedRow>> groups = new LinkedHashMap<>();
         Map<Long, String> target = new HashMap<>();
         for (OnboardingService.StagedRow r : rows) {
@@ -497,7 +500,7 @@ public class OnboardingQuickFix {
                 continue;
             }
             target.put(r.id(), fixed);
-            groups.computeIfAbsent(fixed.toUpperCase(), k -> new ArrayList<>()).add(r);
+            groups.computeIfAbsent(scope.apply(r) + fixed.toUpperCase(), k -> new ArrayList<>()).add(r);
         }
         for (List<OnboardingService.StagedRow> group : groups.values()) {
             OnboardingService.StagedRow head = group.get(0);

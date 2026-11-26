@@ -1,3 +1,4 @@
+import { AwaitingMeTag } from "@/shared/components/voucher/awaiting-me-tag";
 import { useNavigation } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -48,10 +49,10 @@ export const EquipmentIntakeList = () => {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Số phiếu", size: 150, enableSorting: false,
+        id: "code", header: "Số phiếu", size: 210, enableSorting: false,
         cell: ({ getValue, row }) => {
           const code = getValue();
-          return code ? (
+          const number = code ? (
             <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{code}</span>
           ) : row.original.status !== "DRAFT" ? (
             // Cùng chữ, cùng màu với mọi danh sách phiếu khác (VoucherList) — huỷ từ lúc còn nháp thì không bao giờ có số.
@@ -59,6 +60,12 @@ export const EquipmentIntakeList = () => {
           ) : (
             // Phiếu nháp chưa có số — số chỉ cấp lúc duyệt, để dãy số không nhảy cách quãng.
             <span className="text-warning-text text-xs">Chưa cấp số</span>
+          );
+          return (
+            <span className="flex items-center gap-2">
+              {number}
+              <AwaitingMeTag voucher={row.original} />
+            </span>
           );
         },
       }),

@@ -1,6 +1,6 @@
 /** Nhập dữ liệu đầu vào qua vùng chờ (`/api/data_imports`). */
 
-export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "equipment" | "schools" | "wards";
+export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "student" | "equipment" | "schools" | "wards";
 
 /**
  * Loại dữ liệu của một lô: dữ liệu đầu vào của MỘT trường (nhiều trang), hoặc một danh mục dùng chung (một trang,
@@ -153,6 +153,7 @@ export const CREATED_LABELS: Record<string, string> = {
   buildings: "khối nhà",
   rooms: "phòng",
   school_classes: "lớp",
+  students: "học sinh",
   equipment_catalogs: "thiết bị ngoài danh mục",
   equipment: "thiết bị",
 };

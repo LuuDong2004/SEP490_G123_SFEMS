@@ -23,6 +23,8 @@ import com.g123.sfems.module.school.schoolclass.SchoolClassRequest;
 import com.g123.sfems.module.school.schoolclass.SchoolClassService;
 import com.g123.sfems.module.school.staff.StaffRequest;
 import com.g123.sfems.module.school.staff.StaffService;
+import com.g123.sfems.module.school.student.StudentRequest;
+import com.g123.sfems.module.school.student.StudentService;
 import com.g123.sfems.module.school.team.SubjectTeamRequest;
 import com.g123.sfems.module.school.team.SubjectTeamService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
@@ -36,6 +38,7 @@ import com.g123.sfems.module.system.dataimport.OnboardingValidator.Result;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.RoomRow;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.Staged;
 import com.g123.sfems.module.system.dataimport.OnboardingValidator.StaffRow;
+import com.g123.sfems.module.system.dataimport.OnboardingValidator.StudentRow;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
@@ -156,13 +159,15 @@ public class OnboardingService {
     private final EquipmentService equipment;
     private final EquipmentCatalogService catalogs;
     private final CatalogImports catalogImports;
+    private final StudentService students;
 
     public OnboardingService(JdbcTemplate jdbc, ObjectMapper mapper, OnboardingValidator validator,
             VisibleSchools visibleSchools, RowLevelPrincipalResolver principals, CampusService campuses,
             StaffService staff, SubjectTeamService teams, BuildingService buildings, RoomService rooms,
-            SchoolClassService classes, EquipmentService equipment, EquipmentCatalogService catalogs,
-            CatalogImports catalogImports) {
+            SchoolClassService classes, StudentService students, EquipmentService equipment,
+            EquipmentCatalogService catalogs, CatalogImports catalogImports) {
         this.catalogImports = catalogImports;
+        this.students = students;
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.validator = validator;
@@ -255,6 +260,9 @@ public class OnboardingService {
     public List<StagedRow> rows(long id, String sheet) {
         requireVisible(id);
         String sheetName = sheetName(id, sheet);
+        if (hiddenSheet(sheetName)) {
+            return List.of();
+        }
         return jdbc.query("""
                 SELECT r.id, r.row_no, r.data::text AS data, r.skipped, r.status, r.messages::text AS messages,
                        r.resolved::text AS resolved,
@@ -291,11 +299,25 @@ public class OnboardingService {
                        to_char(e.edited_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'DD/MM/YYYY HH24:MI:SS') AS edited_at,
                        u.full_name AS edited_by
                 FROM data_import_edits e LEFT JOIN users u ON u.id = e.edited_by_id
-                WHERE e.batch_id = ? ORDER BY e.edited_at DESC, e.id DESC LIMIT 2000
+                WHERE e.batch_id = ? AND (? OR e.sheet <> ?) ORDER BY e.edited_at DESC, e.id DESC LIMIT 2000
                 """, (rs, i) -> new Edit(rs.getLong("id"), rs.getString("sheet"), rs.getInt("row_no"),
                 rs.getObject("row_id") == null ? null : rs.getLong("row_id"), rs.getString("field"),
                 rs.getString("old_value"), rs.getString("new_value"), rs.getString("source"),
-                rs.getString("edited_at"), rs.getString("edited_by")), id);
+                rs.getString("edited_at"), rs.getString("edited_by")), id, mayReadStudents(),
+                OnboardingSheet.STUDENT.name());
+    }
+
+    /** Quyền xem danh sách học sinh — chỉ vai loại trường (304). Thiếu thì trang Học sinh của lô bị ẩn. */
+    private static boolean mayReadStudents() {
+        return CurrentUser.has("students:read");
+    }
+
+    /**
+     * Trang của lô mà người xem không được thấy: trang Học sinh với người không có quyền xem học sinh (Sở, quản trị
+     * viên xem lô của trường) — họ tên, ngày sinh của học sinh là dữ liệu cá nhân, không lộ qua vùng chờ.
+     */
+    private static boolean hiddenSheet(String sheetName) {
+        return OnboardingSheet.STUDENT.name().equals(sheetName) && !mayReadStudents();
     }
 
     /**
@@ -338,6 +360,9 @@ public class OnboardingService {
                 "year", jdbc.query("SELECT code, name FROM school_years WHERE active ORDER BY start_date DESC NULLS LAST, code DESC",
                         (rs, i) -> OnboardingValidator.schoolYearLabel(rs.getString("code"), rs.getString("name"))),
                 "teacher", staff, "room", rooms));
+        out.put(OnboardingSheet.STUDENT.key(), Map.of(
+                "class", codesOf(id, schoolId, "school_classes", OnboardingSheet.CLASS),
+                "gender", List.of("Nam", "Nữ")));
         List<String> funding = new ArrayList<>(Arrays.stream(FundingSource.values())
                 .filter(FundingSource::selectable).map(FundingSource::label).toList());
         funding.add(FundingSource.UNDETERMINED.label());
@@ -376,6 +401,7 @@ public class OnboardingService {
         }
         List<XlsxWriter.Tab> tabs = new ArrayList<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
+            // `rows` trả rỗng cho trang người xem không được thấy (Học sinh) — trang ấy không vào tệp.
             List<Map<String, Object>> data = rows(id, s.key()).stream().filter(r -> !r.skipped())
                     .map(r -> (Map<String, Object>) new HashMap<String, Object>(r.data())).toList();
             if (data.isEmpty()) {
@@ -435,6 +461,10 @@ public class OnboardingService {
     static final String EQUIPMENT_LOCKED_FILE = "Trường đã khoá khai thiết bị ban đầu — trang Thiết bị không nhận nữa, "
             + "tệp không còn trang nào khác. Thiết bị mới lập phiếu ghi tăng";
 
+    /** Tệp chỉ có trang Học sinh mà người tải không phải tài khoản của trường. */
+    static final String STUDENTS_ONLY_FILE = "Danh sách học sinh chỉ tài khoản của trường nhập được — tệp không còn trang "
+            + "nào khác";
+
     /** Lô chưa có dòng nào (tệp mẫu trống, điền trên lưới chưa xong) thì không ghi. */
     static final String EMPTY_BATCH = "Lô chưa có dòng dữ liệu nào — thêm dòng trên lưới (hoặc tải tệp đã điền) rồi cập nhật";
 
@@ -458,6 +488,12 @@ public class OnboardingService {
         // sổ qua phiếu ghi tăng. Tệp chỉ có trang Thiết bị thì báo luôn.
         if (equipmentLocked(schoolId) && found.remove(OnboardingSheet.EQUIPMENT) != null && found.isEmpty()) {
             throw new FieldValidationException("file", EQUIPMENT_LOCKED_FILE);
+        }
+        // Danh sách học sinh chỉ tài khoản của trường nhập được (304): người khác tải tệp có trang Học sinh thì trang ấy
+        // không nạp vào lô — họ tên học sinh không vào vùng chờ của người không được xem.
+        if (!CurrentUser.has(OnboardingValidator.STUDENTS_WRITE) && found.remove(OnboardingSheet.STUDENT) != null
+                && found.isEmpty()) {
+            throw new FieldValidationException("file", STUDENTS_ONLY_FILE);
         }
         if (found.isEmpty()) {
             throw new FieldValidationException("file", "Không nhận ra trang nào — dòng tiêu đề phải có đủ các cột "
@@ -595,6 +631,9 @@ public class OnboardingService {
             throw new FieldValidationException("sheet", "Trường đã khoá khai thiết bị ban đầu — không thêm dòng Thiết bị."
                     + " Thiết bị mới lập phiếu ghi tăng");
         }
+        if (OnboardingSheet.STUDENT.name().equals(sheetName) && !CurrentUser.has(OnboardingValidator.STUDENTS_WRITE)) {
+            throw new FieldValidationException("sheet", "Danh sách học sinh chỉ tài khoản của trường nhập được");
+        }
         Integer next = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(row_no), 0) + 1 FROM data_import_rows WHERE batch_id = ? AND sheet = ?",
                 Integer.class, id, sheetName);
@@ -708,9 +747,22 @@ public class OnboardingService {
                 if (s == OnboardingSheet.STAFF) {
                     w.teams();
                 }
+                if (s == OnboardingSheet.STUDENT) {
+                    // Sĩ số các lớp vừa có học sinh: đếm lại một lần sau cả trang, không sau từng em.
+                    entityManager.flush();
+                    students.recount(w.studentClasses, false);
+                }
             }
         } finally {
             progress.remove(id);
+        }
+        if (!w.priorCounts.isEmpty()) {
+            // Lô dữ liệu trường không dùng cột `preview` (của lô danh mục): giữ ở đó sĩ số nhập tay của các lớp vừa có
+            // danh sách học sinh, để hoàn tác.
+            Map<String, Object> prior = new HashMap<>();
+            w.priorCounts.forEach((k, v) -> prior.put(String.valueOf(k), v));
+            jdbc.update("UPDATE data_import_batches SET preview = ?::jsonb WHERE id = ?",
+                    mapper.writeValueAsString(Map.of(PRIOR_COUNTS, prior)), id);
         }
         Integer history = w.equipmentIds.isEmpty() ? 0 : jdbc.queryForObject(
                 "SELECT COUNT(*) FROM equipment_history WHERE equipment_id = ANY (?)", Integer.class,
@@ -768,6 +820,14 @@ public class OnboardingService {
             delete("equipment", equipmentIds);
             delete("equipment_catalogs", ids(created, "equipment_catalogs"));
             delete("subject_teams", ids(created, "subject_teams"));
+            // Học sinh trước lớp (khoá ngoại). Lớp đã có từ trước mà lô thêm học sinh vào: đếm lại sĩ số theo phần học
+            // sinh còn lại; không còn ai thì giữ sĩ số đang có — lớp trở lại như chưa có danh sách.
+            Long[] studentIds = ids(created, "students");
+            List<Long> studentClasses = studentIds.length == 0 ? List.of() : jdbc.queryForList(
+                    "SELECT DISTINCT class_id FROM students WHERE id = ANY (?)", Long.class, (Object) studentIds);
+            delete("students", studentIds);
+            students.recount(studentClasses, false);
+            restorePriorCounts(id);
             delete("school_classes", ids(created, "school_classes"));
             Long[] roomIds = ids(created, "rooms");
             refuseIf("SELECT EXISTS (SELECT 1 FROM equipment WHERE room_id = ANY (?))", roomIds,
@@ -792,10 +852,29 @@ public class OnboardingService {
         jdbc.update("DELETE FROM data_import_records WHERE batch_id = ?", id);
         jdbc.update("""
                 UPDATE data_import_batches SET status = ?, committed_at = NULL, committed_by_id = NULL,
-                       history_count = NULL, updated_at = now() WHERE id = ?
+                       history_count = NULL, preview = NULL, updated_at = now() WHERE id = ?
                 """, DRAFT, id);
         revalidate(id);
         return summary(id);
+    }
+
+    /** Khoá trong {@code preview} của lô dữ liệu trường: id lớp → sĩ số nhập tay trước khi lô thêm học sinh. */
+    private static final String PRIOR_COUNTS = "priorClassCounts";
+
+    private static final TypeReference<Map<String, Map<String, Integer>>> PRIOR = new TypeReference<>() {
+    };
+
+    /** Hoàn tác: lớp không còn học sinh nào thì về lại sĩ số nhập tay trước khi ghi lô. */
+    private void restorePriorCounts(long id) {
+        String text = jdbc.queryForObject("SELECT preview::text FROM data_import_batches WHERE id = ?", String.class, id);
+        if (text == null || !text.contains(PRIOR_COUNTS)) {
+            return;
+        }
+        Map<String, Integer> prior = mapper.readValue(text, PRIOR).getOrDefault(PRIOR_COUNTS, Map.of());
+        prior.forEach((classId, count) -> jdbc.update("""
+                UPDATE school_classes k SET student_count = ?, updated_at = now()
+                WHERE k.id = ? AND NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = k.id)
+                """, count, Long.parseLong(classId)));
     }
 
     // ------------------------------------------------------------------ ghi từng loại
@@ -810,6 +889,12 @@ public class OnboardingService {
         final Map<String, Long> teamLeaders = new HashMap<>();
         final Map<String, Long> newItems = new HashMap<>();
         final List<Long> equipmentIds = new ArrayList<>();
+        /** Tên lớp (chữ hoa)|id năm học → id lớp: lớp đã có của trường cộng lớp vừa ghi ở trang Lớp học. */
+        final Map<String, Long> classIds = new HashMap<>();
+        /** Lớp vừa có thêm học sinh — đếm lại sĩ số sau trang Học sinh. */
+        final Set<Long> studentClasses = new HashSet<>();
+        /** Lớp trước lô chưa có học sinh nào → sĩ số nhập tay lúc đó (có thể trống). Hoàn tác trả lại số này. */
+        final Map<Long, Integer> priorCounts = new HashMap<>();
         final int total;
         int done;
         String step = "Đang chuẩn bị";
@@ -824,6 +909,10 @@ public class OnboardingService {
             load(OnboardingSheet.STAFF, "staff");
             load(OnboardingSheet.BUILDING, "buildings");
             load(OnboardingSheet.ROOM, "rooms");
+            jdbc.query("SELECT id, code, school_year_id FROM school_classes WHERE school_id = ?", rs -> {
+                classIds.put(OnboardingValidator.upper(rs.getString("code")) + "|" + rs.getLong("school_year_id"),
+                        rs.getLong("id"));
+            }, schoolId);
         }
 
         void load(OnboardingSheet s, String table) {
@@ -910,6 +999,24 @@ public class OnboardingService {
                             new IdRef(c.grade()), new IdRef(c.year()), ref(OnboardingSheet.STAFF, c.teacher()),
                             ref(OnboardingSheet.ROOM, c.room()), c.students())).getId();
                     record("school_classes", id);
+                    classIds.put(OnboardingValidator.upper(c.code()) + "|" + c.year(), id);
+                }
+                case StudentRow c -> {
+                    Long classId = classIds.get(OnboardingValidator.upper(c.classCode()) + "|" + c.year());
+                    if (classId == null) {
+                        throw new IllegalStateException("Không tìm thấy lớp " + c.classCode());
+                    }
+                    if (studentClasses.add(classId)) {
+                        // Học sinh đầu tiên lô thêm vào lớp này: lớp chưa có danh sách thì giữ sĩ số nhập tay hiện có,
+                        // để hoàn tác trả lại đúng số đó.
+                        jdbc.query("SELECT student_count FROM school_classes k WHERE k.id = ?"
+                                + " AND NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = k.id)", rs -> {
+                            priorCounts.put(classId, (Integer) rs.getObject(1));
+                        }, classId);
+                    }
+                    Long id = students.createUncounted(new StudentRequest(c.code(), c.name(), null, true, c.note(),
+                            school, new IdRef(classId), c.birthDate(), c.gender())).getId();
+                    record("students", id);
                 }
                 case EquipmentRow c -> equipment(c);
                 default -> throw new IllegalStateException("Dòng không đọc được");
@@ -1233,7 +1340,7 @@ public class OnboardingService {
             // Trường đã khoá khai thiết bị ban đầu: lô không có trang Thiết bị (dòng cũ nếu có vẫn "bỏ qua", không ghi).
             boolean locked = b.get("school_id") != null && equipmentLocked(((Number) b.get("school_id")).longValue());
             for (OnboardingSheet s : OnboardingSheet.values()) {
-                if (locked && s == OnboardingSheet.EQUIPMENT) {
+                if (locked && s == OnboardingSheet.EQUIPMENT || hiddenSheet(s.name())) {
                     continue;
                 }
                 int[] c = counts.getOrDefault(s.name(), new int[6]);

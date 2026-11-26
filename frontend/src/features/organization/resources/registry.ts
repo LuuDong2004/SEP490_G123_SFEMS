@@ -1,10 +1,11 @@
-import { DoorOpen, GraduationCap, Hotel, IdCard, PackageSearch, School as SchoolIcon, UsersRound } from "lucide-react";
+import { Backpack, DoorOpen, GraduationCap, Hotel, IdCard, PackageSearch, School as SchoolIcon, UsersRound } from "lucide-react";
 
 import type { CatalogConfig } from "@/shared/components/catalog/types";
 import { EQUIPMENT_EXTRA } from "@/features/organization/resources/equipment-extra";
 import { BUILDING_EXTRA, CAMPUS_EXTRA, ROOM_EXTRA } from "@/features/organization/resources/facility-extra";
 import { STAFF_EXTRA } from "@/features/organization/resources/staff-extra";
 import { SCHOOL_CLASS_EXTRA } from "@/features/organization/resources/class-extra";
+import { STUDENT_EXTRA } from "@/features/organization/resources/student-extra";
 import { SUBJECT_TEAM_EXTRA } from "@/features/organization/resources/team-extra";
 
 /**
@@ -103,6 +104,23 @@ export const ORG_RESOURCES: CatalogConfig[] = [
     hideSortOrder: true,
   },
   {
+    // Danh sách học sinh (304): chỉ tài khoản của trường xem, sửa. Lớp có học sinh thì sĩ số tự đếm.
+    resource: "students",
+    hidden: true,
+    path: "/students",
+    group: "organization",
+    icon: Backpack,
+    label: "Học sinh",
+    description: "Danh sách học sinh của trường theo lớp. Lớp có học sinh thì sĩ số tự đếm từ danh sách.",
+    codeLabel: "Mã HS",
+    codeShowLabel: "Mã học sinh",
+    codeExample: "79000F01-2026-0001",
+    nameLabel: "Họ và tên",
+    nameExample: "Nguyễn Văn An",
+    nameRule: "PERSON_NAME",
+    hideSortOrder: true,
+  },
+  {
     resource: "equipment",
     pageForm: true,
     path: "/equipment",
@@ -122,6 +140,7 @@ const EXTRAS: Record<string, CatalogConfig["extra"]> = {
   buildings: BUILDING_EXTRA,
   rooms: ROOM_EXTRA,
   school_classes: SCHOOL_CLASS_EXTRA,
+  students: STUDENT_EXTRA,
   subject_teams: SUBJECT_TEAM_EXTRA,
   equipment: EQUIPMENT_EXTRA,
 };

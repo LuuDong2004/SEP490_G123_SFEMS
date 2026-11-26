@@ -9,6 +9,7 @@ import com.g123.sfems.module.school.procurement.AdequacyService;
 import com.g123.sfems.module.school.procurement.YearAdequacyService;
 import com.g123.sfems.module.school.yearprofile.YearStandardService;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import com.g123.sfems.shared.office.XlsxWriter;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -278,6 +279,38 @@ public class ReportService {
     public byte[] csvcWorkbook(Params params) {
         Params p = ReportFilters.only(resolve(params), ReportFilters.of(CsvcStatisticsReport.NAME));
         return CsvcStatisticsXlsx.write(csvc.header(p), csvc.build(p).rows());
+    }
+
+    /** Biểu số liệu CSVC theo từng phòng (xem {@link CsvcStatisticsReport#rooms}); cùng phạm vi với biểu mẫu Sở. */
+    public List<Map<String, Object>> csvcRooms(Params params) {
+        return csvc.rooms(ReportFilters.only(resolve(params), ReportFilters.of(CsvcStatisticsReport.NAME)));
+    }
+
+    /** Bảng theo từng phòng ra Excel: một trang, khối và loại là dòng đề mục, phòng là dòng dữ liệu. */
+    public byte[] csvcRoomsWorkbook(Params params) {
+        Params p = ReportFilters.only(resolve(params), ReportFilters.of(CsvcStatisticsReport.NAME));
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> r : csvc.rooms(p)) {
+            Map<String, Object> x = new LinkedHashMap<>(r);
+            String kind = (String) r.get("kind");
+            if (!"room".equals(kind)) {
+                x.put("text", ("group".equals(kind) ? "" : "   ") + r.get("text") + " (" + r.get("count") + ")");
+            } else {
+                x.put("stt", null);
+            }
+            rows.add(x);
+        }
+        CsvcStatisticsReport.Header h = csvc.header(p);
+        String school = h.unit() + (h.schoolYear() == null ? "" : " · " + h.schoolYear());
+        return XlsxWriter.write(new XlsxWriter.Sheet("Biểu số liệu CSVC theo từng phòng", school, List.of(
+                new XlsxWriter.Column("stt", "STT", "text"),
+                new XlsxWriter.Column("text", "Hạng mục / phòng", "text"),
+                new XlsxWriter.Column("code", "Mã", "text"),
+                new XlsxWriter.Column("type", "Loại CSVC", "text"),
+                new XlsxWriter.Column("structure", "Kết cấu", "text"),
+                new XlsxWriter.Column("area", "Diện tích (m²)", "number"),
+                new XlsxWriter.Column("building", "Nhà / khối nhà", "text"),
+                new XlsxWriter.Column("campus", "Cơ sở", "text")), rows));
     }
 
     public Report build(String name, Params params) {
@@ -714,8 +747,11 @@ public class ReportService {
      * Mục 3.5.7: nhu cầu mua sắm theo địa bàn, cấp học, đơn vị hoặc loại thiết bị, trong một năm ngân sách.
      * "Đã vào kế hoạch" là đề xuất đã được một kế hoạch mua sắm duyệt đóng lại ({@code COMPLETED}).
      */
-    /** Đề xuất đã vào kế hoạch: đang nằm trong một kế hoạch (kể cả kế hoạch chưa duyệt), hoặc đã hoàn tất. */
-    private static final String PLANNED = "p.plan_id IS NOT NULL OR p.status = 'COMPLETED'";
+    /**
+     * Đề xuất đã vào kế hoạch: kế hoạch chứa nó ĐÃ ĐƯỢC LÃNH ĐẠO SỞ DUYỆT — lúc đó đề xuất hoàn tất. Nằm trong một kế
+     * hoạch còn nháp / chờ duyệt chưa tính: Sở còn bớt, bỏ, rút đề xuất ra được.
+     */
+    private static final String PLANNED = "p.status = 'COMPLETED'";
 
     /**
      * Từng dòng đề xuất: số vào kế hoạch và số đã nhập về. Đã nhập về = cộng các phiếu ghi tăng HOÀN TẤT lập từ đề xuất

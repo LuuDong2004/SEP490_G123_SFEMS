@@ -1,10 +1,10 @@
+import { ReturnedNotice } from "@/shared/components/voucher/returned-notice";
 import { useOne, useShow } from "@refinedev/core";
 import {
   AlertCircle,
   Ban,
   CheckCircle2,
   Clock,
-  CornerUpLeft,
   FilePen,
   History,
   PackageCheck,
@@ -427,11 +427,7 @@ export const EquipmentIntakeShow = () => {
   const alerts = (
     <>
       {draft && record?.returnNote ? (
-        <Alert>
-          <CornerUpLeft className="text-warning-text" />
-          <AlertTitle>Phiếu bị trả lại, cần sửa</AlertTitle>
-          <AlertDescription>{record.returnNote}</AlertDescription>
-        </Alert>
+        <ReturnedNotice resource="equipment_intakes" id={record.id} note={record.returnNote} />
       ) : null}
       {record?.status === "REJECTED" && record.rejectReason ? (
         <Alert variant="destructive">
@@ -659,6 +655,36 @@ export const EquipmentIntakeShow = () => {
           </p>
         ) : null}
       </SideSection>
+      {/* Nút việc của phiếu ngay dưới thông tin phiếu — cùng chỗ với đề xuất mua sắm, biên bản kiểm kê. */}
+      <VoucherActions
+        resource="equipment_intakes"
+        record={record}
+        invalidates={["equipment", "equipment_items"]}
+        tucked={tucked}
+        layout="side"
+        text={{
+          approve: {
+            label: "Duyệt và ghi tăng",
+            title: "Duyệt phiếu và ghi tăng thiết bị?",
+            description: (
+              <div className="space-y-2">
+                <p>
+                  Mỗi thiết bị quản lý từng cái sẽ có một mã riêng. Vật tư tiêu hao thì mỗi dòng một mã chung cho cả lô.
+                </p>
+                <p>
+                  {record?.totalReceived != null ? (
+                    <>Tổng <span className="text-foreground font-medium">{record.totalReceived}</span> đơn vị trên{" "}</>
+                  ) : "Gồm "}
+                  <span className="text-foreground font-medium">{record?.lineCount ?? 0}</span> dòng. Sau khi duyệt,
+                  phiếu KHÔNG sửa được nữa.
+                </p>
+              </div>
+            ),
+            confirm: "Duyệt và ghi tăng",
+            done: "Đã duyệt, thiết bị đã được ghi tăng",
+          },
+        }}
+      />
 
       <SideSection title="Số lượng thiết bị">
         {/* Các dòng khác đơn vị tính (cái và gam) thì không có tổng số lượng: số lớn là số loại thiết bị. */}
@@ -721,34 +747,7 @@ export const EquipmentIntakeShow = () => {
             {record ? (
               <VoucherViewSwitch view={view} onChange={setView} />
             ) : null}
-          <VoucherActions
-            resource="equipment_intakes"
-            record={record}
-            invalidates={["equipment", "equipment_items"]}
-            tucked={tucked}
-            text={{
-              approve: {
-                label: "Duyệt và ghi tăng",
-                title: "Duyệt phiếu và ghi tăng thiết bị?",
-                description: (
-                  <div className="space-y-2">
-                    <p>
-                      Mỗi thiết bị quản lý từng cái sẽ có một mã riêng. Vật tư tiêu hao thì mỗi dòng một mã chung cho cả lô.
-                    </p>
-                    <p>
-                      {record?.totalReceived != null ? (
-                        <>Tổng <span className="text-foreground font-medium">{record.totalReceived}</span> đơn vị trên{" "}</>
-                      ) : "Gồm "}
-                      <span className="text-foreground font-medium">{record?.lineCount ?? 0}</span> dòng. Sau khi duyệt,
-                      phiếu KHÔNG sửa được nữa.
-                    </p>
-                  </div>
-                ),
-                confirm: "Duyệt và ghi tăng",
-                done: "Đã duyệt, thiết bị đã được ghi tăng",
-              },
-            }}
-          />          </>
+          </>
         }
       />
 

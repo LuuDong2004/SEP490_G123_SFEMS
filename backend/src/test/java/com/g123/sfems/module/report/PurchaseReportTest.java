@@ -88,11 +88,12 @@ class PurchaseReportTest {
         assertThat(number(row, "proposals")).isEqualTo(3);
         assertThat(number(row, "pending")).isEqualTo(1);
         assertThat(number(row, "approved")).isEqualTo(2);
-        assertThat(number(row, "planned")).isEqualTo(2);
+        // "Vào kế hoạch" chỉ khi kế hoạch đã duyệt (đề xuất hoàn tất) — đề xuất ở kế hoạch nháp chưa tính.
+        assertThat(number(row, "planned")).isEqualTo(1);
         assertThat(number(row, "quantity")).isEqualTo(24);
-        assertThat(number(row, "planned_quantity")).isEqualTo(12);
+        assertThat(number(row, "planned_quantity")).isEqualTo(7);
         assertThat(number(row, "received")).isEqualTo(5);
-        assertThat(number(row, "remaining")).isEqualTo(7);
+        assertThat(number(row, "remaining")).isEqualTo(2);
 
         Report byCatalog = build("catalog");
         assertThat(byCatalog.rows()).hasSize(2);

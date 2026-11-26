@@ -47,7 +47,7 @@ export type PurchaseProposal = VoucherBase & {
   proposalDate: string;
   budgetYear: number | null;
   reason: string | null;
-  plan: { id: number; title: string; status: ProcurementPlanStatus } | null;
+  plan: { id: number; code: string | null; title: string; status: ProcurementPlanStatus } | null;
   intakeId: number | null;
   totalAmount: number;
   totalQuantity: number;
@@ -147,6 +147,16 @@ export type ProcurementSummary = {
     planned: number;
     amount: number;
     approvedAmount: number;
+  }[];
+  /** Theo trường: số đề xuất theo tình trạng và dự toán. */
+  schools: {
+    schoolId: number;
+    schoolName: string;
+    proposals: number;
+    pending: number;
+    approved: number;
+    planned: number;
+    amount: number;
   }[];
   catalogs: CatalogTotal[];
   amount: number;

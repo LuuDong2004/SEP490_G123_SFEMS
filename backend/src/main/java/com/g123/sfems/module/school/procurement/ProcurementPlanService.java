@@ -129,8 +129,13 @@ public class ProcurementPlanService {
             int planned, BigDecimal amount, BigDecimal approvedAmount) {
     }
 
-    public record Summary(Integer year, List<BodyTotal> bodies, List<CatalogTotal> catalogs, BigDecimal amount,
-            BigDecimal approvedAmount) {
+    /** Một trường trong màn tổng hợp: số đề xuất theo tình trạng và dự toán (cùng luật đếm với {@link BodyTotal}). */
+    public record SchoolTotal(Long schoolId, String schoolName, int proposals, int pending, int approved, int planned,
+            BigDecimal amount) {
+    }
+
+    public record Summary(Integer year, List<BodyTotal> bodies, List<SchoolTotal> schools, List<CatalogTotal> catalogs,
+            BigDecimal amount, BigDecimal approvedAmount) {
     }
 
     // ------------------------------------------------------------------ đọc
@@ -144,6 +149,16 @@ public class ProcurementPlanService {
                 spec = spec.and((root, q, cb) -> cb.equal(root.get("status").as(String.class), c.value()));
             } else if ("managingBody.id".equals(c.field())) {
                 spec = spec.and((root, q, cb) -> cb.equal(root.get("managingBody").get("id"), Long.valueOf(c.value())));
+            } else if ("school.id".equals(c.field())) {
+                // Kế hoạch có đề xuất của trường này — kế hoạch của Sở gom đề xuất nhiều trường.
+                Long schoolId = Long.valueOf(c.value());
+                spec = spec.and((root, q, cb) -> {
+                    var sub = q.subquery(Long.class);
+                    var p = sub.from(PurchaseProposal.class);
+                    sub.select(p.get("id")).where(cb.equal(p.get("plan"), root),
+                            cb.equal(p.get("school").get("id"), schoolId));
+                    return cb.exists(sub);
+                });
             }
         }
         if (params.search().isPresent()) {
@@ -231,7 +246,7 @@ public class ProcurementPlanService {
     public Summary summary(Integer year, Long bodyId) {
         Set<Long> visible = visibleSchools.current();
         if (visible != null && visible.isEmpty()) {
-            return new Summary(year, List.of(), List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
+            return new Summary(year, List.of(), List.of(), List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
         }
         String schoolFilter = visible == null ? "" : " AND p.school_id IN (" + String.join(",",
                 visible.stream().map(String::valueOf).toList()) + ")";
@@ -250,8 +265,8 @@ public class ProcurementPlanService {
         //   (planned_quantity chỉ có giá trị lúc đó), không thì số đề nghị — phần Sở bớt không phải là thứ sẽ mua.
         // - Đơn giá kế hoạch (planned_unit_price) chỉ tính khi kế hoạch ĐÃ DUYỆT (đề xuất hoàn tất); kế hoạch còn nháp /
         //   chờ duyệt thì giá đó chưa là quyết định, dùng giá trường ghi. Nhờ vậy số "đã duyệt" không vượt "tổng dự toán".
-        // - "Đã vào kế hoạch": đề xuất đang nằm trong một kế hoạch (nháp, chờ duyệt hay đã duyệt) hoặc đã hoàn tất — cùng
-        //   luật với báo cáo mua sắm (ReportService.PLANNED).
+        // - "Đã vào kế hoạch": kế hoạch chứa đề xuất đã được duyệt (đề xuất hoàn tất) — kế hoạch còn nháp / chờ duyệt chưa
+        //   tính. Cùng luật với báo cáo mua sắm (ReportService.PLANNED).
         String price = "CASE WHEN p.status = 'COMPLETED' THEN COALESCE(l.planned_unit_price, l.unit_price, 0)"
                 + " ELSE COALESCE(l.unit_price, 0) END";
         String planned = "COALESCE(l.planned_quantity, l.quantity)";
@@ -260,7 +275,7 @@ public class ProcurementPlanService {
                        COUNT(DISTINCT p.school_id), COUNT(*),
                        COUNT(*) FILTER (WHERE p.status = 'PENDING'),
                        COUNT(*) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')),
-                       COUNT(*) FILTER (WHERE p.plan_id IS NOT NULL OR p.status = 'COMPLETED'),
+                       COUNT(*) FILTER (WHERE p.status = 'COMPLETED'),
                        COALESCE(SUM(t.amount), 0),
                        COALESCE(SUM(t.planned_amount) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')), 0)
                 """ + base.replace("WHERE", """
@@ -269,6 +284,18 @@ public class ProcurementPlanService {
                 WHERE""".formatted(price, planned)) + " GROUP BY d.id, d.name ORDER BY 8 DESC",
                 (rs, n) -> new BodyTotal((Long) rs.getObject(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
                         rs.getInt(5), rs.getInt(6), rs.getInt(7), rs.getBigDecimal(8), rs.getBigDecimal(9)));
+        List<SchoolTotal> bySchool = jdbc.query("""
+                SELECT s.id, s.name, COUNT(*),
+                       COUNT(*) FILTER (WHERE p.status = 'PENDING'),
+                       COUNT(*) FILTER (WHERE p.status IN ('APPROVED', 'COMPLETED')),
+                       COUNT(*) FILTER (WHERE p.status = 'COMPLETED'),
+                       COALESCE(SUM(t.amount), 0)
+                """ + base.replace("WHERE", """
+                LEFT JOIN LATERAL (SELECT SUM(l.quantity * %1$s) AS amount
+                                   FROM purchase_proposal_lines l WHERE l.proposal_id = p.id) t ON TRUE
+                WHERE""".formatted(price)) + " GROUP BY s.id, s.name ORDER BY 7 DESC, 3 DESC, 2",
+                (rs, n) -> new SchoolTotal(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getInt(4), rs.getInt(5),
+                        rs.getInt(6), rs.getBigDecimal(7)));
         // Dòng Sở bỏ (số đưa vào kế hoạch 0) không phải thiết bị cần mua, và không làm tăng "số trường".
         List<CatalogTotal> byCatalog = jdbc.query("""
                 SELECT c.id, c.code, c.name, MAX(l.unit_name), SUM(%2$s),
@@ -281,7 +308,7 @@ public class ProcurementPlanService {
                         rs.getInt(5), rs.getBigDecimal(6), rs.getInt(7)));
         BigDecimal amount = byBody.stream().map(BodyTotal::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal approved = byBody.stream().map(BodyTotal::approvedAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Summary(year, byBody, byCatalog, amount, approved);
+        return new Summary(year, byBody, bySchool, byCatalog, amount, approved);
     }
 
     // ------------------------------------------------------------------ ghi
@@ -655,6 +682,9 @@ public class ProcurementPlanService {
             if (principal == null) {
                 return cb.disjunction();
             }
+            // Kế hoạch là việc chung của Sở: mọi tài khoản Sở thấy cả kế hoạch NHÁP — lãnh đạo, chuyên viên cùng mở, sửa,
+            // rút đề xuất ra hay trình thay (một đề xuất chỉ thuộc một kế hoạch, nháp riêng một người thì người khác
+            // bị kẹt mà không thấy vì sao). Khác phiếu của trường: nháp phiếu chỉ trường lập thấy.
             if (isAdmin(principal) || visibleSchools.isCityBody(principal.managingBodyId())) {
                 return cb.conjunction();
             }

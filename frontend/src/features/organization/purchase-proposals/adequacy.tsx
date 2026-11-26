@@ -16,69 +16,59 @@ import type { ProcurementSummary } from "@/domains/procurement/types";
 
 import { MinimumStandardBody } from "../minimum-standard/page";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
-import { TableEmpty } from "@/shared/components/data-table/table-empty";
+import { EmptyState } from "@/shared/components/data-table/table-empty";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
+import { SchoolProgress } from "./school-progress";
 import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
 
 const money = new Intl.NumberFormat("vi-VN");
-const ALL = "__all__";
 
 /**
- * Tổng hợp đề xuất mua sắm theo năm ngân sách — phần riêng của phân hệ Mua sắm, chỉ có nghĩa với
- * Sở (một trường thì xem đề xuất của mình ở tab Đề xuất mua sắm).
+ * Tổng hợp đề xuất mua sắm theo năm ngân sách — phần riêng của phân hệ Mua sắm, chỉ có nghĩa với Sở (một trường thì
+ * xem đề xuất của mình ở tab Đề xuất mua sắm). Hệ thống một Sở: không chọn Sở — luôn là Sở của người đăng nhập (quản trị
+ * viên: mọi trường).
  *
- * <p>Một thẻ đầu: chọn năm ngân sách và bốn con số (cùng khuôn dải chỉ số ở các màn khác). Bên dưới
- * hai bảng có tiêu đề: thiết bị cần mua (phần chính) và theo Sở.
+ * <p>Thẻ đầu: năm ngân sách (mặc định theo năm học đang làm việc ở header: 2026-2027 → 2027) và bốn con số. Bên dưới hai
+ * bảng cao bằng nhau, kéo tới cuối trang: thiết bị cần mua (phần chính) và theo trường.
  */
 function ProcurementSummaryCard() {
-  const thisYear = new Date().getFullYear();
-  const [year, setYear] = useState(String(thisYear + 1));
-  // Mỗi Sở lập kế hoạch mua sắm cho các trường THPT mình quản lý: mặc định xem Sở của chính người đăng nhập, chọn
-  // được Sở khác hoặc "Mọi Sở".
+  const { year: working, years } = useSchoolYear();
+  const budgetOf = (endDate?: string | null) => (endDate ? Number(endDate.slice(0, 4)) : null);
+  const defaultYear = budgetOf(working?.endDate) ?? new Date().getFullYear() + 1;
+  const [picked, setPicked] = useState<string | null>(null);
+  const year = picked ?? String(defaultYear);
+  // Năm ngân sách chọn được: năm kết thúc của các năm học trong danh mục, cộng năm đang xem.
+  const yearOptions = [...new Set([...years.map((y) => budgetOf(y.endDate)).filter((y): y is number => y != null), defaultYear])]
+    .sort((a, b) => b - a);
   const ownBody = getAuthorities()?.managingBodyId ?? null;
-  const [body, setBody] = useState<string>(ownBody != null ? String(ownBody) : ALL);
-  const all = useQuery({
-    queryKey: ["procurement_plans", "summary", year],
-    queryFn: ({ signal }) => kyInstance.get("procurement_plans/summary", { signal,  searchParams: { year } }).json<ProcurementSummary>(),
+  const { data: p, isLoading } = useQuery({
+    queryKey: ["procurement_plans", "summary", year, ownBody],
+    queryFn: ({ signal }) => kyInstance.get("procurement_plans/summary", {
+      signal, searchParams: ownBody != null ? { year, body: ownBody } : { year },
+    }).json<ProcurementSummary>(),
   });
-  const one = useQuery({
-    queryKey: ["procurement_plans", "summary", year, body],
-    enabled: body !== ALL,
-    queryFn: ({ signal }) => kyInstance.get("procurement_plans/summary", { signal,  searchParams: { year, body } }).json<ProcurementSummary>(),
-  });
-  const bodies = all.data && "bodies" in all.data ? all.data.bodies : [];
-  const source = body === ALL ? all.data : one.data;
-  const p = source && "bodies" in source ? source : undefined;
-  const bodyName = body === ALL ? "mọi Sở" : (bodies.find((b) => String(b.bodyId) === body)?.bodyName ?? p?.bodies[0]?.bodyName);
   const sum = (key: "proposals" | "pending" | "approved" | "planned") => (p?.bodies ?? []).reduce((n, b) => n + b[key], 0);
   // Tên trùng (máy chiếu của danh mục THCS và THPT là hai thiết bị) thì kèm mã để phân biệt.
   const dupNames = new Set((p?.catalogs ?? []).map((c) => c.catalogName).filter((n, i, all) => all.indexOf(n) !== i));
   const head = "text-overline text-muted-foreground";
-  const paged = usePagedRows(p?.catalogs ?? [], { resetKey: `${year}|${body}`, sizeKey: "procurementSummary", pageSizeLabel: "Số thiết bị mỗi trang" });
+  const catalogs = p?.catalogs ?? [];
+  const schools = p?.schools ?? [];
+  const pagedCatalogs = usePagedRows(catalogs, { resetKey: year, sizeKey: "procurementSummary", pageSizeLabel: "Số thiết bị mỗi trang" });
+  const empty = (
+    <EmptyState loading={isLoading} title="Chưa có đề xuất cho năm này."
+      description="Đề xuất đã trình của các trường, cùng năm ngân sách, sẽ hiện ở đây." />
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Card className="gap-0 py-0">
         <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3">
           <span className="text-sm font-medium">Năm ngân sách</span>
-          <Select value={year} onValueChange={setYear}>
-            <SelectTrigger className="h-8 w-28" aria-label="Năm ngân sách"><SelectValue /></SelectTrigger>
+          <Select value={year} onValueChange={setPicked}>
+            <SelectTrigger className="h-8 w-28 rounded-full" aria-label="Năm ngân sách"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {[thisYear - 1, thisYear, thisYear + 1, thisYear + 2].map((y) => (
+              {yearOptions.map((y) => (
                 <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm font-medium">Sở</span>
-          <Select value={body} onValueChange={setBody}>
-            <SelectTrigger className="h-8 w-80 max-w-full" aria-label="Sở"><SelectValue placeholder="Vui lòng chọn Sở" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Mọi Sở</SelectItem>
-              {/* Sở của người xem luôn có trong danh sách, kể cả khi năm này nó chưa có đề xuất nào. */}
-              {ownBody != null && !bodies.some((b) => b.bodyId === ownBody) ? (
-                <SelectItem value={String(ownBody)}>Sở của tôi</SelectItem>
-              ) : null}
-              {bodies.map((b) => (
-                <SelectItem key={b.bodyId ?? "none"} value={String(b.bodyId)}>{b.bodyName}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -87,14 +77,15 @@ function ProcurementSummaryCard() {
           <Figure icon={<Wallet />} label="Tổng dự toán đề xuất" value={p ? `${money.format(p.amount)} đ` : "…"} hint={p ? `${money.format(sum("proposals"))} đề xuất` : undefined} />
           <Figure icon={<CircleCheck />} tone="text-success-text" label="Đã được duyệt" value={p ? `${money.format(p.approvedAmount)} đ` : "…"} hint={p ? `${money.format(sum("approved"))} đề xuất` : undefined} />
           <Figure icon={<Clock />} tone="text-warning-text" label="Đang chờ duyệt" value={p ? money.format(sum("pending")) : "…"} hint="đề xuất" />
-          <Figure icon={<ClipboardCheck />} label="Đã vào kế hoạch" value={p ? money.format(sum("planned")) : "…"} hint="đề xuất" />
+          <Figure icon={<ClipboardCheck />} label="Đã vào kế hoạch" value={p ? money.format(sum("planned")) : "…"} hint="đề xuất · kế hoạch đã duyệt" />
         </div>
       </Card>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card className="gap-0 overflow-hidden py-0">
+      {/* Hai bảng cùng cao (lưới kéo giãn), tới gần cuối khung nhìn — trống thì chữ "chưa có" nằm giữa thẻ. */}
+      <div className="grid gap-4 xl:min-h-[calc(100dvh-19rem)] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card className="flex min-h-80 flex-col gap-0 overflow-hidden py-0">
           <div className="border-b px-4 py-3">
-            <StepTitle title="Thiết bị cần mua" aside={p ? `${money.format(p.catalogs.length)} thiết bị · ${bodyName ?? ""}` : undefined} />
+            <StepTitle title="Thiết bị cần mua" aside={p ? `${money.format(catalogs.length)} thiết bị` : undefined} />
           </div>
           <Table>
             <TableHeader className="bg-surface-subtle">
@@ -106,9 +97,7 @@ function ProcurementSummaryCard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!p || p.catalogs.length === 0 ? (
-                <TableEmpty colSpan={4} loading={!p} title="Chưa có đề xuất cho năm này." />
-              ) : paged.visible.map((c) => (
+              {pagedCatalogs.visible.map((c) => (
                 <TableRow key={c.catalogId} className={cn("group/row", LIFT_ROW)}>
                   <TableCell className="ps-4 whitespace-normal">
                     <span className="font-medium">{c.catalogName}</span>
@@ -121,40 +110,11 @@ function ProcurementSummaryCard() {
               ))}
             </TableBody>
           </Table>
-          {paged.pager}
+          {catalogs.length ? <div className="flex-1" /> : empty}
+          {pagedCatalogs.pager}
         </Card>
 
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="border-b px-4 py-3">
-            <StepTitle title="Theo Sở" />
-          </div>
-          <Table>
-            <TableHeader className="bg-surface-subtle">
-              <TableRow>
-                <TableHead className={cn(head, "ps-4")}>Sở</TableHead>
-                <TableHead className={cn(head, "w-20 text-right")} title="Chờ duyệt / đã duyệt / vào kế hoạch">Đề xuất</TableHead>
-                <TableHead className={cn(head, "w-36 pe-4 text-right")}>Dự toán</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bodies.length === 0 ? (
-                <TableEmpty colSpan={3} loading={!all.data} title="Chưa có đề xuất cho năm này." />
-              ) : bodies.map((b) => (
-                <TableRow key={b.bodyId ?? 0} className={cn("group/row", LIFT_ROW, "cursor-pointer", String(b.bodyId) === body && "bg-primary/10 hover:bg-primary/10")}
-                  onClick={() => setBody(String(b.bodyId))} title="Xem đề xuất của Sở này">
-                  <TableCell className="ps-4 whitespace-normal">
-                    <span className="block font-medium">{b.bodyName}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {b.schools} trường · {b.pending} chờ duyệt · {b.approved} đã duyệt · {b.planned} vào kế hoạch
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{b.proposals}</TableCell>
-                  <TableCell className="pe-4 text-right font-medium tabular-nums">{money.format(b.amount)} đ</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <SchoolProgress schools={schools} loading={isLoading} year={year} empty={empty} />
       </div>
     </div>
   );

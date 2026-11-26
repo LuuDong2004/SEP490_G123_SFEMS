@@ -1,3 +1,4 @@
+import { AwaitingMeTag } from "@/shared/components/voucher/awaiting-me-tag";
 import { useNavigation } from "@refinedev/core";
 import { useTable } from "@refinedev/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -59,13 +60,17 @@ export const InventorySessionList = () => {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Số phiếu", size: 150, enableSorting: true,
-        cell: ({ getValue }) =>
-          getValue() ? (
-            <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
-          ) : (
-            <span className="text-muted-foreground text-xs italic">chưa cấp số</span>
-          ),
+        id: "code", header: "Số phiếu", size: 210, enableSorting: true,
+        cell: ({ getValue, row }) => (
+          <span className="flex items-center gap-2">
+            {getValue() ? (
+              <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
+            ) : (
+              <span className="text-muted-foreground text-xs italic">chưa cấp số</span>
+            )}
+            <AwaitingMeTag voucher={row.original} />
+          </span>
+        ),
       }),
       h.accessor("inventoryDate", {
         id: "inventoryDate", header: "Ngày kiểm kê", size: 140, enableSorting: true,

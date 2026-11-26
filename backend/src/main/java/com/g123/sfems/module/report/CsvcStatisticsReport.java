@@ -66,14 +66,20 @@ final class CsvcStatisticsReport {
     /**
      * Phần B theo đúng thứ tự, chữ và đơn vị của mẫu. Mẫu là của THCS: phòng Đội Thiếu niên (TH) và Đoàn Thanh niên
      * (THPT) vào dòng "Phòng Đoàn, Đội", hai loại phòng kết hợp tương ứng vào dòng kết hợp — cùng một thứ ở cấp khác.
+     * Cùng lẽ đó, phòng bộ môn Vật lý, Hóa học, Sinh học của THPT vào dòng "Khoa học tự nhiên" (môn KHTN của THCS gồm ba
+     * môn này), phòng thí nghiệm vào "Phòng khác" — trước đây chúng rơi ra ngoài biểu, không được tính.
      */
     static final List<Block> BLOCKS = List.of(
             new Block("2.1", "1. Khối phòng học tập", "phòng", "05", List.of(
                     item("2.1.1", "- Phòng học", "phòng", "PHONG_HOC"),
                     item("2.1.2", "- Phòng học bộ môn Âm nhạc", "phòng", "PHONG_HOC_BO_MON_AM_NHAC"),
-                    item("2.1.3", "- Phòng học bộ môn Mỹ thuật", "phòng", "PHONG_HOC_BO_MON_MY_THUAT"),
+                    // Danh mục ghi "MI_THUAT" (Mĩ thuật); giữ cả "MY_THUAT" cho dữ liệu cũ.
+                    item("2.1.3", "- Phòng học bộ môn Mỹ thuật", "phòng", "PHONG_HOC_BO_MON_MY_THUAT",
+                            "PHONG_HOC_BO_MON_MI_THUAT"),
                     item("2.1.4", "- Phòng học bộ môn Công nghệ", "phòng", "PHONG_HOC_BO_MON_CONG_NGHE"),
-                    item("2.1.5", "- Phòng học bộ môn Khoa học tự nhiên", "phòng", "PHONG_HOC_BO_MON_KHOA_HOC_TU_NHIEN"),
+                    item("2.1.5", "- Phòng học bộ môn Khoa học tự nhiên (THPT: Vật lý, Hóa học, Sinh học)", "phòng",
+                            "PHONG_HOC_BO_MON_KHOA_HOC_TU_NHIEN", "PHONG_BO_MON_VAT_LY", "PHONG_BO_MON_HOA_HOC",
+                            "PHONG_BO_MON_SINH_HOC"),
                     item("2.1.6", "- Phòng học bộ môn Khoa học xã hội", "phòng", "PHONG_HOC_BO_MON_KHOA_HOC_XA_HOI"),
                     item("2.1.7", "- Phòng học bộ môn Tin học", "phòng", "PHONG_MAY"),
                     item("2.1.8", "- Phòng học bộ môn Ngoại ngữ", "phòng", "PHONG_HOC_BO_MON_NGOAI_NGU"),
@@ -128,7 +134,84 @@ final class CsvcStatisticsReport {
                     item("2.7.1", "- Nhà Công vụ (phòng)", "phòng", "NHA_CONG_VU"),
                     item("2.7.2", "- Bể bơi", "bể", "BE_BOI"),
                     item("2.7.3", "- Hội trường", "phòng", "HOI_TRUONG"),
-                    item("2.7.4", "- Phòng khác", "phòng", "KHAC"))));
+                    item("2.7.4", "- Phòng khác", "phòng", "KHAC", "PHONG_THI_NGHIEM"))));
+
+    private static final Map<String, String> STRUCTURE_LABELS = Map.of("KIEN_CO", "Kiên cố", "BAN_KIEN_CO",
+            "Bán kiên cố", "TAM", "Tạm", "NHO_MUON_THUE", "Nhờ, mượn, thuê");
+
+    /**
+     * Biểu số liệu THEO TỪNG PHÒNG: cùng khối, cùng dòng loại với biểu mẫu Sở ({@link #BLOCKS}), dưới mỗi dòng loại là
+     * từng phòng / khu của trường — mã, tên, kết cấu, diện tích, nhà, cơ sở. Loại không có dòng trên mẫu vào "Phòng
+     * khác". Mỗi dòng mang {@code kind}: {@code group} (khối), {@code item} (loại, kèm số lượng và tổng diện tích),
+     * {@code room}.
+     */
+    List<Map<String, Object>> rooms(Params p) {
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT r.code, r.name, rt.code AS type_code,"
+                + " rt.name AS type_name, r.structure, r.area, b.name AS building, c.name AS campus"
+                + " FROM rooms r LEFT JOIN room_types rt ON rt.id = r.room_type_id"
+                + " LEFT JOIN buildings b ON b.id = r.building_id"
+                + " LEFT JOIN campuses c ON c.id = COALESCE(r.campus_id, b.campus_id)"
+                + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p)
+                + reports.campusRoom("r.id", "r.school_id", p)
+                + " ORDER BY r.sort_order NULLS LAST, r.code");
+        Map<String, String> itemOf = new HashMap<>();
+        for (Block block : BLOCKS) {
+            for (Item it : block.items()) {
+                it.codes().forEach(code -> itemOf.put(code, it.stt()));
+            }
+        }
+        Map<String, List<Map<String, Object>>> byItem = new HashMap<>();
+        for (Map<String, Object> room : found) {
+            String stt = itemOf.getOrDefault((String) room.get("type_code"), OTHER_ITEM);
+            byItem.computeIfAbsent(stt, k -> new ArrayList<>()).add(room);
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Block block : BLOCKS) {
+            List<Map<String, Object>> groupRows = new ArrayList<>();
+            int groupCount = 0;
+            BigDecimal groupArea = BigDecimal.ZERO;
+            for (Item it : block.items()) {
+                List<Map<String, Object>> list = byItem.getOrDefault(it.stt(), List.of());
+                if (list.isEmpty()) {
+                    continue;
+                }
+                BigDecimal area = list.stream().map(x -> (BigDecimal) x.get("area")).filter(java.util.Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("kind", "item");
+                item.put("stt", it.stt());
+                item.put("text", it.text().replaceFirst("^-\\s*", ""));
+                item.put("unit", it.unit());
+                item.put("count", list.size());
+                item.put("area", area);
+                groupRows.add(item);
+                groupCount += list.size();
+                groupArea = groupArea.add(area);
+                for (Map<String, Object> room : list) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("kind", "room");
+                    row.put("code", room.get("code"));
+                    row.put("text", room.get("name"));
+                    row.put("type", room.get("type_name"));
+                    String structure = (String) room.get("structure");
+                    row.put("structure", structure == null ? null : STRUCTURE_LABELS.getOrDefault(structure, structure));
+                    row.put("area", room.get("area"));
+                    row.put("building", room.get("building"));
+                    row.put("campus", room.get("campus"));
+                    groupRows.add(row);
+                }
+            }
+            Map<String, Object> group = new LinkedHashMap<>();
+            group.put("kind", "group");
+            group.put("stt", block.stt());
+            group.put("text", block.text());
+            group.put("count", groupCount);
+            group.put("area", groupArea);
+            out.add(group);
+            out.addAll(groupRows);
+        }
+        return out;
+    }
 
     /** Dòng "Phòng khác" — nhận cả loại riêng của trường xếp vào khối 09. */
     private static final String OTHER_ITEM = "2.7.4";

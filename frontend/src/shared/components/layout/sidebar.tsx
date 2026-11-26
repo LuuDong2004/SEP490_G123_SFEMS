@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { permissionFor } from "@/shared/lib/permissions";
 import { usePerspective } from "@/shared/hooks/use-perspective";
+import { AwaitingCountsContext, useAwaitingCounts, useAwaitingCountsContext } from "@/shared/hooks/use-awaiting-counts";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -274,8 +275,10 @@ export function Sidebar() {
   const visibleItems = useVisibleMenuItems();
   const selectedKey = perspective === "management" ? resource?.name : menuKey;
   const isCollapsed = !open && !isMobile;
+  const awaiting = useAwaitingCounts();
 
   return (
+    <AwaitingCountsContext.Provider value={awaiting}>
     <ShadcnSidebar
       collapsible="icon"
       className="border-none"
@@ -302,6 +305,37 @@ export function Sidebar() {
 
       <SidebarVersion isCollapsed={isCollapsed} />
     </ShadcnSidebar>
+    </AwaitingCountsContext.Provider>
+  );
+}
+
+/** Mục menu và mọi mục con (tab của phân hệ, mục của nhóm) — để cộng số việc chờ lên mục cha. */
+function namesUnder(item: TreeMenuItem): string[] {
+  return [item.name, ...((item.children ?? []) as TreeMenuItem[]).flatMap(namesUnder)];
+}
+
+/** Số việc đang chờ người đang đăng nhập duyệt nằm dưới mục menu này (cộng dồn các loại phiếu bên trong). */
+function useAwaitingOf(item: TreeMenuItem): number {
+  const counts = useAwaitingCountsContext();
+  return [...new Set(namesUnder(item))].reduce((sum, name) => sum + (counts[name] ?? 0), 0);
+}
+
+/**
+ * Chấm số việc chờ duyệt cạnh tên mục menu — màu cảnh báo như nút "Chờ tôi duyệt" của danh sách phiếu. Menu thu gọn
+ * thì thành chấm nhỏ ở góc biểu tượng.
+ */
+function AwaitingBadge({ count, collapsed }: { count: number; collapsed?: boolean }) {
+  if (!count) return null;
+  const text = count > 99 ? "99+" : String(count);
+  return collapsed ? (
+    <span className="bg-warning text-warning-foreground ring-sidebar absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] leading-none font-semibold tabular-nums ring-2">
+      {text}
+    </span>
+  ) : (
+    <span className="bg-warning text-warning-foreground flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[0.6875rem] leading-none font-semibold tabular-nums">
+      {text}
+      <span className="sr-only"> việc đang chờ bạn duyệt</span>
+    </span>
   );
 }
 
@@ -643,6 +677,7 @@ function SidebarLink({ item, selectedKey, isCollapsed, depth = 0 }: MenuItemProp
   const isSelected = item.key === selectedKey;
   const label = getDisplayName(item);
   const badge = item.meta?.badge as React.ReactNode | undefined;
+  const waiting = useAwaitingOf(item);
 
   const row = (
     <Link
@@ -650,11 +685,14 @@ function SidebarLink({ item, selectedKey, isCollapsed, depth = 0 }: MenuItemProp
       aria-current={isSelected ? "page" : undefined}
       // Tapping a link on mobile should close the drawer behind it.
       onClick={() => isMobile && setOpenMobile(false)}
-      className={navRowClass({ isSelected, isCollapsed, depth })}
+      className={cn(navRowClass({ isSelected, isCollapsed, depth }), isCollapsed && waiting > 0 && "relative")}
     >
       <NavIcon item={item} isSelected={isSelected} />
       {isCollapsed ? (
-        <span className="sr-only">{label}</span>
+        <>
+          <span className="sr-only">{label}{waiting ? ` (${waiting} việc chờ duyệt)` : ""}</span>
+          <AwaitingBadge count={waiting} collapsed />
+        </>
       ) : (
         <>
           {/* Xuống tối đa 2 dòng thay vì cắt cụt: "Tổ chức và cơ sở vật chất"
@@ -670,6 +708,7 @@ function SidebarLink({ item, selectedKey, isCollapsed, depth = 0 }: MenuItemProp
               {badge}
             </span>
           )}
+          <AwaitingBadge count={waiting} />
         </>
       )}
     </Link>

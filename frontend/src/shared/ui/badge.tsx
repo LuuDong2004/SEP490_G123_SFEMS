@@ -47,6 +47,8 @@ const badgeVariants = cva(
         warning:
           "border-transparent bg-warning-subtle text-warning-text [a&]:hover:bg-warning-subtle/70",
         info: "border-transparent bg-info-subtle text-info-text [a&]:hover:bg-info-subtle/70",
+        // Phiếu bị người duyệt trả về — tím, tách khỏi cam "chờ duyệt".
+        returned: "border-transparent bg-returned-subtle text-returned-text [a&]:hover:bg-returned-subtle/70",
         destructive:
           "border-transparent bg-destructive-subtle text-destructive-text [a&]:hover:bg-destructive-subtle/70",
         // The one loud red, for a count that has to be seen from across the

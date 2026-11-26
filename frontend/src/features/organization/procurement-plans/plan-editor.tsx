@@ -3,18 +3,19 @@ import { AddLinesButton, AddLinesEmpty } from "@/shared/components/voucher/add-l
 import { useForm } from "@refinedev/react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { usePagedRows } from "@/shared/components/data-table/use-paged-rows";
-import { Check, CornerUpLeft, FileSpreadsheet, Loader2, Printer, Save, Send, TriangleAlert, X } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowLeft, Check, ChevronDown, CornerUpLeft, FileSpreadsheet, Loader2, Printer, Save, Send, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useWatch, type Control } from "react-hook-form";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { kyInstance } from "@/shared/api/data";
-import { useSchoolYear } from "@/shared/hooks/use-school-year";
+import { useSchoolYear, useSchoolYears } from "@/shared/hooks/use-school-year";
 import { RefField } from "@/shared/components/catalog/ref-field";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { MoneyInput } from "@/shared/components/form/money-input";
 import { DateField, TextareaField, TextField } from "@/shared/components/form/simple-fields";
-import { SideFact, SideSection, StepTitle, VoucherTwoColumn } from "@/shared/components/voucher/voucher-layout";
+import { CompletionList, SideFact, SideSection, StepTitle, VoucherTwoColumn, type ChecklistItem } from "@/shared/components/voucher/voucher-layout";
+import { useConfirmDiscard } from "@/shared/components/form/unsaved-changes-guard";
 import { errorMessage } from "@/shared/lib/api-error";
 import { formatDateTime, formatPlainDate, moneyInWords, todayLocal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -30,6 +31,7 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { Textarea } from "@/shared/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import {
   PLAN_STATUS_LABELS,
   type PlanCandidate,
@@ -39,6 +41,7 @@ import {
 } from "@/domains/procurement/types";
 import { maxLengthOf, numberMax } from "@/shared/lib/field-rules";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { ROW_ACTION_ITEM, useRowActionsMenu } from "@/shared/components/data-table/row-actions";
 import { TableEmpty } from "@/shared/components/data-table/table-empty";
 import { yearLabel } from "@/shared/hooks/use-school-year";
 
@@ -61,6 +64,12 @@ type Values = { title: string; schoolYear: { id: number | null }; planDate: stri
 
 const today = () => todayLocal();
 
+/** Khối của thẻ bên phải nối tiếp khối trên, không kẻ ngang, sát lên. */
+const FLAT = "border-t-0 pt-1";
+
+/** Lỗi do bấm mục thiếu ở "Kiểm tra trước khi trình" — tự gỡ khi ô được điền. */
+const MISSING = "missing";
+
 /**
  * Màn kế hoạch mua sắm — MỘT màn cho lập, sửa và xem. Kế hoạch đi theo DÒNG THIẾT BỊ của các đề xuất đã duyệt:
  * chọn đề xuất là mọi dòng của nó vào bảng với đủ số đề nghị, rồi bớt số lượng hay bỏ dòng (0) khi ngân sách
@@ -73,7 +82,8 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
   const editable = creating || actions.has("edit");
   const { open: notify } = useNotification();
   const invalidate = useInvalidate();
-  const { show } = useNavigation();
+  const { show, list } = useNavigation();
+  const confirmDiscard = useConfirmDiscard();
   const { data: me } = useGetIdentity<{ fullName?: string; username?: string }>();
 
   const {
@@ -92,7 +102,8 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
     },
   });
   const control = form.control as unknown as Control<any>;
-  const lines = (useWatch({ control, name: "lines" }) ?? []) as PlanLine[];
+  const watchedLines = useWatch({ control, name: "lines" }) as PlanLine[] | undefined;
+  const lines = useMemo(() => watchedLines ?? [], [watchedLines]);
 
   // Kế hoạch mới: năm học đang làm việc (header) điền sẵn, vẫn đổi được.
   const yearId = useWatch({ control, name: "schoolYear.id" });
@@ -102,6 +113,32 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
     form.setValue("schoolYear", { id: workingYear });
   }, [creating, yearId, workingYear, form]);
   const setLines = (next: PlanLine[]) => form.setValue("lines", next, { shouldDirty: true });
+
+  // Lập từ danh sách đề xuất (`?proposals=1,2,3` — chuyên viên tích chọn rồi bấm "Lập kế hoạch"): đưa sẵn mọi dòng của
+  // các đề xuất đó vào bảng, và chọn năm học có năm ngân sách trùng năm ngân sách của chúng (2026-2027 → 2027).
+  const [params] = useSearchParams();
+  const preset = useMemo(() => (creating ? (params.get("proposals") ?? "") : "").split(",").map(Number).filter((n) => n > 0),
+    [creating, params]);
+  const { years } = useSchoolYears();
+  const presetDone = useRef(false);
+  const { data: presetCandidates } = useQuery({
+    queryKey: [RESOURCE, "new", "candidates", "preset", preset.join(",")],
+    enabled: preset.length > 0,
+    queryFn: ({ signal }) => kyInstance.get(`${RESOURCE}/candidates`, { signal }).json<PlanCandidate[]>(),
+  });
+  useEffect(() => {
+    if (presetDone.current || !presetCandidates || !years.length) return;
+    presetDone.current = true;
+    const picked = presetCandidates.filter((c) => preset.includes(c.proposal.id));
+    if (!picked.length) return;
+    form.setValue("lines", picked.flatMap((c) => c.lines), { shouldDirty: true });
+    const budgets = new Set(picked.map((c) => c.proposal.budgetYear).filter((y): y is number => y != null));
+    const year = budgets.size === 1 ? years.find((y) => Number(y.endDate?.slice(0, 4)) === [...budgets][0]) : undefined;
+    if (year) form.setValue("schoolYear", { id: year.id }, { shouldDirty: true });
+    if (picked.length < preset.length) {
+      notify?.({ type: "error", message: `${preset.length - picked.length} đề xuất đã chọn không còn chờ vào kế hoạch nên không được đưa vào` });
+    }
+  }, [presetCandidates, years, preset, form, notify]);
 
   // Đề xuất vừa rút khỏi kế hoạch trên màn (chưa lưu) vẫn chọn lại được — máy chủ còn coi nó thuộc kế hoạch.
   const [removed, setRemoved] = useState<PlanCandidate[]>([]);
@@ -198,6 +235,20 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
     setLines(lines.map((l) => (l.catalog.id === catalogId ? { ...l, unitPrice: value } : l)));
 
   const [picking, setPicking] = useState(false);
+  // Đề xuất đang thu gọn trong bảng dòng (bấm mũi tên ở dòng tiêu đề của đề xuất).
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  // Bảng dòng chia trang THEO ĐỀ XUẤT: một đề xuất nằm trọn một trang, không bị cắt đôi giữa hai trang.
+  const groups = useMemo(() => {
+    const m = new Map<number, PlanLine[]>();
+    for (const l of lines) m.set(l.proposalId, [...(m.get(l.proposalId) ?? []), l]);
+    return [...m.values()];
+  }, [lines]);
+  const paged = usePagedRows(groups, { sizeKey: "planLines", pageSizeLabel: "Số đề xuất mỗi trang", defaultSize: 5 });
+  const toggleGroup = (proposalId: number) => setCollapsed((prev) => {
+    const next = new Set(prev);
+    if (next.has(proposalId)) next.delete(proposalId); else next.add(proposalId);
+    return next;
+  });
   const main = (
     <>
       {plan?.status === "DRAFT" && plan.approvalNote ? (
@@ -240,7 +291,7 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
         )}
       </Card>
 
-      <Card className="gap-0 overflow-hidden py-0">
+      <Card id="plan-lines" className="gap-0 overflow-hidden py-0">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3">
           <StepTitle title="Đề xuất của các trường"
             hint="Đề xuất đã duyệt, chưa vào kế hoạch nào" />
@@ -257,12 +308,63 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
         {editable && lines.length === 0 ? (
           <AddLinesEmpty label="Thêm đề xuất" hint="Đề xuất đã duyệt của các trường" onClick={() => setPicking(true)} />
         ) : (
-          <PlanLinesTable lines={lines} editable={editable} onPlanned={setPlanned} onPrice={setPrice} onApplyPrice={applyPrice}
-            onRemove={removeProposal} />
+          <>
+            <PlanLinesTable lines={lines} groups={paged.visible} editable={editable} onPlanned={setPlanned} onPrice={setPrice}
+              onApplyPrice={applyPrice} onRemove={removeProposal} collapsed={collapsed} onToggle={toggleGroup} />
+            {paged.pager}
+          </>
         )}
       </Card>
     </>
   );
+
+  // "Kiểm tra trước khi trình" — cùng kiểu các phiếu (CompletionList): mục thiếu chữ vàng, đạt chữ xanh; bấm mục thiếu
+  // thì đưa tới đúng chỗ, ô viền đỏ kèm câu nhắc. Cùng luật máy chủ kiểm lúc trình (ProcurementPlanService).
+  const values = useWatch({ control }) as Partial<Values>;
+  const mark = (name: "title" | "planDate" | "schoolYear", message: string) => {
+    form.setError(name, { type: MISSING, message });
+    form.setFocus(name === "schoolYear" ? "schoolYear.id" as any : name);
+    document.getElementsByName(name)[0]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  const firstUnpriced = unpriced[0];
+  const checklist: ChecklistItem[] = [
+    { key: "title", label: "Tên kế hoạch", ok: !!values.title?.trim(), onClick: () => mark("title", "Nhập tên kế hoạch") },
+    { key: "planDate", label: "Ngày lập", ok: !!values.planDate, onClick: () => mark("planDate", "Chọn ngày lập") },
+    { key: "schoolYear", label: "Năm học", ok: !!values.schoolYear?.id, onClick: () => mark("schoolYear", "Chọn năm học") },
+    {
+      key: "lines", label: "Thiết bị đưa vào kế hoạch", ok: included.length > 0,
+      hint: lines.length ? "Mọi dòng đang để 0" : "Thêm đề xuất đã duyệt của các trường",
+      onClick: () => (lines.length ? document.getElementById("plan-lines")?.scrollIntoView({ block: "start", behavior: "smooth" }) : setPicking(true)),
+    },
+    {
+      key: "price", label: "Đơn giá dự toán", ok: included.length > 0 && unpriced.length === 0,
+      hint: unpriced.length ? `Còn ${unpriced.length} thiết bị chưa có giá` : undefined,
+      onClick: () => {
+        if (!firstUnpriced) return;
+        // Lật tới trang có đề xuất chứa dòng đó; đề xuất đang thu gọn thì mở ra; đợi vẽ lại rồi mới tìm ô giá.
+        paged.setPage(paged.pageOf(groups.findIndex((g) => g[0].proposalId === firstUnpriced.proposalId)));
+        setCollapsed((prev) => {
+          const next = new Set(prev);
+          next.delete(firstUnpriced.proposalId);
+          return next;
+        });
+        setTimeout(() => {
+          const cell = document.getElementById(`plan-price-${firstUnpriced.lineId}`);
+          cell?.scrollIntoView({ block: "center", behavior: "smooth" });
+          cell?.querySelector("input")?.focus();
+        }, 50);
+      },
+    },
+  ];
+  const missing = checklist.filter((i) => !i.ok);
+  // Ô đã điền thì gỡ viền đỏ do bấm mục thiếu.
+  const filled = { title: !!values.title?.trim(), planDate: !!values.planDate, schoolYear: !!values.schoolYear?.id };
+  useEffect(() => {
+    (Object.keys(filled) as (keyof typeof filled)[]).forEach((name) => {
+      if (filled[name] && form.getFieldState(name).error?.type === MISSING) form.clearErrors(name);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filled.title, filled.planDate, filled.schoolYear, form]);
 
   const side = (
     <Card className="gap-0 py-0">
@@ -271,43 +373,45 @@ export function PlanEditor({ plan, onChanged }: { plan?: ProcurementPlan; onChan
         {plan ? <SideFact label="Sở">{plan.managingBody.name}</SideFact> : null}
         {plan?.approvedAt ? <SideFact label="Duyệt lúc">{formatDateTime(plan.approvedAt)}</SideFact> : null}
       </SideSection>
-      <SideSection title="Tổng giá trị dự toán">
+      {/* Các khối thông tin liền nhau, không kẻ ngang — chỉ một đường ngăn trên cụm nút. */}
+      <SideSection title="Tổng giá trị dự toán" className={FLAT}>
         <p className="text-2xl font-bold tabular-nums">{money.format(totalAmount)} đ</p>
         <p className="text-muted-foreground text-xs">Bằng chữ: {moneyInWords(totalAmount)}.</p>
       </SideSection>
-      <SideSection title="Phạm vi">
+      <SideSection title="Phạm vi" className={FLAT}>
         <SideFact label="Số đề xuất">{proposals.size}</SideFact>
         <SideFact label="Số trường">{schools.size}</SideFact>
         <SideFact label="Thiết bị đưa vào">{included.length} dòng · {money.format(totalQty)}</SideFact>
       </SideSection>
       {plan?.status === "APPROVED" && plan.approvalNote ? (
-        <SideSection title="Ý kiến duyệt">
+        <SideSection title="Ý kiến duyệt" className={FLAT}>
           <p className="text-sm">{plan.approvalNote}</p>
         </SideSection>
       ) : null}
       {editable ? (
-        <SideSection>
+        <SideSection title={missing.length ? `Cần hoàn thiện (${missing.length})` : "Kiểm tra trước khi trình"} className={FLAT}>
+          <CompletionList items={checklist} showDone />
+        </SideSection>
+      ) : null}
+      {editable ? (
+        <SideSection className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" className="min-w-0" disabled={busy !== null} onClick={() => void onSave()}>
               {busy === "save" ? <Loader2 className="animate-spin" /> : <Save />}
               <span className="truncate">Lưu nháp</span>
             </Button>
-            <Button type="button" className="min-w-0" disabled={busy !== null || included.length === 0 || unpriced.length > 0}
-              title={included.length === 0 ? "Thêm đề xuất và đưa ít nhất một thiết bị vào kế hoạch"
-                : unpriced.length ? `Còn ${unpriced.length} thiết bị chưa có đơn giá dự toán` : undefined}
+            <Button type="button" className="min-w-0" disabled={busy !== null || missing.length > 0}
               onClick={() => setConfirmSubmit(true)}>
-              <Send />
+              {busy === "submit" ? <Loader2 className="animate-spin" /> : <Send />}
               <span className="truncate">Trình duyệt</span>
             </Button>
           </div>
-          {included.length === 0 ? (
-            <p className="text-muted-foreground text-xs">Thêm đề xuất đã duyệt của các trường, trước khi trình lãnh đạo Sở.</p>
-          ) : unpriced.length ? (
-            <p className="text-warning-text flex items-start gap-1.5 text-xs">
-              <TriangleAlert className="mt-px size-3.5 shrink-0" />
-              Còn {unpriced.length} thiết bị chưa có đơn giá dự toán — nhập để trình.
-            </p>
-          ) : null}
+          {/* Như nút "Quay lại" của form phiếu: về danh sách kế hoạch, có hỏi lại nếu đang sửa dở. */}
+          <Button type="button" variant="outline" className="w-full" disabled={busy !== null}
+            onClick={() => confirmDiscard(() => list(RESOURCE, "replace"))}>
+            <ArrowLeft />
+            Quay lại
+          </Button>
         </SideSection>
       ) : null}
     </Card>
@@ -344,8 +448,14 @@ function ViewFact({ label, wide, children }: { label: string; wide?: boolean; ch
 }
 
 /** Bảng dòng thiết bị, nhóm theo đề xuất: dòng đầu mỗi nhóm là số phiếu và trường. */
-function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onRemove }: {
+function PlanLinesTable({ lines, groups, editable, onPlanned, onPrice, onApplyPrice, onRemove, collapsed, onToggle }: {
+  /** Mọi dòng của kế hoạch (để gợi ý áp chung giá cho cùng thiết bị). */
   lines: PlanLine[];
+  /** Các đề xuất của TRANG đang xem, mỗi đề xuất một nhóm dòng. */
+  groups: PlanLine[][];
+  /** Đề xuất đang thu gọn (chỉ còn dòng tiêu đề) — giữ ở màn cha để "Kiểm tra trước khi trình" mở đúng nhóm. */
+  collapsed: Set<number>;
+  onToggle: (proposalId: number) => void;
   editable: boolean;
   onPlanned: (lineId: number, value: number) => void;
   /**
@@ -357,11 +467,6 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
   onApplyPrice: (catalogId: number, value: number) => void;
   onRemove: (proposalId: number) => void;
 }) {
-  const groups = useMemo(() => {
-    const m = new Map<number, PlanLine[]>();
-    for (const l of lines) m.set(l.proposalId, [...(m.get(l.proposalId) ?? []), l]);
-    return [...m.values()];
-  }, [lines]);
   const cols = editable ? 6 : 5;
   return (
     <Table>
@@ -370,7 +475,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
           {editable ? <TableHead className="w-10 ps-4" /> : null}
           <TableHead className={cn("text-overline text-muted-foreground", !editable && "ps-4")}>Thiết bị</TableHead>
           <TableHead className="text-overline text-muted-foreground w-24 text-right">SL đề nghị</TableHead>
-          <TableHead className="text-overline text-muted-foreground w-32 text-right">SL đưa vào KH</TableHead>
+          <TableHead className="text-overline text-muted-foreground w-40 pe-[3.25rem] text-right">SL đưa vào KH</TableHead>
           <TableHead className="text-overline text-muted-foreground w-44 text-right">Đơn giá dự toán</TableHead>
           <TableHead className="text-overline text-muted-foreground w-36 pe-4 text-right">Thành tiền</TableHead>
         </TableRow>
@@ -380,18 +485,38 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
           <TableEmpty colSpan={cols} compact title={<>Kế hoạch chưa có đề xuất nào.</>} />
         ) : groups.map((g) => {
           const head = g[0];
+          const closed = collapsed.has(head.proposalId);
+          const groupIn = g.filter((l) => l.plannedQuantity > 0);
+          const groupUnpriced = groupIn.filter((l) => !(Number(l.unitPrice) > 0)).length;
+          const groupAmount = groupIn.reduce((s, l) => s + (Number(l.unitPrice) || 0) * l.plannedQuantity, 0);
           return [
-            <TableRow key={`p${head.proposalId}`} className="bg-muted/40 hover:bg-muted/40">
-              <TableCell colSpan={cols} className="ps-4 py-2">
+            <TableRow key={`p${head.proposalId}`} className="bg-muted/40 hover:bg-muted/60 cursor-pointer"
+              // Bấm dòng tiêu đề của đề xuất để thu gọn / mở các dòng thiết bị bên dưới.
+              onClick={() => onToggle(head.proposalId)}>
+              <TableCell colSpan={cols} className="ps-2 py-2">
                 <div className="flex items-center gap-2 text-sm">
-                  <Link className="text-primary font-mono text-xs font-medium hover:underline" to={`/purchase-proposals/show/${head.proposalId}`}>
+                  <Button type="button" variant="ghost" size="icon" className="size-7"
+                    aria-expanded={!closed} aria-label={closed ? "Mở các dòng thiết bị" : "Thu gọn các dòng thiết bị"}
+                    onClick={(e) => { e.stopPropagation(); onToggle(head.proposalId); }}>
+                    <ChevronDown className={cn("transition-transform", closed && "-rotate-90")} />
+                  </Button>
+                  <Link className="text-primary font-mono text-xs font-medium hover:underline" to={`/purchase-proposals/show/${head.proposalId}`}
+                    onClick={(e) => e.stopPropagation()}>
                     {head.proposalCode ?? "Đề xuất"}
                   </Link>
                   <span className="font-medium">{head.school.name}</span>
                   <span className="text-muted-foreground text-xs">· {g.length} thiết bị</span>
+                  {/* Thu gọn thì tiêu đề nói đủ: đưa vào bao nhiêu dòng, còn thiếu giá không, thành tiền. */}
+                  {closed ? (
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      · đưa vào {groupIn.length}/{g.length}
+                      {groupUnpriced ? <span className="text-warning-text"> · {groupUnpriced} chưa có giá</span> : null}
+                      {" · "}{money.format(groupAmount)} đ
+                    </span>
+                  ) : null}
                   {editable ? (
                     <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive-text ms-auto h-7"
-                      onClick={() => onRemove(head.proposalId)}>
+                      onClick={(e) => { e.stopPropagation(); onRemove(head.proposalId); }}>
                       <X />
                       Rút khỏi kế hoạch
                     </Button>
@@ -399,7 +524,7 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
                 </div>
               </TableCell>
             </TableRow>,
-            ...g.map((l) => {
+            ...(closed ? [] : g).map((l) => {
               const off = l.plannedQuantity === 0;
               const cut = l.requestedQuantity - l.plannedQuantity;
               const price = Number(l.unitPrice) > 0 ? Number(l.unitPrice) : null;
@@ -423,17 +548,35 @@ function PlanLinesTable({ lines, editable, onPlanned, onPrice, onApplyPrice, onR
                     {money.format(l.requestedQuantity)} <span className="text-muted-foreground text-xs">{l.unitName ?? ""}</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    {editable ? (
-                      <Input type="number" min={0} max={l.requestedQuantity} step={1} value={l.plannedQuantity}
-                        onChange={(e) => onPlanned(l.lineId, Math.max(0, Math.floor(Number(e.target.value || 0))))}
-                        className="ms-auto h-8 w-20 text-right tabular-nums" aria-label="Số đưa vào kế hoạch" />
-                    ) : (
-                      <span className="font-medium tabular-nums">{money.format(l.plannedQuantity)}</span>
-                    )}
-                    {cut > 0 && !off ? <span className="text-warning-text mt-1 block text-[0.6875rem]">Bớt {cut} so với đề nghị</span> : null}
-                    {off ? <span className="mt-1 block text-[0.6875rem]">Không đưa vào</span> : null}
+                    {/* Ô số và ghi chú bớt / bỏ cùng MỘT hàng, ghi chú có chỗ cố định bên phải: dòng có ghi chú không
+                        cao hơn dòng khác, ô số các dòng thẳng cột. */}
+                    <div className="flex items-center justify-end gap-2">
+                      {editable ? (
+                        <Input type="number" min={0} max={l.requestedQuantity} step={1} value={l.plannedQuantity}
+                          onChange={(e) => onPlanned(l.lineId, Math.max(0, Math.floor(Number(e.target.value || 0))))}
+                          className="h-8 w-20 text-right tabular-nums" aria-label="Số đưa vào kế hoạch" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{money.format(l.plannedQuantity)}</span>
+                      )}
+                      <span className="w-11 shrink-0 text-start text-[0.6875rem] leading-tight tabular-nums">
+                        {/* Khung gợi ý của hệ thống (Tooltip), không dùng `title` mặc định của trình duyệt. */}
+                        {off ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild><span className="cursor-default">Bỏ</span></TooltipTrigger>
+                            <TooltipContent>Không đưa vào kế hoạch</TooltipContent>
+                          </Tooltip>
+                        ) : cut > 0 ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-warning-text cursor-default font-medium">−{money.format(cut)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>Bớt {money.format(cut)} so với số trường đề nghị</TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell id={`plan-price-${l.lineId}`} className="text-right tabular-nums">
                     {editable ? (
                       <MoneyInput value={l.unitPrice} onChange={(v) => onPrice(l.lineId, v)} placeholder="Nhập giá"
                         aria-label="Đơn giá dự toán" aria-invalid={!off && !price ? true : undefined}
@@ -594,9 +737,12 @@ export function PlanReviewButton({ plan, step, onDone }: { plan: ProcurementPlan
 }
 
 /** In: bản in là chính màn này — thanh bên, nút bấm và thẻ tóm tắt tự ẩn khi in. */
+/** In kế hoạch — dòng trong menu ⚙ của màn kế hoạch. Đóng menu rồi mới in, kẻo menu nằm trên bản in. */
 export function PrintButton() {
+  const menu = useRowActionsMenu();
   return (
-    <Button type="button" variant="outline" onClick={() => window.print()}>
+    <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM}
+      onClick={() => { menu?.close(); setTimeout(() => window.print(), 200); }}>
       <Printer />
       In kế hoạch
     </Button>
@@ -606,6 +752,7 @@ export function PrintButton() {
 /** Xuất Excel: chi tiết theo dòng đề xuất và tổng hợp theo thiết bị (`GET /procurement_plans/{id}/export.xlsx`). */
 export function ExportButton({ plan }: { plan: ProcurementPlan }) {
   const { open: notify } = useNotification();
+  const menu = useRowActionsMenu();
   const [busy, setBusy] = useState(false);
   const allowed = useCan({ resource: RESOURCE, action: "export" }).data?.can ?? false;
   if (!allowed) return null;
@@ -621,10 +768,11 @@ export function ExportButton({ plan }: { plan: ProcurementPlan }) {
       notify?.({ type: "error", message: await errorMessage(error), description: "Không xuất được Excel" });
     } finally {
       setBusy(false);
+      menu?.close();
     }
   };
   return (
-    <Button type="button" variant="outline" disabled={busy} onClick={() => void run()}>
+    <Button type="button" variant="ghost" size="sm" className={ROW_ACTION_ITEM} disabled={busy} onClick={() => void run()}>
       {busy ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
       Xuất Excel
     </Button>

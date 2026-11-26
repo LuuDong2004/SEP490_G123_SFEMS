@@ -1,6 +1,6 @@
 import { useCan, useGetIdentity, useGo, useInvalidate, useListButton, useNavigation, useNotification, useResourceParams, useTranslate } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
-import { Loader2, Lock, Save, Send, X } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, Save, Send } from "lucide-react";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Controller, useWatch, type Control, type UseFormWatch } from "react-hook-form";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
@@ -148,7 +148,7 @@ export function VoucherFormPage({
   const go = useGo();
   const { to: listUrl } = useListButton({});
   const confirmDiscard = useConfirmDiscard();
-  // "Huỷ" là về danh sách — có hỏi lại nếu đang gõ dở.
+  // "Quay lại" là về danh sách — có hỏi lại nếu đang gõ dở.
   const dismiss = () => confirmDiscard(() => go({ to: listUrl, type: "replace" }));
   useEffect(() => {
     if (mode === "edit" && record && toForm) form.reset({ ...toForm(record), details: record.details ?? {} });
@@ -394,9 +394,11 @@ export function VoucherFormPage({
         </div>
         {/* Nút đủ cỡ có viền như hai nút trên — chữ nhỏ không viền trước đây nhìn như nhãn, không thấy là nút. Về danh
             sách phiếu (không "lùi một trang": mở form từ liên kết dán vào thì lùi là ra chỗ khác), có hỏi lại nếu đang gõ dở. */}
+        {/* Gọi "Quay lại", không gọi "Huỷ": phiếu đã trình rồi bị trả về mà mở màn sửa, chữ "Huỷ" bị hiểu là huỷ phiếu
+            (thực ra chỉ ra khỏi màn sửa). Huỷ phiếu thật nằm ở menu ⚙ màn xem phiếu. */}
         <Button type="button" variant="outline" className="w-full" disabled={busy != null} onClick={dismiss}>
-          <X />
-          Huỷ
+          <ArrowLeft />
+          Quay lại
         </Button>
       </SideSection>
     </Card>

@@ -88,7 +88,19 @@ public class FacilityStandardService {
      */
     public record Item(Long roomTypeId, String code, String name, String kind, int count, BigDecimal totalArea,
             BigDecimal smallestArea, Map<String, String> status, List<String> shortfalls, List<String> requirements,
-            boolean hasRules) {
+            boolean hasRules, Map<String, Gap> gaps, List<String> missing) {
+    }
+
+    /**
+     * Điều kiện RIÊNG của một mức mà loại CSVC chưa đạt — để màn hình nói đúng thiếu gì ("thiếu 2 phòng", "phòng nhỏ
+     * hơn 24 m²", "thiếu 15 m²") thay vì đọc lại chuỗi quy tắc. Trường nào {@code null} là điều kiện đó đạt hoặc mức không
+     * đặt. Mức chưa đạt chỉ vì mức dưới chưa đạt thì không có trong {@code gaps}.
+     *
+     * @param needCount     số phòng / khu phải có
+     * @param needRoomArea  diện tích tối thiểu mỗi phòng (m²)
+     * @param needTotalArea tổng diện tích phải có (m²)
+     */
+    public record Gap(BigDecimal needCount, BigDecimal needRoomArea, BigDecimal needTotalArea) {
     }
 
     public record Group(String code, String name, Map<String, String> status, List<Item> items) {
@@ -357,9 +369,29 @@ public class FacilityStandardService {
         if (missingArea) {
             lines.add("- " + stat.missingArea() + " phòng chưa có diện tích");
         }
+        Map<String, Gap> gaps = new LinkedHashMap<>();
+        for (String tier : FacilityStandardRule.TIERS) {
+            BigDecimal count = failing.getOrDefault("count", Map.of()).get(tier);
+            BigDecimal room = failing.getOrDefault("room", Map.of()).get(tier);
+            BigDecimal total = failing.getOrDefault("total", Map.of()).get(tier);
+            if (count != null || room != null || total != null) {
+                gaps.put(tier, new Gap(count, room, total));
+            }
+        }
+        // Thiếu dữ liệu để đánh giá — màn hình đưa người dùng đi khai, không báo "thiếu phòng".
+        List<String> missing = new ArrayList<>();
+        if (missingClasses) {
+            missing.add("classes");
+        }
+        if (missingStudents) {
+            missing.add("students");
+        }
+        if (missingArea) {
+            missing.add("area");
+        }
         return new Item(type.id(), type.code(), type.name(), type.kind(), stat.count(), stat.total(),
                 stat.count() == 0 || stat.missingArea() == stat.count() ? null : stat.smallest(), status, lines,
-                requirements, anyRule);
+                requirements, anyRule, gaps, missing);
     }
 
     /** "12 (tối thiểu), 20 (mức độ 1)" — chỉ ghi tên mức khi không phải mức duy nhất là tối thiểu. */

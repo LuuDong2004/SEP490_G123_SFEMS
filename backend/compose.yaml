@@ -24,8 +24,8 @@ services:
     restart: unless-stopped
 
   # Hộp thư giả cho dev: bắt mọi thư app gửi (đặt lại mật khẩu, mã đăng nhập, thông báo), không gửi ra ngoài.
-  # Xem thư ở http://localhost:8025. App dùng khi application-local.properties khai spring.mail.host=localhost,
-  # spring.mail.port=1025 (mẫu ở application-local.properties.example).
+  # Xem thư ở http://localhost:8025. App gửi vào đây khi quản trị viên khai ở màn Cài đặt máy chủ thư: máy chủ
+  # localhost, cổng 1025, bảo mật Không.
   mailpit:
     image: axllent/mailpit:latest
     ports:

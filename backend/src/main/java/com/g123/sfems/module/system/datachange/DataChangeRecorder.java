@@ -59,6 +59,12 @@ class DataChangeRecorder implements PostUpdateEventListener, PostInsertEventList
      */
     private static final Set<String> WHOLE_RECORD = Set.of("equipment_norms");
 
+    /**
+     * Không ghi lịch sử dù là khuôn danh mục: học sinh (304) là dữ liệu cá nhân của trẻ vị thành niên, chỉ vai loại
+     * trường được xem — mà Lịch sử thay đổi dữ liệu là màn của quản trị viên.
+     */
+    private static final Set<String> PRIVATE = Set.of("students");
+
     /** Trường kỹ thuật, tự đổi theo thao tác khác — ghi vào chỉ làm lịch sử rối. */
     private static final Set<String> SKIP = Set.of("updatedAt", "updatedById", "createdAt", "createdById", "version",
             "lastLoginAt", "failedLoginCount", "loginLockedUntil", "mfaFailedAttempts", "mfaLockedUntil",
@@ -200,6 +206,9 @@ class DataChangeRecorder implements PostUpdateEventListener, PostInsertEventList
     private static String resourceOf(Object entity) {
         Table table = entity.getClass().getAnnotation(Table.class);
         if (table == null) {
+            return null;
+        }
+        if (PRIVATE.contains(table.name())) {
             return null;
         }
         return entity instanceof CatalogEntity || TABLES.contains(table.name()) ? table.name() : null;

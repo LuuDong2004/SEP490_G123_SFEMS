@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Cấu hình máy chủ thư lưu trong DB (bảng {@code mail_config}, một dòng id=1). Mật khẩu SMTP mã hoá bằng
- * {@link SecretBox}. Khi DB có {@code host} và {@code enabled=true} thì dùng thay cho {@code spring.mail.*}.
+ * {@link SecretBox}. Đây là cấu hình máy chủ thư DUY NHẤT: {@code spring.mail.*} trong tệp cấu hình không được dùng.
+ * Chỉ gửi khi {@code enabled=true} và đã khai {@code host}.
  */
 @Service
 public class MailConfigService {
@@ -112,6 +113,21 @@ public class MailConfigService {
     public boolean hasDbConfig() {
         Row r = row();
         return r.enabled() && r.host() != null && !r.host().isBlank();
+    }
+
+    /** Người gửi ghi trên thư: địa chỉ gửi đã khai, không khai thì tài khoản SMTP; tên hiển thị nếu có. */
+    public record Sender(String address, String name) {
+    }
+
+    /** Người gửi theo cấu hình trên màn quản trị; {@code null} khi chưa khai địa chỉ gửi lẫn tài khoản SMTP. */
+    public Sender sender() {
+        Row r = row();
+        String address = r.fromAddress() != null && !r.fromAddress().isBlank() ? r.fromAddress().trim()
+                : r.username() != null && !r.username().isBlank() ? r.username().trim() : null;
+        if (address == null) {
+            return null;
+        }
+        return new Sender(address, r.senderName() == null || r.senderName().isBlank() ? null : r.senderName().trim());
     }
 
     /**

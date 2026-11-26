@@ -142,10 +142,8 @@ export function SchoolYearProfileBody() {
       {/* Nói luôn quy trình: màn chỉ có số và nút mờ thì không ai hiểu vì sao chưa xác nhận được (góp ý 23/11/2026). */}
       {p && !confirmed ? (
         <ol className="text-muted-foreground grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          <li><span className="text-foreground font-medium">1. Khai đủ dữ liệu</span> của từng điểm trường: lớp và sĩ số,
-            phân công giáo viên, phòng, thiết bị đã xếp phòng. Ô màu cam là còn thiếu, bấm vào để sửa.</li>
-          <li><span className="text-foreground font-medium">2. Hiệu trưởng xác nhận đã khai</span> khi mọi điểm trường đã
-            đủ, Sở được báo. Sau đó trường vẫn sửa được, thiết bị mới vào sổ qua phiếu ghi tăng.</li>
+          <li><span className="text-foreground font-medium">1. Khai đủ dữ liệu</span> từng điểm trường. Ô cam là còn thiếu.</li>
+          <li><span className="text-foreground font-medium">2. Hiệu trưởng xác nhận</span> khi đã đủ.</li>
         </ol>
       ) : null}
       <div className="bg-card shadow-e1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">

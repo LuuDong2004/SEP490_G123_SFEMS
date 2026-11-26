@@ -541,6 +541,15 @@
       "show": "Chi tiết lớp học"
     }
   },
+  "students": {
+    "students": "Học sinh",
+    "titles": {
+      "list": "Học sinh",
+      "create": "Thêm học sinh",
+      "edit": "Sửa học sinh",
+      "show": "Chi tiết học sinh"
+    }
+  },
   "subject_teams": {
     "subject_teams": "Tổ bộ môn",
     "titles": {

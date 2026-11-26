@@ -111,7 +111,8 @@ class ProposalApprovalFlowTest {
         CANBO = (String) row.get("canbo");
         HIEUTRUONG = (String) row.get("hieutruong");
         SO_LANHDAO = soWith(body, "purchase_proposals:approve");
-        SO_CHUYENVIEN = soWith(body, "procurement_plans:write");
+        // Lãnh đạo Sở cũng lập được kế hoạch (303): chuyên viên là người lập kế hoạch mà KHÔNG duyệt đề xuất.
+        SO_CHUYENVIEN = soWith(body, "procurement_plans:write", "purchase_proposals:approve");
         Assumptions.assumeTrue(SO_LANHDAO != null && SO_CHUYENVIEN != null, "Thiếu tài khoản Sở");
         System.out.printf("[luong-de-xuat] truong=%d %s / %s, so=%s / %s%n", school, CANBO, HIEUTRUONG, SO_LANHDAO,
                 SO_CHUYENVIEN);
@@ -162,7 +163,8 @@ class ProposalApprovalFlowTest {
         assertThat(has(SO_CHUYENVIEN, "procurement_plans:write")).as("chuyên viên lập kế hoạch").isTrue();
         assertThat(has(SO_CHUYENVIEN, "procurement_plans:approve")).as("chuyên viên không duyệt kế hoạch").isFalse();
         assertThat(has(SO_LANHDAO, "procurement_plans:approve")).as("lãnh đạo Sở duyệt kế hoạch").isTrue();
-        assertThat(has(SO_LANHDAO, "procurement_plans:write")).as("lãnh đạo Sở không lập kế hoạch").isFalse();
+        // Lãnh đạo Sở lập được kế hoạch và tự duyệt kế hoạch mình lập (303) — kế hoạch là việc nội bộ của Sở.
+        assertThat(has(SO_LANHDAO, "procurement_plans:write")).as("lãnh đạo Sở lập kế hoạch").isTrue();
     }
 
     @Test
@@ -229,6 +231,8 @@ class ProposalApprovalFlowTest {
     void traLaiThiVeNhapGiuSoVaDuyetLaiTuDau() {
         long id = submitted();
         String code = proposals.get(id).getCode();
+        // Đã trình: không thêm, không xoá được tệp đính kèm.
+        assertThatThrownBy(() -> proposals.checkAttachmentsEditable(id)).isInstanceOf(FieldValidationException.class);
         signIn(HIEUTRUONG);
         proposals.approve(id, null);
         signIn(SO_LANHDAO);
@@ -239,10 +243,25 @@ class ProposalApprovalFlowTest {
         assertThat(p.getCode()).isEqualTo(code);
 
         signIn(CANBO);
+        // Bị trả về nháp: người lập thêm, xoá được tệp.
+        proposals.checkAttachmentsEditable(id);
         proposals.submit(id);
         p = reload(id);
         assertThat(p.getCode()).isEqualTo(code);
         assertThat(p.getApprovalStep()).as("trình lại duyệt lại từ bước trường").isEqualTo(ApprovalStep.SCHOOL);
+    }
+
+    @Test
+    void biTraVeThiNguoiLapHuyDuoc() {
+        long id = submitted();
+        signIn(HIEUTRUONG);
+        proposals.returnToDraft(id, "Không cần nữa");
+        signIn(CANBO);
+        assertThat(proposals.actions(reload(id), java.util.Map.of("write", true), false)).contains("cancel");
+        proposals.cancel(id, "Trường không xin nữa");
+        PurchaseProposal p = reload(id);
+        assertThat(p.getStatus()).isEqualTo(VoucherStatus.CANCELLED);
+        assertThat(p.getCancelReason()).isEqualTo("Trường không xin nữa");
     }
 
     @Test
@@ -275,12 +294,21 @@ class ProposalApprovalFlowTest {
 
     /** Tài khoản Sở của cơ quan {@code body} có mã quyền đó, ưu tiên tên so.*. */
     private String soWith(long body, String permission) {
+        return soWith(body, permission, null);
+    }
+
+    /** Như trên, và KHÔNG có mã quyền {@code without} (vd. chuyên viên: lập kế hoạch mà không duyệt đề xuất). */
+    private String soWith(long body, String permission, String without) {
         List<String> names = jdbc.queryForList("""
                 SELECT u.username FROM users u JOIN user_sos x ON x.id = u.id
                 WHERE x.managing_body_id = ? AND EXISTS (SELECT 1 FROM user_roles ur
                   JOIN role_permissions rp ON rp.role_id = ur.role_id JOIN permissions p ON p.id = rp.permission_id
                   WHERE ur.user_id = u.id AND p.code = ?)
-                ORDER BY (u.username LIKE 'so.%') DESC, u.id LIMIT 1""", String.class, body, permission);
+                  AND NOT EXISTS (SELECT 1 FROM user_roles ur
+                  JOIN role_permissions rp ON rp.role_id = ur.role_id JOIN permissions p ON p.id = rp.permission_id
+                  WHERE ur.user_id = u.id AND p.code = ?)
+                ORDER BY (u.username LIKE 'so.%') DESC, u.id LIMIT 1""", String.class, body, permission,
+                without == null ? "" : without);
         return names.isEmpty() ? null : names.get(0);
     }
 

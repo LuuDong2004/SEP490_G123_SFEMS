@@ -56,6 +56,7 @@ export const TAB_HINTS: Record<string, string | [school: string, management: str
   rooms: "Phòng học, phòng bộ môn, kho của trường",
   subject_teams: "Tổ bộ môn và thành viên",
   school_classes: "Lớp học theo năm học",
+  students: "Học sinh theo lớp — sĩ số lớp tự đếm",
 
   // Báo cáo — tài sản
   report_equipment_by_school: "Số thiết bị theo từng trường",

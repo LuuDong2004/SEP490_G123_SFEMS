@@ -108,6 +108,17 @@ public class CampusScope {
                 null);
     }
 
+    /**
+     * Như {@link #byRoom} nhưng phòng nằm cách một bước ({@code path}, vd. {@code schoolClass.room}: học sinh theo
+     * phòng học của lớp). {@code field} là ô báo lỗi khi ghi ngoài cơ sở.
+     */
+    public <T> CampusRule<T> byRoomAt(String field, String path, Function<T, Room> room, Function<T, School> school) {
+        return new Rule<>(field, List.of(new Step(path, Kind.ROOM)), null,
+                item -> room.apply(item) != null ? campusOf(room.apply(item), school.apply(item))
+                        : mainCampusId(school.apply(item)),
+                null);
+    }
+
     // ------------------------------------------------------------------ cho phiếu (VoucherCampus)
 
     /** Một cơ sở còn dùng của trường — nhãn Cơ sở trên danh sách phiếu. */

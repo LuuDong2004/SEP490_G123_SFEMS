@@ -28,6 +28,8 @@ import { MiniTable, type MiniChoice, type MiniColumn, type MiniView } from "@/fe
 import { CatalogFormDialog, CatalogShowDialog } from "@/shared/components/catalog/pages";
 import { ORG_RESOURCES } from "@/features/organization/resources/registry";
 import { ClassBoard } from "@/features/organization/explorer/class-board";
+import { StudentBoard } from "@/features/organization/explorer/student-board";
+import { useSchoolYear } from "@/shared/hooks/use-school-year";
 import { FacilityNav, useFacilitySectionTitle } from "@/features/organization/explorer/facility-nav";
 import { FacilityAssessment } from "@/features/organization/explorer/facility-assessment";
 import { QuickAddBuildings } from "@/features/organization/explorer/quick-add";
@@ -179,7 +181,9 @@ function useQuickDialog(resource: string, presets: Record<string, unknown>, onSa
       <AlertDialog open={removing != null} onOpenChange={(o) => !o && !busy && setRemoving(null)}>
         {removing ? (
           <ConfirmContent tone="danger" title={removing.name ? `Xoá ${config.label.toLowerCase()} “${removing.name}”?` : `Xoá ${config.label.toLowerCase()} này?`}
-            description="Chỉ xoá được khi chưa có thiết bị, lớp hay kiểm kê. Xoá rồi không lấy lại được."
+            description={resource === "students"
+              ? "Học sinh ra khỏi danh sách của lớp, sĩ số lớp tự đếm lại. Xoá rồi không lấy lại được."
+              : "Chỉ xoá được khi chưa có thiết bị, lớp hay kiểm kê. Xoá rồi không lấy lại được."}
             cancelLabel="Giữ lại" confirmLabel="Xoá" busy={busy} keepOpen onConfirm={() => void remove()} />
         ) : null}
       </AlertDialog>
@@ -434,6 +438,19 @@ export function SchoolFacilityTabs({
   // Lớp học ít trường: thêm / xem / sửa trong hộp thoại, không rời màn trường. Bấm một lớp là
   // xem chi tiết; nút Sửa trong đó mở form sửa (cùng khuôn với thêm mới).
   const classDialog = useQuickDialog("school_classes", { school: { id: schoolId } });
+  // Học sinh (304): cạnh Lớp học, chỉ tài khoản được xem danh sách học sinh (vai loại trường) có mục này.
+  const mayStudents = useCan({ resource: "students", action: "list" }).data?.can ?? false;
+  const invalidateClasses = useInvalidate();
+  // Thêm, chuyển lớp, xoá học sinh là sĩ số lớp đổi: bảng lớp đọc lại.
+  const studentDialog = useQuickDialog("students", { school: { id: schoolId } },
+    () => void invalidateClasses({ resource: "school_classes", invalidates: ["list", "many", "detail"] }));
+  const { id: workingYear } = useSchoolYear();
+  const { result: studentTotal } = useList<any>({
+    resource: "students",
+    filters: [...bySchool(schoolId), ...(workingYear != null ? [{ field: "schoolYear.id", operator: "eq" as const, value: workingYear }] : [])],
+    pagination: { pageSize: 1 },
+    queryOptions: { enabled: mayStudents },
+  });
   // Lớp học ở phòng nào: bảng hạng mục có cột "Lớp" — mở Phòng học tập là thấy phòng của lớp nào. Một trường vài chục
   // lớp, đọc một lần.
   const { result: classResult } = useList<any>({
@@ -505,6 +522,7 @@ export function SchoolFacilityTabs({
       {roomDialog.element}
       {staffDialog.element}
       {classDialog.element}
+      {mayStudents ? studentDialog.element : null}
       {teamDialog.element}
       <QuickAddBuildings schoolId={schoolId} onAddCampus={() => campusDialog.open()} {...quickProps("buildings")} />
       {/* Dải tab đứng đầu màn (như thanh tab của phân hệ), rồi thẻ trường, rồi nội dung của tab trên một tấm. */}
@@ -547,10 +565,14 @@ export function SchoolFacilityTabs({
         <TabsContent value="facilities" className="flex min-h-0 flex-1 flex-col pt-3">
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-5">
             <FacilityNav schoolId={schoolId} value={sec} onChange={pickSection}
-              counts={{ rooms: counts?.rooms, buildings: counts?.buildings, campuses: counts?.campuses, classes: counts?.classes }} />
+              counts={{ rooms: counts?.rooms, buildings: counts?.buildings, campuses: counts?.campuses, classes: counts?.classes,
+                students: mayStudents ? studentTotal?.total : null }} showStudents={mayStudents} />
             <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto">
               {sec === "classes" ? (
                 <ClassBoard schoolId={schoolId} onCreate={() => classDialog.open()} onOpen={(id) => classDialog.view(id)} onEdit={(id) => classDialog.open(id)} />
+              ) : sec === "students" && mayStudents ? (
+                <StudentBoard schoolId={schoolId} onCreate={() => studentDialog.open()} onOpen={(id) => studentDialog.view(id)}
+                  onEdit={(id) => studentDialog.open(id)} onDelete={studentDialog.remove} />
               ) : groupId ? (
                 <MiniTable key={sec} resource="rooms" path="/rooms"
                   filters={[...bySchool(schoolId), { field: "group.id", operator: "eq", value: groupId }]}

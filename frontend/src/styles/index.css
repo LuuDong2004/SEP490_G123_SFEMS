@@ -53,6 +53,10 @@
   --color-warning-subtle: var(--warning-subtle);
   --color-warning-text: var(--warning-text);
 
+  --color-returned: var(--returned);
+  --color-returned-subtle: var(--returned-subtle);
+  --color-returned-text: var(--returned-text);
+
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-subtle: var(--info-subtle);

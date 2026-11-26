@@ -1,4 +1,4 @@
-import { AlertCircle, CornerUpLeft } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 
 import { LoadingOverlay } from "@/shared/components/layout/loading-overlay";
@@ -6,6 +6,7 @@ import { PrintSheet, type PrintTable } from "@/shared/components/print/print-she
 import { ShowView, ShowViewHeader } from "@/shared/components/views/show-view";
 import { AttachmentsPanel } from "@/shared/components/voucher/attachments-panel";
 import { RelatedVouchers } from "@/shared/components/voucher/related-vouchers";
+import { ReturnedNotice } from "@/shared/components/voucher/returned-notice";
 import { VoucherActions, type TuckedAction } from "@/shared/components/voucher/voucher-actions";
 import { VoucherMoreMenu } from "@/shared/components/voucher/voucher-more-menu";
 import { SideFact, SideSection, StepTitle, VoucherTwoColumn } from "@/shared/components/voucher/voucher-layout";
@@ -22,7 +23,7 @@ import { useVoucherApprovers } from "@/shared/hooks/use-voucher-events";
 import { formatDateTime } from "@/shared/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
 import { Card } from "@/shared/ui/card";
-import { APPROVAL_STEP_LABELS, type EquipmentLine, type VoucherApprovers, type VoucherBase } from "@/domains/voucher/types";
+import { APPROVAL_STEP_LABELS, type ApprovalStep, type EquipmentLine, type VoucherApprovers, type VoucherBase } from "@/domains/voucher/types";
 
 export type Fact = { label: string; value: ReactNode };
 
@@ -101,12 +102,9 @@ export function VoucherShowShell({
     <ShowView>
       <ShowViewHeader
         more={<VoucherMoreMenu resource={resource} record={record} onTimeline={() => setTimelineOpen(true)} onAction={setMenuAction} timelineLabel={wording.title} />}
-        actions={
-          <>
-            {extraActions}
-            <VoucherActions resource={resource} record={record} tucked={tucked} {...actions} />
-          </>
-        }
+        // Nút việc của phiếu (Trình, Sửa, Huỷ phiếu, Duyệt…) nằm dưới thẻ tóm tắt bên phải — đầu trang chỉ còn
+        // Quá trình duyệt và ⚙. Fragment rỗng để khung không tự vẽ nút Sửa mặc định.
+        actions={<></>}
       />
       <VoucherTimelineDialog resource={resource} id={record?.id} open={timelineOpen} onOpenChange={setTimelineOpen} wording={wording} />
       {record ? (
@@ -129,11 +127,7 @@ export function VoucherShowShell({
             main={
               <>
                 {record?.status === "DRAFT" && record.returnNote ? (
-                  <Alert>
-                    <CornerUpLeft className="text-warning-text" />
-                    <AlertTitle>Phiếu bị trả lại, cần sửa</AlertTitle>
-                    <AlertDescription>{record.returnNote}</AlertDescription>
-                  </Alert>
+                  <ReturnedNotice resource={resource} id={record.id} note={record.returnNote} />
                 ) : null}
                 {record?.status === "REJECTED" && record.rejectReason ? (
                   <Alert variant="destructive">
@@ -165,7 +159,8 @@ export function VoucherShowShell({
                 <AttachmentsPanel
                   resource={resource}
                   recordId={record?.id}
-                  canWrite={record?._can?.write === true}
+                  // Đã trình duyệt: tệp khoá, không thêm, không xoá — người duyệt đang xét các tệp đó.
+                  canWrite={record?._can?.write === true && record?.status === "DRAFT"}
                   description={attachmentsHint}
                 />
               </>
@@ -201,6 +196,8 @@ export function VoucherShowShell({
                       )}
                     </SideFact>
                   </SideSection>
+                  {/* Nút việc của phiếu ngay dưới thông tin phiếu, như nút Lưu / Trình của form lập phiếu. */}
+                  <VoucherActions resource={resource} record={record} tucked={tucked} layout="side" extra={extraActions} {...actions} />
                 </Card>
               </>
             }
@@ -212,22 +209,26 @@ export function VoucherShowShell({
 }
 
 /**
- * Dòng "Người duyệt" của thẻ tóm tắt. Đang chờ: tên những người duyệt được bước này (nhiều người thì hai tên đầu và
- * "+N"); chưa ai có quyền thì nói rõ để người lập báo quản trị viên. Đã quyết: tên người đã duyệt từng bước, nối "→".
- * Phiếu nháp / huỷ: không có dòng này.
+ * Dòng "Người duyệt" của thẻ tóm tắt — hiện VAI TRÒ duyệt, không hiện tên người. Đang chờ: vai trò của bước đang chờ
+ * ("Lãnh đạo Sở"); phiếu nháp: vai trò bước đầu kèm "(khi trình)"; chưa ai có quyền thì nói rõ để người lập báo quản
+ * trị viên. Đã quyết: vai trò người quyết cuối. Phiếu huỷ: không có dòng này.
  */
 function approversText(a: VoucherApprovers | undefined): ReactNode {
   if (!a) return null;
   if (a.pending || a.upcoming) {
+    if (!a.step) return null;
     if (!a.people.length) {
-      return <span className="text-warning-text">Chưa có tài khoản {a.step ? APPROVAL_STEP_LABELS[a.step] : "duyệt"}</span>;
+      return <span className="text-warning-text">Chưa có tài khoản {APPROVAL_STEP_LABELS[a.step]}</span>;
     }
-    const names = a.people.map((p) => p.name);
-    const text = names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", ");
-    return a.upcoming ? <>{text} <span className="text-muted-foreground font-normal">(khi trình)</span></> : text;
+    const role = capitalize(APPROVAL_STEP_LABELS[a.step]);
+    return a.upcoming ? <>{role} <span className="text-muted-foreground font-normal">(khi trình)</span></> : role;
   }
-  return a.people.length ? a.people.map((p) => p.name).join(" → ") : null;
+  // Đã quyết: vai trò của người quyết CUỐI (người chốt duyệt / từ chối) — cùng cột "Người duyệt" của danh sách.
+  const last = a.people.map((p) => p.step).filter((s): s is ApprovalStep => s != null).at(-1);
+  return last ? capitalize(APPROVAL_STEP_LABELS[last]) : null;
 }
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Ô chưa khai: trống, hoặc màn của loại phiếu đã tự đổi thành dấu gạch. */
 const blankFact = (v: ReactNode) => v === null || v === undefined || v === "" || v === "—" || v === "-";

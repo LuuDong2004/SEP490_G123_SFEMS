@@ -115,15 +115,21 @@ export function MailConfigPage() {
               />
               <Label htmlFor="smtp-enabled" className="cursor-pointer text-sm font-medium">
                 <Mail className="mr-1.5 inline size-4 align-text-bottom" />
-                Gửi thư qua máy chủ khai ở đây
+                Gửi thư
               </Label>
             </div>
-            {configured ? (
+            {!(data?.enabled ?? true) ? (
+              <Badge variant="neutral">Đã tắt, không gửi thư nào</Badge>
+            ) : configured ? (
               <Badge variant="success">Đang dùng cấu hình này</Badge>
             ) : (
-              <Badge variant="warning">Chưa kích hoạt</Badge>
+              <Badge variant="warning">Chưa khai máy chủ, chưa gửi được thư</Badge>
             )}
           </div>
+          <p className="text-muted-foreground -mt-3 text-sm">
+            Hệ thống chỉ gửi thư theo cấu hình ở trang này. Tắt, hoặc chưa khai máy chủ, thì không gửi thư nào: thông báo, thư
+            mời tài khoản, mã đăng nhập, đặt lại mật khẩu.
+          </p>
 
           <div className="h-px bg-border" />
 

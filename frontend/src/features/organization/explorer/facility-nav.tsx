@@ -1,17 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Briefcase, GraduationCap, CircleHelp, Download, Dumbbell, Hotel, LayoutGrid, Library, MapPin, Shapes, SquareStack, Utensils, Warehouse, type LucideIcon } from "lucide-react";
+import { Backpack, BookOpen, Briefcase, GraduationCap, CircleHelp, Download, Dumbbell, Hotel, LayoutGrid, Library, MapPin, Shapes, SquareStack, Utensils, Warehouse, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { kyInstance } from "@/shared/api/data";
-import { CsvcStatisticsNotes, CsvcStatisticsTable } from "@/shared/components/facility/csvc-statistics";
 import { errorMessage } from "@/shared/lib/api-error";
 import { SLIDE_TRANSITION, trackedStyle, useTrackedBox } from "@/shared/hooks/use-tracked-box";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/shared/ui/select";
-import type { Report } from "@/domains/report/types";
 import { useFacilityInfo } from "@/features/organization/explorer/facility-info";
 import { LoadingText } from "@/shared/components/spinner";
+import { LIFT_ROW } from "@/shared/lib/row-lift";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 /** Mục của cột trái; `g:<id>` là một khối CSVC, `g:none` là hạng mục chưa phân loại. */
 type NavItem = { value: string; label: string; icon: LucideIcon; tone: string; count?: number | null; warn?: boolean };
@@ -37,11 +37,13 @@ export const GROUP_ICONS: Record<string, { icon: LucideIcon; tone: string }> = {
  * trường. Số đếm cạnh từng mục; khối chưa có hạng mục nào nhạt đi. Màn hẹp thành một ô chọn. Báo cáo, chuẩn ở tab
  * Đánh giá CSVC; số liệu chung ở tab Hồ sơ trường.
  */
-export function FacilityNav({ schoolId, value, onChange, counts }: {
+export function FacilityNav({ schoolId, value, onChange, counts, showStudents }: {
   schoolId: number;
   value: string;
   onChange: (v: string) => void;
-  counts?: { rooms?: number | null; buildings?: number | null; campuses?: number | null; classes?: number | null };
+  counts?: { rooms?: number | null; buildings?: number | null; campuses?: number | null; classes?: number | null; students?: number | null };
+  /** Có mục Học sinh — chỉ tài khoản được xem danh sách học sinh (vai loại trường). */
+  showStudents?: boolean;
 }) {
   const { data } = useFacilityInfo(schoolId);
   const navRef = useRef<HTMLElement>(null);
@@ -72,7 +74,13 @@ export function FacilityNav({ schoolId, value, onChange, counts }: {
     {
       // Lớp gắn với phòng học: quản lý lớp (sĩ số, GV chủ nhiệm, phòng) ở đây, không còn tab riêng.
       title: "Sử dụng",
-      items: [{ value: "classes", label: "Lớp học", icon: GraduationCap, tone: "text-chart-3", count: counts?.classes }],
+      // Học sinh cạnh Lớp học: lớp có danh sách học sinh thì sĩ số tự đếm từ đó.
+      items: [
+        { value: "classes", label: "Lớp học", icon: GraduationCap, tone: "text-chart-3", count: counts?.classes },
+        ...(showStudents
+          ? [{ value: "students", label: "Học sinh", icon: Backpack, tone: "text-chart-4", count: counts?.students }]
+          : []),
+      ],
     },
   ];
   return (
@@ -140,15 +148,33 @@ export function useFacilitySectionTitle(schoolId: number, value: string): string
   return (data?.groups ?? []).find((g) => String(g.id ?? "none") === id)?.name ?? null;
 }
 
+/** Một dòng của biểu theo từng phòng (`GET reports/csvc-statistics/rooms`). */
+type RoomRow = {
+  kind: "group" | "item" | "room";
+  stt?: string;
+  text: string;
+  unit?: string | null;
+  count?: number;
+  area?: number | null;
+  code?: string;
+  type?: string;
+  structure?: string | null;
+  building?: string | null;
+  campus?: string | null;
+};
+
+const areaFmt = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+
 /**
- * Biểu số liệu CSVC của một trường ngay trong tab: cùng bảng với Báo cáo → Biểu số liệu CSVC, cùng tệp
- * Excel mẫu Sở. Trường lập biểu không phải sang phân hệ Báo cáo.
+ * Biểu số liệu CSVC của một trường ngay trong tab, THEO TỪNG PHÒNG: cùng khối, cùng dòng loại với mẫu Sở, dưới mỗi loại
+ * là từng phòng / khu (mã, kết cấu, diện tích, nhà, cơ sở) — đọc nhanh, đối chiếu được từng phòng. Tải Excel đúng bảng này.
+ * Biểu tổng hợp theo mẫu Sở vẫn ở phân hệ Báo cáo.
  */
 export function CsvcStatisticsPanel({ schoolId }: { schoolId: number }) {
   const params = { schoolId: String(schoolId) };
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["reports", "csvc-statistics", schoolId],
-    queryFn: ({ signal }) => kyInstance.get("reports/csvc-statistics", { signal,  searchParams: params }).json<Report>(),
+  const rooms = useQuery({
+    queryKey: ["reports", "csvc-statistics", "rooms", schoolId],
+    queryFn: ({ signal }) => kyInstance.get("reports/csvc-statistics/rooms", { signal, searchParams: params }).json<RoomRow[]>(),
   });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -156,11 +182,11 @@ export function CsvcStatisticsPanel({ schoolId }: { schoolId: number }) {
     setBusy(true);
     setProblem(null);
     try {
-      const blob = await kyInstance.get("reports/csvc-statistics/export", { searchParams: params, timeout: 120_000 }).blob();
+      const blob = await kyInstance.get("reports/csvc-statistics/rooms/export", { searchParams: params, timeout: 120_000 }).blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Bieu-so-lieu-CSVC.xlsx";
+      a.download = "Bieu-so-lieu-CSVC-theo-phong.xlsx";
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -169,8 +195,6 @@ export function CsvcStatisticsPanel({ schoolId }: { schoolId: number }) {
       setBusy(false);
     }
   }
-  if (isLoading) return <LoadingText className="py-6" />;
-  if (error || !data) return <p className="text-destructive-text py-6 text-sm">Không tải được biểu số liệu.</p>;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -180,13 +204,73 @@ export function CsvcStatisticsPanel({ schoolId }: { schoolId: number }) {
         </Button>
       </div>
       {problem ? <p role="alert" className="text-destructive-text text-xs">{problem}</p> : null}
-      {/* Cao theo khung chứa (hộp thoại), chỉ thân bảng cuộn — tiêu đề ba tầng đứng yên, không bị cắt. */}
-      <div className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-        <div className="min-h-0 flex-1 overflow-auto">
-          <CsvcStatisticsTable report={data} />
+      {rooms.isLoading ? <LoadingText className="py-6" /> : rooms.error ? (
+        <p className="text-destructive-text py-6 text-sm">Không tải được biểu số liệu.</p>
+      ) : (
+        // Khung này là chỗ cuộn duy nhất (khung bọc riêng của Table để tràn ra), nên tiêu đề cột `sticky` đứng yên khi cuộn.
+        <div className="bg-card min-h-0 flex-1 overflow-auto rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
+          <CsvcRoomsTable rows={rooms.data ?? []} />
         </div>
-        <CsvcStatisticsNotes report={data} />
-      </div>
+      )}
     </div>
+  );
+}
+
+/** Bảng theo từng phòng: dòng khối (đậm, nền nhạt), dòng loại (số lượng, tổng diện tích), rồi từng phòng. */
+function CsvcRoomsTable({ rows }: { rows: RoomRow[] }) {
+  const head = "text-overline text-muted-foreground";
+  return (
+    <Table>
+      <TableHeader className="bg-surface-subtle sticky top-0 z-10">
+        <TableRow>
+          <TableHead className={cn(head, "w-16")}>STT</TableHead>
+          <TableHead className={head}>Hạng mục / phòng</TableHead>
+          <TableHead className={cn(head, "w-24")}>Mã</TableHead>
+          <TableHead className={cn(head, "w-32")}>Kết cấu</TableHead>
+          <TableHead className={cn(head, "w-28 text-right")}>Diện tích (m²)</TableHead>
+          <TableHead className={cn(head, "w-40")}>Nhà / khối nhà</TableHead>
+          <TableHead className={cn(head, "w-36")}>Cơ sở</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((r, i) => r.kind === "group" ? (
+          <TableRow key={i} className="bg-primary/[0.04] hover:bg-primary/[0.04]">
+            <TableCell className="font-semibold tabular-nums">{r.stt}</TableCell>
+            <TableCell className="font-semibold">
+              {r.text}
+              <span className="text-muted-foreground ms-2 text-xs font-normal">
+                {r.count ? `${r.count} hạng mục` : "Chưa có hạng mục nào"}
+              </span>
+            </TableCell>
+            <TableCell colSpan={2} />
+            <TableCell className="text-right font-semibold tabular-nums">{r.count ? areaFmt.format(Number(r.area ?? 0)) : null}</TableCell>
+            <TableCell colSpan={2} />
+          </TableRow>
+        ) : r.kind === "item" ? (
+          <TableRow key={i} className="hover:bg-transparent">
+            <TableCell className="text-muted-foreground tabular-nums">{r.stt}</TableCell>
+            <TableCell className="font-medium whitespace-normal">
+              {r.text}
+              <span className="text-muted-foreground ms-2 text-xs font-normal">{r.count} {r.unit ?? "phòng"}</span>
+            </TableCell>
+            <TableCell colSpan={2} />
+            <TableCell className="text-right font-medium tabular-nums">{areaFmt.format(Number(r.area ?? 0))}</TableCell>
+            <TableCell colSpan={2} />
+          </TableRow>
+        ) : (
+          <TableRow key={i} className={cn("group/row", LIFT_ROW)}>
+            <TableCell />
+            <TableCell className="ps-8 whitespace-normal">{r.text}</TableCell>
+            <TableCell className="font-mono text-xs">{r.code}</TableCell>
+            <TableCell>{r.structure ?? <span className="text-warning-text text-xs">Chưa khai</span>}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {r.area != null ? areaFmt.format(Number(r.area)) : <span className="text-warning-text text-xs">Chưa khai</span>}
+            </TableCell>
+            <TableCell className="whitespace-normal">{r.building ?? <span className="text-muted-foreground">Không thuộc nhà nào</span>}</TableCell>
+            <TableCell className="whitespace-normal">{r.campus ?? "Cơ sở chính"}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

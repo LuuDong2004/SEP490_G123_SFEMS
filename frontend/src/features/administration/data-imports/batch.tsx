@@ -1,6 +1,6 @@
 import { useCan, useGo, useNotification } from "@refinedev/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, DoorOpen, Download, FileSpreadsheet, GraduationCap, History, MoreHorizontal, Package, RefreshCw, School, Trash2, Undo2, Upload, Users, MapPin } from "lucide-react";
+import { Backpack, Building2, DoorOpen, Download, FileSpreadsheet, GraduationCap, History, MoreHorizontal, Package, RefreshCw, School, Trash2, Undo2, Upload, Users, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { toast } from "sonner";
@@ -43,6 +43,7 @@ const SHEET_ICON: Record<string, React.ReactNode> = {
   building: <Building2 />,
   room: <DoorOpen />,
   class: <GraduationCap />,
+  student: <Backpack />,
   equipment: <Package />,
   schools: <School />,
   wards: <MapPin />,

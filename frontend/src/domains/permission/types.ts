@@ -34,11 +34,12 @@ export function grantable(permission: { code: string; scope: PermissionScope }, 
 }
 
 /** Phiếu có bước duyệt: một vai không vừa lập vừa duyệt cùng loại phiếu (GBR-07). */
+// Cùng bản với `PermissionGrants.VOUCHERS` ở máy chủ. Kế hoạch mua sắm không nằm trong luật (303): việc nội bộ của Sở,
+// lãnh đạo Sở vừa lập vừa duyệt được.
 const VOUCHERS: Record<string, string> = {
   equipment_intakes: "Phiếu ghi tăng",
   inventory_sessions: "Phiếu kiểm kê",
   purchase_proposals: "Đề xuất mua sắm",
-  procurement_plans: "Kế hoạch mua sắm",
 };
 
 /** Tên các loại phiếu mà bộ quyền này vừa lập vừa duyệt; rỗng là hợp lệ. */
@@ -137,6 +138,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   facility_standard_rules: "Chuẩn CSVC",
   rooms: "Phòng",
   school_classes: "Lớp học",
+  students: "Học sinh",
   school_code_rules: "Mã tự tăng của trường",
   school_users: "Tài khoản của trường",
   school_years: "Năm học",

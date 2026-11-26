@@ -388,6 +388,17 @@ public abstract class VoucherService<V extends SchoolVoucher, C extends VoucherR
         writable(id);
     }
 
+    /** Đã trình duyệt (không còn nháp) thì tệp đính kèm khoá: không thêm, không xoá — người duyệt đang xét chúng. */
+    @Override
+    public void checkAttachmentsEditable(Long id) {
+        V voucher = writable(id);
+        if (voucher.getStatus() != VoucherStatus.DRAFT) {
+            throw new FieldValidationException("file",
+                    "Phiếu đã trình duyệt, không thêm hay xoá được tệp đính kèm. Cần đổi tệp thì nhờ người duyệt trả lại "
+                            + "phiếu.");
+        }
+    }
+
     // ------------------------------------------------------------------ tiện ích
 
     protected void lockAndReread(V voucher) {

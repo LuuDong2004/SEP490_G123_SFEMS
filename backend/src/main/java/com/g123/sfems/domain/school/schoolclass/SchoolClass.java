@@ -49,7 +49,10 @@ public class SchoolClass extends SchoolOwnedEntity {
     @JoinColumn(name = "room_id")
     private Room room;
 
-    /** Sĩ số. */
+    /**
+     * Sĩ số. Lớp đã có danh sách học sinh ({@code students}, 304) thì tự đếm = số học sinh đang hoạt động, không
+     * sửa tay; lớp chưa có học sinh nào giữ số nhập tay.
+     */
     @Column(name = "student_count")
     private Integer studentCount;
 

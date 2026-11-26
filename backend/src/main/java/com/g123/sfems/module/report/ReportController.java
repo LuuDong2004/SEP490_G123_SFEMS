@@ -6,6 +6,7 @@ import com.g123.sfems.shared.office.DownloadNames;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -78,6 +79,32 @@ public class ReportController {
             @RequestParam(required = false) Long campusId) {
         return reports.build(name, new ReportService.Params(from, to, year, bodyId, levelId, schoolId, group, choice,
                 typeId, status, condition, campusId, yearId));
+    }
+
+    /** Biểu số liệu CSVC theo từng phòng — xem trên màn (nút "Biểu số liệu" của tab Đánh giá CSVC). */
+    @GetMapping("/csvc-statistics/rooms")
+    @PreAuthorize("hasAuthority('reports:read')")
+    public List<Map<String, Object>> csvcRooms(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        return reports.csvcRooms(roomParams(schoolId, campusId));
+    }
+
+    @GetMapping("/csvc-statistics/rooms/export")
+    @PreAuthorize("hasAuthority('reports:export')")
+    public ResponseEntity<byte[]> csvcRoomsExport(@RequestParam(required = false) Long schoolId,
+            @RequestParam(required = false) Long campusId) {
+        String file = "Bieu so lieu CSVC theo phong - " + LocalDate.now() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(file, StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(reports.csvcRoomsWorkbook(roomParams(schoolId, campusId)));
+    }
+
+    private static ReportService.Params roomParams(Long schoolId, Long campusId) {
+        return new ReportService.Params(null, null, null, null, null, schoolId, null, null, null, null, null,
+                campusId, null);
     }
 
     @GetMapping("/{name}/export")

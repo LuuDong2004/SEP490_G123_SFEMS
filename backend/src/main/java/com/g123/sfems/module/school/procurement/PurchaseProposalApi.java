@@ -64,7 +64,7 @@ public final class PurchaseProposalApi {
             Map<String, Object> details) implements VoucherRequest {
     }
 
-    public record PlanSummary(Long id, String title, String status) {
+    public record PlanSummary(Long id, String code, String title, String status) {
     }
 
     public record Response(
@@ -100,7 +100,7 @@ public final class PurchaseProposalApi {
             var plan = p.getPlan();
             return new Response(VoucherHeader.of(p, can, actions), p.getProposalDate(), p.getBudgetYear(),
                     p.getReason(),
-                    plan == null ? null : new PlanSummary(plan.getId(), plan.getTitle(), plan.getStatus().name()),
+                    plan == null ? null : new PlanSummary(plan.getId(), plan.getCode(), plan.getTitle(), plan.getStatus().name()),
                     p.getIntakeId(), p.totalAmount(),
                     lines.stream().mapToInt(l -> l.quantity() == null ? 0 : l.quantity()).sum(), lines,
                     lines.size());

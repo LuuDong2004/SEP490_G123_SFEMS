@@ -27,11 +27,12 @@ public final class PermissionGrants {
     private static final Set<String> SCHOOL_ONLY = Set.of("school_year_profiles:confirm");
 
     /** Phiếu có bước duyệt: một vai không vừa lập vừa duyệt cùng loại phiếu (GBR-07). */
+    // Kế hoạch mua sắm KHÔNG nằm trong luật này (303): đó là việc nội bộ của Sở, Sở ít người — lãnh đạo Sở vừa lập
+    // vừa duyệt được kế hoạch, kể cả kế hoạch mình lập. Phiếu của trường (ghi tăng, kiểm kê, đề xuất) vẫn giữ luật.
     private static final Map<String, String> VOUCHERS = Map.of(
             "equipment_intakes", "Phiếu ghi tăng",
             "inventory_sessions", "Phiếu kiểm kê",
-            "purchase_proposals", "Đề xuất mua sắm",
-            "procurement_plans", "Kế hoạch mua sắm");
+            "purchase_proposals", "Đề xuất mua sắm");
 
     private PermissionGrants() {
     }

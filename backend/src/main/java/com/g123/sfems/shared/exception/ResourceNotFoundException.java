@@ -16,6 +16,7 @@ public class ResourceNotFoundException extends RuntimeException {
             Map.entry("EducationLevel", "cấp học"), Map.entry("Attachment", "tệp đính kèm"),
             Map.entry("Subject", "môn học"), Map.entry("Staff", "cán bộ"), Map.entry("Room", "phòng"),
             Map.entry("Building", "khối nhà"), Map.entry("Campus", "cơ sở"), Map.entry("SchoolClass", "lớp học"),
+            Map.entry("Student", "học sinh"),
             Map.entry("SubjectTeam", "tổ bộ môn"),
             Map.entry("Equipment", "thiết bị"), Map.entry("EquipmentCatalog", "thiết bị trong danh mục"),
             Map.entry("EquipmentConfig", "bộ thông số"), Map.entry("EquipmentType", "loại thiết bị"),

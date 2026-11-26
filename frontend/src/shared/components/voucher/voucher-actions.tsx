@@ -9,6 +9,7 @@ import { EditButton } from "@/shared/components/buttons/edit";
 import { AlertDialog } from "@/shared/ui/alert-dialog";
 import { ConfirmContent } from "@/shared/components/confirm/confirm-content";
 import { Button } from "@/shared/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
 import { maxLengthOf, textError } from "@/shared/lib/field-rules";
@@ -118,6 +119,10 @@ export type TuckedAction = "cancel" | "delete" | "reject";
  * @param text      thay câu chữ cho loại phiếu cụ thể — vd. "Duyệt và ghi tăng"
  * @param invalidates tài nguyên khác cần làm mới sau khi phiếu đổi trạng thái
  *                  (thiết bị, tồn kho...)
+ * @param layout    "side": cụm nút nằm trong thẻ tóm tắt bên phải (mục riêng có viền trên) — việc chính (Trình /
+ *                  Duyệt / Hoàn tất, cộng `extra`) là nút đậm đủ bề rộng, việc phụ (Sửa, Trả lại, Huỷ phiếu) xếp hàng
+ *                  hai bên dưới. Không có nút nào thì không vẽ mục. Mặc định "bar": hàng nút ở đầu trang.
+ * @param extra     nút riêng của loại phiếu, đứng cùng nhóm việc chính (vd. "Hàng về, lập phiếu ghi tăng").
  * @param tucked    màn có menu ⚙ thì đưa hai việc ÍT DÙNG và nguy hiểm — Huỷ phiếu, Xoá — vào menu đó:
  *                  ở đây không vẽ nút của chúng, menu báo việc được chọn qua `request` và cụm này mở đúng
  *                  hộp hỏi lại như khi bấm nút. Hàng nút chỉ còn việc chính (Sửa, Trình / Duyệt…).
@@ -130,6 +135,8 @@ export function VoucherActions({
   invalidates = [],
   hide = [],
   tucked,
+  layout = "bar",
+  extra,
 }: {
   resource: string;
   record: VoucherBase | undefined;
@@ -137,6 +144,8 @@ export function VoucherActions({
   invalidates?: string[];
   hide?: VoucherAction[];
   tucked?: { request: TuckedAction | null; clear: () => void };
+  layout?: "bar" | "side";
+  extra?: ReactNode;
 }) {
   const { open } = useNotification();
   const invalidate = useInvalidate();
@@ -198,12 +207,15 @@ export function VoucherActions({
     }
   }
 
-  const button = (action: WorkflowAction, variant: "default" | "outline" | "destructive" = "outline") =>
+  const side = layout === "side";
+  const button = (action: WorkflowAction, variant: "default" | "outline" | "destructive" = "outline", className?: string) =>
     allowed.has(action) ? (
       <Button
         key={action}
         type="button"
         variant={variant}
+        size={side && variant === "default" ? "lg" : undefined}
+        className={cn(side && "w-full", className)}
         disabled={busy}
         onClick={() => {
           setNote("");
@@ -215,57 +227,98 @@ export function VoucherActions({
       </Button>
     ) : null;
 
+  // Huỷ phiếu thường nằm trong menu ⚙. Phiếu bị trả về thì đưa ra ngoài: lúc đó người lập chỉ còn hai lựa chọn — sửa
+  // rồi trình lại, hoặc huỷ hẳn.
+  const cancelOut = !tucked || !!record.returnNote;
+  const cancelTone = "text-destructive hover:bg-destructive/10 hover:text-destructive";
+  // Nút Xoá vẫn là `DeleteButton` (quyền, hộp hỏi lại, điều hướng sau khi xoá đều của nó) — có menu ⚙ thì chỉ ẩn đi.
+  const deleteEl = allowed.has("delete") ? (
+    <DeleteButton
+      ref={deleteButton}
+      variant="outline"
+      className={tucked ? "hidden" : cn(side && "w-full", "text-destructive hover:bg-destructive hover:text-destructive-foreground")}
+      recordItemId={record.id}
+      record={record}
+      noun="phiếu"
+      // Màn này nói về đúng phiếu vừa xoá: ở lại là đứng trên một bản ghi không còn.
+      onSuccess={() => list(resource, "replace")}
+    />
+  ) : null;
+
+  const dialog = (
+    <AlertDialog open={pending !== null} onOpenChange={(o) => !o && setPending(null)}>
+      <ConfirmContent
+        tone={pending === "reject" || pending === "cancel" ? "danger" : pending === "return" ? "warning" : "neutral"}
+        icon={pending ? ICONS[pending] : undefined}
+        title={current?.title}
+        description={current?.description}
+        cancelLabel={pending === "cancel" ? "Giữ phiếu" : "Chưa, để sau"}
+        confirmLabel={current?.confirm}
+        busy={busy}
+        keepOpen
+        onConfirm={() => {
+          if (pending) void run(pending);
+        }}
+      >
+        {current?.note ? (
+          <div className="space-y-2">
+            <Label htmlFor="voucher-note">
+              {current.noteLabel}
+              {current.note === "required" ? <span className="text-destructive"> *</span> : null}
+            </Label>
+            <Textarea id="voucher-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={maxLengthOf("NOTE")} />
+            {textError("NOTE", current.noteLabel ?? "Ghi chú", note) ? (
+              <p className="text-destructive text-sm">{textError("NOTE", current.noteLabel ?? "Ghi chú", note)}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </ConfirmContent>
+    </AlertDialog>
+  );
+
+  if (side) {
+    const primary = [button("submit", "default"), button("approve", "default"), button("complete", "default")].filter(Boolean);
+    const secondary = [
+      allowed.has("edit") ? <EditButton key="edit" variant="outline" className="w-full" recordItemId={record.id} /> : null,
+      button("return"),
+      tucked ? null : button("reject", "outline", cancelTone),
+      cancelOut ? button("cancel", "outline", cancelTone) : null,
+      tucked ? null : deleteEl,
+    ].filter(Boolean);
+    const shown = primary.length + secondary.length + (extra ? 1 : 0) > 0;
+    return (
+      <>
+        {shown ? (
+          <section className="bg-muted/30 grid gap-2 border-t px-4 py-3.5 last:rounded-b-[inherit]">
+            {primary}
+            {extra}
+            {secondary.length ? (
+              // Một nút phụ thì đủ bề rộng; từ hai nút thì hàng hai, nút lẻ cuối kéo hết hàng.
+              <div className={cn("grid gap-2", secondary.length > 1 && "grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2")}>
+                {secondary}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+        {tucked ? deleteEl : null}
+        {dialog}
+      </>
+    );
+  }
+
   return (
     <>
-      {tucked ? null : button("cancel")}
+      {cancelOut ? button("cancel") : null}
       {allowed.has("edit") ? <EditButton variant="outline" recordItemId={record.id} /> : null}
-      {allowed.has("delete") ? (
-        <DeleteButton
-          ref={deleteButton}
-          variant="outline"
-          className={tucked ? "hidden" : "text-destructive hover:bg-destructive hover:text-destructive-foreground"}
-          recordItemId={record.id}
-          record={record}
-          noun="phiếu"
-          // Màn này nói về đúng phiếu vừa xoá: ở lại là đứng trên một bản ghi không còn.
-          onSuccess={() => list(resource, "replace")}
-        />
-      ) : null}
+      {deleteEl}
       {button("submit", "default")}
       {/* Có menu ⚙ thì Từ chối vào đó: lúc chờ duyệt hàng nút chỉ còn Trả lại · Duyệt. */}
       {tucked ? null : button("reject")}
       {button("return")}
       {button("approve", "default")}
       {button("complete", "default")}
-
-      <AlertDialog open={pending !== null} onOpenChange={(o) => !o && setPending(null)}>
-        <ConfirmContent
-          tone={pending === "reject" || pending === "cancel" ? "danger" : pending === "return" ? "warning" : "neutral"}
-          icon={pending ? ICONS[pending] : undefined}
-          title={current?.title}
-          description={current?.description}
-          cancelLabel={pending === "cancel" ? "Giữ phiếu" : "Chưa, để sau"}
-          confirmLabel={current?.confirm}
-          busy={busy}
-          keepOpen
-          onConfirm={() => {
-            if (pending) void run(pending);
-          }}
-        >
-          {current?.note ? (
-            <div className="space-y-2">
-              <Label htmlFor="voucher-note">
-                {current.noteLabel}
-                {current.note === "required" ? <span className="text-destructive"> *</span> : null}
-              </Label>
-              <Textarea id="voucher-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={maxLengthOf("NOTE")} />
-              {textError("NOTE", current.noteLabel ?? "Ghi chú", note) ? (
-                <p className="text-destructive text-sm">{textError("NOTE", current.noteLabel ?? "Ghi chú", note)}</p>
-              ) : null}
-            </div>
-          ) : null}
-        </ConfirmContent>
-      </AlertDialog>
+      {extra}
+      {dialog}
     </>
   );
 }

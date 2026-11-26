@@ -87,6 +87,7 @@ export const PORTAL_ROUTES: Record<string, PortalRule> = {
   "voucher_links": { read: ["admin", "so", "school"], write: [] },
   "school_code_rules": { read: ["school"], write: ["school"] },
   "school_profile": { read: ["school"], write: ["school"] },
+  "students": { read: ["school"], write: ["school"] },
   "data_imports": { read: ["admin", "so", "school"], write: ["so", "school"] },
 };
 

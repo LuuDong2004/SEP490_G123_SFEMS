@@ -1,10 +1,10 @@
+import { ReturnedNotice } from "@/shared/components/voucher/returned-notice";
 import { useInvalidate, useList, useNotification, useShow } from "@refinedev/core";
 import {
   AlertCircle,
   CheckCheck,
   CheckCircle2,
   Clock,
-  CornerUpLeft,
   DoorOpen,
   FilePen,
   Lock,
@@ -736,6 +736,39 @@ export const InventorySessionShow = () => {
     );
   }
 
+  // Dạng làm việc: nút nằm trong thẻ tóm tắt bên phải. Dạng chứng từ ẩn cột đó nên nút về hàng đầu trang — chỉ gắn
+  // MỘT cụm mỗi lúc (hai cụm cùng nghe menu ⚙ thì hộp hỏi lại mở hai lần).
+  const voucherActions = (layout: "bar" | "side") => (
+    <VoucherActions
+      resource={RESOURCE}
+      record={record}
+      tucked={tucked}
+      layout={layout}
+      invalidates={["equipment", "equipment_intakes"]}
+      text={{
+        submit: {
+          label: "Trình biên bản",
+          title: "Trình biên bản kiểm kê?",
+          description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử thiết bị.",
+          confirm: "Trình biên bản",
+        },
+        approve: {
+          label: "Duyệt biên bản",
+          title: "Duyệt biên bản kiểm kê?",
+          description: (
+            <ul className="list-disc space-y-1 ps-5">
+              {Object.entries(DISCREPANCY_OUTCOMES).map(([k, v]) => (
+                <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]}: {v}</li>
+              ))}
+            </ul>
+          ),
+          confirm: "Duyệt biên bản",
+          done: "Đã duyệt biên bản",
+        },
+      }}
+    />
+  );
+
   return (
     <ShowView>
       <ShowViewHeader
@@ -744,33 +777,7 @@ export const InventorySessionShow = () => {
         actions={
           <>
             {record ? <VoucherViewSwitch view={view} onChange={setView} /> : null}
-            <VoucherActions
-              resource={RESOURCE}
-              record={record}
-              tucked={tucked}
-              invalidates={["equipment", "equipment_intakes"]}
-              text={{
-                submit: {
-                  label: "Trình biên bản",
-                  title: "Trình biên bản kiểm kê?",
-                  description: "Kết quả kiểm đếm sẽ được chốt. Lãnh đạo trường duyệt xong thì kết quả được ghi vào lịch sử thiết bị.",
-                  confirm: "Trình biên bản",
-                },
-                approve: {
-                  label: "Duyệt biên bản",
-                  title: "Duyệt biên bản kiểm kê?",
-                  description: (
-                    <ul className="list-disc space-y-1 ps-5">
-                      {Object.entries(DISCREPANCY_OUTCOMES).map(([k, v]) => (
-                        <li key={k}>{k === "SURPLUS" ? "Thừa" : DISCREPANCY_LABELS[k as keyof typeof DISCREPANCY_LABELS]}: {v}</li>
-                      ))}
-                    </ul>
-                  ),
-                  confirm: "Duyệt biên bản",
-                  done: "Đã duyệt biên bản",
-                },
-              }}
-            />
+            {record && view === "document" ? voucherActions("bar") : null}
           </>
         }
       />
@@ -847,11 +854,7 @@ export const InventorySessionShow = () => {
             main={
               <>
                 {record?.status === "DRAFT" && record.returnNote ? (
-                  <Alert>
-                    <CornerUpLeft className="text-warning-text" />
-                    <AlertTitle>Biên bản bị trả lại, cần sửa</AlertTitle>
-                    <AlertDescription>{record.returnNote}</AlertDescription>
-                  </Alert>
+                  <ReturnedNotice resource={RESOURCE} id={record.id} note={record.returnNote} noun="Biên bản" />
                 ) : null}
                 {record?.status === "REJECTED" && record.rejectReason ? (
                   <Alert variant="destructive">
@@ -876,7 +879,8 @@ export const InventorySessionShow = () => {
                   compact
                   resource={RESOURCE}
                   recordId={record?.id}
-                  canWrite={record?._can?.write === true}
+                  // Đã trình duyệt: tệp khoá, không thêm, không xoá (cùng luật máy chủ).
+                  canWrite={record?._can?.write === true && record?.status === "DRAFT"}
                   description="Biên bản kiểm kê có chữ ký tổ kiểm kê, ảnh hiện trường."
                 />
                 <VoucherTimelineDialog resource={RESOURCE} id={record?.id} open={timelineOpen} onOpenChange={setTimelineOpen} />
@@ -911,6 +915,8 @@ export const InventorySessionShow = () => {
                     </div>
                   ) : null}
                 </SideSection>
+                {/* Nút việc của phiếu ngay dưới thông tin phiếu — cùng chỗ với đề xuất mua sắm, phiếu ghi tăng. */}
+              {view === "document" ? null : voucherActions("side")}
 
                 {s ? (
                   <SideSection title="Kiểm đếm">
