@@ -6,7 +6,6 @@ import { useSearchParams } from "react-router";
 
 import { DOWNLOAD_TIMEOUT, kyInstance } from "@/shared/api/data";
 import { QueryError } from "@/shared/components/query-error";
-import { Segmented } from "@/shared/components/segmented";
 import { TableEmpty, TableSkeletonRows } from "@/shared/components/data-table/table-empty";
 import { errorMessage } from "@/shared/lib/api-error";
 import { safeDownloadName } from "@/shared/lib/download-filename";
@@ -70,8 +69,6 @@ function shortfall(item: StandardItem): { text: string; action: string | null } 
   return null;
 }
 
-const failing = (item: StandardItem) => Object.values(item.status).includes("FAIL");
-
 function GroupIcon({ code }: { code: string | null }) {
   const spec = GROUP_ICONS[code ?? ""];
   const Icon = spec?.icon ?? SquareStack;
@@ -132,7 +129,6 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
     queryFn: ({ signal }) => kyInstance.get(`facility-standard/schools/${schoolId}`, { signal }).json<StandardEvaluation>(),
   });
   const data = query.data;
-  const [filter, setFilter] = useState<"fail" | "pass" | "all">("all");
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState(false);
 
@@ -158,11 +154,8 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
 
   if (query.isError) return <QueryError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />;
 
-  const ruled = (data?.groups ?? []).flatMap((g) => g.items.filter((i) => i.hasRules));
-  const failCount = ruled.filter(failing).length;
-  const keep = (i: StandardItem) => i.hasRules && (filter === "all" || (filter === "fail" ? failing(i) : !failing(i)));
-  const groups = (data?.groups ?? []).map((g) => ({ ...g, items: g.items.filter(keep) })).filter((g) => g.items.length > 0);
-  // STT như Excel: đánh trên MỌI loại có chuẩn (trước khi lọc) — lọc "Chưa đạt" vẫn giữ đúng số 2.3, 3.1… của bản xuất.
+  const groups = (data?.groups ?? []).map((g) => ({ ...g, items: g.items.filter((i) => i.hasRules) })).filter((g) => g.items.length > 0);
+  // STT như Excel: đánh trên mọi loại có chuẩn — khớp số 2.3, 3.1… của bản xuất.
   const numbers = new Map<string, { no: number; items: Map<number, string> }>();
   (data?.groups ?? []).filter((g) => g.items.some((i) => i.hasRules)).forEach((g, gi) => {
     const items = new Map<number, string>();
@@ -218,34 +211,34 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
       </section>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <Segmented label="Lọc loại CSVC" value={filter} onChange={setFilter}
-          options={[
-            { value: "all", label: `Tất cả · ${ruled.length}` },
-            { value: "fail", label: `Chưa đạt · ${failCount}` },
-            { value: "pass", label: `Đã đạt · ${ruled.length - failCount}` },
-          ]} />
         <FacilityTodo strip schoolId={schoolId} onNavigate={(tab, todo) => { onTodo?.(todo ?? null); goTab(tab); }} />
       </div>
 
       {/* Bảng cao kín phần còn lại của tab; dòng gọn để thường vừa màn, dài hơn thì lăn chuột — không vẽ thanh cuộn. */}
-      <div className="bg-card shadow-e1 no-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border">
+      {/* Khung tự lăn, khung ngang của Table để tràn (overflow-visible) — nếu không, tiêu đề dính vào khung ngang không
+          lăn dọc nên không đứng lại khi lướt. */}
+      <div className="bg-card shadow-e1 no-scrollbar min-h-0 flex-1 overflow-auto rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
         {/* Cùng bố cục bảng Excel "Đánh giá mức độ đạt chuẩn" (FacilityStandardExcel): STT theo khối, ba mức ĐẠT /
-            CHƯA ĐẠT, cột điều kiện cảnh báo thiếu ghi đủ các dòng — xem trên màn là thấy đúng thứ sẽ xuất. */}
+            CHƯA ĐẠT, cột điều kiện cảnh báo thiếu ghi đủ các dòng — xem trên màn là thấy đúng thứ sẽ xuất. Tiêu đề hai
+            tầng: một ô "Tiêu chuẩn" chia ba cột mức. */}
         <Table>
-          <TableHeader className="bg-surface-subtle sticky top-0 z-10">
+          <TableHeader sticky className="bg-surface-subtle [&_th]:h-9">
+            <TableRow className="border-b-0">
+              <TableHead rowSpan={2} className="w-14 text-center">STT</TableHead>
+              <TableHead rowSpan={2}>Các hạng mục công trình</TableHead>
+              <TableHead colSpan={STANDARD_TIERS.length} className="border-border border-b text-center">Tiêu chuẩn</TableHead>
+              <TableHead rowSpan={2} className="w-80">Điều kiện cảnh báo thiếu</TableHead>
+              <TableHead rowSpan={2} className="w-20"><span className="sr-only">Thao tác</span></TableHead>
+            </TableRow>
             <TableRow>
-              <TableHead className="w-14 text-center">STT</TableHead>
-              <TableHead>Các hạng mục công trình</TableHead>
               {STANDARD_TIERS.map((t) => (
-                <TableHead key={t.key} className="w-28 text-center whitespace-normal">Tiêu chuẩn {t.short.toLowerCase()}</TableHead>
+                <TableHead key={t.key} className="w-28 text-center">{t.short}</TableHead>
               ))}
-              <TableHead className="w-80">Điều kiện cảnh báo thiếu</TableHead>
-              <TableHead className="w-20"><span className="sr-only">Thao tác</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!data ? <TableSkeletonRows rows={8} cols={7} /> : groups.length === 0 ? (
-              <TableEmpty colSpan={7} title={ruled.length === 0 ? "Chưa có chuẩn CSVC cho cấp học của trường" : filter === "fail" ? "Mọi loại đều đạt" : "Chưa loại nào đạt"} />
+              <TableEmpty colSpan={7} title="Chưa có chuẩn CSVC cho cấp học của trường" />
             ) : groups.map((g, gi) => (
               <Fragment key={g.code ?? gi}>
                 <TableRow className="bg-primary/[0.04] hover:bg-primary/[0.04] border-t [&>td]:h-10">
