@@ -41,7 +41,27 @@ public final class XlsxWriter {
     public record Column(String key, String label, String type) {
     }
 
-    public record Sheet(String title, String subtitle, List<Column> columns, List<Map<String, Object>> rows) {
+    public record Sheet(String title, String subtitle, List<Column> columns, List<Map<String, Object>> rows,
+            Format format) {
+
+        public Sheet(String title, String subtitle, List<Column> columns, List<Map<String, Object>> rows) {
+            this(title, subtitle, columns, rows, Format.NONE);
+        }
+    }
+
+    /**
+     * Ô chọn của một cột: danh sách lấy ở vùng {@code range} (vd {@code 'Danh sách'!$A$2:$A$40}); {@code strict} thì
+     * Excel chặn giá trị ngoài danh sách, không thì chỉ cảnh báo (cột mã tham chiếu — mã mới khai ngay trong tệp).
+     */
+    public record Choice(String range, boolean strict) {
+    }
+
+    /**
+     * Trình bày thêm của một trang (tệp mẫu nhập liệu): cột tô xám (hệ thống điền sẵn, chỉ để xem), ô chọn theo cột,
+     * trang ẩn (trang chứa danh sách cho ô chọn), cố định dòng tiêu đề khi cuộn.
+     */
+    public record Format(Set<String> shaded, Map<String, Choice> choices, boolean hidden, boolean freeze) {
+        public static final Format NONE = new Format(Set.of(), Map.of(), false, false);
     }
 
     private static final LocalDate EXCEL_EPOCH = LocalDate.of(1899, 12, 30);
@@ -63,9 +83,15 @@ public final class XlsxWriter {
      */
     public static byte[] writeAll(List<Tab> tabs) {
         List<String> names = sheetNames(tabs);
+        Set<Integer> hidden = new HashSet<>();
+        for (int i = 0; i < tabs.size(); i++) {
+            if (tabs.get(i).sheet().format().hidden()) {
+                hidden.add(i + 1);
+            }
+        }
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
-            packageParts(zip, names);
+            packageParts(zip, names, hidden);
             for (int i = 0; i < tabs.size(); i++) {
                 entry(zip, "xl/worksheets/sheet" + (i + 1) + ".xml", sheet(tabs.get(i).sheet()));
             }
@@ -77,6 +103,10 @@ public final class XlsxWriter {
 
     /** Các phần chung của gói .xlsx (kiểu nội dung, sổ, quan hệ, kiểu ô) cho {@code names.size()} trang tính. */
     private static void packageParts(ZipOutputStream zip, List<String> names) throws IOException {
+        packageParts(zip, names, Set.of());
+    }
+
+    private static void packageParts(ZipOutputStream zip, List<String> names, Set<Integer> hidden) throws IOException {
         StringBuilder overrides = new StringBuilder();
         StringBuilder sheets = new StringBuilder();
         StringBuilder rels = new StringBuilder();
@@ -84,6 +114,7 @@ public final class XlsxWriter {
             overrides.append("<Override PartName=\"/xl/worksheets/sheet").append(i)
                     .append(".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
             sheets.append("<sheet name=\"").append(escape(names.get(i - 1))).append("\" sheetId=\"").append(i)
+                    .append(hidden.contains(i) ? "\" state=\"hidden" : "")
                     .append("\" r:id=\"rId").append(i).append("\"/>");
             rels.append("<Relationship Id=\"rId").append(i)
                     .append("\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet")
@@ -120,10 +151,10 @@ public final class XlsxWriter {
                 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
                 <numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="#,##0.0#"/></numFmts>
                 <fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font></fonts>
-                <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/></patternFill></fill></fills>
+                <fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3F3F3"/></patternFill></fill></fills>
                 <borders count="2"><border/><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/></border></borders>
                 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-                <cellXfs count="8">
+                <cellXfs count="10">
                 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/>
                 <xf numFmtId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1"><alignment wrapText="1" vertical="center"/></xf>
                 <xf numFmtId="3" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/>
@@ -132,6 +163,8 @@ public final class XlsxWriter {
                 <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
                 <xf numFmtId="165" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/>
                 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/>
+                <xf numFmtId="0" fontId="0" fillId="3" borderId="1" applyFill="1" applyBorder="1"/>
+                <xf numFmtId="3" fontId="0" fillId="3" borderId="1" applyNumberFormat="1" applyFill="1" applyBorder="1"/>
                 </cellXfs>
                 </styleSheet>""");
     }
@@ -259,10 +292,16 @@ public final class XlsxWriter {
 
     private static String sheet(Sheet report) {
         List<Column> columns = report.columns();
+        Format format = report.format() == null ? Format.NONE : report.format();
         StringBuilder xml = new StringBuilder(4096);
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
-                .append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
-                .append("<cols>");
+                .append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">");
+        if (format.freeze()) {
+            // Dòng tiêu đề là dòng 4: cuộn xuống vẫn thấy tên cột.
+            xml.append("<sheetViews><sheetView workbookViewId=\"0\"><pane ySplit=\"4\" topLeftCell=\"A5\""
+                    + " activePane=\"bottomLeft\" state=\"frozen\"/></sheetView></sheetViews>");
+        }
+        xml.append("<cols>");
         for (int i = 0; i < columns.size(); i++) {
             int width = width(columns.get(i), report.rows());
             xml.append("<col min=\"").append(i + 1).append("\" max=\"").append(i + 1).append("\" width=\"")
@@ -285,12 +324,45 @@ public final class XlsxWriter {
             for (int i = 0; i < columns.size(); i++) {
                 Column c = columns.get(i);
                 Object v = values.get(c.key());
-                xml.append(cell(i, row, c.type(), v));
+                xml.append(format.shaded().contains(c.key()) ? shaded(i, row, v) : cell(i, row, c.type(), v));
             }
             xml.append("</row>");
         }
-        xml.append("</sheetData></worksheet>");
+        xml.append("</sheetData>");
+        // Ô chọn: từ dòng dưới tiêu đề tới quá cuối dữ liệu một khoảng — trường còn thêm dòng.
+        List<String> validations = new ArrayList<>();
+        int last = Math.max(row, 4) + 1000;
+        for (int i = 0; i < columns.size(); i++) {
+            Choice choice = format.choices().get(columns.get(i).key());
+            if (choice == null) {
+                continue;
+            }
+            String col = ref(i, 0).replaceAll("[0-9]", "");
+            validations.add("<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" errorStyle=\""
+                    + (choice.strict() ? "stop" : "warning") + "\" errorTitle=\"Ngoài danh sách\" error=\""
+                    + escape(choice.strict() ? "Chọn một giá trị trong danh sách." : "Giá trị chưa có trong danh sách — "
+                            + "vẫn nhận nếu khai thêm ở trang tương ứng.")
+                    + "\" sqref=\"" + col + "5:" + col + last + "\"><formula1>" + escape(choice.range())
+                    + "</formula1></dataValidation>");
+        }
+        if (!validations.isEmpty()) {
+            xml.append("<dataValidations count=\"").append(validations.size()).append("\">");
+            validations.forEach(xml::append);
+            xml.append("</dataValidations>");
+        }
+        xml.append("</worksheet>");
         return xml.toString();
+    }
+
+    /** Ô tô xám — hệ thống điền sẵn, chỉ để xem (danh mục, định mức, số phải có của tệp mẫu). */
+    private static String shaded(int col, int row, Object value) {
+        if (value == null) {
+            return "<c r=\"" + ref(col, row) + "\" s=\"8\"/>";
+        }
+        if (value instanceof Number n) {
+            return "<c r=\"" + ref(col, row) + "\" s=\"9\"><v>" + n + "</v></c>";
+        }
+        return text(col, row, String.valueOf(value), 8);
     }
 
     /**

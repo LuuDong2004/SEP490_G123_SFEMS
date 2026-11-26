@@ -42,7 +42,8 @@ public class OnboardingQuickFix {
     private static final Pattern YEAR = Pattern.compile("(19|20)\\d{2}");
     private static final Pattern NUMBERED = Pattern.compile("^(.*?)(\\d+)$");
     /** Trang có cột "Mã phòng" tham chiếu sang trang Phòng. */
-    private static final Set<OnboardingSheet> ROOM_REFS = Set.of(OnboardingSheet.EQUIPMENT, OnboardingSheet.CLASS);
+    private static final Set<OnboardingSheet> ROOM_REFS = Set.of(OnboardingSheet.EQUIPMENT,
+            OnboardingSheet.EQUIPMENT_OUTSIDE, OnboardingSheet.CLASS);
 
     /** Một phòng nên thêm vào trang Phòng vì có dòng đang dùng mã đó; khối nhà / tầng / loại chép từ {@code basedOn}. */
     public record NewRoom(String code, String building, String floor, String roomType, String basedOn, int usedBy) {
@@ -176,6 +177,7 @@ public class OnboardingQuickFix {
 
         if (sheet == OnboardingSheet.ROOM) {
             followRenames(batchId, rows, out, OnboardingSheet.EQUIPMENT, "room", "Mã phòng ở trang Thiết bị");
+            followRenames(batchId, rows, out, OnboardingSheet.EQUIPMENT_OUTSIDE, "room", "Mã phòng ở trang Thiết bị ngoài danh mục");
             followRenames(batchId, rows, out, OnboardingSheet.CLASS, "room", "Mã phòng ở trang Lớp học");
         } else if (sheet == OnboardingSheet.BUILDING) {
             followRenames(batchId, rows, out, OnboardingSheet.ROOM, "building", "Mã khối nhà ở trang Phòng");
@@ -400,7 +402,7 @@ public class OnboardingQuickFix {
     /** Hiện trạng / tình trạng ghi theo mô tả: đưa về giá trị của danh sách; mô tả chép sang ghi chú để không mất. */
     private static void conditionFix(OnboardingSheet sheet, OnboardingService.StagedRow r, List<Suggestion> out) {
         String v = Objects.toString(r.data().get("condition"), "").trim();
-        boolean equipment = sheet == OnboardingSheet.EQUIPMENT;
+        boolean equipment = sheet.equipment();
         String to = equipment ? equipmentCondition(v) : facilityCondition(v);
         if (to == null) {
             return;

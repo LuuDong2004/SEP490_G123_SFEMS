@@ -160,12 +160,14 @@ public class OnboardingService {
     private final EquipmentCatalogService catalogs;
     private final CatalogImports catalogImports;
     private final StudentService students;
+    private final OnboardingTemplate template;
 
     public OnboardingService(JdbcTemplate jdbc, ObjectMapper mapper, OnboardingValidator validator,
             VisibleSchools visibleSchools, RowLevelPrincipalResolver principals, CampusService campuses,
             StaffService staff, SubjectTeamService teams, BuildingService buildings, RoomService rooms,
             SchoolClassService classes, StudentService students, EquipmentService equipment,
-            EquipmentCatalogService catalogs, CatalogImports catalogImports) {
+            EquipmentCatalogService catalogs, CatalogImports catalogImports, OnboardingTemplate template) {
+        this.template = template;
         this.catalogImports = catalogImports;
         this.students = students;
         this.jdbc = jdbc;
@@ -193,6 +195,17 @@ public class OnboardingService {
     }
 
     /** Tệp mẫu: các trang theo đúng thứ tự ghi, dòng dưới tiêu đề là hướng dẫn. */
+    /**
+     * Tệp mẫu điền sẵn của một trường ({@link OnboardingTemplate}): tài khoản trường lấy trường của mình; Sở, quản trị
+     * viên ghi {@code schoolId} để lấy tệp của trường đó, không ghi thì được mẫu chung (chỉ có ô chọn).
+     */
+    public byte[] template(Long schoolId) {
+        Long target = schoolId != null ? Long.valueOf(resolveSchool(schoolId))
+                : principals.current().map(RowLevelPrincipal::schoolId).orElse(null);
+        return template.build(target);
+    }
+
+    /** Mẫu trống, không điền sẵn — giữ cho bên gọi cũ. */
     public byte[] template() {
         List<XlsxWriter.Tab> tabs = new ArrayList<>();
         for (OnboardingSheet s : OnboardingSheet.values()) {
@@ -366,13 +379,17 @@ public class OnboardingService {
         List<String> funding = new ArrayList<>(Arrays.stream(FundingSource.values())
                 .filter(FundingSource::selectable).map(FundingSource::label).toList());
         funding.add(FundingSource.UNDETERMINED.label());
-        out.put(OnboardingSheet.EQUIPMENT.key(), Map.of(
+        Map<String, List<String>> equipment = Map.of(
                 "unit", jdbc.queryForList("SELECT name FROM units WHERE active ORDER BY name", String.class),
                 "tracking", List.of("Từng cái", "Theo lô"),
                 "room", rooms, "manager", staff,
                 "origin", Arrays.stream(OriginRule.values()).map(OriginRule::label).toList(),
                 "funding", funding,
-                "condition", List.of("Tốt", "Khá", "Trung bình", "Kém", "Hỏng", "Không sử dụng")));
+                "condition", List.of("Tốt", "Khá", "Trung bình", "Kém", "Hỏng", "Không sử dụng"));
+        out.put(OnboardingSheet.EQUIPMENT.key(), equipment);
+        Map<String, List<String>> outside = new LinkedHashMap<>(equipment);
+        outside.put("subject", subjects);
+        out.put(OnboardingSheet.EQUIPMENT_OUTSIDE.key(), outside);
         return out;
     }
 
@@ -486,7 +503,12 @@ public class OnboardingService {
         }
         // Trường đã khoá khai thiết bị ban đầu: không nhận trang Thiết bị của tệp (không nạp vào lô) — thiết bị mới vào
         // sổ qua phiếu ghi tăng. Tệp chỉ có trang Thiết bị thì báo luôn.
-        if (equipmentLocked(schoolId) && found.remove(OnboardingSheet.EQUIPMENT) != null && found.isEmpty()) {
+        boolean hadEquipment = found.containsKey(OnboardingSheet.EQUIPMENT) || found.containsKey(OnboardingSheet.EQUIPMENT_OUTSIDE);
+        if (equipmentLocked(schoolId)) {
+            found.remove(OnboardingSheet.EQUIPMENT);
+            found.remove(OnboardingSheet.EQUIPMENT_OUTSIDE);
+        }
+        if (equipmentLocked(schoolId) && hadEquipment && found.isEmpty()) {
             throw new FieldValidationException("file", EQUIPMENT_LOCKED_FILE);
         }
         // Danh sách học sinh chỉ tài khoản của trường nhập được (304): người khác tải tệp có trang Học sinh thì trang ấy
@@ -627,7 +649,7 @@ public class OnboardingService {
     public Batch addRow(long id, String sheet, Map<String, String> data, String source) {
         requireDraft(id);
         String sheetName = sheetName(id, sheet);
-        if (OnboardingSheet.EQUIPMENT.name().equals(sheetName) && equipmentLocked(schoolOfBatch(id))) {
+        if (OnboardingSheet.valueOf(sheetName).equipment() && equipmentLocked(schoolOfBatch(id))) {
             throw new FieldValidationException("sheet", "Trường đã khoá khai thiết bị ban đầu — không thêm dòng Thiết bị."
                     + " Thiết bị mới lập phiếu ghi tăng");
         }
@@ -1122,6 +1144,7 @@ public class OnboardingService {
      */
     static Detected detect(List<List<String>> rows) {
         OnboardingSheet best = null;
+        int bestHeader = -1;
         int bestStart = -1;
         int bestCount = 0;
         Map<Integer, String> bestKeys = null;
@@ -1138,6 +1161,7 @@ public class OnboardingService {
                         .allMatch(col -> keys.containsValue(col.key()));
                 if (complete && keys.size() > bestCount) {
                     best = s;
+                    bestHeader = i;
                     bestStart = useTwo ? i + 2 : i + 1;
                     bestCount = keys.size();
                     bestKeys = keys;
@@ -1153,6 +1177,9 @@ public class OnboardingService {
                 hints.add(c.hint());
             }
         });
+        // Tệp mẫu điền sẵn (trang có cột đánh dấu của mẫu): dòng điền sẵn mà trường không ghi thêm gì thì bỏ — không
+        // thì 700 dòng danh mục thành 700 thiết bị "số lượng trống = 1". Tệp khác (sổ cũ) giữ cách đọc cũ.
+        Set<String> prefilled = prefilledKeys(best, rows, bestHeader, bestStart);
         List<Map.Entry<Integer, Map<String, String>>> result = new ArrayList<>();
         for (int i = bestStart; i < rows.size(); i++) {
             List<String> cells = rows.get(i);
@@ -1175,9 +1202,35 @@ public class OnboardingService {
             if (isJunk(cells, data)) {
                 continue;
             }
+            if (!prefilled.isEmpty() && prefilled.containsAll(data.keySet())) {
+                continue;
+            }
             result.add(Map.entry(i + 1, data));
         }
         return new Detected(best, result);
+    }
+
+    /** Cột chỉ tệp mẫu điền sẵn mới có — thấy trên dòng tiêu đề là biết trang được điền sẵn từ hệ thống. */
+    static final String EQUIPMENT_MARK = "Phải có";
+    static final String ROOM_MARK = "Chuẩn yêu cầu";
+
+    /**
+     * Các cột hệ thống điền sẵn của một trang trong tệp mẫu: dòng chỉ có các ô này là dòng trường chưa động tới.
+     * Rỗng khi trang không phải của tệp mẫu điền sẵn.
+     */
+    private static Set<String> prefilledKeys(OnboardingSheet sheet, List<List<String>> rows, int header, int start) {
+        String mark = sheet == OnboardingSheet.EQUIPMENT ? EQUIPMENT_MARK : sheet == OnboardingSheet.ROOM ? ROOM_MARK : null;
+        if (mark == null) {
+            return Set.of();
+        }
+        for (int i = header; i < start && i < rows.size(); i++) {
+            for (String cell : rows.get(i)) {
+                if (cell != null && headerKey(cell).equals(headerKey(mark))) {
+                    return sheet == OnboardingSheet.EQUIPMENT ? Set.of("catalog", "name", "unit") : Set.of("roomType");
+                }
+            }
+        }
+        return Set.of();
     }
 
     /** Khoá của cột nhận ra là tiêu đề nhưng không đọc. */
@@ -1340,7 +1393,7 @@ public class OnboardingService {
             // Trường đã khoá khai thiết bị ban đầu: lô không có trang Thiết bị (dòng cũ nếu có vẫn "bỏ qua", không ghi).
             boolean locked = b.get("school_id") != null && equipmentLocked(((Number) b.get("school_id")).longValue());
             for (OnboardingSheet s : OnboardingSheet.values()) {
-                if (locked && s == OnboardingSheet.EQUIPMENT || hiddenSheet(s.name())) {
+                if (locked && s.equipment() || hiddenSheet(s.name())) {
                     continue;
                 }
                 int[] c = counts.getOrDefault(s.name(), new int[6]);

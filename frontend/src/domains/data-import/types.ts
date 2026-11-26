@@ -1,6 +1,7 @@
 /** Nhập dữ liệu đầu vào qua vùng chờ (`/api/data_imports`). */
 
-export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "student" | "equipment" | "schools" | "wards";
+export type ImportSheetKey = "campus" | "staff" | "building" | "room" | "class" | "student" | "equipment"
+  | "equipment_outside" | "schools" | "wards";
 
 /**
  * Loại dữ liệu của một lô: dữ liệu đầu vào của MỘT trường (nhiều trang), hoặc một danh mục dùng chung (một trang,

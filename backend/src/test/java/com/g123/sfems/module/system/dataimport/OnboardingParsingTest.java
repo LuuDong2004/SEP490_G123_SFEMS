@@ -55,6 +55,61 @@ class OnboardingParsingTest {
     }
 
     @Test
+    void prefilledTemplateSkipsUntouchedEquipmentRows() {
+        // Trang Thiết bị của tệp mẫu điền sẵn: có cột "Phải có". Dòng chỉ có mã DM / tên / ĐVT là trường chưa động tới.
+        List<List<String>> rows = List.of(
+                row("Mẫu nhập: Thiết bị"),
+                row(""),
+                row(""),
+                row("Mã cũ", "Tên thiết bị (*)", "Mã DM thiết bị (*)", "Môn học (danh mục)", "Định mức", "Phải có",
+                        "Số lượng", "Đơn vị tính"),
+                row("", "Bảng nhóm", "THPT-00-001", "Dùng chung", "01/lớp", "12", "", "Cái"),
+                row("", "Tủ đựng thiết bị", "THPT-00-002", "Dùng chung", "01/5 lớp", "3", "2", "Cái"),
+                row("", "Máy chiếu", "THPT-00-003", "Dùng chung", "01", "1", "", "Cái"));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.EQUIPMENT, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("THPT-00-002", d.rows().get(0).getValue().get("catalog"));
+        assertEquals("2", d.rows().get(0).getValue().get("quantity"));
+    }
+
+    @Test
+    void ordinaryEquipmentSheetKeepsRowsWithoutQuantity() {
+        // Sổ cũ (không có cột đánh dấu của mẫu): số lượng trống vẫn là 1 như trước.
+        List<List<String>> rows = List.of(
+                row("Tên thiết bị", "Mã DM thiết bị", "Số lượng", "Đơn vị tính"),
+                row("Bảng nhóm", "THPT-00-001", "", "Cái"));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(1, d.rows().size());
+    }
+
+    @Test
+    void detectsOutsideCatalogSheetByItsSubjectColumn() {
+        List<List<String>> rows = List.of(
+                row("Mã cũ", "Tên thiết bị (*)", "Môn (*)", "Số lượng", "Đơn vị tính"),
+                row("", "Bộ mô hình thử nghiệm", "Vật lý", "3", "Bộ"));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.EQUIPMENT_OUTSIDE, d.sheet());
+        assertEquals("Vật lý", d.rows().get(0).getValue().get("subject"));
+    }
+
+    @Test
+    void prefilledRoomSuggestionWithOnlyTypeIsSkipped() {
+        List<List<String>> rows = List.of(
+                row("Mã phòng (*)", "Tên phòng (*)", "Loại CSVC (*)", "Diện tích (m²)", "Chuẩn yêu cầu"),
+                row("", "", "Nhà kho", "", "Ít nhất 1 phòng"),
+                row("K1", "Nhà kho 1", "Nhà kho", "30", ""));
+        OnboardingService.Detected d = OnboardingService.detect(rows);
+        assertNotNull(d);
+        assertEquals(OnboardingSheet.ROOM, d.sheet());
+        assertEquals(1, d.rows().size());
+        assertEquals("K1", d.rows().get(0).getValue().get("code"));
+    }
+
+    @Test
     void detectsMisaStyleEquipmentSheet() {
         List<List<String>> rows = List.of(
                 row("SỞ GIÁO DỤC", "", "", "", ""),

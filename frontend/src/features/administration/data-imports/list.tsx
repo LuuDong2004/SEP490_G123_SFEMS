@@ -158,6 +158,14 @@ function UploadDialog({ kind, open, setOpen }: { kind: ImportKind; open: boolean
                 <Label>Trường</Label>
                 {/* Hơn nghìn trường: chọn trong hộp có ô tìm, lọc cấp học và phân trang, không phải danh sách xổ xuống. */}
                 <SchoolPickerField value={picked} onChange={setPicked} />
+                {/* Tệp mẫu điền sẵn của trường vừa chọn: danh mục thiết bị tối thiểu, dữ liệu trường đã có. */}
+                {picked && kind === "school_data" ? (
+                  <Button type="button" variant="link" size="sm" className="h-auto justify-self-start px-0"
+                    onClick={() => void download(`data_imports/template?schoolId=${picked.id}`, `Mẫu dữ liệu đầu vào - ${picked.name}.xlsx`)}>
+                    <Download />
+                    Tải tệp mẫu điền sẵn của trường này
+                  </Button>
+                ) : null}
               </div>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)] gap-2">

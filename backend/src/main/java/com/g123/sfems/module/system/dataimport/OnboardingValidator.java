@@ -400,7 +400,7 @@ public class OnboardingValidator {
         // Mã của từng trang trong lô (bỏ dòng đã bỏ qua) — để trang sau tra tới, và để bắt trùng.
         for (OnboardingSheet s : OnboardingSheet.values()) {
             // Thiết bị không có mã do trường đặt; mã học sinh chỉ duy nhất trong một lớp (gom riêng ở dưới).
-            if (s == OnboardingSheet.EQUIPMENT || s == OnboardingSheet.STUDENT) {
+            if (s.equipment() || s == OnboardingSheet.STUDENT) {
                 continue;
             }
             for (Staged r : bySheet.get(s)) {
@@ -442,8 +442,8 @@ public class OnboardingValidator {
                         .add(r.rowNo());
             }
         }
-        // Số serial trong trang Thiết bị — trùng giữa hai dòng của lô cũng là lỗi.
-        for (Staged r : bySheet.get(OnboardingSheet.EQUIPMENT)) {
+        // Số serial trong hai trang thiết bị — trùng giữa hai dòng của lô cũng là lỗi.
+        for (Staged r : concat(bySheet.get(OnboardingSheet.EQUIPMENT), bySheet.get(OnboardingSheet.EQUIPMENT_OUTSIDE))) {
             String serial = serialKey(text(r.data(), "serial"));
             if (!r.skipped() && serial != null) {
                 ctx.batchSerials.computeIfAbsent(serial, k -> new ArrayList<>()).add(r.rowNo());
@@ -462,7 +462,7 @@ public class OnboardingValidator {
                     results.put(r.id(), new Result(SKIPPED, List.of(), Map.of(), null));
                     continue;
                 }
-                if (locked && s == OnboardingSheet.EQUIPMENT) {
+                if (locked && s.equipment()) {
                     results.put(r.id(), new Result(SKIPPED, List.of(new Message("warning", null, EQUIPMENT_LOCKED)),
                             Map.of(), null));
                     continue;
@@ -480,7 +480,7 @@ public class OnboardingValidator {
                     case ROOM -> room(row);
                     case CLASS -> schoolClass(row);
                     case STUDENT -> student(row);
-                    case EQUIPMENT -> equipment(row);
+                    case EQUIPMENT, EQUIPMENT_OUTSIDE -> equipment(row);
                 };
                 results.put(r.id(), row.result(payload));
             }
@@ -874,12 +874,21 @@ public class OnboardingValidator {
         }
     }
 
+    private static List<Staged> concat(List<Staged> a, List<Staged> b) {
+        List<Staged> out = new ArrayList<>(a);
+        out.addAll(b);
+        return out;
+    }
+
     private EquipmentRow equipment(Row r) {
         Context ctx = r.ctx;
         String name = r.name("name", "Tên thiết bị");
         equipmentNameHints(r, name);
         String cell = r.text("catalog", 64);
         String legacy = r.text("legacy", 64);
+        if (r.staged.sheet() == OnboardingSheet.EQUIPMENT_OUTSIDE && r.text("subject", 255) == null) {
+            r.error("subject", "Ghi môn của thiết bị — dùng cho mọi môn thì ghi Dùng chung");
+        }
         String room = r.reference("room", OnboardingSheet.ROOM, r.text("room", 64), "phòng");
         Long roomSubject = room == null ? null : ctx.roomSubjects.get(room);
 
@@ -1012,9 +1021,15 @@ public class OnboardingValidator {
             if (chemical && unit == null) {
                 r.error("unit", "Hoá chất ngoài danh mục: ghi đơn vị tính (g, ml, lọ…)");
             }
-            newItem = new NewItem(norm(name), name, unit == null ? null : unit.id(), bulk, chemical, roomSubject);
+            // Môn: cột Môn (trang Thiết bị ngoài danh mục) trước, không có thì môn của phòng đặt thiết bị.
+            Long subject = r.subject("subject", "Môn");
+            newItem = new NewItem(norm(name), name, unit == null ? null : unit.id(), bulk, chemical,
+                    subject != null ? subject : roomSubject);
             r.resolved.put("match", "new");
-            r.warn("catalog", "Không có trong danh mục — sẽ thành thiết bị ngoài danh mục của trường");
+            // Trang Thiết bị ngoài danh mục: trường đã chủ ý khai ngoài danh mục — không nhắc lại.
+            if (r.staged.sheet() != OnboardingSheet.EQUIPMENT_OUTSIDE) {
+                r.warn("catalog", "Không có trong danh mục — sẽ thành thiết bị ngoài danh mục của trường");
+            }
         } else {
             bulk = false;
         }
@@ -1656,7 +1671,7 @@ public class OnboardingValidator {
                     case STAFF -> "staff";
                     case BUILDING -> "buildings";
                     case ROOM -> "rooms";
-                    case CLASS, STUDENT, EQUIPMENT -> null;
+                    case CLASS, STUDENT, EQUIPMENT, EQUIPMENT_OUTSIDE -> null;
                 };
                 if (s == OnboardingSheet.EQUIPMENT) {
                     // Thiết bị không có mã do trường đặt: nhận ra bằng mã cũ (tem, phần mềm cũ) đã lưu khi nhập.

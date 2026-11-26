@@ -103,11 +103,12 @@ public class OnboardingController {
     /** Tệp mẫu; {@code kind} = {@code schools} / {@code wards}: mẫu danh mục, vắng: dữ liệu đầu vào của trường. */
     @GetMapping("/template")
     @PreAuthorize("hasAuthority('data_imports:read')")
-    public ResponseEntity<byte[]> template(@RequestParam(required = false) String kind) {
+    public ResponseEntity<byte[]> template(@RequestParam(required = false) String kind,
+            @RequestParam(required = false) Long schoolId) {
         if (kind != null && !"school_data".equals(kind)) {
             return file(service.catalogTemplate(kind), "Mẫu " + ("wards".equals(kind) ? "phường xã" : "danh sách trường") + ".xlsx");
         }
-        return file(service.template(), "Mẫu dữ liệu đầu vào.xlsx");
+        return file(service.template(schoolId), "Mẫu dữ liệu đầu vào.xlsx");
     }
 
     @PostMapping

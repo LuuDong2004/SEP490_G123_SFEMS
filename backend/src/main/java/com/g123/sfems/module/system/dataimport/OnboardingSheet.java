@@ -154,7 +154,33 @@ public enum OnboardingSheet {
             col("condition", "Tình trạng", false, "Tốt; Khá; Trung bình; Kém; Hỏng; Không sử dụng "
                     + "(nhận cả Bình thường, Hỏng nhẹ, Hỏng nặng). Để trống = Tốt", "Hiện trạng",
                     "Tình trạng sử dụng", "Chất lượng", "Tình trạng hiện tại"),
-            col("note", "Ghi chú", false, "", "Ghi chú khác")));
+            col("note", "Ghi chú", false, "", "Ghi chú khác"))),
+
+    /**
+     * Thiết bị trường có mà danh mục tối thiểu không liệt kê — trang riêng của tệp mẫu, có cột Môn để thiết bị ngoài
+     * danh mục mang môn ngay khi tạo (trước đây chỉ suy được từ môn của phòng, còn lại "Chưa gắn môn"). Cùng các cột
+     * của trang Thiết bị, bỏ cột Mã DM; ghi như trang Thiết bị.
+     */
+    EQUIPMENT_OUTSIDE("Thiết bị ngoài danh mục", outsideColumns());
+
+    /** Cột trang Thiết bị ngoài danh mục: như trang Thiết bị, thay cột Mã DM bằng cột Môn (bắt buộc). */
+    private static List<Column> outsideColumns() {
+        List<Column> out = new java.util.ArrayList<>();
+        for (Column c : EQUIPMENT.columns()) {
+            if (c.key().equals("catalog")) {
+                out.add(col("subject", "Môn", true, "Môn dùng thiết bị, vd Hóa học. Dùng cho mọi môn thì ghi Dùng chung",
+                        "Môn học", "Bộ môn"));
+            } else {
+                out.add(c);
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** Hai trang thiết bị — cùng cách kiểm, cùng cách ghi. */
+    public boolean equipment() {
+        return this == EQUIPMENT || this == EQUIPMENT_OUTSIDE;
+    }
 
     /**
      * Cột bắt buộc trong DỮ LIỆU nhưng không bắt buộc có trên TỆP: thiếu cột này trang vẫn được nhận, ô trống thì
