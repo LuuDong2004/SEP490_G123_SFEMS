@@ -122,7 +122,7 @@ export function VoucherList<T extends VoucherBase>({
       size: 210,
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {row.original.code ? (
             <span className="font-mono text-xs font-medium">{row.original.code}</span>
           ) : row.original.status !== "DRAFT" ? (
@@ -234,7 +234,7 @@ export function VoucherList<T extends VoucherBase>({
               <button key={r.id} type="button" onClick={() => show(resource, r.id)}
                 className={cn("hover:bg-muted/50 grid w-full gap-1 px-4 py-3 text-start", r.status === "CANCELLED" && "text-muted-foreground")}>
                 <span className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="font-mono text-sm font-medium">{r.code ?? (r.status === "DRAFT" ? "Chưa cấp số" : "Không cấp số")}</span>
                     <AwaitingMeTag voucher={r} />
                   </span>

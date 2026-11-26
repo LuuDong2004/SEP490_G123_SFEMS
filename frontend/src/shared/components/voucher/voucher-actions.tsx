@@ -296,7 +296,8 @@ export function VoucherActions({
     const secondary = [
       allowed.has("edit") ? <EditButton key="edit" variant="outline" className="w-full" recordItemId={record.id} /> : null,
       button("return"),
-      tucked ? null : button("reject", "outline", cancelTone),
+      // Từ chối luôn ở hàng nút (cạnh Trả lại), không giấu trong menu ⚙ — người duyệt thấy đủ ba lựa chọn.
+      button("reject", "outline", cancelTone),
       cancelOut ? button("cancel", "outline", cancelTone) : null,
       tucked ? null : deleteEl,
     ].filter(Boolean);
@@ -327,8 +328,8 @@ export function VoucherActions({
       {allowed.has("edit") ? <EditButton variant="outline" recordItemId={record.id} /> : null}
       {deleteEl}
       {button("submit", "default")}
-      {/* Có menu ⚙ thì Từ chối vào đó: lúc chờ duyệt hàng nút chỉ còn Trả lại · Duyệt. */}
-      {tucked ? null : button("reject")}
+      {/* Lúc chờ duyệt hàng nút có đủ Từ chối · Trả lại · Duyệt (Từ chối không còn giấu trong menu ⚙). */}
+      {button("reject", "outline", cancelTone)}
       {button("return")}
       {button("approve", "default")}
       {button("complete", "default")}

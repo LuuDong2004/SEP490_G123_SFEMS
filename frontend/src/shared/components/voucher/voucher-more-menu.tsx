@@ -1,6 +1,6 @@
 import { useInvalidate } from "@refinedev/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, History, Loader2, RefreshCw, Settings, Trash2, XCircle } from "lucide-react";
+import { Ban, History, Loader2, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { TuckedAction } from "@/shared/components/voucher/voucher-actions";
@@ -82,13 +82,7 @@ export function VoucherMoreMenu({ resource, record, onTimeline, onAction, childr
             <RefreshCw />
             Tải lại
           </DropdownMenuItem>
-          {actions.includes("cancel") || actions.includes("delete") || actions.includes("reject") ? <DropdownMenuSeparator /> : null}
-          {actions.includes("reject") ? (
-            <DropdownMenuItem variant="destructive" onSelect={() => onAction("reject")}>
-              <XCircle />
-              Từ chối
-            </DropdownMenuItem>
-          ) : null}
+          {actions.includes("cancel") || actions.includes("delete") ? <DropdownMenuSeparator /> : null}
           {actions.includes("cancel") ? (
             <DropdownMenuItem onSelect={() => onAction("cancel")}>
               <Ban />

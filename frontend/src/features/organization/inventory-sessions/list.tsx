@@ -61,7 +61,7 @@ export const InventorySessionList = () => {
       h.accessor("code", {
         id: "code", header: "Số phiếu", size: 160, enableSorting: true,
         cell: ({ getValue, row }) => (
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {getValue() ? (
               <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
             ) : (
