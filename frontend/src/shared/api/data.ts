@@ -287,11 +287,28 @@ function withSignal<F extends (params: any) => Promise<unknown>>(run: F): F {
 
 export const kyInstance = base.kyInstance;
 
+type CustomParams = { method: string; headers?: Record<string, string> };
+
+/**
+ * Lệnh `custom` của `@refinedev/rest` gửi thân post / put / patch bằng `JSON.stringify(payload)` nhưng không khai
+ * `Content-Type`: trình duyệt tự ghi `text/plain` và Spring trả 415 trước khi tới controller (duyệt / trả lại đợt kiểm
+ * kê, mô phỏng phân quyền theo dòng). Gắn `application/json` ở một chỗ cho mọi lệnh có thân, nơi gọi đã khai thì giữ.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- giữ nguyên chữ ký generic của hàm Refine
+function withJsonBody<F extends (params: any) => Promise<unknown>>(run: F): F {
+  return (async (params: Parameters<F>[0]) => {
+    const p = params as CustomParams;
+    if (!["post", "put", "patch"].includes(p.method)) return run(params);
+    const declared = Object.keys(p.headers ?? {}).some((k) => k.toLowerCase() === "content-type");
+    return run(declared ? params : { ...params, headers: { ...p.headers, "Content-Type": "application/json" } });
+  }) as F;
+}
+
 /** Data provider của Refine: các lệnh ĐỌC mang tín hiệu huỷ — rời màn / chuyển tab thì request cũ dừng ngay. */
 export const dataProvider = {
   ...base.dataProvider,
   getList: withSignal(base.dataProvider.getList),
   getOne: withSignal(base.dataProvider.getOne),
   getMany: base.dataProvider.getMany && withSignal(base.dataProvider.getMany),
-  custom: base.dataProvider.custom && withSignal(base.dataProvider.custom),
+  custom: base.dataProvider.custom && withSignal(withJsonBody(base.dataProvider.custom)),
 } as DataProvider;

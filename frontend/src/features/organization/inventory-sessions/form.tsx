@@ -107,7 +107,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
           />
           <div className="form-flow">
             {creating ? <VoucherSchoolField control={control} record={record} setValue={setValue} /> : null}
-            <DateField control={control} name="inventoryDate" label="Ngày kiểm kê" dateRule="PAST_OR_TODAY" rules={{ required: "Chọn ngày" }} />
+            <DateField control={control} name="inventoryDate" label="Ngày kiểm kê" dateRule="PAST_OR_TODAY" rules={{ required: "Chọn ngày kiểm kê" }} />
             {creating && pinned ? (
               <div className="flex flex-col gap-1.5">
                 <ReadOnlyCell label="Đợt của Sở" value={null} placeholder="Trường tự kiểm kê" />
@@ -128,7 +128,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
                 hint="Chọn một phòng nếu chỉ kiểm kê phòng đó."
                 filters={scoped} disabledHint={schoolId ? undefined : "Chọn trường trước"} />
             ) : null}
-            <TextField control={control} name="title" label="Tên phiếu" rule="NAME" rules={{ required: "Nhập tên" }}
+            <TextField control={control} name="title" label="Tên phiếu" rule="NAME" rules={{ required: "Nhập tên phiếu kiểm kê" }}
               placeholder="VD: Kiểm kê cuối năm" className="col-span-2" />
             {/* Tổ kiểm kê chọn từ nhân sự của trường, không gõ tay họ tên — rộng như ô Tên phiếu, thu gọn thành một dòng tóm tắt. */}
             <StaffListField control={control} name="council" label="Tổ kiểm kê" schoolId={schoolId} required

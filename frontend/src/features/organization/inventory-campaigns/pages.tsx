@@ -195,19 +195,19 @@ function CampaignFields({ control, yearName, yearStart, nextStart, files }: {
   return (
     <div className="grid gap-y-5">
       <TextField control={control} name="documentNo" label="Số công văn" rule="DOC_NO" placeholder="VD: 1234/SGDĐT-KHTC" className="max-w-64" />
-      <TextField control={control} name="title" label="Tên đợt" rule="NAME" rules={{ required: "Nhập tên đợt" }}
+      <TextField control={control} name="title" label="Tên đợt" rule="NAME" rules={{ required: "Nhập tên đợt kiểm kê" }}
         placeholder={`VD: Kiểm kê cuối ${yearName ? yearName.toLowerCase() : "năm học"}`} />
       <div className="flex flex-wrap items-start gap-x-6 gap-y-5">
         <DateField control={control} name="cutoffDate" label="Ngày hiệu lực"
           rules={{
-            required: "Chọn ngày",
+            required: "Chọn ngày hiệu lực",
             deps: ["deadline"],
             // Cùng luật với máy chủ: ngày hiệu lực (ngày chốt số liệu đối chiếu sổ) thuộc năm học của đợt.
             validate: (v: string) => !v || !yearStart || (v >= yearStart && (!nextStart || v < nextStart))
               || `Ngày hiệu lực phải trong ${yearName ?? "năm học"} (${day(yearStart)} – trước ${day(nextStart)})`,
           }} />
         <DateField control={control} name="deadline" label="Ngày kết thúc"
-          rules={{ required: "Chọn ngày", validate: {
+          rules={{ required: "Chọn ngày kết thúc", validate: {
             order: notBefore("cutoffDate", "Ngày kết thúc không được trước ngày hiệu lực"),
             // Cùng luật InventoryCampaignService.MAX_MONTHS: một đợt kéo dài tối đa 12 tháng.
             span: (v: unknown, values: any) => {

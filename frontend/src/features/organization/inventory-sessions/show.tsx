@@ -950,7 +950,7 @@ function suggestConclusion(record: InventorySession) {
     s.surplus ? `thừa ${n(s.surplus)}` : null,
   ].filter(Boolean);
   return `Đã kiểm đủ ${n(s.checked)}/${n(s.total)} thiết bị. `
-    + (parts.length ? `Có chênh lệch so với hệ thống: ${parts.join(", ")}; đề nghị xử lý theo quy định.` : "Thực tế khớp với hệ thống, không có chênh lệch.");
+    + (parts.length ? `Có chênh lệch so với hệ thống: ${parts.join(", ")}. Đề nghị xử lý theo quy định.` : "Thực tế khớp với hệ thống, không có chênh lệch.");
 }
 
 /**
@@ -976,6 +976,14 @@ function ConclusionPanel({ record }: { record: InventorySession }) {
     setText(record.conclusion ?? suggestConclusion(record));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record.id, record.updatedAt]);
+  // Lưu kết quả kiểm đếm không đổi `updatedAt` của phiếu, chỉ đổi `summary`. Chưa kết luận mà ô vẫn là câu gợi ý cũ
+  // (người dùng chưa sửa) thì tính lại theo số liệu mới, nếu không ô vẫn ghi số lúc mới mở biên bản ("0/5.438…").
+  const suggestion = suggestConclusion(record);
+  const lastSuggestion = useRef(suggestion);
+  useEffect(() => {
+    if (!record.conclusion) setText((cur) => (cur === lastSuggestion.current ? suggestion : cur));
+    lastSuggestion.current = suggestion;
+  }, [suggestion, record.conclusion]);
   // Kiểm xong mà chưa kết luận: mở sẵn khối.
   useEffect(() => {
     if (canEdit && !record.conclusion) setExpanded(true);

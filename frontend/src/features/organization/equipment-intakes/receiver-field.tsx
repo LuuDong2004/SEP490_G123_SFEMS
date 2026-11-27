@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useFormContext, useWatch, type Control } from "react-hook-form";
 
 import { StaffPicker, type StaffRow } from "@/shared/components/catalog/staff-picker";
-import { maxLengthOf, textRules } from "@/shared/lib/field-rules";
+import { maxLengthOf, textError, textRules } from "@/shared/lib/field-rules";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shared/ui/form";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -63,12 +63,14 @@ export function ReceiverField({ control, schoolId, creating, label, max, min }: 
   const name = useWatch({ control, name: "details.receiverName" });
 
   // Lập phiếu: người nhận mặc định là người đang lập — ĐỢI danh sách cán bộ về: điền tên tài khoản trước rồi hồ sơ
-  // mới tới là ô đã có chữ, không điền lại được nữa (tên hồ sơ mới là tên đúng).
+  // mới tới là ô đã có chữ, không điền lại được nữa (tên hồ sơ mới là tên đúng). Tên tài khoản không qua luật họ tên
+  // (vd. "Lưu Văn Test 2" có chữ số) thì để trống cho người dùng gõ, không điền sẵn một giá trị mà chính form chặn.
   useEffect(() => {
     if (!creating || !settled) return;
     const mineName = mine?.name ?? me?.fullName;
-    if (mineName && !String(getValues("details.receiverName") ?? "").trim()) setValue("details.receiverName", mineName);
-  }, [creating, settled, mine?.name, me?.fullName, getValues, setValue]);
+    if (!mineName || textError("PERSON_NAME", label, mineName, max, min)) return;
+    if (!String(getValues("details.receiverName") ?? "").trim()) setValue("details.receiverName", mineName);
+  }, [creating, settled, mine?.name, me?.fullName, getValues, setValue, label, max, min]);
 
   // Chức vụ luôn suy từ người nhận: gõ tay đúng tên một cán bộ cũng nhận ra; trống người nhận thì trống chức vụ.
   useEffect(() => {
