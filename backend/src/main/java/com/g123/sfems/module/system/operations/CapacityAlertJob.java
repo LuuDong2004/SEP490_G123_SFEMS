@@ -66,7 +66,10 @@ public class CapacityAlertJob {
     }
 
     /**
-     * Không chung giao dịch: phương thức tự gọi không qua proxy nên {@code @Transactional} ở đây
+     * Thông báo không kèm đường dẫn: màn Tình trạng hệ thống đã bỏ (changelog 289), toàn bộ chi tiết nằm trong
+     * nội dung thông báo.
+     *
+     * <p>Không chung giao dịch: phương thức tự gọi không qua proxy nên {@code @Transactional} ở đây
      * vốn không có tác dụng. Mỗi {@code notify} tự commit; báo hỏng một người thì người khác vẫn
      * được báo.
      */
@@ -77,7 +80,7 @@ public class CapacityAlertJob {
                 WHERE r.code = 'ADMIN' AND u.status = 'ACTIVE'""", Long.class);
         for (Long id : admins) {
             try {
-                notifications.notify(id, level, title, body, "/system-status");
+                notifications.notify(id, level, title, body, null);
             } catch (RuntimeException e) {
                 log.warn("Không báo được quản trị viên {}: {}", id, e.getMessage());
             }

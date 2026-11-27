@@ -590,3 +590,5 @@ databaseChangeLog:
       file: db/changelog/changes/315-so-phieu-kem-ma-truong.sql
   - include:
       file: db/changelog/changes/316-nguoi-ket-luan-kiem-ke.sql
+  - include:
+      file: db/changelog/changes/317-bo-dich-quy-tac-ma-cong-trinh.sql

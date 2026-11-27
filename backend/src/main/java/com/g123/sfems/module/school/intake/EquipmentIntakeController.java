@@ -156,7 +156,7 @@ public class EquipmentIntakeController {
     @PreAuthorize("hasAuthority('equipment_intakes:write')")
     public List<IntakeLinesExcel.Line> readLinesFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) throw new FieldValidationException("file", "Chưa chọn tệp");
-        if (file.getSize() > 10L * 1024 * 1024) throw new FieldValidationException("file", "Tệp lớn hơn 10 MB");
+        if (file.getSize() > 10L * 1024 * 1024) throw new FieldValidationException("file", "Tệp tối đa 10 MB");
         try {
             return IntakeLinesExcel.read(file.getOriginalFilename() == null ? "" : file.getOriginalFilename(), file.getBytes());
         } catch (IOException e) {

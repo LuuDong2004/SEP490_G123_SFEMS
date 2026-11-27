@@ -94,6 +94,8 @@ export const ACTION_LABELS: Record<string, string> = {
   delete: "Xoá",
   approve: "Duyệt",
   export: "Xuất",
+  confirm: "Xác nhận",
+  assign_leadership: "Giao chức vụ lãnh đạo",
 };
 
 /**
@@ -125,6 +127,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   equipment_standards: "Bộ tiêu chuẩn",
   equipment_types: "Loại thiết bị",
   grades: "Khối lớp",
+  legal_documents: "Văn bản căn cứ",
   inventory_campaigns: "Đợt kiểm kê",
   inventory_sessions: "Phiếu kiểm kê",
   origin_sources: "Nguồn hình thành",

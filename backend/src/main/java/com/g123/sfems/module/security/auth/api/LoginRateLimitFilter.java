@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Giới hạn lần thử SAI theo IP ở các cửa không cần đăng nhập: đăng nhập, đổi khoá API lấy token, quên / đặt lại
+ * Giới hạn lần thử SAI theo IP ở các cửa không cần đăng nhập: đăng nhập, làm mới token, quên / đặt lại
  * mật khẩu.
  *
  * <p>Khoá 15 phút sau 5 lần sai ({@code LoginGuard}) đếm theo TÀI KHOẢN, và tên tài khoản đoán được
@@ -42,8 +42,7 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
     static final Duration WINDOW = Duration.ofMinutes(10);
 
     private static final Set<String> PATHS = Set.of(
-            "/api/auth/login", "/api/auth/refresh", "/api/auth/token", "/api/auth/forgot-password",
-            "/api/auth/reset-password");
+            "/api/auth/login", "/api/auth/refresh", "/api/auth/forgot-password", "/api/auth/reset-password");
     private static final String FORGOT = "/api/auth/forgot-password";
 
     private record Window(Instant start, AtomicInteger failures) {

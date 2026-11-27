@@ -145,9 +145,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         // Ô "Trường" của màn đăng nhập: tên trường và tiền tố tài khoản, chỉ đọc.
                         .requestMatchers(HttpMethod.GET, "/api/auth/schools").permitAll()
-                        // A partner system exchanging its API key for an access
-                        // token is signing in, by another credential.
-                        .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
                         // Tài liệu API: trang và bản mô tả mở để đối tác đọc trước khi có khoá; gọi API thì
                         // vẫn cần token ("Authorize" trên trang). Tắt hẳn bằng APP_API_DOCS=false. Bản chính thức
                         // không mở: bản đồ mọi endpoint quản trị là thứ người dò lỗi cần đầu tiên — đối tác đọc ở UAT.

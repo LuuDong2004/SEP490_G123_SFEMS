@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDot, CornerUpLeft, Ban, History, Send, XCircle, PackageCheck, PackageX } from "lucide-react";
+import { CheckCircle2, CircleDot, CornerUpLeft, Ban, History, Send, XCircle, PackageCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useVoucherEvents } from "@/shared/hooks/use-voucher-events";
@@ -20,7 +20,6 @@ const ICON: Record<VoucherEventAction, ReactNode> = {
   REJECT: <XCircle />,
   CANCEL: <Ban />,
   COMPLETE: <PackageCheck />,
-  DISPUTE: <PackageX />,
 };
 
 const TONE: Record<VoucherEventAction, TimelineTone> = {
@@ -30,7 +29,6 @@ const TONE: Record<VoucherEventAction, TimelineTone> = {
   REJECT: "destructive",
   CANCEL: "neutral",
   COMPLETE: "success",
-  DISPUTE: "warning",
 };
 
 /**

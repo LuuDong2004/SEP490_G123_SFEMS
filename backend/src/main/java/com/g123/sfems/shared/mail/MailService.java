@@ -1,6 +1,5 @@
 package com.g123.sfems.shared.mail;
 
-import com.g123.sfems.module.system.mail.MailConfigService;
 import com.g123.sfems.shared.security.DeployStack;
 import com.g123.sfems.shared.security.PersonalData;
 import jakarta.mail.MessagingException;
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Service;
  * Cổng gửi thư duy nhất của hệ thống: link đặt lại mật khẩu, thư mời tài khoản, mã đăng nhập, thông báo. Mọi thư dựng
  * từ {@link MailContent} theo khung chung {@link MailTemplate} và đi dưới dạng HTML kèm bản chữ thuần.
  *
- * <p>Máy chủ thư CHỈ lấy theo màn Cài đặt máy chủ thư của quản trị viên ({@link MailConfigService}, bảng
+ * <p>Máy chủ thư CHỈ lấy theo màn Cài đặt máy chủ thư của quản trị viên ({@link MailServer}, bảng
  * {@code mail_config}) — không đọc {@code spring.mail.*} trong tệp cấu hình. Công tắc "Gửi thư" tắt hoặc chưa khai máy
  * chủ thì không gửi: bản dev ghi thư ra log ở mức WARN (thử được luồng đăng nhập không cần SMTP); bản chính thức KHÔNG
  * ghi nội dung — thư mang link đặt lại mật khẩu và mã đăng nhập, ai đọc được log là chiếm được tài khoản.
@@ -31,11 +30,11 @@ public class MailService {
     /** Địa chỉ gửi dự phòng khi màn quản trị chưa khai địa chỉ gửi lẫn tài khoản SMTP (máy chủ không xác thực). */
     private static final String FALLBACK_FROM = "no-reply@sfems.local";
 
-    private final MailConfigService dbConfig;
+    private final MailServer dbConfig;
     private final String subjectPrefix;
     private final DeployStack stack;
 
-    public MailService(MailConfigService dbConfig,
+    public MailService(MailServer dbConfig,
                        @Value("${app.mail.subject-prefix:[SFEMS] }")
                        String subjectPrefix,
                        DeployStack stack) {
@@ -78,7 +77,7 @@ public class MailService {
         try {
             MimeMessage message = mail.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            MailConfigService.Sender sender = dbConfig.sender();
+            MailServer.Sender sender = dbConfig.sender();
             if (sender == null) {
                 helper.setFrom(FALLBACK_FROM);
             } else if (sender.name() == null) {

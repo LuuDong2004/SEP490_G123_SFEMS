@@ -27,9 +27,7 @@ public class VoucherEvent {
         RETURN,
         REJECT,
         CANCEL,
-        COMPLETE,
-        /** Trường nhận báo nhận thiếu / sai tình trạng: trả về trường chuyển bổ sung (luồng 5). */
-        DISPUTE
+        COMPLETE
     }
 
     @Id

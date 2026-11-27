@@ -1,6 +1,7 @@
 package com.g123.sfems.module.system.mail;
 
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.mail.MailServer;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.SecretBox;
 import com.g123.sfems.shared.validation.FieldRule;
@@ -22,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Chỉ gửi khi {@code enabled=true} và đã khai {@code host}.
  */
 @Service
-public class MailConfigService {
+public class MailConfigService implements MailServer {
 
     /** Kiểu bảo mật kết nối SMTP. */
     public enum Security { STARTTLS, SSL, NONE }
@@ -121,16 +122,17 @@ public class MailConfigService {
     }
 
     /** Có cấu hình DB đang bật không: enabled=true và host không trống. */
+    @Override
     public boolean hasDbConfig() {
         Row r = row();
         return r.enabled() && r.host() != null && !r.host().isBlank();
     }
 
-    /** Người gửi ghi trên thư: địa chỉ gửi đã khai, không khai thì tài khoản SMTP; tên hiển thị nếu có. */
-    public record Sender(String address, String name) {
-    }
-
-    /** Người gửi theo cấu hình trên màn quản trị; {@code null} khi chưa khai địa chỉ gửi lẫn tài khoản SMTP. */
+    /**
+     * Người gửi theo cấu hình trên màn quản trị: địa chỉ gửi đã khai, không khai thì tài khoản SMTP. Tên hiển thị nếu
+     * có. {@code null} khi chưa khai địa chỉ gửi lẫn tài khoản SMTP.
+     */
+    @Override
     public Sender sender() {
         Row r = row();
         String address = r.fromAddress() != null && !r.fromAddress().isBlank() ? r.fromAddress().trim()
@@ -144,6 +146,7 @@ public class MailConfigService {
     /**
      * Dựng {@link JavaMailSenderImpl} từ cấu hình DB. Trả {@code null} nếu host chưa khai hoặc tắt.
      */
+    @Override
     public JavaMailSenderImpl buildSender() {
         Row r = row();
         if (!r.enabled() || r.host() == null || r.host().isBlank()) {

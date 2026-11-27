@@ -79,7 +79,7 @@ export type VoucherApprovers = {
   people: { step: ApprovalStep | null; name: string }[];
 };
 
-export type VoucherEventAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT" | "CANCEL" | "COMPLETE" | "DISPUTE";
+export type VoucherEventAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT" | "CANCEL" | "COMPLETE";
 
 export const VOUCHER_EVENT_LABELS: Record<VoucherEventAction, string> = {
   SUBMIT: "Trình duyệt",
@@ -88,7 +88,6 @@ export const VOUCHER_EVENT_LABELS: Record<VoucherEventAction, string> = {
   REJECT: "Từ chối",
   CANCEL: "Huỷ phiếu",
   COMPLETE: "Hoàn tất",
-  DISPUTE: "Báo nhận thiếu, trả về bổ sung",
 };
 
 export type VoucherEvent = {
