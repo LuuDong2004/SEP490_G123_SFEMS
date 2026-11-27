@@ -1,0 +1,100 @@
+package com.g123.sfems.module.school.intake;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.g123.sfems.domain.school.intake.EquipmentIntake;
+import com.g123.sfems.domain.school.voucher.VoucherEvent;
+import com.g123.sfems.domain.school.voucher.VoucherStatus;
+import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.exception.ResourceNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+
+/** Sheet deleteIntake — PN-01 Xoá phiếu ghi tăng nháp: {@link EquipmentIntakeService#delete}. */
+@TestMethodOrder(MethodOrderer.MethodName.class)
+class EquipmentIntakeDeleteTest {
+
+    static final String ALREADY_SUBMITTED =
+            "Phiếu đã từng được trình, không xoá được — nó đã có số và nhật ký duyệt. Hãy huỷ phiếu";
+
+    IntakeFixture f;
+    EquipmentIntake intake;
+
+    @BeforeEach
+    void setUp() {
+        f = new IntakeFixture();
+        f.officerOfSchool1();
+        intake = f.intake(VoucherStatus.DRAFT);
+        f.stored(intake);
+    }
+
+    /** Phiếu đã có nhật ký duyệt (voucher_events). */
+    private void hasHistory() {
+        when(f.events.existsByResourceAndVoucherId(EquipmentIntakeService.RESOURCE, 311L)).thenReturn(true);
+    }
+
+    private void assertNotCancelled(VoucherStatus status, String message) {
+        intake.setStatus(status);
+        intake.setCode("NK-79000786-26-0002");
+        assertThatThrownBy(() -> f.service.cancel(311L, "Lập nhầm nguồn"))
+                .isInstanceOf(FieldValidationException.class).hasMessage(message);
+        assertThat(intake.getStatus()).isEqualTo(status);
+        verify(f.events, never()).save(any());
+    }
+
+    private void assertNotDeleted(String message) {
+        assertThatThrownBy(() -> f.service.delete(311L)).isInstanceOf(FieldValidationException.class)
+                .hasMessage(message);
+        verify(f.repository, never()).remove(any());
+    }
+
+    @Test
+    @DisplayName("UTCID01 - N: xoá phiếu nháp chưa từng trình → xoá hẳn, trả về phiếu kèm dòng")
+    void utcid01() {
+        EquipmentIntake result = f.service.delete(311L);
+        assertThat(result).isSameAs(intake);
+        assertThat(result.getLines()).hasSize(1);
+        verify(f.repository).remove(intake);
+    }
+
+    @Test
+    @DisplayName("UTCID02 - A: xoá phiếu nháp đã có số (từng trình) → báo hãy huỷ phiếu")
+    void utcid02() {
+        intake.setCode("NK-79000786-26-0002");
+        hasHistory();
+        assertNotDeleted(ALREADY_SUBMITTED);
+    }
+
+    @Test
+    @DisplayName("UTCID03 - A: xoá phiếu đang Chờ duyệt → chỉ xoá được nháp hoặc đã huỷ")
+    void utcid03() {
+        intake.setStatus(VoucherStatus.PENDING);
+        intake.setCode("NK-79000786-26-0002");
+        assertNotDeleted("Chỉ xoá được phiếu nháp hoặc phiếu đã huỷ");
+    }
+
+    @Test
+    @DisplayName("UTCID04 - B: xoá phiếu đã huỷ chưa có số nhưng có nhật ký CANCEL → không xoá được")
+    void utcid04() {
+        intake.setStatus(VoucherStatus.CANCELLED);
+        hasHistory();
+        assertNotDeleted(ALREADY_SUBMITTED);
+    }
+
+    @Test
+    @DisplayName("UTCID05 - A: xoá phiếu ngoài phạm vi (phiếu của THPT An Lạc) → không tìm thấy")
+    void utcid05() {
+        f.stored(null);
+        assertThatThrownBy(() -> f.service.delete(311L)).isInstanceOf(ResourceNotFoundException.class);
+        verify(f.repository, never()).remove(any());
+    }
+}
