@@ -1,6 +1,8 @@
 package com.g123.sfems.domain.catalog.originsource;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
+import com.g123.sfems.domain.catalog.base.SystemKeyed;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
@@ -12,5 +14,19 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "origin_sources")
-public class OriginSource extends CatalogEntity {
+public class OriginSource extends CatalogEntity implements SystemKeyed {
+
+    /** Khoá hệ thống (314) = tên luật {@link OriginRule} (MUA_SAM, PHAN_BO…); mã hiển thị là NG001…, chỉ đọc. */
+    @Column(name = "system_key", length = 64, insertable = false, updatable = false)
+    private String systemKey;
+
+    @Override
+    public String getSystemKey() {
+        return systemKey;
+    }
+
+    /** Chỉ cho đối tượng dựng trong bộ nhớ (test luật) — cột không ghi được qua JPA. */
+    public void setSystemKey(String systemKey) {
+        this.systemKey = systemKey;
+    }
 }

@@ -397,15 +397,6 @@
       "show": "Chi tiết văn bản căn cứ"
     }
   },
-  "movement_reasons": {
-    "movement_reasons": "Lý do biến động",
-    "titles": {
-      "list": "Lý do biến động",
-      "create": "Thêm lý do biến động",
-      "edit": "Sửa lý do biến động",
-      "show": "Chi tiết lý do biến động"
-    }
-  },
   "subjects": {
     "subjects": "Môn học",
     "titles": {
@@ -413,15 +404,6 @@
       "create": "Thêm môn học",
       "edit": "Sửa môn học",
       "show": "Chi tiết môn học"
-    }
-  },
-  "subject_groups": {
-    "subject_groups": "Tổ chuyên môn",
-    "titles": {
-      "list": "Tổ chuyên môn",
-      "create": "Thêm tổ chuyên môn",
-      "edit": "Sửa tổ chuyên môn",
-      "show": "Chi tiết tổ chuyên môn"
     }
   },
   "catalog_org": {
@@ -435,9 +417,6 @@
   },
   "catalog_finance": {
     "catalog_finance": "Tài chính"
-  },
-  "catalog_business": {
-    "catalog_business": "Danh mục nghiệp vụ"
   },
   "code_rules": {
     "code_rules": "Quy tắc sinh mã của danh mục chung",
@@ -494,15 +473,6 @@
       "create": "Thêm thiết bị vào danh mục",
       "edit": "Sửa thiết bị trong danh mục",
       "show": "Chi tiết thiết bị trong danh mục"
-    }
-  },
-  "equipment_configs": {
-    "equipment_configs": "Bộ thông số kỹ thuật",
-    "titles": {
-      "list": "Bộ thông số kỹ thuật",
-      "create": "Thêm bộ thông số",
-      "edit": "Sửa bộ thông số",
-      "show": "Chi tiết bộ thông số"
     }
   },
   "staff": {

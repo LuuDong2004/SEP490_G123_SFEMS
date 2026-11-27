@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class FacilityGroupService extends CatalogService<FacilityGroup, FacilityGroupRequest, FacilityGroupPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     public FacilityGroupService(FacilityGroupRepository repository, RowLevelSecurity rowLevel) {
         super(repository, rowLevel, FacilityGroup.class, FacilityGroup::new, "Khối CSVC");
     }

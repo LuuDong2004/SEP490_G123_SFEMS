@@ -51,10 +51,14 @@ export type CatalogConfig = {
    * Vd. thiết bị: mã chuẩn TT.TR.MH.LT.ST.NC do bộ đếm của Sở cấp.
    */
   codeReadOnly?: string;
+  /** Mã khoá khi sửa (danh mục dùng chung): chỉ nhập lúc thêm, máy chủ cũng từ chối đổi mã (`codeLocked`). */
+  codeLockedOnEdit?: boolean;
   /** Mã do form tự điền theo quy tắc mã của trường — vẫn sửa được; để nguyên thì máy chủ chốt mã gợi ý. */
   codeAuto?: boolean;
   /** Luật riêng cho ô Mã khi nó không phải một mã ASCII — vd. tên lớp ("Mầm 1") có dấu và khoảng trắng. */
   codePattern?: { value: RegExp; message: string };
+  /** Dạng bắt buộc của ô Tên, ngoài kiểu chung — vd. năm học "Năm học 2026-2027" (cùng luật máy chủ). */
+  namePattern?: { value: RegExp; message: string };
   nameExample: string;
   /** Nhãn của ô/cột Tên nếu khác "Tên", ví dụ "Họ tên" cho cán bộ. */
   nameLabel?: string;

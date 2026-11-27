@@ -24,6 +24,8 @@ public enum NumberRule {
     AREA("0", "1000000", 2),
     /** Số đếm không âm: sĩ số, số lớp, số tháng bảo hành, thứ tự. */
     COUNT("0", "99999", 0),
+    /** Số tháng bảo hành: 0–600 (50 năm) — đầu phiếu, từng dòng, từng thiết bị cùng một trần (rà soát 27/11/2026). */
+    WARRANTY_MONTHS("0", "600", 0),
     /** Năm (sản xuất, đưa vào sử dụng, ngân sách). Trần là năm nay + 1, tính lúc kiểm. */
     YEAR("1950", null, 0);
 

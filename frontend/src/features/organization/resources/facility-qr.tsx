@@ -113,13 +113,13 @@ export const FacilityLookup = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-              <Fact label="Khối nhà">{r.building?.name ?? "—"}</Fact>
-              <Fact label="Tầng">{r.floor ? `Tầng ${r.floor}` : "—"}</Fact>
-              <Fact label="Kết cấu">{STRUCTURE_LABELS[r.structure] ?? "—"}</Fact>
-              <Fact label="Diện tích">{r.area != null ? `${r.area} m²` : "—"}</Fact>
-              <Fact label="Sử dụng">{USAGE_STATUS_LABELS[r.usageStatus] ?? "—"}</Fact>
-              <Fact label="Sức chứa">{r.capacity ?? "—"}</Fact>
-              <Fact label="Phụ trách">{r.managingStaff?.name ?? r.managingUnit ?? "—"}</Fact>
+              <Fact label="Khối nhà">{r.building?.name ?? <span className="text-muted-foreground font-normal">Chưa gắn</span>}</Fact>
+              <Fact label="Tầng">{r.floor ? `Tầng ${r.floor}` : <span className="text-muted-foreground font-normal">Chưa khai</span>}</Fact>
+              <Fact label="Kết cấu">{STRUCTURE_LABELS[r.structure] ?? <span className="text-muted-foreground font-normal">Chưa khai</span>}</Fact>
+              <Fact label="Diện tích">{r.area != null ? `${r.area} m²` : <span className="text-muted-foreground font-normal">Chưa khai</span>}</Fact>
+              <Fact label="Sử dụng">{USAGE_STATUS_LABELS[r.usageStatus] ?? <span className="text-muted-foreground font-normal">Chưa khai</span>}</Fact>
+              <Fact label="Sức chứa">{r.capacity ?? <span className="text-muted-foreground font-normal">Chưa khai</span>}</Fact>
+              <Fact label="Phụ trách">{r.managingStaff?.name ?? r.managingUnit ?? <span className="text-muted-foreground font-normal">Chưa phân công</span>}</Fact>
             </div>
             <div>
               <Button asChild variant="outline" size="sm">

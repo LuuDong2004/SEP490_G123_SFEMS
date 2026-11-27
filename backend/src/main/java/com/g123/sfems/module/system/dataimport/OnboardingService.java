@@ -1079,7 +1079,7 @@ public class OnboardingService {
                     c.originSource() == null ? null : new IdRef(c.originSource()), null, c.funding(), null, c.year(),
                     c.receivedDate(), c.receivedDate(), c.originalValue(), null, null,
                     ref(OnboardingSheet.ROOM, c.room()), ref(OnboardingSheet.STAFF, c.manager()),
-                    c.condition(), null, null, null);
+                    c.condition(), null);
             for (int i = 0; i < c.copies(); i++) {
                 Long id = equipment.create(request).getId();
                 equipmentIds.add(id);

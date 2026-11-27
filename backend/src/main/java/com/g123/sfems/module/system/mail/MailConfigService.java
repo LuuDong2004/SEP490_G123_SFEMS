@@ -1,11 +1,13 @@
 package com.g123.sfems.module.system.mail;
 
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.security.CurrentUser;
 import com.g123.sfems.shared.security.SecretBox;
 import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 import java.util.Properties;
@@ -30,14 +32,19 @@ public class MailConfigService {
             String updatedAt, String updatedBy) {
     }
 
+    /** Tên máy (smtp.gmail.com, localhost) hoặc IPv4 — có "smtp://", cổng hay khoảng trắng là gõ nhầm ô. */
+    static final String HOST_PATTERN =
+            "^$|^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$";
+
     public record Update(
-            @Size(max = 255) String host,
+            @Size(max = 253, message = "Máy chủ SMTP tối đa 253 ký tự")
+            @Pattern(regexp = HOST_PATTERN, message = "Máy chủ SMTP không hợp lệ (vd. smtp.gmail.com)") String host,
             @Min(1) @Max(65535) Integer port,
-            @Size(max = 255) String username,
+            @Text(value = FieldRule.SHORT_TEXT, label = "Tài khoản", max = 255) String username,
             @Size(max = 500) String password,
             Boolean clearPassword,
-            @Text(value = FieldRule.SHORT_TEXT, label = "Địa chỉ gửi", max = 255) String fromAddress,
-            @Size(max = 255) String senderName,
+            @Text(value = FieldRule.EMAIL, label = "Địa chỉ gửi") String fromAddress,
+            @Text(value = FieldRule.SHORT_TEXT, label = "Tên người gửi", max = 100) String senderName,
             Security security,
             Boolean enabled) {
     }
@@ -90,9 +97,13 @@ public class MailConfigService {
         int    port       = body.port()        != null ? body.port()              : r.port();
         String username   = body.username()    != null ? body.username().trim()   : r.username();
         String senderName = body.senderName()  != null ? body.senderName().trim() : r.senderName();
-        String from       = body.fromAddress() != null ? body.fromAddress().trim(): r.fromAddress();
+        String from       = body.fromAddress() != null ? FieldRule.EMAIL.normalize(body.fromAddress().trim()) : r.fromAddress();
         Security security = body.security()    != null ? body.security()          : r.security();
         boolean enabled   = body.enabled()     != null ? body.enabled()           : r.enabled();
+        // Kiểm trên giá trị SAU khi gộp: bật công tắc mà không có máy chủ thì màn báo "đang gửi" nhưng không thư nào đi.
+        if (enabled && (host == null || host.isBlank())) {
+            throw new FieldValidationException("host", "Bật gửi thư thì phải khai máy chủ SMTP");
+        }
         String sealed = r.sealedPassword();
         if (Boolean.TRUE.equals(body.clearPassword())) {
             sealed = null;

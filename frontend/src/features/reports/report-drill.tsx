@@ -84,7 +84,7 @@ export function ReportDrillDialog({ report, drill, onClose, onOpenRow }: {
                   <TableRow key={c.key}>
                     <TableCell className="whitespace-normal">{c.label}</TableCell>
                     <TableCell align="right" className={cn("font-semibold", Number(record[c.key]) === 0 && "text-muted-foreground/60 font-normal")}>
-                      {format(record[c.key], c.type) || "—"}
+                      {format(record[c.key], c.type) || <span className="text-muted-foreground font-normal">Chưa có số liệu</span>}
                     </TableCell>
                   </TableRow>
                 ))}

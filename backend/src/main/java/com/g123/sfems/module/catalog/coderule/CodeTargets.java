@@ -16,17 +16,14 @@ public final class CodeTargets {
             "room_types",
             "school_years",
             "grades",
-            "subject_groups",
             "subjects",
             "equipment_types",
             "units",
             "origin_sources",
             "acquisition_methods",
-            "movement_reasons",
             "equipment_standards",
             "equipment_norms",
             "equipment_catalogs",
-            "equipment_configs",
             // Mã trường — tự cấp khi Sở thêm trường (093).
             "schools");
 

@@ -41,6 +41,18 @@ export function useSchoolCodeRules(schoolId: number, enabled = true) {
 
 const pad = (n: number, len: number) => String(n).padStart(len, "0");
 
+/** Trần độ dài mã của từng loại — cùng `SchoolCodeService.codeMax`: phòng, cán bộ 20; còn lại trần chung ô mã. */
+const codeMax = (target?: string) => (target === "rooms" || target === "staff" ? 20 : maxLengthOf("CODE"));
+
+/** Cùng luật máy chủ (`SchoolCodeService.save`): số bắt đầu lọt phần số, ký hiệu + phần số lọt cột mã. */
+function ruleError(target: string | undefined, label: string, prefix: string, len: number, start: number): string | undefined {
+  const top = 10 ** len - 1;
+  if (start > top) return `Số bắt đầu tối đa ${top} với phần số ${len} chữ số`;
+  const max = codeMax(target);
+  if (prefix.length + len > max) return `Ký hiệu cộng phần số dài ${prefix.length + len} ký tự — mã ${label.toLowerCase()} tối đa ${max} ký tự`;
+  return undefined;
+}
+
 /** Hộp thoại sửa MỘT quy tắc: ba ô, xem trước mã ngay dưới. */
 function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | null; schoolId: number; onClose: () => void }) {
   const [prefix, setPrefix] = useState("");
@@ -80,6 +92,7 @@ function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | nu
   }
 
   const n = Number(start) || 0;
+  const problem = rule ? ruleError(rule.target, rule.label, prefix, len, n) : undefined;
   return (
     <Dialog open={!!rule} onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="sm">
@@ -111,13 +124,14 @@ function EditRuleDialog({ rule, schoolId, onClose }: { rule: SchoolCodeRule | nu
           <span className="text-muted-foreground">Ví dụ: </span>
           <span className="font-mono font-medium">{prefix}{pad(n, len)}, {prefix}{pad(n + 1, len)}, {prefix}{pad(n + 2, len)}…</span>
         </div>
+        {problem ? <p role="alert" className="text-destructive-text text-xs">{problem}</p> : null}
         <DialogFooter className="sm:justify-between">
           {rule?.custom ? (
             <Button type="button" variant="ghost" disabled={busy} onClick={() => void run("reset")}>Về mặc định</Button>
           ) : <span />}
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Huỷ</Button>
-            <Button type="button" disabled={busy} onClick={() => void run("save")}>Lưu</Button>
+            <Button type="button" disabled={busy || !!problem} onClick={() => void run("save")}>Lưu</Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -153,7 +167,7 @@ function ViewRuleDialog({ rule, canWrite, onEdit, onClose }: {
             {item("Ký hiệu đầu mã", rule.prefix ? <span className="font-mono">{rule.prefix}</span> : <span className="text-muted-foreground">Không có ký hiệu</span>)}
             {item("Độ dài phần số", `${rule.numberLength} chữ số`)}
             {item("Bắt đầu từ số", <span className="tabular-nums">{rule.startNumber}</span>)}
-            {item("Mã kế tiếp", <span className="font-mono font-semibold">{rule.next ?? "—"}</span>)}
+            {item("Mã kế tiếp", <span className="font-mono font-semibold">{rule.next ?? <span className="text-muted-foreground font-sans font-normal">Chưa tính được</span>}</span>)}
             {item("Cách đặt", rule.custom ? <Badge variant="info">Riêng của trường</Badge> : <Badge variant="success">Mặc định</Badge>)}
             {item("Ví dụ", <span className="font-mono">{prefix}{pad(n, len)}, {prefix}{pad(n + 1, len)}, {prefix}{pad(n + 2, len)}…</span>)}
           </dl>
@@ -211,10 +225,10 @@ function RulesTable({ schoolId, toolbar }: { schoolId: number; toolbar: React.Re
                   <TableRow key={r.target} className={cn("group/row", LIFT_ROW, "cursor-pointer")} onClick={() => setViewing(r)}>
                     <TableCell className="text-muted-foreground text-center tabular-nums">{i + 1}</TableCell>
                     <TableCell className="font-medium">{r.label}</TableCell>
-                    <TableCell className="font-mono">{r.prefix || <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="font-mono">{r.prefix || <span className="text-muted-foreground font-sans">Không có</span>}</TableCell>
                     <TableCell className="tabular-nums">{r.numberLength} chữ số</TableCell>
                     <TableCell className="tabular-nums">{r.startNumber}</TableCell>
-                    <TableCell className="font-mono font-semibold">{r.next ?? "—"}</TableCell>
+                    <TableCell className="font-mono font-semibold">{r.next ?? <span className="text-muted-foreground font-sans font-normal">Chưa tính được</span>}</TableCell>
                     <TableCell>
                       {r.custom ? <Badge variant="info">Riêng của trường</Badge> : <Badge variant="success">Mặc định</Badge>}
                     </TableCell>

@@ -2,7 +2,9 @@ package com.g123.sfems.module.catalog.grade;
 
 import com.g123.sfems.module.catalog.base.dto.CatalogInput;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Num;
 import com.g123.sfems.shared.validation.NumberRule;
@@ -20,7 +22,9 @@ public record GradeRequest(
         Boolean active,
         @Text(value = FieldRule.NOTE, label = "Ghi chú")
         String note,
-        @Text(value = FieldRule.CODE, label = "Mã khối dạy học", max = 32)
+        // Mã khối theo chương trình (1–12): đi vào mã tài sản, chữ ở đây là gõ nhầm.
+        @Pattern(regexp = "^$|^\\d{1,2}$", message = "Mã khối dạy học gồm 1–2 chữ số, vd. 10")
         String teachingCode,
+        @NotNull(message = "Chọn cấp học")
         IdRef educationLevel) implements CatalogInput {
 }

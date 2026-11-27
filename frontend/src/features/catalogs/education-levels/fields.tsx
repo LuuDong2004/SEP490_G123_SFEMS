@@ -46,6 +46,7 @@ export const EDUCATION_LEVEL_CONFIG: CatalogConfig = {
   description: "",
   codeExample: "THPT",
   nameExample: "Trung học phổ thông",
+  codeLockedOnEdit: true,
   // Chỉ dùng phần `show` — form của cấp học tự dựng ở EducationLevelFields.
   extra: {
     section: { title: "Hiển thị rút gọn" },

@@ -1,10 +1,10 @@
 import { useCan, useList } from "@refinedev/core";
 import { useEffect } from "react";
-import { useFormContext, useWatch, type Control } from "react-hook-form";
+import { useFormContext, type Control } from "react-hook-form";
 
 import { useEducationLevels } from "@/shared/hooks/use-education-levels";
 
-import { MultiRefPickerField, union } from "@/shared/components/catalog/multi-ref-picker";
+import { union } from "@/shared/components/catalog/multi-ref-picker";
 
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -143,24 +143,6 @@ export function SubjectLevelsField({ control, creating }: { control: Control<any
           </FormItem>
         );
       }}
-    />
-  );
-}
-
-/**
- * Môn học thuộc tổ chuyên môn — chỉ liệt kê môn DẠY Ở cấp học của tổ; chưa
- * chọn cấp học thì liệt kê mọi môn. Một môn có thể thuộc nhiều tổ.
- */
-export function SubjectPickerField({ control }: { control: Control<any> }) {
-  const levelId = useWatch({ control, name: "educationLevel.id" });
-  return (
-    <MultiRefPickerField
-      control={control}
-      name="subjects"
-      resource="subjects"
-      label="Môn học thuộc tổ"
-      unitLabel="môn"
-      filters={levelId ? [{ field: "educationLevel.id", operator: "eq", value: levelId }] : undefined}
     />
   );
 }

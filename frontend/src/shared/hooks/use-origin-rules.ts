@@ -5,7 +5,8 @@ import { useMemo } from "react";
 import { kyInstance } from "@/shared/api/data";
 import type { OriginRule } from "@/domains/equipment/types";
 
-export type OriginOption = { id: number; code: string; name: string };
+/** `systemKey` (314) là tên luật — MUA_SAM, PHAN_BO…; `code` là mã hiển thị NG001…. */
+export type OriginOption = { id: number; code: string; name: string; systemKey?: string };
 
 /**
  * Sáu nguồn hình thành (danh mục cố định) và luật của từng nguồn. Hai lần đọc, đều giữ lâu trong bộ
@@ -32,7 +33,7 @@ export function useOriginRules(enabled = true) {
     const byCode = new Map(rules.map((r) => [r.code, r]));
     const ruleOf = (id: unknown): OriginRule | undefined => {
       const origin = origins.find((o) => String(o.id) === String(id ?? ""));
-      return origin ? byCode.get(origin.code) : undefined;
+      return origin?.systemKey ? byCode.get(origin.systemKey) : undefined;
     };
     return { origins, rules, ruleOf };
   }, [result, data]);

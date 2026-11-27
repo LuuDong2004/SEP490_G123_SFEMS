@@ -76,7 +76,7 @@ class StudentImportTest {
                         student("ZT-0001", "Nguyễn Văn An", "ZT-HS1", "14/05/2010", "Nam"),
                         student("ZT-0002", "Trần Thị Bình", "ZT-HS1", "02/11/2010", "Nữ"),
                         student("ZT-0003", "Lê Minh Châu", "zt-hs1", "", ""),
-                        student("ZT-0001", "Phạm Văn Dũng", oldCode, "20/01/2010", "Nam"),
+                        student("ZT-0004", "Phạm Văn Dũng", oldCode, "20/01/2010", "Nam"),
                         student("ZT-0009", "Hoàng Thị Em", "KHONG-CO-LOP", "01/01/2010", "Nữ"),
                         student("ZT-0010", "Đỗ Văn Giang", "ZT-HS1", "31/02/2010", "Nam"),
                         student("ZT-0011", "Vũ Thị Hà", "ZT-HS1", "12/12/2010", "Khác"),
@@ -92,8 +92,8 @@ class StudentImportTest {
         rows.forEach(r -> byCode.putIfAbsent(r.data().get("code") + "@" + r.data().get("class"), r));
         assertThat(byCode.get("ZT-0001@ZT-HS1").status()).isEqualTo(OnboardingValidator.OK);
         assertThat(byCode.get("ZT-0003@zt-hs1").status()).isEqualTo(OnboardingValidator.OK);
-        // Lớp đã có trên hệ thống; cùng mã ở lớp khác không phải trùng.
-        assertThat(byCode.get("ZT-0001@" + oldCode).status()).isEqualTo(OnboardingValidator.OK);
+        // Lớp đã có trên hệ thống nhận được. (Mã học sinh duy nhất trong cả năm học — xem test dưới.)
+        assertThat(byCode.get("ZT-0004@" + oldCode).status()).isEqualTo(OnboardingValidator.OK);
         assertThat(byCode.get("ZT-0009@KHONG-CO-LOP").messages())
                 .anySatisfy(m -> assertThat(m.text()).contains("Không có lớp"));
         assertThat(byCode.get("ZT-0010@ZT-HS1").messages())
@@ -131,6 +131,35 @@ class StudentImportTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM school_classes WHERE school_id = ? AND code = 'ZT-HS1'",
                 Integer.class, school)).isZero();
         assertThat(count(oldClass)).isEqualTo(40);
+    }
+
+    /** Mã học sinh duy nhất trong cả năm học (mọi lớp), tuổi 3–25 — cùng luật form, báo ngay ở bước kiểm. */
+    @Test
+    void studentCodeIsUniqueAcrossClassesOfTheYearAndAgeIsPlausible() {
+        long school = signIn("SCHOOL_STAFF");
+        String year = currentYearLabel();
+        List<String> existing = jdbc.queryForList("""
+                SELECT k.code FROM school_classes k JOIN school_years y ON y.id = k.school_year_id AND y.is_current
+                WHERE k.school_id = ? ORDER BY k.id LIMIT 1""", String.class, school);
+        Assumptions.assumeTrue(!existing.isEmpty(), "Trường mẫu cần một lớp năm hiện hành");
+        String oldCode = existing.get(0);
+        String grade = jdbc.queryForObject("SELECT g.name FROM school_classes k JOIN grades g ON g.id = k.grade_id"
+                + " WHERE k.school_id = ? AND k.code = ? LIMIT 1", String.class, school, oldCode);
+        byte[] file = XlsxWriter.writeAll(List.of(
+                tab(OnboardingSheet.CLASS, List.of(
+                        Map.of("code", "ZT-HS2", "grade", grade, "year", year, "students", "5"))),
+                tab(OnboardingSheet.STUDENT, List.of(
+                        student("ZT-1001", "Nguyễn Văn An", "ZT-HS2", "14/05/2012", "Nam"),
+                        student("ZT-1001", "Phạm Văn Dũng", oldCode, "20/01/2012", "Nam"),
+                        student("ZT-1002", "Trần Thị Bình", "ZT-HS2", "02/11/1990", "Nữ")))));
+        OnboardingService.Batch batch = onboarding.upload(null, "hs-trung-ma.xlsx", file);
+        List<OnboardingService.StagedRow> rows = onboarding.rows(batch.id(), "student");
+        assertThat(rows.stream().filter(r -> "ZT-1001".equals(r.data().get("code"))))
+                .hasSize(2)
+                .allSatisfy(r -> assertThat(r.messages()).anySatisfy(m -> assertThat(m.text()).contains("lặp lại ở các lớp")));
+        assertThat(rows.stream().filter(r -> "ZT-1002".equals(r.data().get("code"))))
+                .allSatisfy(r -> assertThat(r.messages())
+                        .anySatisfy(m -> assertThat(m.text()).contains("Ngày sinh không hợp lý")));
     }
 
     @Test

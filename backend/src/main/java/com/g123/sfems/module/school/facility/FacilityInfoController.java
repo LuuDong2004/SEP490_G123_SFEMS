@@ -7,8 +7,8 @@ import com.g123.sfems.module.organization.school.service.VisibleSchools;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
+import com.g123.sfems.shared.validation.Num;
+import com.g123.sfems.shared.validation.NumberRule;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -97,12 +97,10 @@ public class FacilityInfoController {
      */
     public static final class FacilityInfoRequest {
 
-        @DecimalMin(value = "0", message = "Diện tích đất không được âm")
-        @DecimalMax(value = "9999999999", message = "Diện tích đất quá lớn")
+        @Num(value = NumberRule.AREA, label = "Diện tích đất")
         private BigDecimal landArea;
 
-        @DecimalMin(value = "0", message = "Diện tích xây dựng không được âm")
-        @DecimalMax(value = "9999999999", message = "Diện tích xây dựng quá lớn")
+        @Num(value = NumberRule.AREA, label = "Diện tích xây dựng")
         private BigDecimal constructionArea;
 
         private boolean landAreaSent;
@@ -146,6 +144,10 @@ public class FacilityInfoController {
         Room probe = new Room();
         probe.setSchool(school);
         rowLevel.checkWritable(probe);
+        if (request.landAreaSent || request.constructionAreaSent) {
+            SchoolService.requireAreasFit(request.landAreaSent ? request.landArea : school.getLandArea(),
+                    request.constructionAreaSent ? request.constructionArea : school.getConstructionArea());
+        }
         if (request.landAreaSent) {
             jdbc.update("UPDATE schools SET land_area = ?, updated_at = now() WHERE id = ?", request.landArea,
                     schoolId);
@@ -215,11 +217,11 @@ public class FacilityInfoController {
                 SELECT count(*) FILTER (WHERE %1$s AND t.kind IS DISTINCT FROM 'AREA') AS rooms,
                        count(*) FILTER (WHERE %1$s AND t.kind = 'AREA') AS areas,
                        count(*) FILTER (WHERE %1$s AND r.structure IS NULL) AS no_structure,
-                       coalesce(sum(r.capacity) FILTER (WHERE %1$s AND t.code = 'NHA_AN'), 0) AS dining,
+                       coalesce(sum(r.capacity) FILTER (WHERE %1$s AND t.system_key = 'NHA_AN'), 0) AS dining,
                        coalesce(sum(CASE WHEN r.params ->> 'beds' ~ '^[0-9]+([.][0-9]+)?$'
                                          THEN (r.params ->> 'beds')::numeric ELSE r.capacity END)
-                           FILTER (WHERE %1$s AND t.code = 'NHA_O_NOI_TRU'), 0) AS boarding,
-                       coalesce(sum(r.capacity) FILTER (WHERE %1$s AND t.code = 'THU_VIEN'), 0) AS library
+                           FILTER (WHERE %1$s AND t.system_key = 'NHA_O_NOI_TRU'), 0) AS boarding,
+                       coalesce(sum(r.capacity) FILTER (WHERE %1$s AND t.system_key = 'THU_VIEN'), 0) AS library
                 FROM rooms r LEFT JOIN room_types t ON t.id = r.room_type_id
                 WHERE r.school_id = ? AND r.active
                 """.formatted(counted), id);

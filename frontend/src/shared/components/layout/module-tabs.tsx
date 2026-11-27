@@ -294,11 +294,9 @@ const TAB_SHORT: Record<string, string> = {
   purchase_proposals: "Đề xuất",
   procurement_plans: "Kế hoạch",
   // Danh mục chung
-  equipment_configs: "Thông số kỹ thuật",
   equipment_standards: "Danh mục tối thiểu",
   equipment_norms: "Định mức",
   acquisition_methods: "Hình thức mua",
-  movement_reasons: "Lý do biến động",
   room_types: "Loại CSVC",
   facility_groups: "Khối CSVC",
   facility_standard_rules: "Chuẩn CSVC",

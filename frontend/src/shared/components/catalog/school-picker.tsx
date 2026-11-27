@@ -116,8 +116,8 @@ function SchoolPickerDialog({ selectedId, onPick, onClose }: {
                   onClick={() => onPick({ id: s.id, name: s.name })}>
                   <TableCell className="text-muted-foreground truncate font-mono text-xs" title={s.code}>{s.code}</TableCell>
                   <TableCell className="truncate font-medium" title={s.name}>{s.name}</TableCell>
-                  <TableCell className="truncate">{s.educationLevel?.name ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground truncate" title={s.departmentOfEducation?.name}>{s.departmentOfEducation?.name ?? "—"}</TableCell>
+                  <TableCell className="truncate">{s.educationLevel?.name ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
+                  <TableCell className="text-muted-foreground truncate" title={s.departmentOfEducation?.name}>{s.departmentOfEducation?.name ?? "Chưa gán"}</TableCell>
                 </TableRow>
               ))}
               {!rows.length ? (

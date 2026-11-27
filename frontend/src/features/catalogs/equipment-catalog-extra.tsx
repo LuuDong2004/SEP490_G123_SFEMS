@@ -307,7 +307,7 @@ export const EQUIPMENT_CATALOG_EXTRA = {
       id: "equipmentType",
       header: "Loại thiết bị",
       enableSorting: false,
-      cell: ({ row }) => row.original.equipmentType?.name ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => row.original.equipmentType?.name ?? <span className="text-muted-foreground">Chưa phân loại</span>,
     },
     {
       id: "minimumRequired",
@@ -316,8 +316,6 @@ export const EQUIPMENT_CATALOG_EXTRA = {
       cell: ({ row }) => (row.original.minimumRequired ? <Badge variant="info">Tối thiểu</Badge> : <Badge variant="neutral">Ngoài thông tư</Badge>),
     },
   ] as ColumnDef<any, any>[],
-  // Thiết bị của danh mục tối thiểu không xoá tay — máy chủ cũng từ chối.
-  canDelete: (r: any) => !(r?.minimumRequired && !r?.ownerSchool),
   show: (r: any) => [
     { label: "Nguồn", value: r?.ownerSchool ? `Ngoài danh mục: thiết bị riêng của ${r.ownerSchool.name}` : "Danh mục của Sở" },
     ...(r?.ownerSchool ? [{ label: "Nguồn gốc", value: CATALOG_ORIGIN_LABELS[r?.origin] ?? "—" }] : []),

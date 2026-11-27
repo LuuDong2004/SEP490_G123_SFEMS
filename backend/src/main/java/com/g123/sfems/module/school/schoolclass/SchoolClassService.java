@@ -3,7 +3,9 @@ package com.g123.sfems.module.school.schoolclass;
 import com.g123.sfems.module.catalog.base.CampusRule;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.g123.sfems.module.school.facility.CampusScope;
+import com.g123.sfems.domain.catalog.grade.Grade;
 import com.g123.sfems.domain.school.schoolclass.SchoolClass;
+import jakarta.persistence.FlushModeType;
 import com.g123.sfems.domain.school.staff.StaffType;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
@@ -42,6 +44,9 @@ public class SchoolClassService
     private static final Pattern TRAILING_NUMBER = Pattern.compile("(\\d{1,6})$");
     /** Lớp đặt theo chữ — 6A, 6B, 6C: chữ cuối ngay sau số khối là thứ tự. */
     private static final Pattern TRAILING_LETTER = Pattern.compile("\\d([A-Za-z])$");
+    /** Số khối ở đầu tên lớp, ngay trước chữ: 6A1 → 6, 10C2 → 10. */
+    private static final Pattern LEADING_GRADE = Pattern.compile("^(\\d{1,2})[A-Za-z]");
+    private static final Pattern GRADE_NAME_NUMBER = Pattern.compile("(\\d{1,2})$");
 
     private final SchoolClassRepository classes;
     private final GradeService grades;
@@ -74,6 +79,8 @@ public class SchoolClassService
         item.setStudentCount(request.studentCount());
         setHomeroomTeacher(item, request.homeroomTeacher());
         setRoom(item, request.room());
+        requireCodeFitsGrade(item);
+        requireOneHomeroom(item);
         guardYear(item);
         if (request.sortOrder() == null) {
             item.setSortOrder(autoOrder(item));
@@ -108,7 +115,63 @@ public class SchoolClassService
         if (request.sortOrder() == null && (request.grade() != null || request.code() != null)) {
             item.setSortOrder(autoOrder(item));
         }
+        // Chỉ kiểm khi ô liên quan vừa gửi: lớp cũ lệch luật vẫn sửa được sĩ số, phòng…
+        if (request.code() != null || request.grade() != null) {
+            requireCodeFitsGrade(item);
+        }
+        if (request.homeroomTeacher() != null || request.schoolYear() != null || request.active() != null) {
+            requireOneHomeroom(item);
+        }
         guardYear(item);
+    }
+
+    /** Tên lớp mở đầu bằng số (6A1, 10C2): số đó phải là số của khối — 7A1 nằm trong Lớp 6 là gõ nhầm. */
+    private static void requireCodeFitsGrade(SchoolClass item) {
+        Integer gradeNo = gradeNumber(item.getGrade());
+        Matcher m = item.getCode() == null ? null : LEADING_GRADE.matcher(item.getCode().trim());
+        if (gradeNo == null || m == null || !m.find()) {
+            return;
+        }
+        if (Integer.parseInt(m.group(1)) != gradeNo) {
+            throw new FieldValidationException("code", "Tên lớp %s không khớp khối %s"
+                    .formatted(item.getCode().trim(), item.getGrade().getName()));
+        }
+    }
+
+    /** Số của khối: mã chương trình (6) hoặc số cuối tên ("Lớp 6"); không đọc được thì không kiểm. */
+    private static Integer gradeNumber(Grade grade) {
+        if (grade == null) {
+            return null;
+        }
+        String teaching = grade.getTeachingCode() == null ? "" : grade.getTeachingCode().trim();
+        if (teaching.matches("\\d{1,2}")) {
+            return Integer.parseInt(teaching);
+        }
+        Matcher m = grade.getName() == null ? null : GRADE_NAME_NUMBER.matcher(grade.getName().trim());
+        return m != null && m.find() ? Integer.parseInt(m.group(1)) : null;
+    }
+
+    /** Một giáo viên chủ nhiệm nhiều nhất một lớp trong một năm học của trường. */
+    private void requireOneHomeroom(SchoolClass item) {
+        if (item.getHomeroomTeacher() == null || item.getSchoolYear() == null
+                || Boolean.FALSE.equals(item.getActive())) {
+            return;
+        }
+        List<String> other = entityManager().createQuery("""
+                        SELECT c.code FROM SchoolClass c
+                        WHERE c.school.id = :school AND c.schoolYear.id = :year AND c.homeroomTeacher.id = :teacher
+                          AND c.active = true AND c.id <> :self""", String.class)
+                .setFlushMode(FlushModeType.COMMIT)
+                .setParameter("school", item.getSchool().getId())
+                .setParameter("year", item.getSchoolYear().getId())
+                .setParameter("teacher", item.getHomeroomTeacher().getId())
+                .setParameter("self", item.getId() == null ? -1L : item.getId())
+                .setMaxResults(1)
+                .getResultList();
+        if (!other.isEmpty()) {
+            throw new FieldValidationException("homeroomTeacher", "%s đã chủ nhiệm lớp %s năm học này"
+                    .formatted(item.getHomeroomTeacher().getName(), other.get(0)));
+        }
     }
 
     @Override

@@ -248,7 +248,7 @@ public class RowLevelPolicyService {
     private RowLevelRegistry.Managed resource(String name) {
         return registry.byResource(name).orElseThrow(() -> new PolicyValidationException(
                 "resource",
-                "\"%s\" is not under row-level management. Managed: %s".formatted(
+                "Chức năng \"%s\" không có phạm vi dòng. Các chức năng có phạm vi: %s".formatted(
                         name, registry.all().stream().map(RowLevelRegistry.Managed::resource).toList())));
     }
 
@@ -256,7 +256,7 @@ public class RowLevelPolicyService {
         try {
             return PolicyKind.valueOf(value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new PolicyValidationException("kind", "must be SCOPE or FILTER");
+            throw new PolicyValidationException("kind", "Loại phạm vi phải là SCOPE hoặc FILTER");
         }
     }
 
@@ -264,7 +264,7 @@ public class RowLevelPolicyService {
         try {
             return Action.from(value);
         } catch (IllegalArgumentException e) {
-            throw new PolicyValidationException("action", "must be read, write or delete");
+            throw new PolicyValidationException("action", "Thao tác phải là read, write hoặc delete");
         }
     }
 
@@ -283,12 +283,12 @@ public class RowLevelPolicyService {
         if (kind == PolicyKind.FILTER) {
             if (id != null) {
                 throw new PolicyValidationException("role",
-                        "a FILTER applies to everyone, so it cannot name a role");
+                        "Giới hạn (FILTER) áp cho mọi người nên không gắn vai trò");
             }
             return null;
         }
         if (id == null) {
-            throw new PolicyValidationException("role", "a SCOPE has to name the role it widens");
+            throw new PolicyValidationException("role", "Phạm vi (SCOPE) phải gắn vai trò được mở rộng");
         }
         return roleService.get(id);
     }

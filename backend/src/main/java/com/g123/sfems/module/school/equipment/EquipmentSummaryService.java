@@ -495,7 +495,7 @@ public class EquipmentSummaryService {
             args.add("%" + i.serial().trim().toLowerCase(Locale.ROOT) + "%");
         }
         if (i.originSource() != null && !i.originSource().isBlank()) {
-            // Nguồn hình thành của hồ sơ (phiếu ghi tăng chép xuống lúc duyệt): id, mã (MUA_SAM…) hoặc `none`.
+            // Nguồn hình thành của hồ sơ (phiếu ghi tăng chép xuống lúc duyệt): id, mã (NG001…), khoá (MUA_SAM…) hoặc `none`.
             String origin = i.originSource().trim();
             if (origin.equals("none")) {
                 where.append(" AND " + ORIGIN_SQL + " IS NULL ");
@@ -503,7 +503,9 @@ public class EquipmentSummaryService {
                 where.append(" AND " + ORIGIN_SQL + " = ? ");
                 args.add(Long.parseLong(origin));
             } else {
-                where.append(" AND " + ORIGIN_SQL + " IN (SELECT id FROM origin_sources WHERE upper(code) = ?) ");
+                // Mã hiển thị (NG001…) hoặc khoá hệ thống (MUA_SAM…, 314).
+                where.append(" AND " + ORIGIN_SQL + " IN (SELECT id FROM origin_sources WHERE upper(code) = ? OR system_key = ?) ");
+                args.add(origin.toUpperCase(Locale.ROOT));
                 args.add(origin.toUpperCase(Locale.ROOT));
             }
         }

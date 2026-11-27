@@ -19,9 +19,9 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/shar
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/popover";
-import { FUNDING_LABELS, FUNDING_OPTIONS, OTHER_ACQUISITION_CODE } from "@/domains/equipment/types";
+import { FUNDING_LABELS, FUNDING_OPTIONS, OTHER_ACQUISITION_KEY } from "@/domains/equipment/types";
 import { AcquisitionChoice } from "./acquisition-choice";
-import { CENTRALIZED_METHOD_CODE, documentDateRules, documentNoRules, headFieldsOf, isCentralized } from "./head-fields";
+import { CENTRALIZED_METHOD_KEY, documentDateRules, documentNoRules, headFieldsOf, isCentralized } from "./head-fields";
 import { isPurchaseCode } from "./readiness";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -144,7 +144,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
   const { origins, ruleOf } = useOriginRules();
   const originId = useWatch({ control, name: "originSource.id" });
   const rule = ruleOf(originId);
-  const code = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const code = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   const head = headFieldsOf(code);
   const purchase = isPurchaseCode(code);
   const doc = useWatch({ control, name: path }) as any;
@@ -154,14 +154,14 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
   const invoiceRequired = purchase && !centralized;
   const { result: centralMethods } = useList<any>({
     resource: "acquisition_methods",
-    filters: [{ field: "code", operator: "eq", value: CENTRALIZED_METHOD_CODE }],
+    filters: [{ field: "systemKey", operator: "eq", value: CENTRALIZED_METHOD_KEY }],
     pagination: { pageSize: 5 },
     queryOptions: { enabled: centralized },
   });
-  const centralMethod = (centralMethods?.data ?? []).find((m: any) => m.code === CENTRALIZED_METHOD_CODE);
+  const centralMethod = (centralMethods?.data ?? []).find((m: any) => m.systemKey === CENTRALIZED_METHOD_KEY);
   useEffect(() => {
     if (centralized && centralMethod && doc?.acquisitionMethod?.id !== centralMethod.id) {
-      setValue(name("acquisitionMethod"), { id: centralMethod.id, code: centralMethod.code, name: centralMethod.name }, { shouldDirty: true });
+      setValue(name("acquisitionMethod"), { id: centralMethod.id, code: centralMethod.code, name: centralMethod.name, systemKey: centralMethod.systemKey }, { shouldDirty: true });
       setValue(name("acquisitionNote"), "", { shouldDirty: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,7 +196,7 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
           <FormField
             control={control}
             name={name("supplier")}
-            rules={textRules("SHORT_TEXT", head.supplier, { max: 200, min: 2 })}
+            rules={textRules("NAME", head.supplier, { max: 200, min: 2 })}
             render={({ field, fieldState }) => (
               <FormItem data-field={name("supplier")} className={cn(CELL, "@5xl:max-w-[28rem] @5xl:flex-[1.6_1_0%]")}>
                 <FormLabel required={purchase || undefined}>{centralized ? "Nhà cung cấp (nhà thầu)" : head.supplier}</FormLabel>
@@ -280,14 +280,14 @@ export function DocumentFields({ control, index, schoolId, intakeId }: {
             <FormField
               control={control}
               name={name("acquisitionNote")}
-              rules={doc?.acquisitionMethod?.code === OTHER_ACQUISITION_CODE ? textRules("SHORT_TEXT", "Ghi rõ hình thức mua sắm", { max: 200, min: 5 }) : undefined}
+              rules={doc?.acquisitionMethod?.systemKey === OTHER_ACQUISITION_KEY ? textRules("SHORT_TEXT", "Ghi rõ hình thức mua sắm", { max: 200, min: 5 }) : undefined}
               render={({ fieldState }) => (
                 <>
                   <AcquisitionChoice label="Hình thức mua sắm" clearable exclude={rule?.excludedAcquisitionMethods}
                     value={doc?.acquisitionMethod?.id ? doc.acquisitionMethod : null}
                     onChange={(m) => {
                       setValue(name("acquisitionMethod"), m ? { id: m.id, code: m.code, name: m.name } : { id: null }, { shouldDirty: true });
-                      if (m?.code !== OTHER_ACQUISITION_CODE) setValue(name("acquisitionNote"), "", { shouldDirty: true });
+                      if (m?.systemKey !== OTHER_ACQUISITION_KEY) setValue(name("acquisitionNote"), "", { shouldDirty: true });
                     }}
                     note={doc?.acquisitionNote} onNoteChange={(n) => setValue(name("acquisitionNote"), n, { shouldDirty: true, shouldValidate: true })} />
                   {fieldState.error ? <p className="text-destructive mt-2 text-sm">{fieldState.error.message}</p> : null}
@@ -422,7 +422,7 @@ export function DocumentFiles({ control, index, onInvoiceXml }: {
   const { setValue } = useFormContext();
   const { origins } = useOriginRules();
   const originId = useWatch({ control, name: "originSource.id" });
-  const code = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const code = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   const head = headFieldsOf(code);
   const purchase = isPurchaseCode(code);
   const doc = useWatch({ control, name: path }) as any;

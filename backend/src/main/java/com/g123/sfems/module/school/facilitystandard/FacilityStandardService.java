@@ -225,7 +225,7 @@ public class FacilityStandardService {
             RoomStat stat = stats.getOrDefault(rules.stream().anyMatch(RuleRow::subjectRooms) ? SUBJECT_ROOMS : type.id(),
                     RoomStat.EMPTY);
             // Trường chưa có phòng nào: `stats` là Map.of() — không tra được khoá null.
-            Long sharedType = catalog.typeId(SHARED_ROOM.get(type.code()));
+            Long sharedType = catalog.typeId(SHARED_ROOM.get(type.key()));
             RoomStat shared = sharedType == null ? RoomStat.EMPTY : stats.getOrDefault(sharedType, RoomStat.EMPTY);
             itemsByGroup.computeIfAbsent(type.groupCode(), k -> new ArrayList<>())
                     .add(item(type, rules, stat, shared, school));
@@ -573,7 +573,7 @@ public class FacilityStandardService {
         return plain(area) + " m²/học sinh" + (percent == null ? "" : " (tính " + plain(percent) + "% học sinh)");
     }
 
-    private record TypeRow(Long id, String code, String name, String kind, String levels, boolean standard,
+    private record TypeRow(Long id, String code, String key, String name, String kind, String levels, boolean standard,
             String groupCode, String groupName) {
     }
 
@@ -603,14 +603,14 @@ public class FacilityStandardService {
         }
 
         Long typeId(String code) {
-            return code == null ? null : types.stream().filter(t -> t.code().equals(code)).map(TypeRow::id)
+            return code == null ? null : types.stream().filter(t -> code.equals(t.key())).map(TypeRow::id)
                     .findFirst().orElse(null);
         }
     }
 
     private Catalog catalog() {
         List<TypeRow> types = jdbc.query("""
-                SELECT rt.id, rt.code, rt.name, rt.kind, rt.levels, rt.standard, g.code AS group_code,
+                SELECT rt.id, rt.code, rt.system_key, rt.name, rt.kind, rt.levels, rt.standard, g.code AS group_code,
                        g.name AS group_name
                 FROM room_types rt
                 LEFT JOIN facility_groups g ON g.id = rt.group_id
@@ -618,7 +618,7 @@ public class FacilityStandardService {
                   AND (rt.active OR EXISTS (SELECT 1 FROM facility_standard_rules f
                                             WHERE f.room_type_id = rt.id AND f.active AND f.subject_rooms))
                 ORDER BY g.sort_order NULLS LAST, rt.sort_order NULLS LAST, rt.name""",
-                (rs, i) -> new TypeRow(rs.getLong("id"), rs.getString("code"), rs.getString("name"),
+                (rs, i) -> new TypeRow(rs.getLong("id"), rs.getString("code"), rs.getString("system_key"), rs.getString("name"),
                         rs.getString("kind"), rs.getString("levels"), rs.getBoolean("standard"),
                         rs.getString("group_code"), rs.getString("group_name")));
         List<RuleRow> rules = jdbc.query("""
@@ -688,7 +688,7 @@ public class FacilityStandardService {
                 WHERE""" + FacilityCounting.COUNTED_ROOM + """
                   AND EXISTS (SELECT 1 FROM room_types t
                               WHERE t.id IN (r.room_type_id, r.combined_type_id) AND t.functional
-                                AND t.code <> 'PHONG_CHUC_NANG')
+                                AND t.system_key IS DISTINCT FROM 'PHONG_CHUC_NANG')
                 """ + filter + " GROUP BY r.school_id",
                 rs -> {
                     out.computeIfAbsent(rs.getLong("school_id"), k -> new HashMap<>()).put(SUBJECT_ROOMS,

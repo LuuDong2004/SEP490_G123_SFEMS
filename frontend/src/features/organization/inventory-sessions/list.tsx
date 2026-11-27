@@ -20,7 +20,6 @@ import { VoucherStatusBadge } from "@/shared/components/voucher/voucher-status";
 import { useFillHeight } from "@/shared/hooks/use-fill-height";
 import { DEFAULT_PAGE_SIZE, formatPlainDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { Badge } from "@/shared/ui/badge";
 import type { InventorySession } from "@/domains/inventory/types";
 import { CampaignStrip } from "./campaign-strip";
 import { autoVisible, useColumnsKey } from "@/shared/components/data-table/column-prefs";
@@ -60,9 +59,9 @@ export const InventorySessionList = () => {
         cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{offset.current + row.index + 1}</span>,
       }),
       h.accessor("code", {
-        id: "code", header: "Số phiếu", size: 210, enableSorting: true,
+        id: "code", header: "Số phiếu", size: 160, enableSorting: true,
         cell: ({ getValue, row }) => (
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {getValue() ? (
               <span className="font-mono text-[0.8125rem] font-medium tabular-nums">{getValue()}</span>
             ) : (
@@ -73,7 +72,7 @@ export const InventorySessionList = () => {
         ),
       }),
       h.accessor("inventoryDate", {
-        id: "inventoryDate", header: "Ngày kiểm kê", size: 140, enableSorting: true,
+        id: "inventoryDate", header: "Ngày kiểm kê", size: 125, enableSorting: true,
         cell: ({ getValue }) => <span className="tabular-nums">{formatPlainDate(getValue())}</span>,
       }),
       h.accessor("title", {
@@ -81,39 +80,20 @@ export const InventorySessionList = () => {
         cell: ({ getValue }) => <span className="block truncate font-medium">{getValue()}</span>,
       }),
       h.display({
-        id: "scope", header: "Phạm vi", size: 140,
+        id: "scope", header: "Phạm vi", size: 120,
         cell: ({ row }) => <span className="block truncate">{row.original.room?.name ?? "Cả trường"}</span>,
       }),
       h.display({
-        id: "progress", header: "Tiến độ", size: 190,
+        id: "progress", header: "Tiến độ", size: 150,
         cell: ({ row }) => <Progress checked={row.original.summary.checked} total={row.original.summary.total} />,
       }),
-      h.display({
-        id: "diff", header: "Chênh lệch", size: 110,
-        cell: ({ row }) => {
-          const s = row.original.summary;
-          const parts = [
-            s.missing ? `Thiếu ${s.missing}` : null,
-            s.wrongRoom ? `Sai vị trí ${s.wrongRoom}` : null,
-            s.wrongCondition ? `Sai tình trạng ${s.wrongCondition}` : null,
-            s.surplus ? `Thừa ${s.surplus}` : null,
-          ].filter(Boolean);
-          // Đếm số dòng chênh lệch theo từng loại (một dòng vừa sai vị trí vừa sai tình trạng tính ở cả hai).
-          const n = s.missing + s.wrongRoom + s.wrongCondition + s.surplus;
-          return n > 0 ? (
-            <Badge variant="warning" title={parts.join(" · ")}>{n}</Badge>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          );
-        },
-      }),
       h.accessor("status", {
-        id: "status", header: "Trạng thái", size: 160, enableSorting: false,
+        id: "status", header: "Trạng thái", size: 115, enableSorting: false,
         cell: ({ row }) => <VoucherStatusBadge status={row.original.status} step={row.original.approvalStep} returned={!!row.original.returnNote} short />,
       }),
       h.display({
         id: "school", header: "Trường", size: 160,
-        cell: ({ row }) => row.original.school?.name ?? "—",
+        cell: ({ row }) => row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>,
       }),
       h.display({
         id: "actions",

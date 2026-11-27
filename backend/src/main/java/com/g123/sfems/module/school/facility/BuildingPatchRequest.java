@@ -8,7 +8,6 @@ import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Num;
 import com.g123.sfems.shared.validation.NumberRule;
 import com.g123.sfems.shared.validation.Text;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
@@ -28,13 +27,13 @@ public record BuildingPatchRequest(
         String note,
         IdRef school,
         IdRef campus,
-        @Min(value = 0, message = "Số tầng không được âm")
-        @Max(value = 200, message = "Số tầng tối đa 200")
+        @Min(value = 1, message = "Số tầng từ 1 đến 50")
+        @Max(value = 50, message = "Số tầng từ 1 đến 50")
         Integer floorCount,
-        @Min(value = 1800, message = "Năm đưa vào sử dụng không hợp lệ")
-        @Max(value = 2100, message = "Năm đưa vào sử dụng không hợp lệ")
+        // Trần là năm nay: kiểm ở BuildingService (chú thích không đọc được năm hiện tại).
+        @Min(value = 1900, message = "Năm đưa vào sử dụng phải từ 1900")
         Integer builtYear,
-        @DecimalMin(value = "0", message = "Diện tích không được âm")
+        @Num(value = NumberRule.AREA, label = "Diện tích sàn")
         BigDecimal floorArea,
         FacilityCondition condition,
         IdRef managingStaff,

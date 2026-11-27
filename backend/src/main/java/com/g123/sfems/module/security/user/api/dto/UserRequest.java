@@ -29,7 +29,7 @@ public record UserRequest(
         String email,
 
         @NotBlank(message = "Nhập họ tên")
-        @Text(value = FieldRule.NAME, label = "Họ tên")
+        @Text(value = FieldRule.PERSON_NAME, label = "Họ tên", min = 2)
         String fullName,
 
         // Length is the only rule worth enforcing here. Composition rules push

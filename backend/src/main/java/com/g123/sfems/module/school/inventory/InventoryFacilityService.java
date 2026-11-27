@@ -108,18 +108,32 @@ public class InventoryFacilityService {
     @Transactional
     public InventoryFacilityApi.Lines update(Long sessionId, Long lineId, InventoryFacilityApi.LineUpdate request) {
         draft(sessionId);
-        int n = jdbc.update("""
+        InventoryFacilityApi.Line line = jdbc.query(SELECT + " WHERE l.session_id = ? AND l.id = ?",
+                InventoryFacilityService::line, sessionId, lineId).stream().findFirst()
+                .orElseThrow(() -> new FieldValidationException("lineId", "Dòng không thuộc phiếu này"));
+        boolean checked = request.checked() == null || request.checked();
+        String structure = request.structureFound() == null ? null : request.structureFound().name();
+        // Kết cấu là đặc điểm xây dựng của công trình: hồ sơ đã khai thì biên bản kiểm kê không đổi được — chỉ khai bổ
+        // sung cho hạng mục CHƯA khai kết cấu.
+        if (structure != null && line.structureBefore() != null && !structure.equals(line.structureBefore())) {
+            throw new FieldValidationException("structureFound",
+                    "Kết cấu của \"%s\" đã khai trong hồ sơ — biên bản kiểm kê chỉ khai cho hạng mục chưa có kết cấu"
+                            .formatted(line.name()));
+        }
+        String note = request.note() == null || request.note().isBlank() ? null : request.note().trim();
+        if (note != null && note.length() > 255) {
+            throw new FieldValidationException("note", "Ghi chú dài quá 255 ký tự");
+        }
+        // Chưa tích "Đã kiểm" thì không có kết quả: bỏ tích là xoá kết cấu, hiện trạng, ghi chú đã ghi.
+        jdbc.update("""
                 UPDATE inventory_facility_lines
                 SET structure_found = ?, condition_found = ?, checked = ?, note = ?, updated_at = ?
                 WHERE id = ? AND session_id = ?""",
-                request.structureFound() == null ? null : request.structureFound().name(),
-                request.conditionFound() == null ? null : request.conditionFound().name(),
-                request.checked() == null || request.checked(),
-                request.note() == null || request.note().isBlank() ? null : request.note().trim(),
+                checked ? structure : null,
+                checked && request.conditionFound() != null ? request.conditionFound().name() : null,
+                checked,
+                checked ? note : null,
                 Timestamp.from(Instant.now()), lineId, sessionId);
-        if (n == 0) {
-            throw new FieldValidationException("lineId", "Dòng không thuộc phiếu này");
-        }
         return list(sessionId);
     }
 

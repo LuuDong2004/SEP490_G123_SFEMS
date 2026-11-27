@@ -14,24 +14,27 @@ import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 
-/** Payload tạo phòng. */
+/**
+ * Payload tạo phòng. Trần độ dài khớp {@code RoomService.MAX_*}; bản sửa ({@link RoomPatchRequest}) không đặt trần ở
+ * đây vì phòng cũ dài hơn vẫn phải sửa được ô khác — service kiểm khi ô vừa đổi.
+ */
 public record RoomRequest(
         // Để trống (hoặc vắng) là để máy chủ cấp theo quy tắc mã; danh mục không có quy tắc thì báo thiếu.
-        @Text(value = FieldRule.CODE, label = "Mã phòng")
+        @Text(value = FieldRule.CODE, label = "Mã phòng", max = 20)
         String code,
         @NotBlank(message = "Tên là bắt buộc")
-        @Text(value = FieldRule.NAME, label = "Tên phòng")
+        @Text(value = FieldRule.NAME, label = "Tên phòng", max = 100)
         String name,
         @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,
-        @Text(value = FieldRule.NOTE, label = "Ghi chú")
+        @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255)
         String note,
         IdRef school,
         IdRef campus,
         IdRef building,
         IdRef roomType,
         IdRef subject,
-        @Text(value = FieldRule.SHORT_TEXT, label = "Vị trí")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Vị trí", max = 100)
         String location,
         @Text(value = FieldRule.SHORT_TEXT, label = "Tầng", max = 50)
         String floor,
@@ -42,7 +45,7 @@ public record RoomRequest(
         FacilityCondition condition,
         RoomUsageStatus usageStatus,
         IdRef managingStaff,
-        @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị quản lý")
+        @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị quản lý", max = 100)
         String managingUnit,
         /** Kết cấu: Kiên cố / Bán kiên cố / Tạm / Nhờ, mượn, thuê. */
         FacilityStructure structure,

@@ -15,7 +15,7 @@ import java.time.LocalDate;
  */
 public record EquipmentIntakeDocumentInput(
         Long id,
-        @Text(value = FieldRule.SHORT_TEXT, label = "Nhà cung cấp", max = 200, min = 2)
+        @Text(value = FieldRule.NAME, label = "Nhà cung cấp", max = 200, min = 2)
         String supplier,
         @Text(value = FieldRule.TAX_CODE, label = "Mã số thuế")
         String taxCode,

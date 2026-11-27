@@ -8,6 +8,7 @@ import com.g123.sfems.module.catalog.educationlevel.repo.EducationLevelRepositor
 import com.g123.sfems.module.catalog.educationlevel.repo.EducationLevelSpecifications;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
+import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.web.ListParams;
@@ -109,6 +110,9 @@ public class EducationLevelService {
 
         if (request.code() != null) {
             String code = request.code().trim();
+            if (!code.equalsIgnoreCase(level.getCode())) {
+                throw new FieldValidationException("code", "Mã không sửa được sau khi tạo — dữ liệu khác đang dùng mã này");
+            }
             requireCodeAvailable(code, level.getId());
             level.setCode(code);
         }

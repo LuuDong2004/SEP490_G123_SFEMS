@@ -20,8 +20,8 @@ import { FormDialog, type FormDialogState } from "@/shared/components/catalog/fo
 import { SuggestCode } from "@/shared/components/catalog/use-suggested-code";
 import { DEFAULT_VALUES, EDUCATION_LEVEL_CONFIG, EducationLevelFields } from "@/features/catalogs/education-levels/fields";
 import { CatalogShowDialog } from "@/shared/components/catalog/pages";
+import { CatalogEditingContext } from "@/shared/components/catalog/fields";
 import { ShowButton } from "@/shared/components/buttons/show";
-import { DeleteButton } from "@/shared/components/buttons/delete";
 import { Badge } from "@/shared/ui/badge";
 import type { EducationLevel } from "@/domains/education-level/types";
 import { ACTIVE_LABELS } from "@/domains/education-level/types";
@@ -83,7 +83,7 @@ export const EducationLevelList = () => {
         header: "Tên viết tắt",
         enableSorting: true,
         cell: ({ getValue }) => (
-          <span className="text-sm">{getValue() ?? "—"}</span>
+          <span className="text-sm">{getValue() ?? <span className="text-muted-foreground">Chưa khai</span>}</span>
         ),
       }),
       columnHelper.accessor("active", {
@@ -117,7 +117,6 @@ export const EducationLevelList = () => {
               size="icon-sm"
               onClick={() => setViewing(row.original.id)}
             />
-            <DeleteButton recordItemId={row.original.id} record={row.original} iconOnly size="icon-sm" />
           </RowActions>
         ),
         enableSorting: false,
@@ -156,10 +155,10 @@ export const EducationLevelList = () => {
         defaultValues={DEFAULT_VALUES}
       >
         {(control, record) => (
-          <>
+          <CatalogEditingContext.Provider value={!!record}>
             {record ? null : <SuggestCode target="education_levels" />}
             <EducationLevelFields control={control} compact />
-          </>
+          </CatalogEditingContext.Provider>
         )}
       </FormDialog>
       <CatalogShowDialog

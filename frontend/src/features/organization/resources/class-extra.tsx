@@ -139,13 +139,13 @@ function HomeroomTeacherField({ control, record }: ClassFieldProps) {
   );
 }
 
-/** Loại phòng của lớp: chỉ "Phòng học" (PHONG_HOC) — kho, thư viện, phòng bộ môn không phải phòng của một lớp. */
+/** Loại phòng của lớp: chỉ "Phòng học" (khoá hệ thống PHONG_HOC) — kho, thư viện, phòng bộ môn không phải phòng của một lớp. */
 const CLASSROOM_TYPE = "PHONG_HOC";
 
 function RoomField({ control, record }: ClassFieldProps) {
   const { result: types } = useList<any>({
     resource: "room_types",
-    filters: [{ field: "code", operator: "eq", value: CLASSROOM_TYPE }],
+    filters: [{ field: "systemKey", operator: "eq", value: CLASSROOM_TYPE }],
     pagination: { pageSize: 1 },
   });
   const typeId = types?.data?.[0]?.id;
@@ -558,14 +558,14 @@ export const SCHOOL_CLASS_EXTRA = {
       id: "schoolYear",
       header: "Năm học",
       enableSorting: false,
-      cell: ({ row }) => <span className="tabular-nums">{row.original.schoolYear ? yearLabel(row.original.schoolYear) : "—"}</span>,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.schoolYear ? yearLabel(row.original.schoolYear) : <span className="text-muted-foreground">Chưa gắn</span>}</span>,
     },
-    refCell("homeroomTeacher", "GV chủ nhiệm"),
+    refCell("homeroomTeacher", "GV chủ nhiệm", "Chưa phân công"),
     {
       id: "studentCount",
       header: "Sĩ số",
       enableSorting: false,
-      cell: ({ row }) => <span className="tabular-nums">{row.original.studentCount ?? "—"}</span>,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.studentCount ?? <span className="text-muted-foreground">Chưa khai</span>}</span>,
     },
     schoolColumn,
   ] as ColumnDef<any, any>[],

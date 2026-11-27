@@ -211,9 +211,9 @@ export function QuickFixButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                             <TableRow key={r.code} className="cursor-pointer" data-state={on ? "selected" : undefined} onClick={toggle}>
                               <TableCell><Checkbox checked={on} onClick={(e) => e.stopPropagation()} onCheckedChange={toggle} /></TableCell>
                               <TableCell className="truncate font-medium" title={r.code}>{r.code}</TableCell>
-                              <TableCell className="truncate">{r.building ?? "—"}</TableCell>
-                              <TableCell>{r.floor ?? "—"}</TableCell>
-                              <TableCell className="truncate">{r.roomType ?? "—"}</TableCell>
+                              <TableCell className="truncate">{r.building ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
+                              <TableCell>{r.floor ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
+                              <TableCell className="truncate">{r.roomType ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
                               <TableCell align="right" className="tabular-nums">{r.usedBy}</TableCell>
                             </TableRow>
                           );
@@ -284,7 +284,7 @@ export function QuickFixButton({ batchId, sheet, rows, onApply, onAddRooms }: {
                                   {doing ? <Checkbox checked={on} onClick={(e) => e.stopPropagation()} onCheckedChange={toggle} /> : null}
                                 </TableCell>
                                 <TableCell align="right" className="tabular-nums">{it.rowNo ?? row?.rowNo ?? "?"}</TableCell>
-                                {hasName ? <TableCell className="truncate" title={row?.data.name}>{row?.data.name || "—"}</TableCell> : null}
+                                {hasName ? <TableCell className="truncate" title={row?.data.name}>{row?.data.name || <span className="text-muted-foreground">(trống)</span>}</TableCell> : null}
                                 <TableCell className="text-muted-foreground truncate" title={it.from}>{it.from || "(trống)"}</TableCell>
                                 <TableCell className="whitespace-normal">
                                   {it.field === KEEP ? (

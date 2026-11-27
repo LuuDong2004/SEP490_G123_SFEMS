@@ -197,11 +197,11 @@ function NormFields({ control, record }: { control: Control<any>; record?: any }
   );
 }
 
-const refColumn = (key: string, header: string): ColumnDef<any, any> => ({
+const refColumn = (key: string, header: string, empty: string): ColumnDef<any, any> => ({
   id: key,
   header,
   enableSorting: false,
-  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">—</span>,
+  cell: ({ row }) => row.original[key]?.name ?? <span className="text-muted-foreground">{empty}</span>,
 });
 
 export const NORM_EXTRA = {
@@ -219,13 +219,15 @@ export const NORM_EXTRA = {
   },
   Fields: NormFields,
   columns: [
-    refColumn("standard", "Bộ tiêu chuẩn"),
-    refColumn("subject", "Môn học"),
+    refColumn("standard", "Bộ tiêu chuẩn", "Chưa gán"),
+    refColumn("subject", "Môn học", "Chung"),
     {
       id: "minQuantity",
       header: "Số lượng",
       enableSorting: false,
-      cell: ({ row }) => (
+      cell: ({ row }) => quantityLabel(row.original) === "—" ? (
+        <span className="text-muted-foreground">Không ghi số</span>
+      ) : (
         <span className="tabular-nums">
           {quantityLabel(row.original)} {row.original.unit?.name ?? ""}
         </span>
@@ -240,7 +242,7 @@ export const NORM_EXTRA = {
     { label: "Loại phòng", value: r?.roomType?.name ?? "Cả trường" },
     {
       label: "Số lượng tối thiểu",
-      value: `${r?.minQuantity ?? "—"} ${r?.unit?.name ?? ""}`,
+      value: r?.minQuantity == null ? "Không ghi số" : `${r.minQuantity} ${r?.unit?.name ?? ""}`,
     },
     {
       label: "Tính theo",

@@ -289,7 +289,7 @@ function NormsSummary({ rows, mayRead, loading }: { rows: EquipmentNorm[]; mayRe
           <div className="text-muted-foreground text-xs">Lớp</div>
         </div>
         <div className={cn(box, "bg-surface-subtle")}>
-          <div className="text-lg font-bold">{[n.forTeacher ? "GV" : null, n.forStudent ? "HS" : null].filter(Boolean).join(" · ") || "—"}</div>
+          <div className="text-lg font-bold">{[n.forTeacher ? "GV" : null, n.forStudent ? "HS" : null].filter(Boolean).join(" · ") || <span className="text-muted-foreground text-sm font-normal">Chưa khai</span>}</div>
           <div className="text-muted-foreground text-xs">Đối tượng</div>
         </div>
       </div>
@@ -322,7 +322,7 @@ function NormsTable({ rows, loading }: { rows: EquipmentNorm[]; loading: boolean
             <TableRow key={n.id} className={cn("group/row", LIFT_ROW)}>
               <TableCell className="whitespace-normal">{n.standard?.name}</TableCell>
               <TableCell className="whitespace-normal">
-                {n.subject?.name ?? "—"}
+                {n.subject?.name ?? <span className="text-muted-foreground">Chưa gắn môn</span>}
                 {n.sectionName ? <div className="text-muted-foreground text-xs">{n.sectionName}</div> : null}
               </TableCell>
               <TableCell className="text-gold-text font-semibold tabular-nums">
@@ -330,7 +330,7 @@ function NormsTable({ rows, loading }: { rows: EquipmentNorm[]; loading: boolean
                 {n.optional ? <Badge variant="neutral" className="ms-2">Tự chọn</Badge> : null}
               </TableCell>
               <TableCell className="text-muted-foreground">{gradesLabel(n.gradeLevels)}</TableCell>
-              <TableCell>{[n.forTeacher ? "GV" : null, n.forStudent ? "HS" : null].filter(Boolean).join(" · ") || "—"}</TableCell>
+              <TableCell>{[n.forTeacher ? "GV" : null, n.forStudent ? "HS" : null].filter(Boolean).join(" · ") || <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -488,8 +488,8 @@ export function EquipmentCatalogFormBody({ control, record, suggestedCode, confi
               <FormItem>
                 <FormLabel>Mã DM thiết bị</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder={config.codeExample} readOnly={byCircular} maxLength={maxLengthOf("CODE")}
-                    className={byCircular ? "bg-muted/60 text-muted-foreground" : undefined} />
+                  <Input {...field} value={field.value ?? ""} placeholder={config.codeExample} readOnly={byCircular || !creating} maxLength={maxLengthOf("CODE")}
+                    className={byCircular || !creating ? "bg-muted/60 text-muted-foreground" : undefined} />
                 </FormControl>
                 {suggestedCode ? (
                   <FormDescription className="flex items-center gap-1">

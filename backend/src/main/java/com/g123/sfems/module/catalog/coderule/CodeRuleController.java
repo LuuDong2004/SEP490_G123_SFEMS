@@ -41,6 +41,30 @@ public class CodeRuleController
      * được hỏi, không cần quyền xem quy tắc. {@code code} là {@code null} khi
      * danh mục chưa có quy tắc hoặc quy tắc đang ngưng dùng.
      */
+    /**
+     * Số lớn nhất đã cấp theo khuôn tiền tố / hậu tố trong danh mục {@code target} — form quy tắc báo ngay khi ô "Đã
+     * cấp đến số" đặt lùi dưới số đó (máy chủ vẫn kiểm lại lúc lưu). {@code number} là {@code null} khi chưa có mã nào.
+     */
+    @GetMapping("/largest")
+    @PreAuthorize("hasAuthority('code_rules:read')")
+    public Map<String, Object> largest(@RequestParam String target,
+            @RequestParam(required = false) String prefix, @RequestParam(required = false) String suffix) {
+        Map<String, Object> body = new HashMap<>();
+        if (!CodeTargets.ALL.contains(target)) {
+            body.put("number", null);
+            body.put("code", null);
+            return body;
+        }
+        var issued = generator.largestIssued(target, blank(prefix), blank(suffix));
+        body.put("number", issued.map(CodeGenerator.Issued::number).orElse(null));
+        body.put("code", issued.map(CodeGenerator.Issued::code).orElse(null));
+        return body;
+    }
+
+    private static String blank(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     @GetMapping("/next")
     @PreAuthorize("hasAuthority(#target + ':write')")
     public Map<String, String> next(@RequestParam String target) {

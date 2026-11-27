@@ -43,11 +43,14 @@ export function EducationLevelField({
   control,
   current,
   description,
+  required,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>;
   current?: LevelRef;
   description?: string;
+  /** Bắt buộc chọn (khối lớp: không cấp học thì không trường nào thấy). */
+  required?: boolean;
 }) {
   const mayRead =
     useCan({ resource: "education_levels", action: "list" }).data?.can ?? false;
@@ -84,6 +87,7 @@ export function EducationLevelField({
     <FormField
       control={control}
       name="educationLevel.id"
+      rules={required ? { validate: (v: unknown) => v != null || "Vui lòng chọn cấp học" } : undefined}
       render={({ field }) => (
         <FormItem>
           <FormLabel>Cấp học</FormLabel>

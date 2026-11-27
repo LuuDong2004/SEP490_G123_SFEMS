@@ -44,6 +44,7 @@ import {
   InventorySessionCreate,
   InventorySessionEdit,
   InventorySessionShow,
+  MobilePreview,
 } from "@/features/organization";
 import {
   CatalogCreate,
@@ -96,6 +97,8 @@ import { Layout } from "@/shared/components/layout/layout";
 export default function ProtectedRoutes({ ready }: { ready: boolean }) {
   return (
     <Routes>
+      {/* Khung điện thoại xem thử (demo localhost): KHÔNG có khung ứng dụng — màn bên trong iframe tự đăng nhập, tự vẽ khung. */}
+      <Route path="/mobile-preview" element={<Suspense fallback={<FullPageSpinner label="Đang tải" />}><MobilePreview /></Suspense>} />
       <Route
         element={
           <Authenticated

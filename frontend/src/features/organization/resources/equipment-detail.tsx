@@ -231,7 +231,7 @@ function SummaryCard({ r, by, canWrite }: { r: any; by: Map<string, FieldItem>; 
 export function EquipmentStats({ r, roomSlot, managerSlot }: { r: any; roomSlot?: ReactNode; managerSlot?: ReactNode }) {
   return (
     <dl className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <Stat icon={<School />} label="Trường">{r.school?.name ?? "—"}</Stat>
+      <Stat icon={<School />} label="Trường">{r.school?.name ?? <span className="text-muted-foreground font-normal">Chưa gắn trường</span>}</Stat>
       <Stat icon={<MapPin />} label="Vị trí">
         {r.room?.name ?? roomSlot ?? <span className="text-muted-foreground font-normal">Chưa xếp chỗ</span>}
       </Stat>
@@ -243,7 +243,7 @@ export function EquipmentStats({ r, roomSlot, managerSlot }: { r: any; roomSlot?
           <Link to={`/equipment-intakes/show/${r.intake.id}`} className="text-primary font-mono text-[0.8125rem] hover:underline">
             {r.intake.code ?? "Phiếu nháp"}
           </Link>
-        ) : <span className="text-muted-foreground font-normal">Khai đầu kỳ</span>}
+        ) : <span className="text-muted-foreground font-normal">Nhập ban đầu</span>}
       </Stat>
       <Stat icon={<CircleCheck />} label="Chuẩn tối thiểu">
         {r.catalog?.id ? <EquipmentStandardSummary equipmentId={r.id} /> : <span className="text-muted-foreground font-normal">Ngoài danh mục</span>}
@@ -301,7 +301,7 @@ function RecentHistory({ equipmentId }: { equipmentId: number }) {
                   <> · {route && h.voucherId ? (
                     <Link to={`${route}/show/${h.voucherId}`} className="text-primary font-mono hover:underline">{h.voucherCode}</Link>
                   ) : <span className="font-mono">{h.voucherCode}</span>}</>
-                ) : h.fromValue || h.toValue ? <> · {h.fromValue ?? "—"} → {h.toValue ?? "—"}</> : null}
+                ) : h.fromValue || h.toValue ? <> · {h.fromValue ?? "trống"} → {h.toValue ?? "trống"}</> : null}
               </div>
             </div>
           </li>

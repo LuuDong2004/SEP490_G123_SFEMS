@@ -29,7 +29,7 @@ public record RowLevelPolicyRequest(
         @NotBlank(message = "Chọn chức năng áp dụng") @Size(max = 64) String resource,
         @NotBlank(message = "Chọn thao tác") @Size(max = 16) String action,
         @NotBlank(message = "Nhập tên") @Text(value = FieldRule.NAME, label = "Tên", max = 160) String name,
-        @Size(max = 64) String policyGroup,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Nhóm", max = 64) String policyGroup,
         @Text(value = FieldRule.NOTE, label = "Mô tả") String description,
         @NotNull(message = "Chưa khai điều kiện") JsonNode scope,
         /**

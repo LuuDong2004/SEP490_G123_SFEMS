@@ -4,6 +4,7 @@ import com.g123.sfems.module.catalog.base.CampusRule;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.g123.sfems.domain.school.facility.Campus;
 import com.g123.sfems.module.organization.school.service.SchoolService;
+import com.g123.sfems.module.school.base.SameName;
 import com.g123.sfems.module.school.base.SchoolOwnedService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
@@ -44,6 +45,7 @@ public class CampusService extends SchoolOwnedService<Campus, CampusRequest, Cam
             item.setPrimaryCampus(true);
         }
         item.setBranch(!Boolean.TRUE.equals(item.getPrimaryCampus()) && Boolean.TRUE.equals(request.branch()));
+        requireNameFree(item);
     }
 
     @Override
@@ -70,6 +72,16 @@ public class CampusService extends SchoolOwnedService<Campus, CampusRequest, Cam
         if (Boolean.TRUE.equals(item.getPrimaryCampus())) {
             // Trường chính không là phân hiệu / điểm trường.
             item.setBranch(false);
+        }
+        if (request.name() != null || request.active() != null) {
+            requireNameFree(item);
+        }
+    }
+
+    /** Hai cơ sở cùng tên trong một trường thì ô chọn cơ sở (phòng, khối nhà, cán bộ) không phân biệt được. */
+    private void requireNameFree(Campus item) {
+        if (SameName.taken(entityManager(), Campus.class, item, "school", item.getSchool().getId())) {
+            throw new FieldValidationException("name", "Trường đã có cơ sở tên \"%s\"".formatted(item.getName().trim()));
         }
     }
 

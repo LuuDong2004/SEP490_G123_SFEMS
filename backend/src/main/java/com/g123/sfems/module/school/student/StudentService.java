@@ -15,7 +15,11 @@ import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.ConflictException;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
+import jakarta.persistence.FlushModeType;
 import jakarta.persistence.criteria.JoinType;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -112,9 +116,58 @@ public class StudentService extends SchoolOwnedService<Student, StudentRequest, 
     @Override
     protected void applyCreateOwned(Student item, StudentRequest request) {
         setClass(item, request.schoolClass().id());
+        requireBirthDate(request.birthDate());
         item.setBirthDate(request.birthDate());
         item.setGender(request.gender());
         touchYear(item);
+    }
+
+    /** Tuổi học sinh phổ thông (cả học muộn, giáo dục thường xuyên) nằm trong 3–25; ngoài khoảng là gõ nhầm năm. */
+    public static String birthDateViolation(LocalDate birthDate) {
+        if (birthDate == null) {
+            return null;
+        }
+        long age = ChronoUnit.YEARS.between(birthDate, LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+        return age < MIN_AGE || age > MAX_AGE
+                ? "Ngày sinh không hợp lý — học sinh phải từ %d đến %d tuổi".formatted(MIN_AGE, MAX_AGE) : null;
+    }
+
+    static final int MIN_AGE = 3;
+    static final int MAX_AGE = 25;
+
+    private static void requireBirthDate(LocalDate birthDate) {
+        String error = birthDateViolation(birthDate);
+        if (error != null) {
+            throw new FieldValidationException("birthDate", error);
+        }
+    }
+
+    /**
+     * Học sinh khác cùng trường, cùng năm học (mọi lớp) đang giữ mã {@code code} — mã học sinh định danh một em trong
+     * cả năm học, không chỉ trong lớp. {@code self} bỏ qua chính dòng đang sửa.
+     */
+    private Optional<Object[]> sameCodeInYear(Long schoolId, Long yearId, String code, Long self) {
+        return entityManager().createQuery("""
+                        SELECT s.id, c.code FROM Student s JOIN s.schoolClass c
+                        WHERE s.school.id = :school AND c.schoolYear.id = :year AND lower(s.code) = lower(:code)
+                          AND s.id <> :self""", Object[].class)
+                .setFlushMode(FlushModeType.COMMIT)
+                .setParameter("school", schoolId)
+                .setParameter("year", yearId)
+                .setParameter("code", code.trim())
+                .setParameter("self", self == null ? -1L : self)
+                .setMaxResults(1)
+                .getResultList().stream().findFirst();
+    }
+
+    private void requireCodeFreeInYear(Student item, SchoolClass target, String code) {
+        if (code == null || code.isBlank() || target == null || target.getSchoolYear() == null) {
+            return;
+        }
+        sameCodeInYear(item.getSchool().getId(), target.getSchoolYear().getId(), code, item.getId())
+                .ifPresent(other -> {
+                    throw new ConflictException("Mã học sinh %s đã có ở lớp %s".formatted(code.trim(), other[1]));
+                });
     }
 
     @Override
@@ -129,8 +182,18 @@ public class StudentService extends SchoolOwnedService<Student, StudentRequest, 
                     .ifPresent(other -> {
                         throw new ConflictException(codeTakenMessage(item.getCode()));
                     });
+            SchoolClass target = classes.get(request.schoolClass().id());
+            // Chuyển sang lớp của năm học KHÁC: mã phải còn trống trong năm đó.
+            if (item.getSchoolClass().getSchoolYear() == null || target.getSchoolYear() == null
+                    || !target.getSchoolYear().getId().equals(item.getSchoolClass().getSchoolYear().getId())) {
+                requireCodeFreeInYear(item, target, item.getCode());
+            }
             setClass(item, request.schoolClass().id());
             touchYear(item);
+        }
+        // Chỉ kiểm khi ngày sinh đổi: dòng cũ lệch luật vẫn sửa được ô khác.
+        if (!Objects.equals(request.birthDate(), item.getBirthDate())) {
+            requireBirthDate(request.birthDate());
         }
         item.setBirthDate(request.birthDate());
         item.setGender(request.gender());
@@ -254,11 +317,18 @@ public class StudentService extends SchoolOwnedService<Student, StudentRequest, 
         return (root, query, cb) -> cb.disjunction();
     }
 
-    /** Mã học sinh trùng trong CÙNG lớp — câu mặc định của lớp nền xét cả trường. */
+    /**
+     * Mã học sinh trùng trong CÙNG năm học của trường (mọi lớp) — câu mặc định của lớp nền xét cả trường, mà năm sau em
+     * vẫn giữ mã. Báo kèm lớp đang giữ mã nên ném ngay ở đây. Sửa mà mã không đổi thì không kiểm: dữ liệu cũ (luật cũ
+     * chỉ xét trong lớp) vẫn sửa được ô khác.
+     */
     @Override
     protected Optional<Student> findSameCode(Student item, String code) {
         if (item.getSchoolClass() == null) {
             return Optional.empty();
+        }
+        if (item.getId() == null || item.getCode() == null || !item.getCode().equalsIgnoreCase(code.trim())) {
+            requireCodeFreeInYear(item, item.getSchoolClass(), code);
         }
         return students.findFirstBySchoolClassIdAndCodeIgnoreCase(item.getSchoolClass().getId(), code);
     }

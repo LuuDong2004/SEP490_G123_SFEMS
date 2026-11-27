@@ -14,8 +14,7 @@ export type DetailFieldKind =
   | "enum"
   | "staff"
   | "room"
-  | "school"
-  | "ref";
+  | "school";
 
 export type DetailField = {
   key: string;
@@ -37,7 +36,6 @@ export type DetailField = {
   suggest?: "schoolYear" | "year" | "staff" | "room" | "funding" | "origin";
   /** Lời giải thích — dấu "?" cạnh nhãn. Chỉ có ở ô mà nhãn ngắn chưa đủ nói phải điền gì. */
   hint?: string;
-  resource?: string;
   /** Chữ mờ trong ô — ví dụ giá trị để người nhập hiểu phải ghi gì (vắng: "Nhập" / "Nhập số"). */
   placeholder?: string;
   /** Cột của bảng con: bề rộng tương đối (mặc định 1) — cột tên dài cho 2. */
@@ -69,5 +67,6 @@ export type VoucherFormConfig = {
   approvalSteps?: string[];
 };
 
-export type DetailValue = string | number | boolean | { id: number; name?: string } | Record<string, unknown>[] | null;
+// `{ name, other }`: ô cán bộ "Người khác" — họ tên gõ tay, không có id.
+export type DetailValue = string | number | boolean | { id: number; name?: string } | { name: string; other: true } | Record<string, unknown>[] | null;
 export type Details = Record<string, DetailValue>;

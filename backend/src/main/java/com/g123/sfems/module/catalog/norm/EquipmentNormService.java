@@ -33,6 +33,7 @@ import com.g123.sfems.module.catalog.unit.UnitService;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.module.system.datachange.DataChangeService;
 import com.g123.sfems.shared.exception.ConflictException;
+import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.shared.exception.FieldValidationException;
 import com.g123.sfems.shared.web.ListParams;
 import jakarta.persistence.Tuple;
@@ -308,6 +309,7 @@ public class EquipmentNormService
                     item.isForStudent(), legalBasisOf(item.getStandard())));
             inheritFromCatalog(item);
         }
+        requireQuantityAndGrades(item);
         applyAdjustment(item, request.adjustment());
     }
 
@@ -432,9 +434,46 @@ public class EquipmentNormService
             item.setSourceDocument(null);
         }
         inheritFromCatalog(item);
+        requireQuantityAndGrades(item);
         // Điều chỉnh là cấu hình của Sở trên dòng đang áp dụng — sửa trực tiếp, có hiệu lực ngay, nhật ký giữ lại.
         if (request.adjustment() != null) {
             applyAdjustment(item, request.adjustment());
+        }
+    }
+
+    /** Lớp của từng cấp học — cùng bảng với {@code AppendixParser} (đọc phụ lục thông tư). */
+    private static final java.util.Map<String, java.util.Set<Integer>> LEVEL_GRADES = java.util.Map.of(
+            "TH", java.util.Set.of(1, 2, 3, 4, 5), "THCS", java.util.Set.of(6, 7, 8, 9),
+            "THPT", java.util.Set.of(10, 11, 12));
+
+    /**
+     * Số tối thiểu phải hợp đơn vị (0,5 "cái" là gõ nhầm — đơn vị chia được như kg, lít mới nhận số lẻ), và "Lớp áp dụng"
+     * phải là lớp của cấp học của bộ, không lặp: "6" trong bộ THPT không khớp lớp nào nên dòng thành không ai đếm.
+     * Kiểm SAU khi kế thừa từ thiết bị chuẩn — đơn vị có thể đến từ đó.
+     */
+    private static void requireQuantityAndGrades(EquipmentNorm item) {
+        if (item.getUnit() != null && !Unit.accepts(item.getUnit(), item.getMinQuantity())) {
+            throw new FieldValidationException("minQuantity",
+                    "Đơn vị %s không nhận số lẻ".formatted(item.getUnit().getName()));
+        }
+        String grades = item.getGradeLevels();
+        if (grades == null || grades.isBlank()) {
+            return;
+        }
+        String levelCode = item.getStandard() == null || item.getStandard().getEducationLevel() == null ? null
+                : item.getStandard().getEducationLevel().getCode();
+        java.util.Set<Integer> allowed = levelCode == null ? null : LEVEL_GRADES.get(levelCode.toUpperCase(java.util.Locale.ROOT));
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (String part : grades.split(",")) {
+            int grade = Integer.parseInt(part.trim());
+            if (!seen.add(grade)) {
+                throw new FieldValidationException("gradeLevels", "Lớp " + grade + " ghi hai lần");
+            }
+            if (allowed != null && !allowed.contains(grade)) {
+                throw new FieldValidationException("gradeLevels", "Lớp %d không thuộc cấp %s (lớp %s)".formatted(
+                        grade, levelCode, allowed.stream().sorted().map(String::valueOf)
+                                .collect(java.util.stream.Collectors.joining(", "))));
+            }
         }
     }
 

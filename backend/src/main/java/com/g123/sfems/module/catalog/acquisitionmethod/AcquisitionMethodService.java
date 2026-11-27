@@ -14,6 +14,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AcquisitionMethodService extends CatalogService<AcquisitionMethod, CatalogRequest, CatalogPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     public AcquisitionMethodService(AcquisitionMethodRepository repository, RowLevelSecurity rowLevel) {
         super(repository, rowLevel, AcquisitionMethod.class, AcquisitionMethod::new, "Hình thức mua sắm");
     }

@@ -27,7 +27,7 @@ export function ExpiryBadge({ date }: { date: string | null | undefined }) {
 
 /** Ngày hết hạn kèm nhãn cảnh báo — dùng ở hồ sơ thiết bị. */
 export function ExpiryValue({ date }: { date: string | null | undefined }) {
-  if (!date) return <>—</>;
+  if (!date) return <span className="text-muted-foreground font-normal">Chưa khai</span>;
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {formatPlainDate(date)}

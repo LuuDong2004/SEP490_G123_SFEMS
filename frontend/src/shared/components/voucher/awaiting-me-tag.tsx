@@ -1,6 +1,7 @@
 /**
  * Nhãn nhỏ "Chờ tôi duyệt" cạnh số phiếu ở danh sách phiếu — phiếu đang chờ ĐÚNG người đang xem duyệt (server trả
  * `approve` trong `_actions`: có quyền và thuộc cấp đang chờ). Nhìn danh sách là thấy việc của mình, không phải bật bộ lọc.
+ * Ô chứa số phiếu phải `flex-wrap`: số phiếu dài (kèm mã trường) thì nhãn xuống dòng, không bị cắt chữ.
  */
 export function AwaitingMeTag({ voucher }: { voucher: { _actions?: string[] } }) {
   if (!voucher._actions?.includes("approve")) return null;

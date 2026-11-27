@@ -18,7 +18,7 @@ public record RowLevelPolicyPatchRequest(
         RoleRef role,
         @Size(max = 16) String action,
         @Text(value = FieldRule.NAME, label = "Tên", max = 160) String name,
-        @Size(max = 64) String policyGroup,
+        @Text(value = FieldRule.SHORT_TEXT, label = "Nhóm", max = 64) String policyGroup,
         @Text(value = FieldRule.NOTE, label = "Mô tả") String description,
         JsonNode scope,
         /**

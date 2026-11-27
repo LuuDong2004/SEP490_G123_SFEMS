@@ -156,7 +156,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
               {row.original.intake.code ?? "Phiếu nháp"}
             </CrossLink>
           )
-            : <span className="text-muted-foreground text-xs">khai đầu kỳ</span>,
+            : <span className="text-muted-foreground text-xs">Nhập ban đầu</span>,
       }),
       h.display({
         // Đủ rộng cho cả nhãn "Chưa chuẩn" (100 thì nhãn bị cắt).
@@ -181,7 +181,7 @@ export function EquipmentItems({ filters, fill, externallyFiltered }: {
       h.display({
         id: "school", header: "Trường", size: 150,
         meta: { exportValue: (r: ItemRow) => r.school?.name },
-        cell: ({ row }) => row.original.school?.name ?? "—",
+        cell: ({ row }) => row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>,
       }),
       h.display({
         id: "actions",

@@ -1,6 +1,6 @@
 import { useInvalidate } from "@refinedev/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, History, Loader2, Printer, RefreshCw, Settings, Trash2, XCircle } from "lucide-react";
+import { Ban, History, Loader2, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { TuckedAction } from "@/shared/components/voucher/voucher-actions";
@@ -22,15 +22,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
  * `onAction`, màn truyền lại cho `VoucherActions` bằng prop `tucked`.
  *
  * <p>`children` là các mục riêng của loại phiếu, đứng đầu menu (vd. "Xem tài sản đã ghi tăng").
- *
- * <p>IN cũng ở đây, cho mọi phiếu: `printLabel` đổi chữ ("In biên bản"), `onPrint` thay cách in khi màn phải
- * chuẩn bị trước (phiếu ghi tăng chuyển sang dạng Văn bản rồi mới in). Truyền `printLabel={null}` để bỏ.
  */
-export function VoucherMoreMenu({ resource, record, onTimeline, onAction, children, printLabel = "In phiếu", onPrint, timelineLabel = "Quá trình duyệt" }: {
+export function VoucherMoreMenu({ resource, record, onTimeline, onAction, children, timelineLabel = "Quá trình duyệt" }: {
   /** Tên mục mở quá trình — phiếu không qua duyệt đặt tên khác. */
   timelineLabel?: string;
-  printLabel?: string | null;
-  onPrint?: () => void;
   resource: string;
   record: { id: number | string; _actions?: string[]; returnNote?: string | null } | undefined;
   onTimeline: () => void;
@@ -83,24 +78,11 @@ export function VoucherMoreMenu({ resource, record, onTimeline, onAction, childr
         </Tooltip>
         <DropdownMenuContent align="end" className="min-w-56">
           {children}
-          {printLabel && record ? (
-            // Chờ menu đóng hẳn rồi mới mở hộp in — in ngay thì menu còn nằm trên trang in.
-            <DropdownMenuItem onSelect={() => setTimeout(onPrint ?? (() => window.print()), 200)}>
-              <Printer />
-              {printLabel}
-            </DropdownMenuItem>
-          ) : null}
           <DropdownMenuItem onSelect={() => void reload()}>
             <RefreshCw />
             Tải lại
           </DropdownMenuItem>
-          {actions.includes("cancel") || actions.includes("delete") || actions.includes("reject") ? <DropdownMenuSeparator /> : null}
-          {actions.includes("reject") ? (
-            <DropdownMenuItem variant="destructive" onSelect={() => onAction("reject")}>
-              <XCircle />
-              Từ chối
-            </DropdownMenuItem>
-          ) : null}
+          {actions.includes("cancel") || actions.includes("delete") ? <DropdownMenuSeparator /> : null}
           {actions.includes("cancel") ? (
             <DropdownMenuItem onSelect={() => onAction("cancel")}>
               <Ban />

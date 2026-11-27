@@ -81,6 +81,7 @@ function Row({ sessionId, state }: { sessionId: number; state: FollowUpState }) 
  * Thiếu, sai vị trí không có phiếu — duyệt biên bản ghi thẳng vào hồ sơ thiết bị (KK-06).
  */
 export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number; approved: boolean }) {
+  const [open, setOpen] = useState(false);
   const { data } = useQuery({
     queryKey: ["inventory_follow_ups", sessionId],
     queryFn: ({ signal }) => kyInstance.get(`inventory_sessions/${sessionId}/follow-ups`, { signal }).json<FollowUpState[]>(),
@@ -93,6 +94,8 @@ export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number
     <Card className="gap-3 px-4 py-4">
       <StepTitle
         title="Thiết bị thừa"
+        open={open}
+        onToggle={() => setOpen(!open)}
         hint={
           <>
             Thiếu, sai vị trí đã được ghi vào hồ sơ thiết bị khi duyệt biên bản. Thiết bị thừa thì lập phiếu ghi tăng
@@ -100,9 +103,11 @@ export function InventoryFollowUps({ sessionId, approved }: { sessionId?: number
           </>
         }
       />
-      <ul className="divide-y rounded-md border text-sm">
-        {data.map((state) => <Row key={state.kind} sessionId={sessionId} state={state} />)}
-      </ul>
+      {open ? (
+        <ul className="divide-y rounded-md border text-sm">
+          {data.map((state) => <Row key={state.kind} sessionId={sessionId} state={state} />)}
+        </ul>
+      ) : null}
     </Card>
   );
 }

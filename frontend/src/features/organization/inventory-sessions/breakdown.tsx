@@ -52,6 +52,7 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
   });
   const multiRoom = (data?.rooms.length ?? 0) > 1;
   const [choice, setChoice] = useState<By | null>(null);
+  const [open, setOpen] = useState(false);
   const by: By = choice ?? (multiRoom ? "rooms" : "subjects");
   if (!data || record.lines.length === 0) return null;
   const rows = data[by];
@@ -60,14 +61,15 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
   return (
     <Card className="gap-0 py-0">
       <CardContent className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <StepTitle title="Tổng hợp chênh lệch" />
-        <Segmented<By> label="Nhóm theo" size="sm" variant="card" value={by} onChange={setChoice}
+        <StepTitle title="Tổng hợp chênh lệch" open={open} onToggle={() => setOpen(!open)} />
+        {open ? <Segmented<By> label="Nhóm theo" size="sm" variant="card" value={by} onChange={setChoice}
           options={[
             { value: "rooms", label: "Theo phòng, kho" },
             { value: "subjects", label: "Theo môn học" },
-          ]} />
+          ]} /> : null}
       </CardContent>
       {/* Cột số hẹp, đứng sát nhau để dò ngang một dòng dễ; tiêu đề dính khi bảng dài. */}
+      {open ? (
       <div className="max-h-[24rem] overflow-auto border-t [&>[data-slot=table-container]]:overflow-visible">
         <Table>
           <TableHeader sticky>
@@ -99,6 +101,7 @@ export function InventoryBreakdown({ record }: { record: InventorySession }) {
           </TableBody>
         </Table>
       </div>
+      ) : null}
     </Card>
   );
 }

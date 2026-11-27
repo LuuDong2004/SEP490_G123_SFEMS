@@ -74,13 +74,13 @@ export const SUBJECT_TEAM_EXTRA = {
       id: "leader",
       header: "Tổ trưởng",
       enableSorting: false,
-      cell: ({ row }) => row.original.leader?.name ?? <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => row.original.leader?.name ?? <span className="text-muted-foreground">Chưa phân công</span>,
     },
     {
       id: "subjects",
       header: "Môn phụ trách",
       enableSorting: false,
-      cell: ({ row }) => names(row.original.subjects) || <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => names(row.original.subjects) || <span className="text-muted-foreground">Chưa gắn môn</span>,
     },
     {
       id: "memberCount",

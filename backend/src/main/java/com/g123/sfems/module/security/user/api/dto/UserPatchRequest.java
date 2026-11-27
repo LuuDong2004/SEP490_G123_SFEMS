@@ -21,11 +21,13 @@ public record UserPatchRequest(
         @Text(value = FieldRule.USERNAME, label = "Tên đăng nhập", max = 100)
         String username,
 
+        // Gửi "" là xoá email — tài khoản nào cũng phải có email (thư mời, mã đăng nhập), nên chặn thay vì lưu rỗng.
+        @Size(min = 1, message = "Email là bắt buộc")
         @Text(value = FieldRule.EMAIL, label = "Email")
         String email,
 
         @Size(min = 1, message = "Họ tên là bắt buộc")
-        @Text(value = FieldRule.NAME, label = "Họ tên")
+        @Text(value = FieldRule.PERSON_NAME, label = "Họ tên", min = 2)
         String fullName,
 
         UserStatus status,

@@ -63,12 +63,12 @@ export const EducationLevelShow = () => {
           <CardContent className="grid gap-6 sm:grid-cols-2">
             <Field label="Mã">
               <span className="font-mono text-xs font-medium">
-                {record?.code ?? "—"}
+                {record?.code ?? <span className="text-muted-foreground">Chưa có mã</span>}
               </span>
             </Field>
-            <Field label="Tên viết tắt">{record?.shortName ?? "—"}</Field>
+            <Field label="Tên viết tắt">{record?.shortName ?? <span className="text-muted-foreground">Chưa khai</span>}</Field>
             <Field label="Thứ tự">
-              <span className="tabular-nums">{record?.sortOrder ?? "—"}</span>
+              <span className="tabular-nums">{record?.sortOrder ?? <span className="text-muted-foreground">Chưa xếp</span>}</span>
             </Field>
             <Field label="Trạng thái">
               {record ? (
@@ -79,12 +79,12 @@ export const EducationLevelShow = () => {
                 "—"
               )}
             </Field>
-            <Field label="Ghi chú">{record?.note ?? "—"}</Field>
+            <Field label="Ghi chú">{record?.note ?? <span className="text-muted-foreground">Không có ghi chú</span>}</Field>
             <Field label="Ngày tạo">
-              {record?.createdAt ? formatDateTime(record.createdAt) : "—"}
+              {record?.createdAt ? formatDateTime(record.createdAt) : <span className="text-muted-foreground">Không rõ</span>}
             </Field>
             <Field label="Cập nhật lần cuối">
-              {record?.updatedAt ? formatDateTime(record.updatedAt) : "—"}
+              {record?.updatedAt ? formatDateTime(record.updatedAt) : <span className="text-muted-foreground">Chưa sửa</span>}
             </Field>
           </CardContent>
         </Card>

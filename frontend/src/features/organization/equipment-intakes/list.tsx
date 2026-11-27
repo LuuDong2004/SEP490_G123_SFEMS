@@ -62,7 +62,7 @@ export const EquipmentIntakeList = () => {
             <span className="text-warning-text text-xs">Chưa cấp số</span>
           );
           return (
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               {number}
               <AwaitingMeTag voucher={row.original} />
             </span>
@@ -154,7 +154,7 @@ export const EquipmentIntakeList = () => {
       }),
       h.display({
         id: "school", header: "Trường", size: 160,
-        cell: ({ row }) => row.original.school?.name ?? "—",
+        cell: ({ row }) => row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>,
       }),
       h.display({
         id: "actions",

@@ -172,7 +172,7 @@ export function FacilityAssessment({ schoolId, onTab, onTodo, onAdd }: {
           {data ? (
             <>
               <p className="text-muted-foreground text-xs">
-                {data.school.classes ?? "—"} lớp · {data.school.students != null ? num.format(data.school.students) : "—"} học sinh
+                {data.school.classes != null ? `${data.school.classes} lớp` : "Chưa khai số lớp"} · {data.school.students != null ? `${num.format(data.school.students)} học sinh` : "chưa khai số học sinh"}
               </p>
               <p className={cn("text-2xl leading-tight font-bold", data.reached ? "text-success-text" : "text-destructive-text")}>
                 {data.reached ? `Đạt ${data.reachedLabel.toLowerCase()}` : data.reachedLabel}

@@ -220,7 +220,7 @@ export function StandardOverview({ onOpenSchool }: { onOpenSchool: (id: number) 
                           ) : null}
                         </span>
                       </TableCell>
-                      {showLevel ? <TableCell className="text-muted-foreground">{r.level ?? "—"}</TableCell> : null}
+                      {showLevel ? <TableCell className="text-muted-foreground">{r.level ?? "Chưa khai"}</TableCell> : null}
                       <TableCell>
                         {r.hasEquipment ? (
                           <div className="flex items-center gap-2.5">

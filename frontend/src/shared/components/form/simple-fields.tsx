@@ -63,9 +63,11 @@ type Base = {
 };
 
 export function TextField({ control, name, label, description, rules, className, placeholder, type = "text", step,
-  rule, max, min, numberRule }:
+  rule, max, min, numberRule, readOnly }:
   Base & RuleProps & {
     placeholder?: string;
+    /** Chỉ đọc (vd. mã đã cấp của danh mục): vẫn gửi giá trị, không gõ được. */
+    readOnly?: boolean;
     /** `"money"`: số tiền, hiện dấu chấm hàng nghìn khi gõ, giá trị vẫn là số. */
     type?: "text" | "number" | "money" | "time";
     /** Ô số: `"any"` cho phép số lẻ. */ step?: string;
@@ -100,6 +102,8 @@ export function TextField({ control, name, label, description, rules, className,
               step={step}
               maxLength={rule ? maxLengthOf(rule, max) : undefined}
               inputMode={inputModeOf(rule)}
+              readOnly={readOnly}
+              className={readOnly ? "bg-muted/60 text-muted-foreground" : undefined}
             />
             )}
           </FormControl>

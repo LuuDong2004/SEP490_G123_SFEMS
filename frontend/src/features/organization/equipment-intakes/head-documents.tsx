@@ -67,7 +67,7 @@ export function IntakeSourceCard({ control, record, chooseSchool, open, onToggle
   // Nguồn không có chứng từ (đơn vị tự làm, kiểm kê thừa…): nguồn kinh phí là ô duy nhất của "chứng từ" — đứng ngay hàng này.
   const originId = useWatch({ control, name: "originSource.id" });
   const { origins } = useOriginRules();
-  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   const fundingHere = !!originCode && !hasDocumentHead(originCode);
 
   return (

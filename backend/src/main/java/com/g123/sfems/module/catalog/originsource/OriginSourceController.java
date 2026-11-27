@@ -28,7 +28,7 @@ public class OriginSourceController extends CatalogController<OriginSource, Cata
         return "origin_sources";
     }
 
-    /** Luật của một nguồn hình thành, cho màn hình: {@code code} khớp {@code code} của dòng danh mục. */
+    /** Luật của một nguồn hình thành, cho màn hình: {@code code} khớp {@code systemKey} của dòng danh mục (314). */
     public record Rule(String code, String name, List<FundingSource> fundingSources,
             OriginRule.FundingRequired fundingRequired, boolean noteRequired, boolean acquisitionMethod,
             java.util.Set<String> excludedAcquisitionMethods) {

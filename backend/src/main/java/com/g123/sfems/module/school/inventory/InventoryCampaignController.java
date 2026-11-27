@@ -40,7 +40,7 @@ public class InventoryCampaignController {
     @DateRange(from = "cutoffDate", to = "deadline", message = "Ngày kết thúc không được trước ngày hiệu lực")
     public record Request(IdRef managingBody, IdRef schoolYear,
             @Text(value = FieldRule.NAME, label = "Tên đợt kiểm kê") String title,
-            @Text(value = FieldRule.SHORT_TEXT, label = "Số công văn", max = 100) String documentNo,
+            @Text(value = FieldRule.DOC_NO, label = "Số công văn") String documentNo,
             @DateValue(value = DateRule.ANY, label = "Ngày hiệu lực") LocalDate cutoffDate,
             @DateValue(value = DateRule.ANY, label = "Ngày kết thúc") LocalDate deadline,
             @Text(value = FieldRule.LONG_TEXT, label = "Nội dung", max = 1000) String note,

@@ -16,7 +16,6 @@ import {
   ClipboardList,
   Cog,
   FileBarChart,
-  FileCog,
   FileInput,
   FileSpreadsheet,
   Gauge,
@@ -329,7 +328,6 @@ export const resources: ResourceProps[] = withHelp(withModules([
       ["catalog_academic", <CalendarRange className="h-4 w-4" />],
       ["catalog_equip", <Boxes className="h-4 w-4" />],
       ["catalog_finance", <Wallet className="h-4 w-4" />],
-      ["catalog_business", <FileCog className="h-4 w-4" />],
       ["catalog_system", <Cog className="h-4 w-4" />],
     ] as const
   ).map(

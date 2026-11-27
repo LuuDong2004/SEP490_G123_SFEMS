@@ -14,11 +14,18 @@ import com.g123.sfems.shared.exception.FieldValidationException;
 public class CodeRuleService
         extends CatalogService<CodeRule, CodeRuleRequest, CodeRulePatchRequest> {
 
-    private final CodeRuleRepository repository;
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
 
-    public CodeRuleService(CodeRuleRepository repository, RowLevelSecurity rowLevel) {
+    private final CodeRuleRepository repository;
+    private final CodeGenerator generator;
+
+    public CodeRuleService(CodeRuleRepository repository, RowLevelSecurity rowLevel, CodeGenerator generator) {
         super(repository, rowLevel, CodeRule.class, CodeRule::new, "Quy tắc sinh mã");
         this.repository = repository;
+        this.generator = generator;
     }
 
     @Override
@@ -28,10 +35,12 @@ public class CodeRuleService
         item.setSuffix(blankToNull(request.suffix()));
         item.setNumberLength(request.numberLength());
         item.setCurrentNumber(request.currentNumber() == null ? 0L : request.currentNumber());
+        requireNumberFits(item);
     }
 
     @Override
     protected void applyUpdate(CodeRule item, CodeRulePatchRequest request) {
+        String before = shape(item);
         if (request.target() != null) {
             item.setTarget(requireTarget(request.target(), item.getId()));
         }
@@ -48,6 +57,36 @@ public class CodeRuleService
         if (request.currentNumber() != null) {
             item.setCurrentNumber(request.currentNumber());
         }
+        // Chỉ kiểm khi khuôn hay số THẬT SỰ đổi: sửa tên, ghi chú của một quy tắc cũ (số đang lùi sau mã gõ tay) không
+        // bị chặn vì lỗi nó không gây ra — máy cấp vẫn bỏ qua mã đã có.
+        if (!before.equals(shape(item))) {
+            requireNumberFits(item);
+        }
+    }
+
+    private static String shape(CodeRule r) {
+        return r.getTarget() + "|" + r.getPrefix() + "|" + r.getSuffix() + "|" + r.getNumberLength() + "|"
+                + r.getCurrentNumber();
+    }
+
+    /**
+     * Số đã cấp phải vừa độ dài phần số (3 chữ số thì tối đa 999 — số kế tiếp 1000 làm mã dài hơn khuôn), và không
+     * thấp hơn số lớn nhất đã cấp: đặt lùi thì mã máy cấp vấp trùng mã cũ.
+     */
+    private void requireNumberFits(CodeRule rule) {
+        int length = rule.getNumberLength() == null ? 0 : rule.getNumberLength();
+        long current = rule.getCurrentNumber() == null ? 0L : rule.getCurrentNumber();
+        long ceiling = (long) Math.pow(10, length);
+        if (length > 0 && current >= ceiling) {
+            throw new FieldValidationException("currentNumber",
+                    "Đã cấp đến số phải nhỏ hơn %d (phần số dài %d chữ số)".formatted(ceiling, length));
+        }
+        generator.largestIssued(rule.getTarget(), rule.getPrefix(), rule.getSuffix())
+                .filter(issued -> issued.number() > current)
+                .ifPresent(issued -> {
+                    throw new FieldValidationException("currentNumber",
+                            "Đã cấp đến số không được nhỏ hơn %d — mã %s đã cấp".formatted(issued.number(), issued.code()));
+                });
     }
 
     @Override

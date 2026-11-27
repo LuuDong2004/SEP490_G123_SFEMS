@@ -4,7 +4,6 @@ import com.g123.sfems.domain.catalog.acquisitionmethod.AcquisitionMethod;
 import com.g123.sfems.domain.catalog.enums.AssetCategory;
 import com.g123.sfems.domain.catalog.enums.FundingSource;
 import com.g123.sfems.domain.catalog.equipmentcatalog.EquipmentCatalog;
-import com.g123.sfems.domain.catalog.equipmentconfig.EquipmentConfig;
 import com.g123.sfems.domain.catalog.originsource.OriginSource;
 import com.g123.sfems.domain.catalog.unit.Unit;
 import com.g123.sfems.domain.school.base.SchoolOwnedEntity;
@@ -29,12 +28,8 @@ import org.hibernate.annotations.FetchMode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.Map;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 /**
  * Một thiết bị (hoặc một lô thiết bị cùng loại) của trường.
@@ -44,9 +39,6 @@ import org.hibernate.type.SqlTypes;
  *
  * <p>Đây là NHÓM TRƯỜNG LÕI. Hoá đơn, hợp đồng, quyết định giao nằm ở phiếu
  * ghi tăng sinh ra thiết bị.
- *
- * <p>Thông số kỹ thuật lưu ở {@link #specs} (JSONB: mã thông số → giá trị dạng
- * chuỗi), theo định nghĩa trong bộ thông số {@link #config}.
  */
 @RowLevelResource("equipment")
 @Entity
@@ -163,16 +155,6 @@ public class Equipment extends SchoolOwnedEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private AssetStatus status = AssetStatus.IN_USE;
-
-    // LAZY, như acquisitionMethod: chỉ hồ sơ tài sản đọc.
-    @ManyToOne(fetch = FetchType.LAZY)
-    @Fetch(FetchMode.SELECT)
-    @JoinColumn(name = "config_id")
-    private EquipmentConfig config;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private Map<String, String> specs = new LinkedHashMap<>();
 
     /**
      * Dòng phiếu nhập đã sinh ra tài sản này. {@code null} với tài sản nhập tay
@@ -389,22 +371,6 @@ public class Equipment extends SchoolOwnedEntity {
 
     public void setStatus(AssetStatus status) {
         this.status = status == null ? AssetStatus.IN_USE : status;
-    }
-
-    public EquipmentConfig getConfig() {
-        return config;
-    }
-
-    public void setConfig(EquipmentConfig config) {
-        this.config = config;
-    }
-
-    public Map<String, String> getSpecs() {
-        return specs;
-    }
-
-    public void setSpecs(Map<String, String> specs) {
-        this.specs = specs == null ? new LinkedHashMap<>() : new LinkedHashMap<>(specs);
     }
 
     public EquipmentIntakeLine getIntakeLine() {

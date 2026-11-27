@@ -86,6 +86,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
   // Đợt của cấp trên là kiểm kê TOÀN BỘ: đã chọn đợt thì phạm vi là cả trường, không chọn phòng (máy chủ
   // cũng từ chối). Trường tự kiểm kê định kỳ (không gắn đợt) mới chọn được một phòng.
   const campaignId = useWatch({ control, name: "campaign.id" });
+  const roomId = useWatch({ control, name: "room.id" }) as number | null | undefined;
   useEffect(() => {
     if (creating && campaignId) setValue("room.id", null);
   }, [creating, campaignId, setValue]);
@@ -106,7 +107,7 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
           />
           <div className="form-flow">
             {creating ? <VoucherSchoolField control={control} record={record} setValue={setValue} /> : null}
-            <DateField control={control} name="inventoryDate" label="Ngày kiểm kê" rules={{ required: "Chọn ngày" }} />
+            <DateField control={control} name="inventoryDate" label="Ngày kiểm kê" dateRule="PAST_OR_TODAY" rules={{ required: "Chọn ngày" }} />
             {creating && pinned ? (
               <div className="flex flex-col gap-1.5">
                 <ReadOnlyCell label="Đợt của Sở" value={null} placeholder="Trường tự kiểm kê" />
@@ -119,25 +120,20 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
                 hint="Chọn khi kiểm kê theo đợt cấp trên phát động." current={campaign}
                 // Chọn đợt thì tên đợt của cấp trên thành tên phiếu, nếu người lập chưa gõ gì.
                 onPicked={(c) => { if (!title && c?.name) setValue("title", c.name, { shouldDirty: true }); }} />
-            ) : (
-              <ReadOnlyCell label="Đợt của Sở" value={record?.campaign?.name} placeholder="Trường tự kiểm kê" />
-            )}
-            {creating && campaignId ? (
-              <ReadOnlyCell label="Phạm vi kiểm kê" value="Cả trường" placeholder="—" />
-            ) : creating ? (
+            ) : null}
+            {/* Phạm vi chỉ CHỌN được khi trường tự kiểm kê (không theo đợt) lúc lập; đợt của Sở luôn là cả trường, và
+                khi sửa thì đợt / phạm vi đã chốt — các trường hợp đó chỉ ghi ở thẻ bên phải, không vẽ ô xám chỉ đọc. */}
+            {creating && !campaignId ? (
               <RefField control={control} name="room" resource="rooms" label="Phạm vi kiểm kê" placeholder="Cả trường"
                 hint="Chọn một phòng nếu chỉ kiểm kê phòng đó."
                 filters={scoped} disabledHint={schoolId ? undefined : "Chọn trường trước"} />
-            ) : (
-              <ReadOnlyCell label="Phạm vi kiểm kê" value={record?.room?.name ?? "Cả trường"} placeholder="—" />
-            )}
+            ) : null}
             <TextField control={control} name="title" label="Tên phiếu" rule="NAME" rules={{ required: "Nhập tên" }}
-              placeholder="VD: Kiểm kê cuối năm" />
-            {/* Tổ kiểm kê chọn từ nhân sự của trường, không gõ tay họ tên. */}
+              placeholder="VD: Kiểm kê cuối năm" className="col-span-2" />
+            {/* Tổ kiểm kê chọn từ nhân sự của trường, không gõ tay họ tên — rộng như ô Tên phiếu, thu gọn thành một dòng tóm tắt. */}
             <StaffListField control={control} name="council" label="Tổ kiểm kê" schoolId={schoolId} required
-              mustFill="Chọn người trong tổ kiểm kê" />
+              mustFill="Chọn người trong tổ kiểm kê" className="col-span-2" />
             <TextareaField control={control} name="note" label="Ghi chú" rule="NOTE" inGrid />
-            {!creating ? <TextareaField control={control} name="conclusion" label="Kết luận của tổ kiểm kê" rule="LONG_TEXT" max={2000} inGrid /> : null}
           </div>
         </CardContent>
       </Card>
@@ -164,22 +160,27 @@ function InventoryFormBody({ control, record, setValue, creating, submitting, ca
         </SideFact>
         {record?.school?.name ? <SideFact label="Trường">{record.school.name}</SideFact> : null}
         <SideFact label="Tên phiếu">{title || <span className="text-warning-text font-normal">Chưa nhập</span>}</SideFact>
+        <SideFact label="Đợt">
+          {(creating ? campaignId : record?.campaign) ? (record?.campaign?.name ?? "Theo đợt của Sở") : <span className="text-muted-foreground font-normal">Trường tự kiểm kê</span>}
+        </SideFact>
+        <SideFact label="Phạm vi">{creating ? (campaignId || !roomId ? "Cả trường" : "Một phòng (chọn ở ô Phạm vi)") : (record?.room?.name ?? "Cả trường")}</SideFact>
         <p className="bg-neutral-subtle text-neutral-text rounded-md px-2.5 py-2 text-xs">
           {creating
             ? campaignId
-              ? "Kiểm kê toàn bộ theo đợt của cấp trên. Lưu là chụp danh sách thiết bị của cả trường thành danh sách kiểm đếm."
-              : "Trường tự kiểm kê. Lưu là chụp danh sách thiết bị trong phạm vi đã chọn thành danh sách kiểm đếm."
+              ? "Kiểm kê toàn bộ theo đợt của cấp trên. Lập phiếu là chụp danh sách thiết bị của cả trường thành danh sách kiểm đếm."
+              : "Trường tự kiểm kê. Lập phiếu là chụp danh sách thiết bị trong phạm vi đã chọn thành danh sách kiểm đếm."
             : "Phạm vi và đợt kiểm kê đã chốt lúc lập phiếu. Kết quả kiểm đếm ghi ở màn biên bản."}
         </p>
       </SideSection>
       <SideSection>
-        <div className="grid grid-cols-2 gap-2">
-          <Button type="button" variant="outline" className="min-w-0" onClick={() => navigate(-1)}>
-            <span className="truncate">Huỷ</span>
-          </Button>
-          <Button type="submit" className="min-w-0" disabled={submitting}>
+        {/* Nút chính trọn hàng (chữ không bị cắt), Huỷ bên dưới. */}
+        <div className="grid gap-2">
+          <Button type="submit" disabled={submitting}>
             <Save />
-            <span className="truncate">{submitting ? "Đang lưu…" : creating ? "Lưu và lấy danh sách" : "Lưu thay đổi"}</span>
+            {submitting ? "Đang lưu…" : creating ? "Lập phiếu" : "Lưu thay đổi"}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            Huỷ
           </Button>
         </div>
       </SideSection>
@@ -316,7 +317,6 @@ export const InventorySessionEdit = () => {
               title: v.title,
               inventoryDate: v.inventoryDate,
               council: v.council,
-              conclusion: v.conclusion,
               note: v.note,
               details: v.details ?? {},
             }),

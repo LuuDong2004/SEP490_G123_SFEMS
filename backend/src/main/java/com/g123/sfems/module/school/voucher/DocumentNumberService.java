@@ -7,8 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Số phiếu: {@code <tiền tố>-<năm>-<5 chữ số>}, đếm lại mỗi năm, riêng cho từng
- * trường và từng loại phiếu — {@code NK-2026-00042}, {@code DC-2026-00003}.
+ * Số phiếu: {@code <tiền tố>-<mã trường>-<2 số cuối của năm>-<4 chữ số>}, đếm lại mỗi năm, riêng cho từng
+ * trường và từng loại phiếu — {@code NK-79000805-26-0042}. Mã trường nằm trong số (315): mỗi trường đếm từ 0001, nên
+ * thiếu mã trường thì màn của Sở (gộp mọi trường) có nhiều phiếu cùng số "MS-2026-00001".
  *
  * <p>Tiền tố theo bộ số của ứng dụng cũ (NK ghi tăng, KK kiểm kê, MS mua sắm), để
  * người đã quen số phiếu cũ đọc được số phiếu mới.
@@ -38,6 +39,8 @@ public class DocumentNumberService {
                         + " DO UPDATE SET current_number = document_number_sequences.current_number + 1"
                         + " RETURNING current_number",
                 Integer.class, school.getId(), series);
-        return series + "-" + String.format("%05d", next == null ? 1 : next);
+        int year = (date == null ? LocalDate.now() : date).getYear();
+        return prefix + "-" + school.getCode() + "-" + String.format("%02d", year % 100) + "-"
+                + String.format("%04d", next == null ? 1 : next);
     }
 }

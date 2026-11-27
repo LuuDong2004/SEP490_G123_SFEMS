@@ -19,7 +19,7 @@ import java.util.Optional;
  * nguồn kinh phí nào, có bắt buộc nguồn kinh phí không, có hình thức mua sắm không.
  *
  * <p>Danh mục {@code origin_sources} vẫn là bảng (tài sản và phiếu trỏ tới nó bằng khoá ngoại), nhưng
- * là danh mục CỐ ĐỊNH: bảy dòng mang đúng bảy {@link #name() mã} dưới đây, do changelog {@code 109} (và
+ * là danh mục CỐ ĐỊNH: bảy dòng mang đúng bảy {@link #name() tên} dưới đây ở khoá hệ thống {@code system_key} (314; mã hiển thị NG001…), do changelog {@code 109} (và
  * {@code 251} cho nguồn trường tự mua, 255 đổi tên "Trường tự mua sắm") đặt, không thêm - sửa - xoá được qua màn hình. Luật rẽ nhánh theo từng giá trị nên nó phải nằm
  * trong code; màn hình đọc luật qua {@code GET /api/origin_sources/rules} chứ không chép lại, để hai
  * bên không lệch nhau.
@@ -140,11 +140,11 @@ public enum OriginRule {
         };
     }
 
-    /** Luật của một dòng danh mục, theo mã; rỗng nếu mã không thuộc bảy nguồn cố định. */
+    /** Luật của một dòng danh mục, theo khoá hệ thống (314); rỗng nếu dòng không thuộc bảy nguồn cố định. */
     public static Optional<OriginRule> of(OriginSource origin) {
-        if (origin == null || origin.getCode() == null) {
+        if (origin == null || origin.getSystemKey() == null) {
             return Optional.empty();
         }
-        return Arrays.stream(values()).filter(r -> r.name().equals(origin.getCode())).findFirst();
+        return Arrays.stream(values()).filter(r -> r.name().equals(origin.getSystemKey())).findFirst();
     }
 }

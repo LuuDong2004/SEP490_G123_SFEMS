@@ -107,7 +107,7 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
                 .and((root, q, cb) -> cb.isTrue(root.get("active")));
         List<Room> rooms = repository.findAll(spec, Sort.by("name"));
         return rooms.stream()
-                .filter(r -> r.getRoomType() != null && "KHO".equals(r.getRoomType().getCode()))
+                .filter(r -> r.getRoomType() != null && "KHO".equals(r.getRoomType().getSystemKey()))
                 .findFirst()
                 .or(() -> rooms.stream()
                         .filter(r -> r.getName() != null && STOREROOM_NAME.matcher(r.getName()).find())
@@ -456,17 +456,17 @@ public class RoomService extends SchoolOwnedService<Room, RoomRequest, RoomPatch
     }
 
     /** Trần diện tích một phòng / hạng mục (trưởng nhóm chốt 12/11/2026) — quá thì thường là gõ nhầm đơn vị. */
-    static final BigDecimal MAX_AREA = BigDecimal.valueOf(10_000);
+    public static final BigDecimal MAX_AREA = BigDecimal.valueOf(10_000);
     /** Trần sức chứa một phòng (chốt 12/11/2026). */
-    static final int MAX_CAPACITY = 2_000;
+    public static final int MAX_CAPACITY = 2_000;
 
     /**
      * Độ dài ô chữ của phòng (trưởng nhóm chốt 12/11/2026) — hẹp hơn trần chung của kiểu ô (mã 64, tên 255, ghi chú
      * 500). Kiểm ở đây chứ không ở {@code @Text} của request: chỉ chặn khi ô VỪA ĐỔI, để phòng nhà thầu đã đổ vào với
      * mã / tên dài vẫn sửa được ô khác (form gửi lại cả mã, tên cũ).
      */
-    static final int MAX_CODE = 20;
-    static final int MAX_NAME = 100;
+    public static final int MAX_CODE = 20;
+    public static final int MAX_NAME = 100;
     static final int MAX_LOCATION = 100;
     static final int MAX_UNIT = 100;
     static final int MAX_NOTE = 255;

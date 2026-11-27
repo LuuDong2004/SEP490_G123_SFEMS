@@ -546,7 +546,7 @@ public class EquipmentIntakeService implements RecordAccess {
         EquipmentIntake draft = new EquipmentIntake();
         draft.setSchool(schools.get(schoolId));
         draft.setStatus(VoucherStatus.DRAFT);
-        draft.setIntakeDate(LocalDate.now());
+        draft.setIntakeDate(LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
         // Hàng về theo đề xuất mua sắm là MUA SẮM — nguồn hình thành do phiếu nguồn quyết định, và
         // phiếu nhớ nó sinh từ đề xuất nào. Nguồn kinh phí của đề xuất mà không đi được với mua sắm
         // (tài trợ) thì để trống cho người lập chọn lại, thay vì mang một cặp giá trị mâu thuẫn.
@@ -595,7 +595,7 @@ public class EquipmentIntakeService implements RecordAccess {
         EquipmentIntake draft = new EquipmentIntake();
         draft.setSchool(schools.get(findings.schoolId()));
         draft.setStatus(VoucherStatus.DRAFT);
-        draft.setIntakeDate(LocalDate.now());
+        draft.setIntakeDate(LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
         draft.setSchoolYear(schoolYears.forDate(draft.getIntakeDate()));
         draft.setOriginSource(originSources.of(OriginRule.KIEM_KE_THUA));
         draft.setSource("inventory_sessions", findings.sourceId(), findings.sourceCode());
@@ -890,6 +890,12 @@ public class EquipmentIntakeService implements RecordAccess {
                 throw new FieldValidationException("lines",
                         "%s: phòng %s đã ngừng sử dụng — chọn phòng khác".formatted(where, room.getName()));
             }
+            // Hoá chất, vật tư đã hết hạn ngay khi mua là khai nhầm (rà soát 27/11/2026).
+            if (line.getExpiryDate() != null && line.getDocumentDate() != null
+                    && !line.getExpiryDate().isAfter(line.getDocumentDate())) {
+                throw new FieldValidationException("lines",
+                        "%s: hạn sử dụng phải sau ngày chứng từ".formatted(where));
+            }
         }
     }
 
@@ -926,7 +932,7 @@ public class EquipmentIntakeService implements RecordAccess {
             intake.setFundingSource(null);
         }
         if (intake.getAcquisitionMethod() != null
-                && rule.excludedAcquisitionMethods().contains(intake.getAcquisitionMethod().getCode())) {
+                && rule.excludedAcquisitionMethods().contains(intake.getAcquisitionMethod().getSystemKey())) {
             intake.setAcquisitionMethod(null);
         }
         for (EquipmentIntakeDocument document : intake.getDocuments()) {
@@ -934,7 +940,7 @@ public class EquipmentIntakeService implements RecordAccess {
                 document.setAcquisitionMethod(null);
             }
             if (document.getAcquisitionMethod() != null
-                    && rule.excludedAcquisitionMethods().contains(document.getAcquisitionMethod().getCode())) {
+                    && rule.excludedAcquisitionMethods().contains(document.getAcquisitionMethod().getSystemKey())) {
                 throw new FieldValidationException("documents",
                         "Chứng từ %d: hình thức mua sắm \"%s\" không đi với nguồn hình thành \"%s\""
                                 .formatted(document.getDocNo(), document.getAcquisitionMethod().getName(), rule.label()));
@@ -959,7 +965,7 @@ public class EquipmentIntakeService implements RecordAccess {
                 applyDocument(line, line.getDocument());
             }
             if (!rule.acquisitionMethod() || line.getAcquisitionMethod() != null
-                    && rule.excludedAcquisitionMethods().contains(line.getAcquisitionMethod().getCode())) {
+                    && rule.excludedAcquisitionMethods().contains(line.getAcquisitionMethod().getSystemKey())) {
                 line.setAcquisitionMethod(null);
             }
             FundingSource funding = line.getFundingSource();
@@ -983,7 +989,7 @@ public class EquipmentIntakeService implements RecordAccess {
 
     /** Hình thức mua sắm "Khác" — mục duy nhất phải ghi rõ, vì tự nó không nói mua bằng cách nào. */
     private static boolean isOtherMethod(AcquisitionMethod method) {
-        return method != null && "KHAC".equals(method.getCode());
+        return method != null && "KHAC".equals(method.getSystemKey());
     }
 
     /**
@@ -1170,9 +1176,15 @@ public class EquipmentIntakeService implements RecordAccess {
                 throw new FieldValidationException("details." + f[0], "Cấp trên mua tập trung: nhập " + f[1]);
             }
         }
+        // Quyết định giao có trước, bàn giao sau (ngày dạng yyyy-MM-dd so được như chuỗi).
+        String decided = String.valueOf(details.get("assignmentDecisionDate"));
+        String handed = String.valueOf(details.get("handoverDate"));
+        if (handed.compareTo(decided) < 0) {
+            throw new FieldValidationException("details.handoverDate", "Ngày bàn giao không được trước ngày quyết định giao");
+        }
         for (EquipmentIntakeDocument document : intake.getDocuments()) {
             if (document.getAcquisitionMethod() == null
-                    || !CENTRALIZED_PURCHASE.equals(document.getAcquisitionMethod().getCode())) {
+                    || !CENTRALIZED_PURCHASE.equals(document.getAcquisitionMethod().getSystemKey())) {
                 throw new FieldValidationException("documents",
                         "Hoá đơn %d: hàng cấp trên mua tập trung — hình thức là \"Mua sắm tập trung\"".formatted(document.getDocNo()));
             }

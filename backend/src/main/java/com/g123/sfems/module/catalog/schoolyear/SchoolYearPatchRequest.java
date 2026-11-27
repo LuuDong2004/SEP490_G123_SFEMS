@@ -16,7 +16,7 @@ import com.g123.sfems.shared.validation.Text;
  * "kết thúc sau bắt đầu" phải kiểm trên giá trị SAU KHI GỘP với bản ghi đã lưu,
  * ở service; {@code @DateRange} ở đây chỉ bắt được khi gửi cả hai ngày.
  */
-@DateRange(from = "startDate", to = "endDate", message = "Ngày kết thúc không được trước ngày bắt đầu")
+@DateRange(from = "startDate", to = "endDate", message = "Ngày kết thúc phải sau ngày bắt đầu")
 public record SchoolYearPatchRequest(
         @Size(min = 1, message = "Mã không được để trống")
         @Text(value = FieldRule.CODE, label = "Mã", max = 64)

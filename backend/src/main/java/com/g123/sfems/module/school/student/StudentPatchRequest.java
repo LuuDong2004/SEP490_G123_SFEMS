@@ -25,7 +25,7 @@ public record StudentPatchRequest(
         @Text(value = FieldRule.CODE, label = "Mã học sinh")
         String code,
         @Size(min = 1, message = "Họ và tên không được để trống")
-        @Text(value = FieldRule.PERSON_NAME, label = "Họ và tên")
+        @Text(value = FieldRule.PERSON_NAME, label = "Họ và tên", min = 2)
         String name,
         @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,

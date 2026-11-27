@@ -28,8 +28,14 @@ public enum FieldRule {
     /** Số hoá đơn: chữ không dấu, số, dấu / - . và khoảng trắng; tối đa 30 (cả ký hiệu lẫn số hoá đơn điện tử). */
     INVOICE_NO(30, "^[A-Za-z0-9/. -]*$", "chỉ gồm chữ không dấu, số, dấu / - . và khoảng trắng", null),
 
-    /** Tên một thứ (thiết bị, phòng, trường…): phải có ít nhất một chữ hoặc số, không ký tự điều khiển. */
-    NAME(255, "^(?=.*[\\p{L}\\p{N}])[^\\p{Cc}]*$", "phải có chữ hoặc số và không chứa ký tự điều khiển", null),
+    /**
+     * Tên một thứ (thiết bị, phòng, trường, năm học…): có ít nhất một chữ cái, bắt đầu bằng chữ / số / ngoặc / nháy,
+     * chỉ gồm chữ, số, khoảng trắng và dấu câu của tên thật — {@code , . : ; / ( ) - – ' " & + % ° …} (dữ liệu thật
+     * 27/11/2026: "Video/clip/…", "Sở GD&ĐT", "TT 37/2021 + 26/2023"). Chặn ký hiệu không có trong tên:
+     * {@code @ # $ ^ * = < > { } [ ] | ~ ! ?} (trưởng nhóm: năm học tên "@@@@@123" từng lưu được).
+     */
+    NAME(255, "^(?=.*\\p{L})[\\p{L}\\p{N}(\"'][\\p{L}\\p{M}\\p{N} .,:;/()'\"&+%°…–_-]*$",
+            "phải có chữ cái, chỉ gồm chữ, số, khoảng trắng và các dấu , . : ; / ( ) - ' \" & + %", null),
 
     /** Họ tên một người. */
     PERSON_NAME(100, "^[\\p{L}\\p{M}][\\p{L}\\p{M} .'-]*$", "chỉ gồm chữ cái, khoảng trắng, dấu nháy và gạch nối", null),
@@ -45,9 +51,23 @@ public enum FieldRule {
 
     ADDRESS(500, "^[^\\p{Cc}]*$", "không được chứa ký tự điều khiển", null),
 
-    // Trần theo RFC 5321: cả địa chỉ 254, phần trước @ 64 ký tự.
-    EMAIL(254, "^$|^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$",
-            "không đúng định dạng (vd. ten@truong.edu.vn; phần trước @ tối đa 64 ký tự)", null),
+    /**
+     * Số văn bản: công văn, quyết định, biên bản, chứng từ ("125/QĐ-SGDĐT", "1234/SGDĐT-KHTC", "HD123") — có ít nhất
+     * một chữ số, bắt đầu bằng chữ hoặc số, chỉ gồm chữ (kể cả Đ), số và {@code / - . _} khoảng trắng.
+     */
+    DOC_NO(50, "^(?=.*\\p{N})[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}/._ -]*$", "phải có chữ số, chỉ gồm chữ, số và / - . _", null),
+
+    /**
+     * Lý do, ý kiến bắt buộc (lý do đề xuất, trả lại, từ chối): như ghi chú nhiều dòng nhưng phải có chữ cái —
+     * "....." hay "@@@" không phải một lý do (rà soát 27/11/2026). Kèm {@code min} ở chỗ dùng.
+     */
+    REASON(1000, "^(?=.*\\p{L})[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]*$", "phải có chữ, không chứa ký tự điều khiển", null),
+
+    // Trần theo RFC 5321: cả địa chỉ 254, phần trước @ 64 ký tự. Phần trước @ không mở / đóng bằng dấu chấm, không hai
+    // dấu chấm liền; mỗi nhãn tên miền không mở / đóng bằng gạch nối; đuôi 2–6 chữ cái (.vn, .com, .edu, .online) —
+    // chặn "gmail.commmmm" (trưởng nhóm 27/11/2026).
+    EMAIL(254, "^$|^(?!\\.)(?!.*\\.\\.)[A-Za-z0-9._%+-]{1,64}(?<!\\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,6}$",
+            "không đúng định dạng (vd. ten@truong.edu.vn)", null),
 
     /**
      * Số điện thoại Việt Nam: bỏ khoảng trắng, chấm, gạch, ngoặc rồi phải là 0 hoặc +84 và 9–10 chữ số

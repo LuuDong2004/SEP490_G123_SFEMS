@@ -17,6 +17,7 @@ import com.g123.sfems.module.organization.school.service.ManagedSchoolsCache;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelPrincipalResolver;
 import com.g123.sfems.module.security.rowlevel.service.RowLevelSecurity;
 import com.g123.sfems.shared.exception.FieldValidationException;
+import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.exception.ResourceNotFoundException;
 import com.g123.sfems.shared.security.rowlevel.Action;
 import com.g123.sfems.shared.security.rowlevel.RowLevelPrincipal;
@@ -154,6 +155,7 @@ public class InventoryCampaignService {
     /** Chuyên viên trình đợt nháp: chờ Lãnh đạo Sở duyệt, báo lãnh đạo cùng cơ quan. */
     @Transactional
     public InventoryCampaign submit(Long id) {
+        requireNotOver(owned(id));
         InventoryCampaign campaign = draft(owned(id));
         requireNoOpenTwin(campaign);
         campaign.setStatus(Status.PENDING);
@@ -180,6 +182,7 @@ public class InventoryCampaignService {
     /** Lãnh đạo Sở duyệt: đợt được phát động — các trường thấy đợt và được báo. */
     @Transactional
     public InventoryCampaign approve(Long id, String note) {
+        requireNotOver(get(id));
         InventoryCampaign campaign = pendingForApprover(id);
         requireNoOpenTwin(campaign);
         campaign.setStatus(Status.APPROVED);
@@ -187,10 +190,29 @@ public class InventoryCampaignService {
         campaign.setApprovedById(CurrentUser.id().orElse(null));
         campaign.setApprovalNote(trimToNull(note));
         InventoryCampaign saved = repository.save(campaign);
+        // Người lập đợt được báo đợt đã duyệt (trường đã được báo qua CampaignLaunched).
+        Long author = jdbc.queryForObject("SELECT created_by_id FROM inventory_campaigns WHERE id = ?", Long.class, id);
+        if (author != null && !author.equals(CurrentUser.id().orElse(null))) {
+            notifications.notify(NotificationType.VOUCHER_RESULT, author, NotificationLevel.SUCCESS,
+                    "Đợt kiểm kê đã được duyệt: " + saved.getTitle(),
+                    "Đợt đã phát động tới các trường." + (saved.getApprovalNote() == null ? "" : " Ý kiến: " + saved.getApprovalNote()),
+                    "/inventory-campaigns/show/" + saved.getId());
+        }
         publisher.publishEvent(new CampaignLaunchNotifier.CampaignLaunched(saved.getManagingBody().getId(),
                 saved.getManagingBody().getType() == ManagingBodyType.SO, saved.getTitle(), saved.getCutoffDate(),
                 saved.getDeadline()));
         return saved;
+    }
+
+    /** Đợt dài nhất (tháng) tính từ ngày hiệu lực. */
+    static final int MAX_MONTHS = 12;
+
+    /** Đợt đã quá ngày kết thúc thì không trình, không duyệt — phát động tới trường một đợt đã hết hạn là vô nghĩa. */
+    private static void requireNotOver(InventoryCampaign campaign) {
+        if (campaign.getDeadline() != null
+                && campaign.getDeadline().isBefore(LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")))) {
+            throw new FieldValidationException("deadline", "Ngày kết thúc đã qua — sửa ngày trước khi trình, duyệt");
+        }
     }
 
     /** Lãnh đạo Sở trả lại (bắt buộc ghi lý do): đợt về nháp để chuyên viên sửa rồi trình lại. */
@@ -199,6 +221,10 @@ public class InventoryCampaignService {
         String reason = trimToNull(note);
         if (reason == null) {
             throw new FieldValidationException("note", "Ghi lý do trả lại để chuyên viên biết phải sửa gì");
+        }
+        String reasonProblem = FieldRule.REASON.violation(reason, 500, 5);
+        if (reasonProblem != null) {
+            throw new FieldValidationException("note", "Lý do " + reasonProblem);
         }
         InventoryCampaign campaign = pendingForApprover(id);
         campaign.setStatus(Status.DRAFT);
@@ -503,11 +529,22 @@ public class InventoryCampaignService {
         if (input.closed() != null) {
             campaign.setClosed(input.closed());
         }
-        if (campaign.getTitle() == null || campaign.getCutoffDate() == null || campaign.getDeadline() == null) {
-            throw new FieldValidationException("title", "Nhập tên đợt, ngày hiệu lực và ngày kết thúc");
+        // Mỗi lỗi gắn đúng ô của nó để form tô đỏ đúng chỗ.
+        if (campaign.getTitle() == null) {
+            throw new FieldValidationException("title", "Nhập tên đợt kiểm kê");
+        }
+        if (campaign.getCutoffDate() == null) {
+            throw new FieldValidationException("cutoffDate", "Chọn ngày hiệu lực");
+        }
+        if (campaign.getDeadline() == null) {
+            throw new FieldValidationException("deadline", "Chọn ngày kết thúc");
         }
         if (campaign.getDeadline().isBefore(campaign.getCutoffDate())) {
-            throw new FieldValidationException("deadline", "Ngày kết thúc phải sau ngày hiệu lực");
+            throw new FieldValidationException("deadline", "Ngày kết thúc không được trước ngày hiệu lực");
+        }
+        // Một đợt kiểm kê không kéo dài quá một năm — quá thì là gõ nhầm năm.
+        if (campaign.getDeadline().isAfter(campaign.getCutoffDate().plusMonths(MAX_MONTHS))) {
+            throw new FieldValidationException("deadline", "Đợt kiểm kê kéo dài tối đa " + MAX_MONTHS + " tháng");
         }
     }
 }

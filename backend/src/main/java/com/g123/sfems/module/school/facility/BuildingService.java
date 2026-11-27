@@ -11,6 +11,9 @@ import com.g123.sfems.domain.school.facility.Building;
 import com.g123.sfems.domain.school.facility.Room;
 import jakarta.persistence.FlushModeType;
 import java.math.BigDecimal;
+import java.time.Year;
+import java.time.ZoneId;
+import com.g123.sfems.module.school.base.SameName;
 import com.g123.sfems.module.catalog.base.CatalogSpecifications;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.organization.school.service.SchoolService;
@@ -55,6 +58,7 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
         item.setStructure(request.structure());
         requireSameSchool(item, item.getCampus(), "campus");
         requireSameSchool(item, item.getManagingStaff(), "managingStaff");
+        requireProfile(item, true, true, true);
     }
 
     @Override
@@ -91,6 +95,9 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
         }
         requireSameSchool(item, item.getCampus(), "campus");
         requireSameSchool(item, item.getManagingStaff(), "managingStaff");
+        // Chỉ kiểm ô vừa gửi: bản ghi cũ lệch luật vẫn sửa được các ô khác.
+        requireProfile(item, request.builtYear() != null, request.floorArea() != null,
+                request.name() != null || request.campus() != null || request.active() != null);
         Profile after = Profile.of(item);
         if (after.campus() != null && !after.campus().equals(before.campus())) {
             moveRooms(item);
@@ -106,6 +113,25 @@ public class BuildingService extends SchoolOwnedService<Building, BuildingReques
             return new Profile(b.getStructure(), b.getCondition(), b.getFloorCount(),
                     b.getFloorArea() == null ? null : b.getFloorArea().stripTrailingZeros(), b.getBuiltYear(),
                     b.getCampus() == null ? null : b.getCampus().getId());
+        }
+    }
+
+    /**
+     * Năm đưa vào sử dụng không sau năm nay (chú thích trên DTO không đọc được năm hiện tại), diện tích sàn phải dương,
+     * tên khối nhà không trùng trong cùng cơ sở — hai "Nhà A" thì ô chọn khối nhà không phân biệt được.
+     */
+    private void requireProfile(Building item, boolean year, boolean area, boolean name) {
+        int thisYear = Year.now(ZoneId.of("Asia/Ho_Chi_Minh")).getValue();
+        if (year && item.getBuiltYear() != null && item.getBuiltYear() > thisYear) {
+            throw new FieldValidationException("builtYear", "Năm đưa vào sử dụng không được sau năm nay");
+        }
+        if (area && item.getFloorArea() != null && item.getFloorArea().signum() <= 0) {
+            throw new FieldValidationException("floorArea", "Diện tích sàn phải lớn hơn 0");
+        }
+        if (name && item.getCampus() != null
+                && SameName.taken(entityManager(), Building.class, item, "campus", item.getCampus().getId())) {
+            throw new FieldValidationException("name",
+                    "Cơ sở đã có khối nhà tên \"%s\"".formatted(item.getName().trim()));
         }
     }
 

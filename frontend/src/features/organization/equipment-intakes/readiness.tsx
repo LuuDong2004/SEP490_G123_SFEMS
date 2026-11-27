@@ -1,4 +1,4 @@
-import { fundingAllowed, fundingRequired, OTHER_ACQUISITION_CODE, type OriginRule } from "@/domains/equipment/types";
+import { fundingAllowed, fundingRequired, OTHER_ACQUISITION_KEY, type OriginRule } from "@/domains/equipment/types";
 import type { Details, VoucherFormConfig } from "@/domains/voucher/form-types";
 import { textError } from "@/shared/lib/field-rules";
 
@@ -104,7 +104,7 @@ function fundingIssue(line: any, headFunding: string | null | undefined, rule: O
   // "Nguồn khác" phải ghi rõ — dòng theo phiếu mang phần ghi rõ của phiếu lúc lưu.
   if (funding === "OTHER" && !filled(line?.fundingNote) && filled(line?.fundingSource)) return "Chưa ghi rõ nguồn kinh phí";
   // Hình thức mua sắm "Khác" phải ghi rõ — cùng luật với máy chủ lúc trình.
-  if (rule.acquisitionMethod && line?.acquisitionMethod?.id && line?.acquisitionMethod?.code === OTHER_ACQUISITION_CODE && !filled(line?.acquisitionNote)) {
+  if (rule.acquisitionMethod && line?.acquisitionMethod?.id && line?.acquisitionMethod?.systemKey === OTHER_ACQUISITION_KEY && !filled(line?.acquisitionNote)) {
     return "Chưa ghi rõ hình thức mua sắm";
   }
   return null;
@@ -241,7 +241,7 @@ export function intakeReadiness(
       if (d?.fundingSource === "OTHER") {
         checks.push({ label: "ghi rõ nguồn kinh phí", ok: filled(String(d?.fundingNote ?? "").trim()), field: `documents.${i}.fundingSource` });
       }
-      if (rule.acquisitionMethod && d?.acquisitionMethod?.code === OTHER_ACQUISITION_CODE) {
+      if (rule.acquisitionMethod && d?.acquisitionMethod?.systemKey === OTHER_ACQUISITION_KEY) {
         checks.push({ label: "ghi rõ hình thức mua sắm", ok: filled(String(d?.acquisitionNote ?? "").trim()), field: `documents.${i}.acquisitionMethod` });
       }
     }

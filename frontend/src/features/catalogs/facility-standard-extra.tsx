@@ -115,7 +115,9 @@ export const FACILITY_STANDARD_EXTRA: CatalogExtra = {
       header: "Cấp",
       enableSorting: false,
       size: 110,
-      cell: ({ row }) => <span className="text-sm whitespace-nowrap">{levelName(row.original.levelCode)}</span>,
+      cell: ({ row }) => row.original.levelCode
+        ? <span className="text-sm whitespace-nowrap">{levelName(row.original.levelCode)}</span>
+        : <span className="text-muted-foreground text-sm">Chưa chọn cấp</span>,
     },
     {
       id: "tier",
@@ -133,7 +135,12 @@ export const FACILITY_STANDARD_EXTRA: CatalogExtra = {
       header: "Điều kiện",
       enableSorting: false,
       meta: { fill: true },
-      cell: ({ row }) => <span className="text-sm whitespace-normal">{ruleSummary(row.original)}</span>,
+      cell: ({ row }) => {
+        const text = ruleSummary(row.original);
+        return text === "—"
+          ? <span className="text-muted-foreground text-sm">Chưa khai điều kiện</span>
+          : <span className="text-sm whitespace-normal">{text}</span>;
+      },
     },
   ] as ColumnDef<any, any>[],
   show: (r: FacilityStandardRule) => [

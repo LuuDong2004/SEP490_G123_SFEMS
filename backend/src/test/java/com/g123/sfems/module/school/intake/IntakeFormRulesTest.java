@@ -25,6 +25,7 @@ class IntakeFormRulesTest {
         if (origin != null) {
             OriginSource source = new OriginSource();
             source.setCode(origin.name());
+            source.setSystemKey(origin.name());
             source.setName(origin.label());
             intake.setOriginSource(source);
         }

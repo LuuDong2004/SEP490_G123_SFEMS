@@ -103,7 +103,7 @@ function num(c: Column, field: NumField): number | null {
 
 const RULES: Record<NumField, NumberRule> = {
   minCount: "COUNT", perRooms: "COUNT", perClasses: "COUNT", largeClassFrom: "COUNT", largeMinCount: "COUNT",
-  minRoomArea: "DECIMAL_QUANTITY", areaPerStudent: "DECIMAL_QUANTITY", studentPercent: "PERCENT", minTotalArea: "DECIMAL_QUANTITY",
+  minRoomArea: "AREA", areaPerStudent: "AREA", studentPercent: "PERCENT", minTotalArea: "AREA",
 };
 
 /** Lỗi theo `mức.yêu-cầu` (hoặc `mức.legalDocuments`, `mức.conds`). */
@@ -119,8 +119,16 @@ function check(cols: Columns): Errors {
       if (needed.some((f) => c[f].trim() === "")) { out[`${key}.${k}`] = "Vui lòng nhập số"; continue; }
       const bad = fields.map((f) => numberError(RULES[f], "Số", c[f])).find(Boolean);
       if (bad) { out[`${key}.${k}`] = bad; continue; }
+      // Cùng luật máy chủ (`FacilityStandardRuleService.requireCondition`): số khai phải > 0 — muốn không xét thì bỏ câu.
+      if (needed.some((f) => Number(c[f]) <= 0)) { out[`${key}.${k}`] = "Số phải lớn hơn 0"; continue; }
       if (k === "perClass" && (Number(c.perClasses) < 1 || Number(c.perRooms) < 1)) out[`${key}.${k}`] = "Số từ 1 trở lên";
-      if (k === "perStudent" && c.studentPercent.trim() && Number(c.studentPercent) <= 0) out[`${key}.${k}`] = "Phần trăm phải lớn hơn 0";
+      else if (k === "perClass" && Number(c.perRooms) / Number(c.perClasses) > 10) out[`${key}.${k}`] = "Tối đa 10 phòng mỗi lớp";
+      if (k === "perStudent" && Number(c.areaPerStudent) > 100) out[`${key}.${k}`] = "Diện tích mỗi học sinh tối đa 100 m²";
+      else if (k === "perStudent" && c.studentPercent.trim() && Number(c.studentPercent) <= 0) out[`${key}.${k}`] = "Phần trăm phải lớn hơn 0";
+      if (k === "large" && c.conds.includes("count") && c.minCount.trim() !== ""
+        && Number(c.largeMinCount) < Number(c.minCount)) {
+        out[`${key}.${k}`] = `Số phòng của trường lớn không được ít hơn số phòng tối thiểu (${c.minCount})`;
+      }
     }
     if (!c.legalDocuments.length) out[`${key}.legalDocuments`] = "Vui lòng chọn văn bản căn cứ";
   }

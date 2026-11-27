@@ -87,13 +87,15 @@ class FacilityStandardThptTest {
     private void room(String type, int area) {
         jdbc.update("""
                 INSERT INTO rooms (school_id, code, name, room_type_id, area, usage_status, created_at)
-                SELECT ?, ?, 'Phòng thử', t.id, ?, NULL, now() FROM room_types t WHERE t.code = ?""", school,
+                SELECT ?, ?, 'Phòng thử', t.id, ?, NULL, now() FROM room_types t WHERE t.system_key = ?""", school,
                 "T" + UUID.randomUUID().toString().substring(0, 8), area, type);
     }
 
+    /** Mục của loại theo khoá hệ thống (312) — mã hiển thị là LPH…, đổi theo quy tắc sinh mã. */
     private Item item(String type) {
+        String code = jdbc.queryForObject("SELECT code FROM room_types WHERE system_key = ?", String.class, type);
         Evaluation e = service.evaluate(school);
-        return e.groups().stream().flatMap(g -> g.items().stream()).filter(i -> i.code().equals(type)).findFirst()
+        return e.groups().stream().flatMap(g -> g.items().stream()).filter(i -> i.code().equals(code)).findFirst()
                 .orElseThrow();
     }
 }

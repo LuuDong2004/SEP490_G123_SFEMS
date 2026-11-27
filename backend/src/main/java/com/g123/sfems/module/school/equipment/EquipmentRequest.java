@@ -18,7 +18,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Map;
 
 /** Payload tạo thiết bị. Mã giữ nguyên mã gợi ý thì chốt số của bộ đếm. */
 public record EquipmentRequest(
@@ -68,7 +67,5 @@ public record EquipmentRequest(
         IdRef room,
         IdRef manager,
         EquipmentCondition condition,
-        AssetStatus status,
-        IdRef config,
-        Map<String, String> specs) implements SchoolOwnedInput {
+        AssetStatus status) implements SchoolOwnedInput {
 }

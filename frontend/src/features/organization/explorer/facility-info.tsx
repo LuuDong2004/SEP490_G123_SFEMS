@@ -65,6 +65,12 @@ function areaError(label: string, text: string): string | undefined {
   return numberError("AREA", label, Number.isNaN(n) ? text : n);
 }
 
+/** Diện tích xây dựng nằm trên đất của trường — cùng luật máy chủ (`SchoolService.requireAreasFit`). */
+function areasFitError(land: number | null | undefined, construction: number | null | undefined): string | undefined {
+  return land != null && construction != null && !Number.isNaN(land) && !Number.isNaN(construction) && construction > land
+    ? "Diện tích xây dựng không được lớn hơn diện tích đất" : undefined;
+}
+
 /** Danh sách làm nên một số tự tính của khối Số liệu chung CSVC. */
 type FacilityDetailKind =
   | { kind: "rooms"; typeCode: string; title: string; seats: string; beds?: boolean }
@@ -97,7 +103,7 @@ function FacilityDetailDialog({ schoolId, kind, onClose }: { schoolId: number; k
   });
   const all = result?.data ?? [];
   const rows = rooms
-    ? all.filter((r: any) => r.roomType?.code === kind.typeCode && r.active !== false)
+    ? all.filter((r: any) => r.roomType?.systemKey === kind.typeCode && r.active !== false)
     : all.filter((c: any) => c.active !== false);
   const columns: DetailColumn[] = rooms
     ? [
@@ -243,7 +249,9 @@ export function FacilityInfoPanel({ schoolId, general, onGo }: {
           <dd className="mt-0.5 text-sm font-medium tabular-nums">
             <InlineEdit value={value == null ? null : String(value).replace(".", ",")} label={label} inputMode="decimal"
               display={<>{num.format(value ?? 0)}<span className="text-muted-foreground ms-1 text-xs font-normal">m²</span></>}
-              check={(d) => areaError(label, d)} onSave={saveArea(field)} />
+              check={(d) => areaError(label, d) ?? areasFitError(
+                field === "landArea" ? parseArea(d) : data.landArea,
+                field === "constructionArea" ? parseArea(d) : data.constructionArea)} onSave={saveArea(field)} />
           </dd>
         </div>
       ) : <Fact label={label} value={value} unit="m²" />;
@@ -334,8 +342,8 @@ export function FacilityInfoPanel({ schoolId, general, onGo }: {
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell>{c.kind === "MAIN" ? <Badge variant="info">{KIND[c.kind]}</Badge> : KIND[c.kind]}</TableCell>
-                <TableCell className="text-right tabular-nums">{c.studentCount == null ? "—" : num.format(c.studentCount)}</TableCell>
-                <TableCell className="text-right tabular-nums">{c.classCount == null ? "—" : num.format(c.classCount)}</TableCell>
+                <TableCell className="text-right tabular-nums">{c.studentCount == null ? <span className="text-muted-foreground">Chưa có lớp</span> : num.format(c.studentCount)}</TableCell>
+                <TableCell className="text-right tabular-nums">{c.classCount == null ? <span className="text-muted-foreground">Chưa có lớp</span> : num.format(c.classCount)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -354,8 +362,11 @@ function EditDialog({ info, onClose }: { info: FacilityInfo; onClose: () => void
   });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const toNum = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
-  const bad = Object.values(v).some((s) => s.trim() !== "" && (Number.isNaN(Number(s.replace(",", "."))) || Number(s.replace(",", ".")) < 0));
+  // Cùng cách đọc số và luật AREA như ô sửa tại chỗ của tab Hồ sơ trường.
+  const toNum = parseArea;
+  const errors = [areaError("Diện tích đất", v.landArea), areaError("Diện tích xây dựng", v.constructionArea),
+    areasFitError(toNum(v.landArea), toNum(v.constructionArea))].filter(Boolean) as string[];
+  const bad = errors.length > 0;
   async function save() {
     setBusy(true);
     setProblem(null);
@@ -392,9 +403,9 @@ function EditDialog({ info, onClose }: { info: FacilityInfo; onClose: () => void
         </div>
         {/* Số học sinh, số lớp không nhập ở đây: tính từ danh sách lớp đã khai của năm học hiện tại. */}
         <p className="text-muted-foreground text-xs">
-          Số học sinh {info.studentCount == null ? "—" : num.format(info.studentCount)} · số lớp {info.classCount == null ? "—" : num.format(info.classCount)}: tính từ danh sách lớp năm học hiện hành.
+          Số học sinh {info.studentCount == null ? "chưa tính được" : num.format(info.studentCount)} · số lớp {info.classCount == null ? "chưa tính được" : num.format(info.classCount)}: tính từ danh sách lớp năm học hiện hành.
         </p>
-        {bad ? <p className="text-destructive-text text-xs">Nhập số không âm.</p> : null}
+        {errors.map((e) => <p key={e} className="text-destructive-text text-xs">{e}</p>)}
         {problem ? <p role="alert" className="text-destructive-text text-xs">{problem}</p> : null}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>Huỷ</Button>

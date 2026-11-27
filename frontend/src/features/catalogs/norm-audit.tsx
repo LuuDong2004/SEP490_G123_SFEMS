@@ -103,7 +103,7 @@ export function NormChangeLog({ id, format }: { id: number; format?: (field: str
     const key = `${c.createdAt.slice(0, 19)}|${c.actorName ?? ""}`;
     const last = groups[groups.length - 1];
     if (last?.key === key) last.items.push(c);
-    else groups.push({ key, at: c.createdAt, who: c.actorName ?? "—", items: [c] });
+    else groups.push({ key, at: c.createdAt, who: c.actorName ?? "không rõ người sửa", items: [c] });
   }
   return (
     <>

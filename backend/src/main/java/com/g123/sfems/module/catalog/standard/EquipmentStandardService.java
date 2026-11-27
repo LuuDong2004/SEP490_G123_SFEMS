@@ -47,6 +47,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class EquipmentStandardService extends CatalogService<
         EquipmentStandard, EquipmentStandardRequest, EquipmentStandardPatchRequest> {
 
+    @Override
+    protected boolean codeLocked() {
+        return true;
+    }
+
     private final EducationLevelService educationLevels;
     private final SchoolYearService schoolYears;
     private final CallerSchoolLevel callerLevel;

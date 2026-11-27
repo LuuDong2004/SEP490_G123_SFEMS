@@ -59,8 +59,6 @@ public record EquipmentResponse(
         RefSummary manager,
         EquipmentCondition condition,
         AssetStatus status,
-        RefSummary config,
-        Map<String, String> specs,
         /**
          * Phiếu nhập đã sinh ra tài sản này — {@code null} với tài sản nhập tay.
          * Mã ở đây là SỐ PHIẾU, nên màn chi tiết dẫn ngược về chứng từ được.
@@ -101,7 +99,6 @@ public record EquipmentResponse(
                 item.getPurchaseDate(), item.getOriginalValue(),
                 item.getWarrantyExpiry(), item.getExpiryDate(), RefSummary.of(item.getRoom()),
                 RefSummary.of(item.getManager()), item.getCondition(), item.getStatus(),
-                RefSummary.of(item.getConfig()), item.getSpecs(),
                 intakeOf(item), documentOf(item), item.isProfileComplete(), item.missingProfile(), item.getLegacyCode(),
                 item.getCreatedAt(), item.getUpdatedAt(),
                 rowLevel == null ? Map.of() : rowLevel.capabilities(item));

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { kyInstance } from "@/shared/api/data";
 import { ListView, ListViewHeader } from "@/shared/components/views/list-view";
 import { errorMessage } from "@/shared/lib/api-error";
+import { maxLengthOf, textError } from "@/shared/lib/field-rules";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -18,6 +19,12 @@ import { Switch } from "@/shared/ui/switch";
 
 const KEY = ["mail_config"];
 const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+// Cùng biểu thức với máy chủ (`MailConfigService.HOST_PATTERN`): tên máy hoặc IPv4, không "smtp://", không cổng.
+const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <p className="text-destructive text-sm">{message}</p> : null;
+}
 
 type Security = "STARTTLS" | "SSL" | "NONE";
 
@@ -99,6 +106,18 @@ export function MailConfigPage() {
   const configured = !!(data?.host) && (data?.enabled ?? false);
   const dirty = Object.keys(form).length > 0;
 
+  // Form không dùng react-hook-form: tính lỗi từ giá trị hiện có, chỉ hiện khi đã sửa (cấu hình cũ không bị bôi đỏ).
+  const host = str("host").trim();
+  const errors: Record<string, string | undefined> = dirty ? {
+    host: host === ""
+      ? bool("enabled", true) ? "Bật gửi thư thì phải khai máy chủ SMTP" : undefined
+      : host.length > 253 || !HOST_RE.test(host) ? "Máy chủ SMTP không hợp lệ (vd. smtp.gmail.com)" : undefined,
+    username: textError("SHORT_TEXT", "Tài khoản", str("username"), 255),
+    fromAddress: textError("EMAIL", "Địa chỉ gửi", str("fromAddress")),
+    senderName: textError("SHORT_TEXT", "Tên người gửi", str("senderName"), 100),
+  } : {};
+  const invalid = Object.values(errors).some(Boolean);
+
   return (
     <ListView>
       <ListViewHeader canCreate={false} title="Cài đặt máy chủ thư" />
@@ -143,9 +162,12 @@ export function MailConfigPage() {
                 id="smtp-host"
                 value={str("host")}
                 placeholder="smtp.gmail.com"
+                maxLength={253}
+                aria-invalid={!!errors.host}
                 disabled={!canWrite}
                 onChange={(e) => set({ host: e.target.value })}
               />
+              <FieldError message={errors.host} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="smtp-port">
@@ -188,9 +210,12 @@ export function MailConfigPage() {
                 id="smtp-user"
                 value={str("username")}
                 placeholder="user@gmail.com"
+                maxLength={255}
+                aria-invalid={!!errors.username}
                 disabled={!canWrite}
                 onChange={(e) => set({ username: e.target.value })}
               />
+              <FieldError message={errors.username} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="smtp-pass">Mật khẩu</Label>
@@ -227,9 +252,13 @@ export function MailConfigPage() {
                 id="smtp-from"
                 value={str("fromAddress")}
                 placeholder="no-reply@sfems.vn"
+                maxLength={maxLengthOf("EMAIL")}
+                inputMode="email"
+                aria-invalid={!!errors.fromAddress}
                 disabled={!canWrite}
                 onChange={(e) => set({ fromAddress: e.target.value })}
               />
+              <FieldError message={errors.fromAddress} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="smtp-sender-name">Tên người gửi</Label>
@@ -237,9 +266,12 @@ export function MailConfigPage() {
                 id="smtp-sender-name"
                 value={str("senderName")}
                 placeholder="QLTB"
+                maxLength={100}
+                aria-invalid={!!errors.senderName}
                 disabled={!canWrite}
                 onChange={(e) => set({ senderName: e.target.value })}
               />
+              <FieldError message={errors.senderName} />
             </div>
           </div>
 
@@ -250,7 +282,7 @@ export function MailConfigPage() {
                   Huỷ
                 </Button>
               )}
-              <Button onClick={() => void save()} disabled={!dirty || saving}>
+              <Button onClick={() => void save()} disabled={!dirty || saving || invalid}>
                 {saving && <Loader2 className="size-4 animate-spin" />}
                 Lưu
               </Button>

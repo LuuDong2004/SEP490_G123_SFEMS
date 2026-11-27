@@ -7,6 +7,8 @@ import com.g123.sfems.domain.school.equipment.EquipmentEnums.EquipmentCondition;
 import com.g123.sfems.module.catalog.base.dto.IdRef;
 import com.g123.sfems.module.school.equipment.EquipmentRequest;
 import com.g123.sfems.module.school.equipment.EquipmentService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -50,10 +52,12 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
 
     private final JdbcTemplate jdbc;
     private final EquipmentService equipment;
+    private final Validator validator;
 
-    public EquipmentImport(JdbcTemplate jdbc, EquipmentService equipment) {
+    public EquipmentImport(JdbcTemplate jdbc, EquipmentService equipment, Validator validator) {
         this.jdbc = jdbc;
         this.equipment = equipment;
+        this.validator = validator;
     }
 
     @Override
@@ -168,7 +172,7 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
         if (origin != null && funding != null && !origin.allows(funding)) {
             errors.add("Nguồn kinh phí \"" + funding.label() + "\" không đi với nguồn hình thành \"" + origin.label() + "\"");
         }
-        Long originId = origin == null ? null : id("SELECT id FROM origin_sources WHERE code = ?", origin.name());
+        Long originId = origin == null ? null : id("SELECT id FROM origin_sources WHERE system_key = ?", origin.name());
         EquipmentCondition condition = v.choice("condition", "Tình trạng", EquipmentCondition.class, CONDITION::get);
         AssetStatus status = v.choice("status", "Trạng thái", AssetStatus.class, STATUS::get);
         if (status != null && !IMPORTABLE.contains(status)) {
@@ -197,7 +201,18 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
                 originId == null ? null : new IdRef(originId), null, funding, null,
                 startYear, received, received, original, null, null, room == null ? null : new IdRef(room),
                 manager == null ? null : new IdRef(manager), condition == null ? EquipmentCondition.TOT : condition,
-                status, null, null);
+                status);
+        // Ghi gọi thẳng service, không qua @Valid của controller: chạy cùng chú thích của form (tên 2–200, serial,
+        // năm, ngày, nguyên giá, số lượng…) ngay ở bước xem trước, kẻo dòng sai chỉ vỡ lúc ghi.
+        // Mã trống là "để hệ thống cấp mã chuẩn" (service nhận), nên bỏ lỗi bắt buộc của ô mã.
+        validator.validate(request).stream()
+                .filter(c -> !(code == null && "code".equals(c.getPropertyPath().toString())))
+                .map(ConstraintViolation::getMessage)
+                .sorted()
+                .forEach(errors::add);
+        if (!errors.isEmpty()) {
+            return new Parsed<>(null, errors, code);
+        }
         return new Parsed<>(new Row(request, copies), errors, code);
     }
 
@@ -215,7 +230,8 @@ public class EquipmentImport implements ImportTarget<EquipmentImport.Row> {
 
     @Override
     public List<Unique> uniques(Row row) {
-        String key = EquipmentService.normalizeSerial(row.request().serialNumber());
+        // Cùng cách chuẩn hoá lúc lưu (bỏ khoảng trắng, chữ hoa): "AB 12" và "ab12" là một serial.
+        String key = OnboardingValidator.serialKey(row.request().serialNumber());
         return key == null ? List.of() : List.of(new Unique("Số serial", key, row.request().serialNumber().trim()));
     }
 

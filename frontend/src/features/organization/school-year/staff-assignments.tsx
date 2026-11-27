@@ -165,9 +165,9 @@ export function StaffAssignmentsPanel({ schoolId }: { schoolId?: number | null }
                   {showCampus ? <TableCell className="text-muted-foreground">{a.campusName ?? "Cơ sở chính"}</TableCell> : null}
                   <TableCell>{a.mainSubject?.name ?? <span className="text-warning-text">Chưa có</span>}</TableCell>
                   <TableCell className="max-w-[20rem] truncate" title={a.subjects.map((s) => s.name).join(", ")}>
-                    {a.subjects.map((s) => s.name).join(", ") || "—"}
+                    {a.subjects.map((s) => s.name).join(", ") || <span className="text-muted-foreground">Chưa có môn</span>}
                   </TableCell>
-                  <TableCell>{a.homeroomClasses.join(", ") || "—"}</TableCell>
+                  <TableCell>{a.homeroomClasses.join(", ") || <span className="text-muted-foreground">Không chủ nhiệm</span>}</TableCell>
                   <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                     {editable ? (
                       <DropdownMenu>

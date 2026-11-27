@@ -2,7 +2,7 @@ import { ChoiceList, FilterButton, FilterField } from "@/shared/components/data-
 import { IconFilter } from "@/shared/components/data-table/icon-filter";
 import { useCan, useNotification } from "@refinedev/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, History, Layers, Loader2, MapPin, Printer, RefreshCw, School, Settings, Tag } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Archive, CircleDot, Clock, Download, FileSpreadsheet, History, Layers, Loader2, MapPin, RefreshCw, School, Settings, Tag } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -434,9 +434,6 @@ export const Reports = () => {
                     <FileSpreadsheet /> {csvc ? "Excel mẫu Sở (.xlsx)" : "Excel (.xlsx)"}
                   </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuItem onSelect={() => window.print()}>
-                  <Printer /> In / lưu PDF
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <DropdownMenu>

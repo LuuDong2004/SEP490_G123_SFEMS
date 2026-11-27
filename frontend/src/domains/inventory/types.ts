@@ -154,6 +154,8 @@ export type InventorySession = VoucherBase & {
   room: Ref | null;
   council: string | null;
   conclusion: string | null;
+  /** Họ tên người kết luận. */
+  concludedBy: string | null;
   summary: {
     total: number;
     checked: number;

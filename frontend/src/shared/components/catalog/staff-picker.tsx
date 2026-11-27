@@ -1,4 +1,4 @@
-import { ChevronDown, Search, X, Users } from "lucide-react";
+import { ChevronDown, Plus, Search, UserPlus, Users, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { LEADERSHIP_POSITIONS, POSITION_LABELS, STAFF_TYPE_LABELS } from "@/domains/staff/types";
@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { LIFT_ROW } from "@/shared/lib/row-lift";
@@ -84,6 +85,8 @@ export function StaffPicker({
   invalid,
   trigger,
   prefer,
+  onPickMany,
+  onOther,
 }: {
   rows: StaffRow[];
   /** Người đang chọn — chỉ cần `id`; tên lấy từ `rows`, không có thì lấy `name` kèm theo. */
@@ -99,7 +102,23 @@ export function StaffPicker({
   trigger?: (open: () => void) => ReactNode;
   /** Nhóm xếp lên đầu danh sách — xem {@link StaffPrefer}. */
   prefer?: StaffPrefer;
+  /**
+   * Chọn NHIỀU người một lượt (tổ kiểm kê, hội đồng): mỗi dòng có ô tích, bấm dòng là tích / bỏ tích, chân hộp có nút
+   * "Thêm N người". Vắng thì hộp chọn MỘT người như cũ (bấm dòng là chọn và đóng).
+   */
+  onPickMany?: (rows: StaffRow[]) => void;
+  /** Có = góc phải hàng lọc của hộp có nút "Người khác" (người ngoài danh sách): đóng hộp rồi gọi hàm này. */
+  onOther?: () => void;
 }) {
+  const many = !!onPickMany;
+  const [ticked, setTicked] = useState<Map<number, StaffRow>>(new Map());
+  const tick = (r: StaffRow) =>
+    setTicked((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.id)) next.delete(r.id);
+      else next.set(r.id, r);
+      return next;
+    });
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
@@ -128,6 +147,7 @@ export function StaffPicker({
   const openDialog = () => {
     const at = selected ? shown.findIndex((r) => r.id === selected.id) : -1;
     more.reveal(at + 1);
+    setTicked(new Map());
     setOpen(true);
   };
 
@@ -163,7 +183,9 @@ export function StaffPicker({
         <DialogContent size="picker">
           <DialogHeader>
             <DialogTitle>Chọn {label}</DialogTitle>
-            <DialogDescription className="sr-only">Tìm theo tên, mã, chức vụ hoặc tổ rồi bấm một dòng để chọn.</DialogDescription>
+            <DialogDescription className="sr-only">
+              {many ? "Tích chọn nhiều người rồi bấm Thêm." : "Tìm theo tên, mã, chức vụ hoặc tổ rồi bấm một dòng để chọn."}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -189,30 +211,52 @@ export function StaffPicker({
                 more.reset();
               }}
               groups={[{ items: TYPES.filter((t) => t.value).map((t) => ({ key: t.value, label: t.label })) }]} />
+            {onOther ? (
+              <Button type="button" variant="outline" className="ml-auto rounded-full"
+                onClick={() => { setOpen(false); onOther(); }}>
+                <UserPlus />
+                Người khác
+              </Button>
+            ) : null}
           </div>
 
           {/* `table-fixed` + độ rộng từng cột: cột không nhảy chỗ khi sang trang, chữ dài cắt ba chấm. */}
           <div className="min-h-0 flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible [&_tbody_tr:last-child]:border-b">
             <Table className="table-fixed">
               <colgroup>
-                <col className="w-36" />
+                {many ? <col className="w-12" /> : null}
+                <col className="w-28" />
                 <col />
-                <col className="w-40" />
-                <col className="w-52" />
+                <col className="w-48" />
                 <col className="w-44" />
               </colgroup>
               <TableHeader sticky>
                 <TableRow>
+                  {many ? (
+                    <TableHead className="px-4">
+                      {/* Tích / bỏ tích mọi người ĐANG HIỆN (theo ô tìm, loại cán bộ). */}
+                      <Checkbox aria-label="Chọn tất cả đang hiện"
+                        checked={pageRows.length > 0 && pageRows.every((r) => ticked.has(r.id))
+                          ? true : pageRows.some((r) => ticked.has(r.id)) ? "indeterminate" : false}
+                        onCheckedChange={(on) => setTicked((prev) => {
+                          const next = new Map(prev);
+                          for (const r of shown) {
+                            if (on) next.set(r.id, r);
+                            else next.delete(r.id);
+                          }
+                          return next;
+                        })} />
+                    </TableHead>
+                  ) : null}
                   <TableHead className="px-4">Mã</TableHead>
                   <TableHead className="px-4">Họ tên</TableHead>
                   <TableHead className="px-4">Chức vụ</TableHead>
-                  <TableHead className="px-4">Tổ</TableHead>
                   <TableHead className="px-4">Môn dạy</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading || shown.length === 0 ? (
-                  <TableEmpty colSpan={5} loading={loading} title={<>{q || type ? "Không có ai khớp." : (
+                  <TableEmpty colSpan={many ? 5 : 4} loading={loading} title={<>{q || type ? "Không có ai khớp." : (
                         <>
                           Trường chưa khai báo cán bộ nào.{" "}
                           <CrossLink to="/staff" resource="staff" action="create" newTab className="text-primary font-medium">Khai cán bộ</CrossLink>
@@ -220,18 +264,23 @@ export function StaffPicker({
                       )}</>} />
                 ) : (
                   pageRows.map((r) => {
-                    const active = r.id === selected?.id;
+                    const active = many ? ticked.has(r.id) : r.id === selected?.id;
                     return (
-                      <TableRow key={r.id} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer", active && "bg-primary/10 hover:bg-primary/10")} onClick={() => pick(r)}>
-                        <TableCell className="text-muted-foreground truncate px-4 font-mono text-xs">{r.code ?? "—"}</TableCell>
+                      <TableRow key={r.id} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer", active && "bg-primary/10 hover:bg-primary/10")}
+                        onClick={() => (many ? tick(r) : pick(r))}>
+                        {many ? (
+                          <TableCell className="px-4" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox aria-label={`Chọn ${r.name}`} checked={ticked.has(r.id)} onCheckedChange={() => tick(r)} />
+                          </TableCell>
+                        ) : null}
+                        <TableCell className="text-muted-foreground truncate px-4 font-mono text-xs">{r.code ?? "Chưa có mã"}</TableCell>
                         <TableCell className={cn("truncate px-4 font-medium", active && "text-primary")} title={r.name}>{r.name}</TableCell>
                         <TableCell className="truncate px-4">
                           {positionOf(r) ? <Badge variant={positionVariant(r)}>{positionOf(r)}</Badge> : <Missing staffId={r.id} />}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate px-4" title={r.department ?? undefined}>{r.department || <Missing staffId={r.id} />}</TableCell>
                         <TableCell className="text-muted-foreground truncate px-4" title={r.mainSubject?.name}>
-                          {/* Chỉ giáo viên mới phải có môn dạy; nhân viên để trống là đúng. */}
-                          {r.mainSubject?.name ?? (r.staffType === "teacher" ? <Missing staffId={r.id} /> : "—")}
+                          {/* Chỉ giáo viên mới phải có môn dạy (thiếu: "Chưa khai" bấm sửa được); nhân viên ghi "Không dạy". */}
+                          {r.mainSubject?.name ?? (r.staffType === "teacher" ? <Missing staffId={r.id} /> : <span className="text-muted-foreground">Không dạy</span>)}
                         </TableCell>
                       </TableRow>
                     );
@@ -249,7 +298,14 @@ export function StaffPicker({
               <span className="text-foreground font-medium tabular-nums">{shown.length}</span> người
             </span>
             <div className="flex items-center gap-3">
-              {selected ? (
+              {many ? (
+                <Button type="button" disabled={ticked.size === 0}
+                  onClick={() => { onPickMany?.([...ticked.values()]); setOpen(false); }}>
+                  <Plus />
+                  {ticked.size ? `Thêm ${ticked.size} người` : "Thêm"}
+                </Button>
+              ) : null}
+              {!many && selected ? (
                 <Button type="button" variant="ghost" onClick={() => pick(null)}>
                   <X />
                   Bỏ chọn

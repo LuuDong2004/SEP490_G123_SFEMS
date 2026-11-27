@@ -16,7 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -101,12 +100,5 @@ public class EducationLevelController {
     public EducationLevelResponse update(
             @PathVariable Long id, @Valid @RequestBody EducationLevelPatchRequest request) {
         return EducationLevelResponse.from(service.update(id, request), rowLevel);
-    }
-
-    /** Vọng lại bản ghi vừa xoá — data provider có phân tích body trả về. */
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('" + Permissions.EDUCATION_LEVELS_DELETE + "')")
-    public EducationLevelResponse delete(@PathVariable Long id) {
-        return EducationLevelResponse.from(service.delete(id));
     }
 }

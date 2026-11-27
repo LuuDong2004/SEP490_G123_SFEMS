@@ -146,7 +146,7 @@ final class CsvcStatisticsReport {
      * {@code room}.
      */
     List<Map<String, Object>> rooms(Params p) {
-        List<Map<String, Object>> found = jdbc.queryForList("SELECT r.code, r.name, rt.code AS type_code,"
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT r.code, r.name, COALESCE(rt.system_key, rt.code) AS type_code,"
                 + " rt.name AS type_name, r.structure, r.area, b.name AS building, c.name AS campus"
                 + " FROM rooms r LEFT JOIN room_types rt ON rt.id = r.room_type_id"
                 + " LEFT JOIN buildings b ON b.id = r.building_id"
@@ -352,11 +352,11 @@ final class CsvcStatisticsReport {
                 + reports.campusOwn("t.campus_id", "t.school_id", p));
         // Chỗ ngủ nội trú: thông số "beds" của hạng mục; chưa khai thì lấy sức chứa.
         Map<String, Object> seats = jdbc.queryForMap("SELECT"
-                + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.code = 'NHA_AN'), 0) AS dining,"
+                + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.system_key = 'NHA_AN'), 0) AS dining,"
                 + " COALESCE(SUM(CASE WHEN r.params ->> 'beds' ~ '^[0-9]+([.][0-9]+)?$'"
-                + "   THEN (r.params ->> 'beds')::numeric ELSE r.capacity END) FILTER (WHERE rt.code = 'NHA_O_NOI_TRU'), 0)"
+                + "   THEN (r.params ->> 'beds')::numeric ELSE r.capacity END) FILTER (WHERE rt.system_key = 'NHA_O_NOI_TRU'), 0)"
                 + "   AS boarding,"
-                + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.code = 'THU_VIEN'), 0) AS library"
+                + " COALESCE(SUM(r.capacity) FILTER (WHERE rt.system_key = 'THU_VIEN'), 0) AS library"
                 + " FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id"
                 + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p)
                 + reports.campusRoom("r.id", "r.school_id", p));
@@ -400,7 +400,7 @@ final class CsvcStatisticsReport {
 
     private void facilities(Params p, List<Map<String, Object>> rows) {
         // Cơ sở của hạng mục: cơ sở ghi trên hạng mục, không thì cơ sở của khối nhà; không có = trường chính.
-        List<Map<String, Object>> found = jdbc.queryForList("SELECT rt.code, rt.name, g.code AS grp,"
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT COALESCE(rt.system_key, rt.code) AS code, rt.name, g.code AS grp,"
                 + " CASE WHEN c.id IS NULL OR c.is_primary THEN 'MAIN' WHEN c.branch THEN 'BRANCH' ELSE 'SITE' END AS campus,"
                 + " r.structure, COUNT(*) AS n, SUM(r.area) AS area"
                 + " FROM rooms r LEFT JOIN room_types rt ON rt.id = r.room_type_id"
@@ -409,7 +409,7 @@ final class CsvcStatisticsReport {
                 + " LEFT JOIN campuses c ON c.id = COALESCE(r.campus_id, b.campus_id)"
                 + " WHERE" + FacilityCounting.COUNTED_ROOM + reports.scope("r.school_id", p)
                 + reports.campusRoom("r.id", "r.school_id", p)
-                + " GROUP BY rt.code, rt.name, g.code, 4, r.structure");
+                + " GROUP BY COALESCE(rt.system_key, rt.code), rt.name, g.code, 4, r.structure");
         Map<String, Tally> byItem = new HashMap<>();
         Map<String, Tally> classrooms = new HashMap<>();
         Map<String, Tally> outside = new LinkedHashMap<>();

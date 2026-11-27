@@ -94,7 +94,7 @@ class InventoryApprovalTest {
     void approvalWritesFoundConditionAndMovesToStoreroomAsInStock() throws Exception {
         long room = roomWithInUseItems(2);
         Long storeroom = jdbc.query("SELECT r.id FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id"
-                + " WHERE r.school_id = ? AND rt.code = 'KHO' ORDER BY r.id LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null, school);
+                + " WHERE r.school_id = ? AND rt.system_key = 'KHO' ORDER BY r.id LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null, school);
         Assumptions.assumeTrue(storeroom != null, "Trường thử chưa có phòng loại kho");
 
         JsonNode session = open(room, null);
@@ -222,7 +222,7 @@ class InventoryApprovalTest {
         Long room = jdbc.query("""
                 SELECT r.id FROM rooms r
                 LEFT JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE r.school_id = ? AND rt.code IS DISTINCT FROM 'KHO'
+                WHERE r.school_id = ? AND rt.system_key IS DISTINCT FROM 'KHO'
                   AND (SELECT COUNT(*) FROM equipment e WHERE e.room_id = r.id AND e.status = 'IN_USE') >= ?
                 ORDER BY (SELECT COUNT(*) FROM equipment e WHERE e.room_id = r.id), r.id
                 LIMIT 1""", rs -> rs.next() ? rs.getLong(1) : null, school, min);

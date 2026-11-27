@@ -11,6 +11,7 @@ import {
   FormActions,
   FormPanel,
 } from "@/shared/components/form/form-panel";
+import { CatalogEditingContext } from "@/shared/components/catalog/fields";
 import {
   DEFAULT_VALUES,
   EducationLevelFields,
@@ -52,7 +53,9 @@ export const EducationLevelEdit = () => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full">
           <FormPanel>
-            <EducationLevelFields control={form.control} />
+            <CatalogEditingContext.Provider value>
+              <EducationLevelFields control={form.control} />
+            </CatalogEditingContext.Provider>
 
             <FormActions>
               <Button type="submit" disabled={form.formState.isSubmitting}>

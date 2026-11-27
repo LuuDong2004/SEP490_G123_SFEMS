@@ -1,6 +1,7 @@
 package com.g123.sfems.domain.catalog.unit;
 
 import com.g123.sfems.domain.catalog.base.CatalogEntity;
+import com.g123.sfems.domain.catalog.base.SystemKeyed;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.Column;
@@ -15,7 +16,16 @@ import java.math.BigDecimal;
  */
 @Entity
 @Table(name = "units")
-public class Unit extends CatalogEntity {
+public class Unit extends CatalogEntity implements SystemKeyed {
+
+    /** Khoá hệ thống (312) — mã chữ cố định nghiệp vụ dựa vào; chỉ đọc, {@code null} với mục thêm sau. */
+    @Column(name = "system_key", length = 64, insertable = false, updatable = false)
+    private String systemKey;
+
+    @Override
+    public String getSystemKey() {
+        return systemKey;
+    }
 
     @Column(name = "allows_fraction", nullable = false)
     private boolean allowsFraction;

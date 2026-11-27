@@ -147,14 +147,14 @@ export function NormDocumentImport({ standardId, editable, handle, onBusy, onImp
                       <TableRow key={s.subjectId}>
                         <TableCell className="font-medium">{s.subjectName}</TableCell>
                         <TableCell title={s.perRoomSource ?? undefined}>
-                          {s.perRoom ? <Badge variant="info">Có · {s.perRoomRows} dòng</Badge> : <span className="text-muted-foreground">—</span>}
+                          {s.perRoom ? <Badge variant="info">Có · {s.perRoomRows} dòng</Badge> : <span className="text-muted-foreground">Không</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{s.rows}</TableCell>
-                        <TableCell className={cn("text-right tabular-nums", s.changed && "font-semibold text-warning-text")}>{s.changed || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{s.added || "—"}</TableCell>
-                        <TableCell className={cn("text-right tabular-nums", s.removed && "font-semibold text-destructive-text")}>{s.removed || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">{s.unchanged || "—"}</TableCell>
-                        <TableCell className={cn("text-right tabular-nums", s.noQuantity && "text-destructive-text")}>{s.noQuantity || "—"}</TableCell>
+                        <TableCell className={cn("text-right tabular-nums", s.changed && "font-semibold text-warning-text")}>{s.changed || <span className="text-muted-foreground font-normal">0</span>}</TableCell>
+                        <TableCell className="text-right tabular-nums">{s.added || <span className="text-muted-foreground font-normal">0</span>}</TableCell>
+                        <TableCell className={cn("text-right tabular-nums", s.removed && "font-semibold text-destructive-text")}>{s.removed || <span className="text-muted-foreground font-normal">0</span>}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{s.unchanged || 0}</TableCell>
+                        <TableCell className={cn("text-right tabular-nums", s.noQuantity && "text-destructive-text")}>{s.noQuantity || <span className="text-muted-foreground font-normal">0</span>}</TableCell>
                       </TableRow>
                     ))}
                     {unknown.map((s, i) => (

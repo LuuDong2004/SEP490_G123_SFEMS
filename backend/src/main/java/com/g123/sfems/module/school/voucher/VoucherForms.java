@@ -349,7 +349,7 @@ public class VoucherForms {
                     }
                     yield v;
                 }
-                case "staff", "room", "school", "ref" -> reference(field, value, schoolId, where);
+                case "staff", "room", "school" -> reference(field, value, schoolId, where);
                 default -> throw bad(where, "Kiểu trường chưa hỗ trợ: " + kind);
             };
         } catch (NumberFormatException | ArithmeticException | DateTimeParseException e) {
@@ -360,6 +360,26 @@ public class VoucherForms {
     /** Tham chiếu: nhận {@code {"id": n}} hoặc số; tra tên trong đúng phạm vi; lưu {id, name}. */
     private Map<String, Object> reference(Map<String, Object> field, Object value, Long schoolId, String where) {
         Object raw = value instanceof Map<?, ?> m ? m.get("id") : value;
+        // "Người khác" (ô cán bộ có `other`): người ngoài danh sách nhân sự — chỉ có họ tên gõ tay, kiểm như họ tên người.
+        // Giá trị cũ của ô chữ (chuỗi) cũng đi lối này khi ô đổi sang kiểu cán bộ.
+        if ("staff".equals(field.get("kind")) && Boolean.TRUE.equals(field.get("other"))) {
+            Object typed = value instanceof Map<?, ?> m ? (raw == null || "".equals(raw) ? m.get("name") : null)
+                    : (value instanceof String sv && !sv.isBlank() && !sv.strip().matches("\\d+") ? sv : null);
+            if (typed != null) {
+                String name = String.valueOf(typed).strip().replaceAll("\\s+", " ");
+                if (name.isEmpty()) {
+                    return null;
+                }
+                String problem = FieldRule.PERSON_NAME.violation(name, 100, 2);
+                if (problem != null) {
+                    throw bad(where, field.get("label") + " " + problem);
+                }
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("name", name);
+                out.put("other", true);
+                return out;
+            }
+        }
         if (raw == null || "".equals(raw)) {
             return null;
         }
@@ -371,9 +391,7 @@ public class VoucherForms {
                     id, schoolId);
             case "room" -> jdbc.queryForList("SELECT name FROM rooms WHERE id = ? AND school_id = ?", String.class, id,
                     schoolId);
-            case "school" -> jdbc.queryForList("SELECT name FROM schools WHERE id = ?", String.class, id);
-            default -> jdbc.queryForList("SELECT name FROM " + safeTable((String) field.get("resource"))
-                    + " WHERE id = ?", String.class, id);
+            default -> jdbc.queryForList("SELECT name FROM schools WHERE id = ?", String.class, id);
         };
         if (names.isEmpty()) {
             throw bad(where, label + ": không tìm thấy (id " + id + ") trong trường của phiếu");
@@ -382,14 +400,6 @@ public class VoucherForms {
         out.put("id", id);
         out.put("name", names.get(0));
         return out;
-    }
-
-    /** Bảng tham chiếu danh mục — chỉ những tên có trong cấu hình, không bao giờ chữ người dùng gửi. */
-    private static String safeTable(String resource) {
-        if (!"movement_reasons".equals(resource)) {
-            throw new IllegalStateException("Bảng tham chiếu không được phép: " + resource);
-        }
-        return resource;
     }
 
     private static FieldValidationException bad(String where, String message) {

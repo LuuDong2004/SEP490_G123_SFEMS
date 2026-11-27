@@ -36,7 +36,7 @@ public final class PurchaseProposalApi {
             @Text(value = FieldRule.NAME, label = "Tên thiết bị") String name,
             @Text(value = FieldRule.SHORT_TEXT, label = "Đơn vị tính", max = 50) String unitName,
             @Num(value = NumberRule.QUANTITY, label = "Số lượng") Integer quantity,
-            @Num(value = NumberRule.MONEY, label = "Giá tham khảo") BigDecimal unitPrice,
+            @Num(value = NumberRule.UNIT_PRICE, label = "Giá tham khảo") BigDecimal unitPrice,
             @Text(value = FieldRule.NOTE, label = "Ghi chú", max = 255) String note,
             Map<String, Object> details) {
     }
@@ -44,10 +44,10 @@ public final class PurchaseProposalApi {
     public record Request(
             IdRef school,
             @NotNull(message = "Chọn ngày")
-            @DateValue(value = DateRule.ANY, label = "Ngày đề xuất") LocalDate proposalDate,
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày đề xuất") LocalDate proposalDate,
             @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
             @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
-            @Text(value = FieldRule.LONG_TEXT, label = "Lý do đề xuất", max = 1000) String reason,
+            @Text(value = FieldRule.REASON, label = "Lý do đề xuất", max = 1000, min = 10) String reason,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
             @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid LineInput> lines,
             Map<String, Object> details) implements VoucherRequest {
@@ -55,10 +55,10 @@ public final class PurchaseProposalApi {
 
     public record Patch(
             IdRef school,
-            @DateValue(value = DateRule.ANY, label = "Ngày đề xuất") LocalDate proposalDate,
+            @DateValue(value = DateRule.PAST_OR_TODAY, label = "Ngày đề xuất") LocalDate proposalDate,
             @Min(value = 2000, message = "Năm ngân sách phải từ 2000 đến 2100")
             @Max(value = 2100, message = "Năm ngân sách phải từ 2000 đến 2100") Integer budgetYear,
-            @Text(value = FieldRule.LONG_TEXT, label = "Lý do đề xuất", max = 1000) String reason,
+            @Text(value = FieldRule.REASON, label = "Lý do đề xuất", max = 1000, min = 10) String reason,
             @Text(value = FieldRule.NOTE, label = "Ghi chú") String note,
             @Size(max = VoucherLimits.MAX_LINES, message = VoucherLimits.TOO_MANY_LINES) List<@Valid LineInput> lines,
             Map<String, Object> details) implements VoucherRequest {

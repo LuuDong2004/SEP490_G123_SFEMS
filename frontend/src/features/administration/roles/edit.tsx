@@ -261,7 +261,7 @@ export const RoleEdit = () => {
                   )}
                 </Field>
                 <Field label="Dùng cho">
-                  {record?.roleType ? USER_TYPE_LABELS[record.roleType as UserType] : "—"}
+                  {record?.roleType ? USER_TYPE_LABELS[record.roleType as UserType] : <span className="text-muted-foreground">Chưa chọn</span>}
                 </Field>
                 <Field label="ID vai trò">
                   <span className="tabular-nums">{record?.id ?? "—"}</span>

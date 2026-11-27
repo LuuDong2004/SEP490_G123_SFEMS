@@ -87,7 +87,7 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
   // Lập tay với nguồn "Mua sắm" / "Kiểm kê thừa": hỏi ngay phiếu nguồn. Chỉ lúc LẬP — phiếu đã
   // lưu thì hoặc đã mang phiếu nguồn, hoặc người lập đã chọn lập tay.
   const schoolId = useWatch({ control, name: "school.id" }) as number | null | undefined;
-  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.code;
+  const originCode = origins.find((o) => String(o.id) === String(originId ?? ""))?.systemKey;
   const sourceKind = !record && isSourceKind(originCode) ? originCode : null;
   const [picking, setPicking] = useState(false);
 
@@ -119,10 +119,10 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
   const pickCode = record ? null : params.get("pick");
   useEffect(() => {
     if (!pickCode || getValues("originSource.id")) return;
-    const origin = origins.find((o) => o.code === pickCode);
+    const origin = origins.find((o) => o.systemKey === pickCode);
     if (!origin) return;
     setValue("originSource", { id: origin.id, name: origin.name }, { shouldValidate: true });
-    setPicking(isSourceKind(origin.code));
+    setPicking(isSourceKind(origin.systemKey));
   }, [pickCode, origins, getValues, setValue]);
   // Nguồn đang chọn TRƯỚC khi đổi sang nguồn phải đi theo phiếu nguồn — đóng hộp chọn mà không chọn gì thì trả về nó.
   const before = useRef<{ id: number | null; name?: string } | null>(null);
@@ -132,11 +132,11 @@ export function IntakeOriginFields({ control, record }: { control: Control<any>;
     // nhận nó là ghi `Number("") = 0` đè lên nguồn hình thành của phiếu, và mọi ô nguồn phía dưới bị khoá.
     if (!id) return;
     setValue("originSource", { id: Number(id), name: origins.find((o) => String(o.id) === id)?.name }, { shouldDirty: true, shouldValidate: true });
-    if (!record && isSourceKind(origins.find((o) => String(o.id) === id)?.code)) setPicking(true);
+    if (!record && isSourceKind(origins.find((o) => String(o.id) === id)?.systemKey)) setPicking(true);
     const next = ruleOf(id);
     if (!next) return;
     // Ô chứng từ mà nguồn mới không có thì gỡ giá trị — không để một số hoá đơn ẩn đi theo phiếu tặng.
-    const shown = headFieldsOf(origins.find((o) => String(o.id) === id)?.code);
+    const shown = headFieldsOf(origins.find((o) => String(o.id) === id)?.systemKey);
     if (!shown.supplier) setValue("supplier", "", { shouldDirty: true });
     if (!shown.documentNo) setValue("documentNo", "", { shouldDirty: true });
     if (!shown.documentDate) setValue("documentDate", null, { shouldDirty: true });

@@ -94,7 +94,7 @@ export function SchoolField({
             readOnly
             tabIndex={-1}
             aria-readonly
-            value={record ? (record.school?.name ?? "—") : onlySchool.name}
+            value={record ? (record.school?.name ?? "Chưa gắn trường") : onlySchool.name}
             className="bg-muted text-muted-foreground cursor-not-allowed pe-9 focus-visible:bg-muted"
           />
           <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2" />
@@ -123,7 +123,7 @@ export const schoolColumn = {
   size: 200,
   cell: ({ row }: any) => (
     <span className="block max-w-56 truncate" title={row.original.school?.name ?? undefined}>
-      {row.original.school?.name ?? "—"}
+      {row.original.school?.name ?? <span className="text-muted-foreground">Chưa gắn trường</span>}
     </span>
   ),
 };

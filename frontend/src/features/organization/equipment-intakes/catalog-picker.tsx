@@ -161,7 +161,7 @@ export function CatalogPickerDialog({
     if (!open || roomId) return;
     const list: any[] = rooms?.data ?? [];
     const store =
-      list.find((r) => r.roomType?.code === "KHO") ?? list.find((r) => /(^|\s)kho(\s|$)/i.test(r.name ?? ""));
+      list.find((r) => r.roomType?.systemKey === "KHO") ?? list.find((r) => /(^|\s)kho(\s|$)/i.test(r.name ?? ""));
     if (store) {
       setRoomId(String(store.id));
     }
@@ -376,14 +376,14 @@ export function CatalogPickerDialog({
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="truncate" title={row.unit?.name}>{row.unit?.name ?? "—"}</TableCell>
+                      <TableCell className="truncate" title={row.unit?.name}>{row.unit?.name ?? <span className="text-muted-foreground">Chưa khai</span>}</TableCell>
                       <TableCell>
                         {row.trackingType ? (
                           <Badge variant={already ? "warning" : row.trackingType === "bulk" ? "info" : "neutral"}>
                             {TRACKING_TYPE_LABELS[row.trackingType] ?? row.trackingType}
                           </Badge>
                         ) : (
-                          "—"
+                          <span className="text-muted-foreground">Chưa khai</span>
                         )}
                       </TableCell>
                     </TableRow>

@@ -47,7 +47,8 @@ export const FUNDING_LABELS: Record<string, string> = {
 export const FUNDING_OPTIONS = ["STATE_BUDGET", "TUITION", "REVENUE", "DEVELOPMENT_FUND", "SPONSORSHIP", "OTHER"];
 
 /** Mã của hình thức mua sắm "Khác" — mục duy nhất phải ghi rõ là hình thức gì. */
-export const OTHER_ACQUISITION_CODE = "KHAC";
+/** Khoá hệ thống (312) của hình thức mua sắm "Khác" — mã hiển thị là HTM…, so khoá chứ không so mã. */
+export const OTHER_ACQUISITION_KEY = "KHAC";
 
 /**
  * Luật của một NGUỒN HÌNH THÀNH (`GET /origin_sources/rules`): nguồn kinh phí nào chọn được, khi nào

@@ -16,7 +16,6 @@ import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Map;
 
 /** Payload sửa thiết bị. {@code null} là để nguyên; {@code specs} gửi lên là thay cả bộ. */
 public record EquipmentPatchRequest(
@@ -64,7 +63,5 @@ public record EquipmentPatchRequest(
         IdRef room,
         IdRef manager,
         EquipmentCondition condition,
-        AssetStatus status,
-        IdRef config,
-        Map<String, String> specs) implements SchoolOwnedInput {
+        AssetStatus status) implements SchoolOwnedInput {
 }

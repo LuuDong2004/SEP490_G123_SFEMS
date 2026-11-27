@@ -20,7 +20,7 @@ export type StandardStatus = "PASS" | "FAIL" | "NONE";
 export const STANDARD_STATUS_LABELS: Record<StandardStatus, string> = {
   PASS: "Đạt",
   FAIL: "Chưa đạt",
-  NONE: "—",
+  NONE: "Chưa có chuẩn",
 };
 
 /** Một quy tắc như API `/api/facility_standard_rules` trả. */

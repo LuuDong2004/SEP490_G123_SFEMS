@@ -26,7 +26,7 @@ import {
 const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2, useGrouping: false });
 
 function StatusBadge({ status, bold }: { status: StandardStatus; bold?: boolean }) {
-  if (status === "NONE") return <span className="text-muted-foreground">—</span>;
+  if (status === "NONE") return <span className="text-muted-foreground">{STANDARD_STATUS_LABELS.NONE}</span>;
   return (
     <Badge variant={STANDARD_STATUS_VARIANTS[status]} className={cn("whitespace-nowrap", bold && "font-semibold")}>
       {STANDARD_STATUS_LABELS[status]}
@@ -87,7 +87,7 @@ export function FacilityStandardPanel({ schoolId, className }: { schoolId: numbe
             ))}
             <Badge variant={data.reached ? "info" : "neutral"} className="whitespace-nowrap">Mức đạt: {data.reachedLabel}</Badge>
             <span className="text-muted-foreground text-xs whitespace-nowrap">
-              {data.school.classes ?? "—"} lớp · {data.school.students != null ? number.format(data.school.students) : "—"} học sinh
+              {data.school.classes != null ? `${data.school.classes} lớp` : "Chưa khai số lớp"} · {data.school.students != null ? `${number.format(data.school.students)} học sinh` : "chưa khai số học sinh"}
             </span>
           </>
         ) : (

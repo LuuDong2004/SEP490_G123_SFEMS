@@ -5,6 +5,7 @@ import com.g123.sfems.shared.validation.FieldRule;
 import com.g123.sfems.shared.validation.Text;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -33,6 +34,9 @@ public record NotificationRequest(
         @Text(value = FieldRule.LONG_TEXT, label = "Nội dung", max = 2000)
         String body,
 
+        // Chỉ đường dẫn trong hệ thống: liên kết ra ngoài ("https://…", "//host", "javascript:") trong một thông báo
+        // trông như của hệ thống là lối lừa người nhận bấm vào.
         @Size(max = 500, message = "Liên kết tối đa 500 ký tự")
+        @Pattern(regexp = "^$|^/[^/].*", message = "Liên kết phải là đường dẫn trong hệ thống (bắt đầu bằng /)")
         String link) {
 }

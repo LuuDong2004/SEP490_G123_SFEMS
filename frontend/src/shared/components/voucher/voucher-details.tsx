@@ -1,3 +1,4 @@
+import { StepTitle } from "@/shared/components/voucher/voucher-layout";
 import { SelectOrText } from "@/shared/components/form/select-or-text";
 import { useList } from "@refinedev/core";
 import { TimeInput } from "@/shared/components/form/time-input";
@@ -42,17 +43,53 @@ const STAFF_PREFER: Record<string, StaffPrefer> = {
   confirmedBy: "leader",
   consumedBy: "teacher",
 };
-type Lookups = { staff: StaffRow[]; rooms: Option[]; schools: Option[]; refs: Record<string, Option[]> };
+type Lookups = { staff: StaffRow[]; rooms: Option[]; schools: Option[] };
 
 /** Danh sách cho ô chọn cán bộ / phòng / trường — theo trường của phiếu. */
-function useLookups(schoolId: number | null | undefined, needsSchools: boolean, refResources: string[]): Lookups {
+function useLookups(schoolId: number | null | undefined, needsSchools: boolean): Lookups {
   const filters = schoolId ? [{ field: "school.id", operator: "eq" as const, value: schoolId }, { field: "active", operator: "eq" as const, value: true }] : [];
   const staff = useList<any>({ resource: "staff", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
   const rooms = useList<any>({ resource: "rooms", filters, pagination: { pageSize: 500 }, queryOptions: { enabled: !!schoolId } });
   const schools = useList<any>({ resource: "schools", pagination: { pageSize: 200 }, queryOptions: { enabled: needsSchools } });
-  const reasons = useList<any>({ resource: "movement_reasons", pagination: { pageSize: 200 }, queryOptions: { enabled: refResources.includes("movement_reasons") } });
   const pick = (r: any): Option[] => (r?.result?.data ?? []).map((x: any) => ({ id: x.id, name: x.name }));
-  return { staff: (staff.result?.data ?? []) as StaffRow[], rooms: pick(rooms), schools: pick(schools), refs: { movement_reasons: pick(reasons) } };
+  return { staff: (staff.result?.data ?? []) as StaffRow[], rooms: pick(rooms), schools: pick(schools) };
+}
+
+/**
+ * Ô cán bộ có lối "Người khác" (`other`): mặc định chọn trong nhân sự của trường; bấm "Người khác" thì gõ họ tên người
+ * ngoài danh sách (thành viên mời, người của Sở…) — nút này ở trong hộp chọn. Giá trị: {id, name} khi chọn, {name, other} khi gõ — chuỗi cũ của ô
+ * chữ cũng hiện như gõ tay. Lỗi họ tên do form báo dưới ô (detailError — cùng luật máy chủ); ô chỉ tô viền đỏ.
+ */
+function StaffOrOther({ field, value, onChange, rows }: {
+  field: DetailField;
+  value: DetailValue;
+  onChange: (v: DetailValue) => void;
+  rows: StaffRow[];
+}) {
+  const obj = value && typeof value === "object" && !Array.isArray(value) ? (value as { id?: number | null; name?: string; other?: boolean }) : null;
+  const typedNow = typeof value === "string" ? value : obj && obj.id == null && obj.name != null ? obj.name : null;
+  const [typing, setTyping] = useState(typedNow != null);
+  const label = field.label.charAt(0).toLowerCase() + field.label.slice(1);
+  const error = typing && typedNow ? textError("PERSON_NAME", field.label, typedNow, 100, 2) : undefined;
+  return (
+    <div className="space-y-1">
+      {typing ? (
+        // Không có nút quay lại: xoá hết chữ (hoặc rời ô khi còn trống) là ô về hộp chọn cán bộ.
+        <Input autoFocus value={typedNow ?? ""} placeholder="Họ và tên người khác" maxLength={100} aria-invalid={!!error || undefined}
+          onBlur={(e) => { if (!e.target.value.trim()) { setTyping(false); onChange(null); } }}
+          onChange={(e) => {
+            if (!e.target.value) { setTyping(false); onChange(null); return; }
+            onChange({ name: e.target.value, other: true as const });
+          }} />
+      ) : (
+        // Nút "Người khác" nằm TRONG hộp chọn (góc phải hàng lọc): bấm thì hộp đóng, ô chuyển sang gõ họ tên.
+        <StaffPicker rows={rows} prefer={STAFF_PREFER[field.key]} label={label}
+          value={obj && obj.id != null ? { id: obj.id, name: obj.name } : null}
+          onChange={(row) => onChange(row ? { id: row.id, name: row.name } : null)}
+          onOther={() => { setTyping(true); onChange(null); }} />
+      )}
+    </div>
+  );
 }
 
 /** Câu nhắc của ô chọn còn trống: "Vui lòng chọn <tên ô>". */
@@ -100,6 +137,11 @@ export function detailError(field: DetailField, value: DetailValue | undefined):
       return textError(textRuleOf(f), f.label, value, textMaxOf(f), f.min);
     case "date":
       return dateError(f.date === "past" ? "PAST_OR_TODAY" : "ANY", f.label, value);
+    case "staff": {
+      // "Người khác": họ tên gõ tay — cùng luật VoucherForms.reference (PERSON_NAME 2–100).
+      const typed = typeof value === "string" ? value : !Array.isArray(value) && typeof value === "object" && (value as any).id == null ? (value as any).name : null;
+      return f.other && typed ? textError("PERSON_NAME", f.label, typed, 100, 2) : undefined;
+    }
     case "integer":
       return numberError("COUNT", f.label, value);
     case "money":
@@ -204,7 +246,9 @@ function FieldControl({ field, value, onChange, config, lookups }: {
         </Select>
       );
     case "staff":
-      return (
+      return field.other ? (
+        <StaffOrOther field={field} value={value} onChange={onChange} rows={lookups.staff} />
+      ) : (
         <StaffPicker
           rows={lookups.staff}
           prefer={STAFF_PREFER[field.key]}
@@ -217,8 +261,6 @@ function FieldControl({ field, value, onChange, config, lookups }: {
       return <RefSelect value={value} onChange={onChange} options={lookups.rooms} placeholder="Vui lòng chọn phòng" />;
     case "school":
       return <RefSelect value={value} onChange={onChange} options={lookups.schools} placeholder="Vui lòng chọn trường" />;
-    case "ref":
-      return <RefSelect value={value} onChange={onChange} options={lookups.refs[field.resource ?? ""] ?? []} placeholder={pick(field.label)} />;
     default:
       // Ô chữ là ô chữ: không gợi ý tên cán bộ / phòng của trường — người ký, người nhận thường là người
       // ngoài trường, và danh sách xổ ra làm ô trông như ô chọn. Cần chọn thì khai kind staff / room.
@@ -263,8 +305,7 @@ export function VoucherDetailsFields({ config, value, onChange, schoolId, varian
 }) {
   const sections = visibleSections(config, variant);
   const kinds = sections.flatMap((s) => s.fields);
-  const lookups = useLookups(schoolId, kinds.some((f) => f.kind === "school"),
-    kinds.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
+  const lookups = useLookups(schoolId, kinds.some((f) => f.kind === "school"));
   if (!config || sections.length === 0) return null;
   const values = value ?? {};
   const set = (key: string, v: DetailValue) => {
@@ -395,7 +436,6 @@ export function formatDetail(field: DetailField, value: DetailValue, config: Vou
     case "staff":
     case "room":
     case "school":
-    case "ref":
       return typeof value === "object" && value && !Array.isArray(value) ? String((value as any).name ?? (value as any).id) : String(value);
     default:
       return String(value);
@@ -407,7 +447,9 @@ export function formatDetail(field: DetailField, value: DetailValue, config: Vou
  * không hiện: năm khung đầy dấu "—" che mất năm dòng có nghĩa. Phiếu nháp còn thiếu
  * trường bắt buộc thì nói ra ở đây, trước khi người lập bấm trình rồi bị từ chối.
  */
-export function VoucherDetailsView({ config, details, variant, draft, title = "Thông tin bổ sung" }: {
+export function VoucherDetailsView({ config, details, variant, draft, title = "Thông tin bổ sung", foldable }: {
+  /** Thu gọn được (mặc định đóng), mũi tên ở tiêu đề — màn kiểm đếm dài, các khối phụ đóng sẵn. */
+  foldable?: boolean;
   config: VoucherFormConfig | undefined;
   details: Details | undefined;
   variant?: string | null;
@@ -415,6 +457,7 @@ export function VoucherDetailsView({ config, details, variant, draft, title = "T
   draft?: boolean;
   title?: string;
 }) {
+  const [open, setOpen] = useState(!foldable);
   if (!config) return null;
   const values = details ?? {};
   const all = visibleSections(config, variant);
@@ -424,9 +467,13 @@ export function VoucherDetailsView({ config, details, variant, draft, title = "T
     .filter((s) => s.fields.length);
   if (!sections.length && !(draft && missing.length)) return null;
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
-      <CardContent className="space-y-5">
+    <Card className={foldable ? cn("gap-0 py-0", open && "pb-4") : undefined}>
+      <CardHeader className={foldable ? "px-4 py-3" : "pb-2"}>
+        {foldable ? <StepTitle title={title} open={open} onToggle={() => setOpen(!open)} />
+          : <CardTitle className="text-sm font-semibold">{title}</CardTitle>}
+      </CardHeader>
+      {open ? (
+      <CardContent className={cn("space-y-5", foldable && "px-4")}>
         {draft && missing.length ? (
           <p className="bg-warning-subtle text-warning-text rounded-md px-3 py-2 text-sm">
             Còn thiếu {missing.length} trường bắt buộc trước khi trình: {missing.map((f) => f.label).join(", ")}.
@@ -446,6 +493,7 @@ export function VoucherDetailsView({ config, details, variant, draft, title = "T
           </div>
         ))}
       </CardContent>
+      ) : null}
     </Card>
   );
 }
@@ -542,7 +590,7 @@ export function LineDetailsButton({ config, value, onChange, schoolId, title, co
   const [extraDraft, setExtraDraft] = useState<Record<string, string>>({});
   const fields = useMemo(() => config?.line ?? [], [config]);
   const tables = Object.entries(config?.lineTables ?? {});
-  const lookups = useLookups(schoolId, false, fields.filter((f) => f.kind === "ref").map((f) => f.resource ?? ""));
+  const lookups = useLookups(schoolId, false);
   const extraList = extras ?? [];
   if (!extraList.length && (!config || (!fields.length && !tables.length))) return null;
   const filled = fields.filter((f) => value?.[f.key] != null).length + tables.filter(([k]) => Array.isArray(value?.[k]) && (value?.[k] as any[]).length).length

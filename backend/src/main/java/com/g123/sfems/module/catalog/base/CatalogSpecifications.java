@@ -29,6 +29,8 @@ public final class CatalogSpecifications {
             Specification<T> spec = switch (criterion.field()) {
                 case "id" -> idSpec(criterion);
                 case "code" -> textSpec("code", criterion);
+                // Khoá hệ thống (312) — chỉ danh mục SystemKeyed có cột này.
+                case "systemKey" -> (root, query, cb) -> cb.equal(root.get("systemKey"), criterion.value());
                 case "name" -> textSpec("name", criterion);
                 case "note" -> textSpec("note", criterion);
                 case "active" -> activeSpec(criterion);

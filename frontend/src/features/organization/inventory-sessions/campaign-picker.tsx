@@ -105,7 +105,7 @@ export function CampaignPickerField({ control, name, label, hint, current, onPic
                           return (
                             <TableRow key={c.id} className={cn("group/row", LIFT_ROW, "h-12 cursor-pointer", active && "bg-primary/10 hover:bg-primary/10")} onClick={() => pick(c)}>
                               <TableCell className={cn("truncate px-4 font-medium", active && "text-primary")} title={nameOf(c)}>{nameOf(c)}</TableCell>
-                              <TableCell className="text-muted-foreground truncate px-4" title={c.managingBody?.name}>{c.managingBody?.name ?? "—"}</TableCell>
+                              <TableCell className="text-muted-foreground truncate px-4" title={c.managingBody?.name}>{c.managingBody?.name ?? "Không rõ"}</TableCell>
                               <TableCell className="px-4 tabular-nums">{formatPlainDate(c.cutoffDate)}</TableCell>
                               <TableCell className={cn("px-4 tabular-nums", c.overdue && "text-destructive font-medium")}>
                                 {formatPlainDate(c.deadline)}

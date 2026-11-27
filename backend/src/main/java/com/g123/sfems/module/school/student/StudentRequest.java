@@ -23,7 +23,7 @@ public record StudentRequest(
         @Text(value = FieldRule.CODE, label = "Mã học sinh")
         String code,
         @NotBlank(message = "Vui lòng nhập họ và tên")
-        @Text(value = FieldRule.PERSON_NAME, label = "Họ và tên")
+        @Text(value = FieldRule.PERSON_NAME, label = "Họ và tên", min = 2)
         String name,
         @Num(value = NumberRule.COUNT, label = "Thứ tự") Integer sortOrder,
         Boolean active,

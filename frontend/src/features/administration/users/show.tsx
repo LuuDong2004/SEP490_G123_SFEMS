@@ -68,11 +68,11 @@ export const UserShow = () => {
             <div className={GRID}>
               <ReadField label="Loại tài khoản">{record ? USER_TYPE_LABELS[record.userType] : null}</ReadField>
               {record && record.userType !== "SYSTEM" ? (
-                <ReadField label="Chức vụ">{positionLabel(record.userType, record.profile?.position) ?? "—"}</ReadField>
+                <ReadField label="Chức vụ">{positionLabel(record.userType, record.profile?.position) ?? null}</ReadField>
               ) : null}
-              <ReadField label="Chức danh">{record?.profile?.jobTitle || "—"}</ReadField>
+              <ReadField label="Chức danh">{record?.profile?.jobTitle || null}</ReadField>
               {record?.userType === "SO" ? (
-                <ReadField label="Điện thoại cơ quan">{record.profile?.workPhone || "—"}</ReadField>
+                <ReadField label="Điện thoại cơ quan">{record.profile?.workPhone || null}</ReadField>
               ) : null}
               {record?.userType === "SYSTEM" ? (
                 <>
@@ -126,7 +126,7 @@ export const UserShow = () => {
           </FormSection>
 
           <p className="text-muted-foreground flex flex-wrap gap-x-6 text-xs">
-            <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "—"}</span></span>
+            <span>Tạo lúc <span className="text-foreground">{record?.createdAt ? formatDateTime(record.createdAt) : "không rõ"}</span></span>
             <span>Sửa lần cuối <span className="text-foreground">{formatEditedAt(record)}</span></span>
           </p>
         </FormPanel>

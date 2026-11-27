@@ -19,7 +19,8 @@ export function VoucherTwoColumn({ main, side }: { main: ReactNode; side: ReactN
     <div className="grid w-full items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="grid min-w-0 gap-4">{main}</div>
       {/* Thẻ tóm tắt là của màn hình làm việc — bản in chỉ có chứng từ. */}
-      <aside data-print="hide" className="grid gap-4 lg:sticky lg:top-16">{side}</aside>
+      {/* `content-start`: thẻ tóm tắt cao theo nội dung — không kéo giãn thành một khung trắng dài bằng cột trái. */}
+      <aside data-print="hide" className="grid content-start gap-4 lg:sticky lg:top-16">{side}</aside>
     </div>
   );
 }
@@ -29,13 +30,29 @@ export function VoucherTwoColumn({ main, side }: { main: ReactNode; side: ReactN
  * buộc", "3/7 mục". Không có dòng phụ đề dưới tiêu đề: năm khối là năm dòng chữ nhỏ không ai đọc. Các khối xếp từ trên xuống
  * theo thứ tự điền — không đánh số, không thụt lề: cột số bên trái chỉ ăn chỗ và làm lệch mép các ô.
  */
-export function StepTitle({ title, aside, hint }: {
+export function StepTitle({ title, aside, hint, open, onToggle }: {
   title: string;
+  /** Có `onToggle` = khối thu gọn được: tiêu đề thành nút, mũi tên xoay theo `open`. */
+  open?: boolean;
+  onToggle?: () => void;
   /** Trạng thái ngắn của khối ("3 tài sản", "2/7 mục") — hiện thẳng. */
   aside?: ReactNode;
   /** Lời giải thích ("không bắt buộc", "đính kèm được sau khi lưu nháp") — thành dấu "?" cạnh tên khối. */
   hint?: ReactNode;
 }) {
+  if (onToggle) {
+    return (
+      <h3 className="flex min-w-0 items-center gap-2 text-base leading-6 font-semibold">
+        <button type="button" onClick={onToggle} aria-expanded={open}
+          className="hover:text-primary -ml-1 flex min-w-0 items-center gap-1.5 rounded-md px-1 text-left transition-colors">
+          <ChevronRight className={cn("text-muted-foreground size-4 shrink-0 transition-transform", open && "rotate-90")} />
+          {title}
+        </button>
+        {hint ? <HelpHint>{hint}</HelpHint> : null}
+        {aside ? <span className="text-muted-foreground text-xs font-normal">{aside}</span> : null}
+      </h3>
+    );
+  }
   return (
     <h3 className="flex min-w-0 items-center gap-2 text-base leading-6 font-semibold">
       {title}
@@ -70,7 +87,7 @@ export function SideFact({ label, children }: { label: string; children: ReactNo
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="text-muted-foreground shrink-0">{label}:</span>
-      <span className="min-w-0 text-end font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">—</span>}</span>
+      <span className="min-w-0 text-end font-medium break-words">{children ?? <span className="text-muted-foreground font-normal">Chưa khai</span>}</span>
     </div>
   );
 }
