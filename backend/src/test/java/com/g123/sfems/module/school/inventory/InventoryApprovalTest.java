@@ -3,6 +3,7 @@ package com.g123.sfems.module.school.inventory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import com.g123.sfems.domain.security.user.User;
@@ -284,8 +285,11 @@ class InventoryApprovalTest {
         return counted;
     }
 
-    /** Cán bộ trình, hiệu trưởng duyệt hết các bước của luồng duyệt trường. */
+    /** Cán bộ ghi kết luận của tổ (bắt buộc trước khi trình), trình, rồi hiệu trưởng duyệt hết các bước của luồng duyệt trường. */
     private void submitAndApprove(long id) throws Exception {
+        body(call(maker, patch(API + "/" + id).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(
+                Map.of("concludedBy", "Nguyễn Văn An", "conclusion", "Đã kiểm đủ thiết bị, đề nghị ghi kết quả vào sổ.")))), 200);
+        reset();
         JsonNode state = body(call(maker, post(API + "/" + id + "/submit")), 200);
         reset();
         for (int step = 0; step < 3 && "PENDING".equals(state.path("status").asText()); step++) {

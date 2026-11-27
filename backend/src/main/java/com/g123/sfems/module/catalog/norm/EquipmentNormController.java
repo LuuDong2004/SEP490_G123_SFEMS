@@ -87,7 +87,7 @@ public class EquipmentNormController extends CatalogController<
             throw new FieldValidationException("file", "Chọn tệp để nhập");
         }
         if (file.getSize() > MAX_UPLOAD) {
-            throw new FieldValidationException("file", "Tệp lớn hơn 10 MB — chia nhỏ ra");
+            throw new FieldValidationException("file", "Tệp tối đa 10 MB");
         }
         byte[] content;
         try {
@@ -123,7 +123,7 @@ public class EquipmentNormController extends CatalogController<
             throw new FieldValidationException("file", "Chọn tệp để đọc");
         }
         if (file.getSize() > MAX_UPLOAD) {
-            throw new FieldValidationException("file", "Tệp lớn hơn 10 MB");
+            throw new FieldValidationException("file", "Tệp tối đa 10 MB");
         }
         try {
             return documents.run(standardId, file.getOriginalFilename(), file.getBytes(), dryRun);

@@ -96,7 +96,7 @@ public class DataTransferController {
             throw new FieldValidationException("file", "Chọn tệp để nhập");
         }
         if (file.getSize() > MAX_UPLOAD) {
-            throw new FieldValidationException("file", "Tệp lớn hơn 10 MB — chia nhỏ ra");
+            throw new FieldValidationException("file", "Tệp tối đa 10 MB");
         }
         try {
             return file.getBytes();
